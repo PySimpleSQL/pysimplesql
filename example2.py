@@ -26,7 +26,7 @@ db = ss.Database(':memory:', 'example2.sql', win)      # <=== load the database 
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events!
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         print('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         break
