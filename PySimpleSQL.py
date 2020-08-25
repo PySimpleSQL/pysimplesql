@@ -903,8 +903,4 @@ def record(table, field, control=sg.I, size=None,  name='' ):
     return layout
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    db = Database('viavinyl.db')
-    db.auto_add_tables()
-    db.auto_add_relationships()
+
