@@ -102,3 +102,38 @@ ss.record('Restaurant', 'fkType', sg.Combo)]
 ```
 If you remember from the code above, the database had a constraint on Restaurant.fkType to Type.pkType.  This means that PySimpleSQL will automatically handle updating this combobox element with all of the entries from the Type table!
 Furthering that, the functions ss.set_default_text_size() and ss.set_default_control_size() can be used before calls to ss.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of record() will override the default control size, for plenty of flexibility!
+
+### Binding the window to the element
+Referencing the example above, the window and database were bound with this line:
+```python
+db = ss.Database(':memory:', 'example2.sql', win)
+```
+The above in a one-shot approach, and could have been written as:
+```python
+db=ss.Database(':memory:', 'example2.sql') # Load in the database
+db.auto_bind(win) # automatically bind the window to the database
+```
+
+Furthering that, db.auto_bind() could have been done like this:
+```python
+db.auto_add_tables()
+self.auto_add_relationships()
+self.auto_map_controls(win)
+self.auto_map_events(win)
+self.requery_all()
+self.update_controls()
+```
+
+And finally, that brings us to the lower-level functions for binding the database. The above could have been done manually like so:
+```python
+db.add_table('Restaurant','pkRestaurant','name') # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
+db.add_table('Item','pkItem','name') # Note: While I personally prefer to use the pk{Table} and fk{Table} naming
+db.add_table('Type','pkType','name') #       conventions, it's not necessary for pySimpleSQL
+db.add_table('Menu','pkMenu','name') #       These could have just as well been restaurantID and itemID for example
+db.add_relationship()...
+db.map_control()...
+db.map_event()...
+db.update_controls()...
+```
+
+As you can see, there is a lot of power in the auto functionality of PySimpleSQL, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual mapping!
