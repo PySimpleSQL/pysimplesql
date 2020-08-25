@@ -18,11 +18,11 @@ sub_layout = [
     ss.record_actions('Item', False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.record_navigation('Restaurant',protect=True,search=True)]
+layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database(':memory:', 'restaurants.sql', win)      # <=== load the database and bind it to the window
+db = ss.Database(':memory:', 'example2.sql', win)      # <=== load the database and bind it to the window
 
 while True:
     event, values = win.read()

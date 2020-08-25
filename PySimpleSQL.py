@@ -190,7 +190,6 @@ class Table:
                 self.db[rel.child].requery()
 
     def first(self):
-        print('First!')
         self.prompt_save()
         self.current_index = 0
         self.requery_dependents()
@@ -224,13 +223,10 @@ class Table:
         if string == '':
                 return
 
-        print(f'Searching for {string}')
-
         self.prompt_save()
         # First lets make a search order.. TODO: remove this hard coded garbage
 
         for o in self.search_order:
-            print(f'searching in {o}')
             # Perform a search for str, from the current position to the end and back
             for i in list(range(self.current_index+1, len(self.rows))) + list(range(0, self.current_index)):
                 if o in self.rows[i].keys():
@@ -245,7 +241,6 @@ class Table:
         # TODO: Play sound?
 
     def set_by_pk(self, pk, pk_field):
-        print(f'Setting {self.table} to {pk}')
         i = 0
         for r in self.rows:
             if r[pk_field] == pk:
@@ -315,7 +310,7 @@ class Table:
             q += f'({fields}) VALUES ({values});'
         else:
             q += 'DEFAULT VALUES'
-        print(q)
+
         cur=self.con.execute(q)
         self.con.commit()
 
@@ -356,8 +351,6 @@ class Table:
 
             # Add the where clause
             q += f' WHERE {self.pk_field}={self.get_current(self.pk_field)};'
-
-            print(f'{q} {tuple(values)}')
             self.con.execute(q, tuple(values))
 
             # callback
@@ -390,7 +383,6 @@ class Table:
             if not self.before_delete(self):
                 return
 
-        print(f'In Table.delete_record')
         if children:
             msg = 'Are you sure you want to delete this record? Keep in mind that all children will be deleted as well!'
         else:
@@ -403,7 +395,7 @@ class Table:
 
         # Delete child records first!
         if children:
-            for qry in self.db.queries:
+            for qry in self.db.tables:
                 for r in self.db[qry].relationships:
                     if r['dbParent'] == self:
                         q = f'DELETE FROM {self.db[qry].table} WHERE {r["fk"]}={self.get_current(self.pk_field)}'
@@ -426,7 +418,7 @@ class Table:
         self.requery(False)  # Don't move to the first record
         self.current_index=self.current_index # force the current_index to be in bounds! todo should this be done in requery?
         self.requery_dependents()
-        print(f'Delete query executed: {q}')
+
         logger.info(f'Delete query executed: {q}')
         self.requery(select_first=False)
         self.db.update_controls()
@@ -503,7 +495,6 @@ class Database:
     def get_parent(self, table):
         for r in self.relationships:
             if r.child == table and r.requery_table:
-                print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
                 return r.parent
         return ''
 
@@ -633,7 +624,6 @@ class Database:
         last_index=len(self.tables)-1
         msg=False
         for t in tables:
-            print('SAVING TABLE ' + t)
             if i==last_index:
                 msg=True
             self[t].save_record(msg)
@@ -641,7 +631,6 @@ class Database:
 
     def update_controls(self,table=''):  # table type: str
         # TODO Fix bug where listbox first element is ghost selected
-        print(f'UPDATING CONTROLS {"("+table+")" if table!="" else "" }')
         logger.info('Updating controls...')
         # Update the current values
         # d= dictionary (the control map dictionary)
@@ -719,9 +708,7 @@ class Database:
         # Note that we also must disable controls if there are no records!
         win = self.window
         for e in self.eventMap:
-            print(e['event'])
             if e['event']=='btnEditProtect':
-                print('EDIT PROTECT')
                 self.disable_controls(self.window['btnEditProtect'].metadata)
                 win['btnSaveRecord'].update(disabled=self.window['btnEditProtect'].metadata)
                 for t in self.tables:
@@ -739,7 +726,6 @@ class Database:
 
             # Disable insert on children with no parent records
             parent=self.get_parent(t)
-            print(f'Xupdate_controls table:{t}, parent:{parent}')
             if len(parent)!=0:
                 if len(self[parent].rows) == 0:
                     if f'Event.{t}.Insert' in win.AllKeysDict.keys():
@@ -764,7 +750,6 @@ class Database:
         if event:
             for e in self.eventMap:
                 if e['event'] == event:
-                    print(f'Processing event {event}')
                     logger.info(f'Executing event {event} via event mapping.')
                     e['function']()
                     return True
