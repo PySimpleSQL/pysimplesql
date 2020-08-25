@@ -1,12 +1,8 @@
 #!/usr/bin/python3
 import PySimpleGUI as sg
 import PySimpleSQL as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
-import logging
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 # Define our layout. We will use the ss.record convenience function to create the controls
-
 layout = [
     ss.record('Restaurant', 'name'),
     ss.record('Restaurant', 'location'),
