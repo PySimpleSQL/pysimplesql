@@ -320,7 +320,7 @@ class Table:
         # and move to it
         self.requery()  # Don't move to the first record TODO: Limit this the the first or last record??
         self.set_by_pk(pk, self.pk_field)
-        #self.requery_dependents()
+        self.requery_dependents()
 
         self.db.update_controls()
         self.db.window.refresh()
