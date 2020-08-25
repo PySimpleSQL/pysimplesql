@@ -60,9 +60,8 @@ To get the easiest experience with PySimpleSQL, the magic is in the database cre
 The automatic functionality of PySimpleSQL relies on just a couple of things:
 - foreign key constraints on the database tables
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh in the GUI
-See sample below:
 - PySimpleGUI control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is supported as well. ss.record() is a convenience function/"custom control" to make adding records quick and easy!
-
+- The field 'name', (or the 2nd parameter in the absense of a 'name' field) is what will display in comboxes for foreing key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of PySimpleSQL is in having everything happen automatically!
 
 ```sql
 CREATE TABLE "Book"(
@@ -80,6 +79,26 @@ CREATE TABLE "Chapter"(
     -- note: ON UPDATE CASCADE only needed if you want automatic GUI refreshing
     -- (i.e. not every constraint needs them, like fields that will populate comboboxes for example)
     FOREIGN KEY(fkBook) REFERENCES Book(pkBook) ON UPDATE CASCADE
-);```
+);
+```
 
+### But wait, there's more!
+The above is literally all you have to know for working with simple and even moderate databases.  However, there is a lot of power in learning what is going on under the hood!  Starting with the example above, we will work backwards to explain what is available to you for more control.
 
+#### PySimpleGUI elements:
+Referencing the example above, look at the following:
+```python
+# convience function for rapid front-end development
+ss.record('Restaurant', 'name') # Table name, field name parameters
+
+# could have been written like this:
+[sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1))]
+```
+As you can see, the ss.record() convenience function simplifies making record controls that adhere to the PySimpleSQL naming convention of Table.field.
+In fact, there is even more you can do with this. The ss.record() function can take a PySimpleGUI control element as a parameter as well, overriding the defaul Input() element.
+See this code which creates a combobox instead:
+```python
+ss.record('Restaurant', 'fkType', sg.Combo)]
+```
+If you remember from the code above, the database had a constraint on Restaurant.fkType to Type.pkType.  This means that PySimpleSQL will automatically handle updating this combobox element with all of the entries from the Type table!
+Furthering that, the functions ss.set_default_text_size() and ss.set_default_control_size() can be used before calls to ss.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of record() will override the default control size, for plenty of flexibility!
