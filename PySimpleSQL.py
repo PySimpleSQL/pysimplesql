@@ -153,7 +153,8 @@ class Table:
             after_update  Alias for after_save
             before_delete called before a record is deleted.  The delete will move forward if the callback returns true, else the transaction will rollback
             after_delete  called after a record is deleted. The delete will commit to the database if the callback returns true, else it will rollback the transaction
-
+            before_search called before searching.  The search will continue if the callback returns True
+            after_search  called after a search has been performed.  The record change will undo if the callback returns False
         :param callback: The name of the callback, from the list above
 
         :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance, and return True or False
@@ -162,7 +163,8 @@ class Table:
         callback=callback.lower()
         supported=[
             'before_save', 'after_save', 'before_delete', 'after_delete',
-            'before_update', 'after_update' # Aliases for before/after_save
+            'before_update', 'after_update', # Aliases for before/after_save
+            'before_search', 'after_search'
         ]
         if callback in supported:
             # handle our convenience aliases
@@ -311,6 +313,11 @@ class Table:
         :return: None
         """
 
+        # callback
+        if 'before_search' in self.callbacks.keys():
+            if not self.callbacks['before_search'](self.db, self.db.window):
+                return
+
         # See if the string is a control name
         if string in self.db.window.AllKeysDict.keys():
             string=self.db.window[string].get()
@@ -326,9 +333,18 @@ class Table:
                 if o in self.rows[i].keys():
                     if self.rows[i][o]:
                         if string.lower() in self.rows[i][o].lower():
+                            old_index=self.current_index
                             self.current_index = i
                             self.requery_dependents()
                             self.db.update_controls()
+
+                            # callback
+                            if 'after_search' in self.callbacks.keys():
+                                if not self.callbacks['after_search'](self.db, self.db.window):
+                                    self.current_index=old_index
+                                    self.requery_dependents()
+                                    self.db.update_controls(self.table)
+                                    return
         return False
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
@@ -412,7 +428,7 @@ class Table:
         # self.selector={'control':_listBox,'pk':_pk,'field':_field}
         # TODO: any other controls??  Maybe a slider, combobox, etc?
         if type(control) != sg.PySimpleGUI.Listbox:
-            throw RuntimeError(f'AddSelector error: Not a supported Listbox control.')
+            raise RuntimeError(f'AddSelector error: Not a supported Listbox control.')
 
         logger.info(f'Adding {control.Key} as a selector for the {self.table} table.')
         self.selector = control
@@ -479,7 +495,7 @@ class Table:
         if not len(self.rows):
             return
 
-        # callback
+       # callback
         if 'before_save' in self.callbacks.keys():
             if not self.callbacks['before_save'](self.db,self.db.window):
                 self.db.update_controls(self.table)
@@ -716,10 +732,9 @@ class Database:
         return ''
 
 
-    # Build Schema
-    # TODO: Should this be called from the constructor if  flag is set?
+
     def auto_add_tables(self):
-        logger.info('Auto generating database schema...')
+        logger.info('Automatically adding tables from the sqlite database...')
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.con.execute(q)
         records = cur.fetchall()  # TODO: new version of this w/o cur
@@ -817,7 +832,8 @@ class Database:
                     self.map_event(control, event_map[fctn])
             elif control == 'btnEditProtect':
                 self.map_event(control, self.edit_protect)
-            elif control == 'btnSaveRecord':
+            elif 'btnSaveRecord' in control: # also covers btnSaveRecord0,1,2 et
+                # all save buttons essentially save everything (I.e. not table related, but database wide)
                 self.map_event(control,self.save_records)
 
 
