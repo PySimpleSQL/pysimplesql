@@ -115,9 +115,16 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ![image](https://user-images.githubusercontent.com/70232210/91227678-e8c73700-e6f4-11ea-83ee-4712e687bfb4.png)
 
+Like PySimpleGUI, pySimpleSQL supports subscript notation, so your code can access the data easily in the format of db['Table']['field'].
+In the example above, you could get the current item selection with the following code:
+```python
+selected_restaurant=db['Restaurant'].['name']
+selected_item=db['Item']['name']
+```
+
 ### Any Questions?  It's that simple.
 
-To get the easiest experience with PySimpleSQL, the magic is in the database creation.
+To get the smoothest experience with PySimpleSQL, the magic is in the database creation.
 The automatic functionality of PySimpleSQL relies on just a couple of things:
 - foreign key constraints on the database tables
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh in the GUI
@@ -162,10 +169,9 @@ See this code which creates a combobox instead:
 ```python
 ss.record('Restaurant', 'fkType', sg.Combo)]
 ```
-If you remember from the code above, the database had a constraint on Restaurant.fkType to Type.pkType.  This means that PySimpleSQL will automatically handle updating this combobox element with all of the entries from the Type table!
 Furthering that, the functions ss.set_text_size() and ss.set_control_size() can be used before calls to ss.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of record() will override the default control size, for plenty of flexibility!
 
-Place the two functions below just abovethe layout definition shown in the example above and then run the code again
+Place those two functions just above the layout definition shown in the example above and then run the code again
 ```python
 ss.set_text_size(10,1)
 ss.set_control_size(50,1)
@@ -217,10 +223,12 @@ layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)
 ![image](https://user-images.githubusercontent.com/70232210/91288080-8e62c080-e75e-11ea-8438-86035d4d6609.png)
 
 
+
+
 ### Binding the window to the element
-Referencing the example above, the window and database were bound with this line:
+Referencing the same example above, the window and database were bound with this one single line:
 ```python
-db = ss.Database(':memory:', 'example2.sql', win)
+db = ss.Database(':memory:', 'example2.sql', win) # Load in the database and bind it to win
 ```
 The above in a one-shot approach, and could have been written as:
 ```python
@@ -228,7 +236,7 @@ db=ss.Database(':memory:', 'example2.sql') # Load in the database
 db.auto_bind(win) # automatically bind the window to the database
 ```
 
-Furthering that, db.auto_bind() could have been done like this:
+db.auto_bind() likewise can be peeled back to it's own components and could have been written like this:
 ```python
 db.auto_add_tables()
 self.auto_add_relationships()
@@ -238,16 +246,55 @@ self.requery_all()
 self.update_controls()
 ```
 
-And finally, that brings us to the lower-level functions for binding the database. The above could have been done manually like so:
+And finally, that brings us to the lower-level functions for binding the database.
+This is how you can MANUALLY map tables, relationships, controls and events to the database.
+The above auto_map_* functions could have been manually achieved as follows:
 ```python
+# Add the tables you want PySimpleSQL to handle.  The function db.auto_add_tables() will add all tables found in the database 
+# by default.  However, you may only need to work with a couple of tables in the database, and this is how you would do that
 db.add_table('Restaurant','pkRestaurant','name') # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
 db.add_table('Item','pkItem','name') # Note: While I personally prefer to use the pk{Table} and fk{Table} naming
 db.add_table('Type','pkType','name') #       conventions, it's not necessary for pySimpleSQL
 db.add_table('Menu','pkMenu','name') #       These could have just as well been restaurantID and itemID for example
-db.add_relationship()...
-db.map_control()...
-db.map_event()...
-db.update_controls()...
+
+# Set up relationships
+# Notice below that the first relationship has the last parameter to True.  This is what the ON UPDATE CASCADE constraint accomplishes.
+# Basically what it means is that then the Restaurant table is requeries, the associated Item table will automatically requery right after.
+# This is what allows the GUI to seamlessly update all of the control elements when records are changed!
+# The other relationships have that parameter set to False - they still have a relationship, but they don't need requeried automatically
+db.add_relationship('LEFT JOIN', 'Item', 'fkRestaurant', 'Restaurant', 'pkRestaurant', True) 
+db.add_relationship('LEFT JOIN', 'Restaurant', 'fkType', 'Type', 'pkType', False)
+db.add_relationship('LEFT JOIN', 'Item', 'fkMenu', 'Menu', 'pkMenu', False)
+
+# Map our controls
+# Note that you can map any control to any Table/field combination that you would like.
+# The {Table}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of PySimpleSQL!
+db.map_control(win['Restaurant.name'],'Restaurant','name')
+db.map_control(win['Restaurant.location'],'Restaurant','location')
+db.map_control(win['Restaurant.fkType'],'Type','pkType')
+db.map_control(win['Item.name'],'Item','name')
+db.map_control(win['Item.fkRestaurant'],'Item','fkRestaurant')
+db.map_control(win['Item.fkMenu'],'Item','fkMenu')
+db.map_control(win['Item.price'],'Item','price')
+db.map_control(win['Item.description'],'Item','description')
+
+# Map out our events
+# In the above example, this was all done in the background, as we used convenience functions to add record navigation buttons.
+# However, we could have made our own buttons and mapped them to events.  Below is such an example
+db.map_event('Edit.Restaurant.First',db['Restaurant'].First) # button control with the key of 'Edit.Restaurant.First'
+                                                             # mapped to the Table.First method
+db.map_event('Edit.Restaurant.Previous',db['Restaurant'].Previous)
+db.map_event('Edit.Restaurant.Next',db['Restaurant'].Next)
+db.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
+# and so on...
+# In fact, you can use the event mapper however you want to, mapping control names to any function you would like!
+# Event mapping will be covered in more detail later...
+
+# This is the magic function which populates all of the controls we mapped!
+# For your convience, you can optionally use the function db.set_user_update_function() to set a callback function
+# that will be called every time the controls are updated.  This allows you to do custom things like update
+# a preview image, change control parameters or just about anythong you want!
+db.update_controls()
 ```
 
-As you can see, there is a lot of power in the auto functionality of PySimpleSQL, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual mapping!
+As you can see, there is a lot of power in the auto functionality of PySimpleSQL, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
