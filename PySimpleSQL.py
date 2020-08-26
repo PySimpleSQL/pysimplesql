@@ -125,6 +125,21 @@ class Table:
         self.search_order=order
 
     def set_callback(self,callback,fctn):
+        """
+        Set table callbacks. A runtime error will be thrown if the callback is not supported.
+        The following callbacks are supported:
+            before_save   called before a record is saved. The save will continue if the callback returns true, or the record will rollback if the callback returns false.
+            after_save    called after a record is saved. The save will commit to the database if the callback returns true, else it will rollback the transaction
+            before_update Alias for before_save
+            after_update  Alias for after_save
+            before_delete called before a record is deleted.  The delete will move forward if the callback returns true, else the transaction will rollback
+            after_delete  called after a record is deleted. The delete will commit to the database if the callback returns true, else it will rollback the transaction
+
+        :param callback: The name of the callback, from the list above
+
+        :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance, and return True or False
+        :return: None
+        """
         callback=callback.lower()
         supported=[
             'before_save', 'after_save', 'before_delete', 'after_delete',
@@ -457,6 +472,16 @@ class Database:
         return self.tables[key]
 
     def set_callback(self, callback, fctn):
+        """
+       Set @Database callbacks. A runtime error will be thrown if the callback is not supported.
+       The following callbacks are supported:
+           update_controls Called after controls are updated via @Database.update_controls. This allows for other GUI manipulation on each update of the GUI
+
+       :param callback: The name of the callback, from the list above
+
+       :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance
+       :return: None
+       """
         callback = callback.lower()
         supported = [
             'update_controls'
