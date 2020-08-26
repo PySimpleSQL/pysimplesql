@@ -28,11 +28,16 @@ def escape(query_string):
 class Row:
     """
     @Row class. This is a convenience class used by listboxes and comboboxes to display values
-    while keeping them linked to a primary key
+    while keeping them linked to a primary key.
+    You may have to cast this to a str() to get the value.  Of course, there are methods to get the
+    value or primary key either way.
     """
     def __init__(self, pk, val):
         self.pk = pk
         self.val = val
+
+    def __repr__(self):
+        return self.val
 
     def __str__(self):
         # This override is so that comboboxes can display the value
@@ -77,9 +82,17 @@ class Table:
     """
     def __init__(self, db_reference, con, table, pk_field, description_field, query='', order=''):
         """
-        :param db_reference: A reference to the Database object
-        :type Database
+
+        :param db_reference: This is a reference to the @ Database object, for convenience
+        :param con:  This is a reference to the sqlie connection, also for convience
+        :param table: Name (string) of the table
+        :param pk_field: The name of the field containing the primary key for this table
+        :param description_field: The name of the field used for display to users (normally in a combobox or listbox)
+        :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {table}"
+        :param order: The sort order of the returned query
         """
+        # todo finish the order processing!
+
         # No query was passed in, so we will generate a generic one
         if query == '':
             query = f'SELECT * FROM {table}'
@@ -122,6 +135,12 @@ class Table:
             self._current_index = val
 
     def set_search_order(self,order):
+        """
+        Set the search order when using the search box.
+        This is a list of fields to be searched, in order.
+        :param order: A list of field names to search
+        :return: None
+        """
         self.search_order=order
 
     def set_callback(self,callback,fctn):
@@ -154,7 +173,10 @@ class Table:
             raise RuntimeError( f'Callback "{callback}" not supported.')
 
     def prompt_save(self):
-        # Check for changes and then prompt the user to save if needed
+        """
+        Prompts the user if they want to save when saving a record that has been changed.
+        :return: True or False on whether the user intends to save the record
+        """
         # TODO: children too?
         if self.current_index is None or self.rows == []: return
         return  # hack this in for now
@@ -186,6 +208,14 @@ class Table:
 
 
     def requery(self, select_first=True, filtered=True):
+        """
+        Requeries the table
+        The @Table object maintains an internal representation of the actual database table.
+        The requery method will requery the actual database  and sync the @Table objects to it
+        :param select_first: If true, the first record will be selected after the requery
+        :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
+        :return: None
+        """
         print(f'Requerying {self.table}')
         join = ''
         if filtered:
@@ -202,24 +232,50 @@ class Table:
         if select_first:
             self.first()
             
-    def requery_dependents(self):        
+    def requery_dependents(self):
+        """
+        Requery parent tables as defined by the relationships of the table
+
+        :return: None
+        """
         for rel in self.db.relationships:
             if rel.parent == self.table and rel.requery_table:
                 self.db[rel.child].requery()
 
     def first(self):
+        """
+        Move to the first record of the table
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
+        @Table.set_by_pk
+        :return: None
+        """
         self.prompt_save()
         self.current_index = 0
         self.requery_dependents()
         self.db.update_controls()
 
     def last(self):
+        """
+        Move to the last record of the table
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
+        @Table.set_by_pk
+        :return: None
+        """
         self.prompt_save()
         self.current_index = len(self.rows)-1
         self.requery_dependents()
         self.db.update_controls()
 
     def next(self):
+        """
+        Move to the next record of the table
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
+        @Table.set_by_pk
+        :return: None
+        """
         self.prompt_save()
         if self.current_index < len(self.rows)-1:
             self.current_index += 1
@@ -227,6 +283,14 @@ class Table:
             self.db.update_controls()
 
     def previous(self):
+        """
+        Move to the previous record of the table
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
+        @Table.set_by_pk
+
+        :return: None
+        """
         self.prompt_save()
         if self.current_index > 0:
             self.current_index -= 1
@@ -234,6 +298,18 @@ class Table:
             self.db.update_controls()
         
     def search(self, string):
+        """
+        Move to the next record in the search table that contains @string.
+        Successive calls will search from the current position, and wrap around back to the beginning.
+        The search order from @Table.set_search_order() will be used.  If the search order is not set by the user,
+        it will default to the 'name' field, or the 2nd column of the table.
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
+        @Table.set_by_pk
+
+        :param string: The search string
+        :return: None
+        """
 
         # See if the string is a control name
         if string in self.db.window.AllKeysDict.keys():
@@ -258,10 +334,20 @@ class Table:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_pk(self, pk, pk_field):
+    def set_by_pk(self,pk):
+        """
+        Move to the record with this primary key
+        This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
+        and then the current record selection updated regardless of the new sort order.
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
+        @Table.set_by_pk
+        :param pk: The primary key to move to
+        :return: None
+        """
         i = 0
         for r in self.rows:
-            if r[pk_field] == pk:
+            if r[self.pk_field] == pk:
                 self.current_index = i
                 break
             else:
@@ -270,6 +356,15 @@ class Table:
         self.db.update_controls(self.table)
                  
     def get_current(self, field, default=""):
+        """
+        Get the current value pointed to for @field
+        You can also use indexing of the @Database object to get the current value of a field
+        I.e. db["{Table}].[{field'}]
+
+        :param field: The field you want the value of
+        :param default: A value to return if the record is blank
+        :return: The value of the field requested
+        """
         if self.rows:
             if self.get_current_row()[field] != '':
                 return self.get_current_row()[field]
@@ -279,9 +374,18 @@ class Table:
             return default
 
     def get_current_pk(self):
+        """
+        Get the primary key of the currently selected record
+        :return: the primary key
+        """
         return self.get_current(self.pk_field)
 
     def get_max_pk(self):
+        """
+        The the highest primary key for this table.
+        This can give some insight on what the next inserted primary key will be
+        :return: The maximum primary key value currently in the table
+        """
         # TODO: Maybe get this right from the table object instead of running a query?
         q = f'SELECT MAX({self.pk_field}) AS highest FROM {self.table};'
         cur = self.con.execute(q)
@@ -289,22 +393,42 @@ class Table:
         return records['highest']
     
     def get_current_row(self):
+        """
+        Get the sqlite3 row for the currently selected record of this table
+        :return: @sqlite3.row
+        """
         if self.rows:
             return self.rows[self.current_index]
 
     def add_selector(self, control):  # _listBox,_pk,_field):
+        """
+        Use a control such as a listbox as a selector item for this table.
+        This can be done via this method, or via auto_map_controls by naming the control key "selector.{Table}"
+
+        :param control: the @PySinpleGUI element used as a selector control
+        :return: None
+        """
         # Associate a listbox with this query object.  This will be used to select the appropriate record
         # self.selector={'control':_listBox,'pk':_pk,'field':_field}
-        # TODO: any other controls??  Maybe a slider?
+        # TODO: any other controls??  Maybe a slider, combobox, etc?
         if type(control) != sg.PySimpleGUI.Listbox:
-            assert f'AddSelector error: Not a supported Listbox control.'
+            throw RuntimeError(f'AddSelector error: Not a supported Listbox control.')
 
         logger.info(f'Adding {control.Key} as a selector for the {self.table} table.')
         self.selector = control
 
     def insert_record(self, field='', value=''):
+        """
+        Insert a new record. If field and value are passed, it will initially set that field to the value
+        (I.e. {Table}.name='New Record). If none are provided, the default values for the field are used, as set in the
+        database.
+        :param field: The field to set
+        :param value: The value to set (I.e "New record")
+        :return:
+        """
         # todo: you don't add a record if there isn't a parent!!!
         # todo: this is currently filtered out by enabling of the control, but it should be filtered here too!
+        # todo: bring back the values parameter
 
         fields=[]
         values=[]
@@ -336,14 +460,21 @@ class Table:
         pk = cur.lastrowid
 
         # and move to it
-        self.requery()  # Don't move to the first record TODO: Limit this the the first or last record??
-        self.set_by_pk(pk, self.pk_field)
+        self.requery()  # Don't move to the first record
+        self.set_by_pk(pk)
         self.requery_dependents()
 
         self.db.update_controls()
         self.db.window.refresh()
 
     def save_record(self, display_message=True):
+        """
+        Save the currently selected record
+        Saves any changes made via the GUI back to the database.  The before_save and after_save @callbacks will call
+        your own functions for error checking if needed!
+        :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
+        :return: None
+        """
         # Ensure that there is actually something to delete
         if not len(self.rows):
             return
@@ -383,7 +514,7 @@ class Table:
             # Lets refresh our data
             pk = self.get_current_pk()
             self.requery(False)
-            self.set_by_pk(pk, self.pk_field)
+            self.set_by_pk(pk)
             #self.requery_dependents()
             self.db.update_controls(self.table)
             logger.info(f'Record Saved: {q} {str(values)}')
@@ -392,6 +523,13 @@ class Table:
             sg.popup('Updates saved successfully!',keep_on_top=True)
     
     def delete_record(self, children=False):
+        """
+        Delete the currently selected record
+        The before_delete and after_delete callbacks are run during this process to give some control over the process
+
+        :param children: Delete child records (as defined by @Relationship that were set up) before deleting this record
+        :return: None
+        """
         # Ensure that there is actually something to delete
         if not len(self.rows):
             return
@@ -794,7 +932,7 @@ class Database:
                     # print (vars(self[k].listBox))
                     if event == self[k].selector.Key and len(self[k].rows)>0:
                         row = values[self[k].selector.Key][0]
-                        self[k].set_by_pk(row.get_pk(), self[k].pk_field)
+                        self[k].set_by_pk(row.get_pk())
                         return True
         return False
 
