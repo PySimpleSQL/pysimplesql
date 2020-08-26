@@ -100,11 +100,7 @@ class Table:
         self.rows = []
         self.search_order=[]
         self.selector = None
-
-        self.before_delete = None
-        self.after_delete = None
-        self.before_save = None
-        self.after_save = None
+        self.callbacks={}
         # self.requery(True)
 
     # Override the [] operator to retrieve fields by key
@@ -128,12 +124,19 @@ class Table:
     def set_search_order(self,order):
         self.search_order=order
 
-    def set_callbacks(self,before_delete=None,after_delete=None,before_save=None,after_save=None,controls_update=None):
-        """Set callback for actions on this table"""
-        if before_delete is not None: self.before_delete=before_delete
-        if after_delete is not None: self.after_delete = after_delete
-        if before_save is not None: self.before_save=before_save
-        if after_save is not None: self.after_save = after_save
+    def set_callback(self,callback,fctn):
+        callback=callback.lower()
+        supported=[
+            'before_save', 'after_save', 'before_delete', 'after_delete',
+            'before_update', 'after_update' # Aliases for before/after_save
+        ]
+        if callback in supported:
+            # handle our convenience aliases
+            callback='before_save' if callback=='before_update' else callback
+            callback='after_save' if callback=='after_update' else callback
+            self.callbacks[callback]=fctn
+        else:
+            raise RuntimeError( f'Callback "{callback}" not supported.')
 
     def prompt_save(self):
         # Check for changes and then prompt the user to save if needed
@@ -331,8 +334,8 @@ class Table:
             return
 
         # callback
-        if self.before_save is not None:
-            if not self.before_save(self):
+        if 'before_save' in self.callbacks.keys():
+            if not self.callbacks['before_save'](self.db,self.db.window):
                 self.db.update_controls(self.table)
                 return
 
@@ -354,8 +357,8 @@ class Table:
             self.con.execute(q, tuple(values))
 
             # callback
-            if self.after_save is not None:
-                if not self.after_save(self):
+            if 'after_save' in self.callbacks.keys():
+                if not self.callbacks['after_save'](self.db,self.db.window):
                     self.con.rollback()
                 else:
                     self.con.commit()
@@ -379,8 +382,8 @@ class Table:
             return
 
         # callback
-        if self.before_delete is not None:
-            if not self.before_delete(self):
+        if 'before_delete' in self.callbacks.keys():
+            if not self.callbacks['before_delete'](self.db,self.db.window):
                 return
 
         if children:
@@ -406,15 +409,14 @@ class Table:
         self.con.execute(q)
 
         # callback
-        if self.after_save is not None:
-            if not self.after_delete(self):
+        if 'after_delete' in self.callbacks.keys():
+            if not self.callbacks['after_delete'](self.db,self.db.window):
                 self.con.rollback()
             else:
                 self.con.commit()
         else:
             self.con.commit()
 
-        self.con.commit()
         self.requery(False)  # Don't move to the first record
         self.current_index=self.current_index # force the current_index to be in bounds! todo should this be done in requery?
         self.requery_dependents()
@@ -440,7 +442,7 @@ class Database:
         self.controlMap = []
         self.eventMap = []
         self.relationships = []
-        self.update_fctn = None
+        self.callbacks={}
         
         if sql_commands is not None:
             with open(sql_commands, 'r') as file:
@@ -453,9 +455,16 @@ class Database:
     # Override the [] operator to retrieve queries by key
     def __getitem__(self, key):
         return self.tables[key]
-    
-    def set_user_update_function(self, fctn):
-        self.update_fctn = fctn
+
+    def set_callback(self, callback, fctn):
+        callback = callback.lower()
+        supported = [
+            'update_controls'
+        ]
+        if callback in supported:
+            self.callbacks[callback] = fctn
+        else:
+            raise RuntimeError( f'Callback "{callback}" not supported.')
         
     def auto_bind(self, win):
         self.window=win  # TODO: provide another way to set this manually...
@@ -733,11 +742,11 @@ class Database:
 
 
 
-        # Run user function hook
-        if self.update_fctn is not None:
+        # Run callback
+        if 'update_controls' in self.callbacks.keys():
             # Running user update function
-            logger.info('Running user update function...')
-            self.update_fctn()
+            logger.info('Running the update_controls callback...')
+            self.callbacks['update_controls'](self,self.window)
             
     def requery_all(self):
         logger.info('Requerying all tables...')
