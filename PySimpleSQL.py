@@ -582,7 +582,11 @@ class Table:
 
 
 class Database:
-    # Create a new DB
+    """
+    @Database class
+    Maintains an internal version of the actual database
+    Tables can be accessed by key, I.e. db['Table_name"] to return a @Table instance
+    """
     # TODO: add params for automapping...
     # TODO: destructor to close connections as well (and optimize db)
     def __init__(self, sqlite3_database, sql_commands=None, win=None):
@@ -630,6 +634,14 @@ class Database:
             raise RuntimeError( f'Callback "{callback}" not supported.')
         
     def auto_bind(self, win):
+        """
+        Auto-bind the window to the database, for the purpose of control, event and relationship mapping
+        This can happen automatically on @Database creation with a parameter.
+        This function literally just groups all of the auto_* methods.  See" @Database.auto_add_tables,
+        @Database.auto_add_relationships, @Database.auto_map_controls, @Database.auto_map_events
+        :param win: The @PySimpleGUI window
+        :return:  None
+        """
         self.window=win  # TODO: provide another way to set this manually...
         self.auto_add_tables()
         self.auto_add_relationships()
@@ -640,14 +652,47 @@ class Database:
 
     # Add a Table object
     def add_table(self, table, pk_field, description_field, query='', order=''):
+        """
+        Manually add a table to the @Database
+        When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run
+        Note that @Database.auto_add_tables will do this automatically, which is also called from @Database.auto_bind
+        and even from the @Database.__init__ with a parameter
+
+        :param table: The name of the table (must match sqlite)
+        :param pk_field: The primary key field
+        :param description_field: The field to be used to display to users
+        :param query: The initial query for the table.  Set to "SELECT * FROM {Table}" if none is passed
+        :param order: The initial sort order for the query
+        :return: None
+        """
         self.tables.update({table: Table(self, self.con, table, pk_field, description_field, query, order)})
         self[table].set_search_order([description_field])  # set a default sort order
 
     def add_relationship(self, join, child, fk, parent, pk, requery_table):
+        """
+        Add a foreign key relationship between two tables of the database
+        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until tables are
+        added via @Database.add_table, and the relationship of various tables is set with this function.
+        Note that @Database.auto_add_relationships will do this automatically from the schema of the sqlite database,
+        which also happens automatically with @Database.auto_bind and even from the @Database.__init__ with a parameter
+        :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
+        :param child: The child table containing the foreign key
+        :param fk: The foreign key field of the child table
+        :param parent: The parent table containing the primary key
+        :param pk: The primary key field of the parent table
+        :param requery_table: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql)
+
+        :return: None
+        """
         self.relationships.append(Relationship(join, child, fk, parent, pk, requery_table))
 
-    # TODO rename to get_relationships_for_table to make it clear??
-    def get_relationships(self, table):
+
+    def get_relationships_for_table(self, table):
+        """
+        Return the relationships for the passed-in table
+        :param table: The table to get relationships for
+        :return: A list of @Relationship objects
+        """
         rel = []
         for r in self.relationships:
             if r.child == table.table:
@@ -818,7 +863,7 @@ class Database:
             # TODO: move this to only compute if something else changes?
             if type(d['control']) is sg.PySimpleGUI.Combo:
                 # see if we can find the relationship to determine which table to get data from
-                rels = self.get_relationships(d['table'])
+                rels = self.get_relationships_for_table(d['table'])
                 for rel in rels:
                     if rel.fk == d['field']:
                         target_table = self[rel.parent]
