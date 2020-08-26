@@ -230,7 +230,8 @@ Referencing the same example above, the window and database were bound with this
 ```python
 db = ss.Database(':memory:', 'example2.sql', win) # Load in the database and bind it to win
 ```
-The above in a one-shot approach, and could have been written as:
+The above is a one-shot approach and all most users will ever need!
+The above could have been written as:
 ```python
 db=ss.Database(':memory:', 'example2.sql') # Load in the database
 db.auto_bind(win) # automatically bind the window to the database
@@ -291,7 +292,7 @@ db.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
 # Event mapping will be covered in more detail later...
 
 # This is the magic function which populates all of the controls we mapped!
-# For your convience, you can optionally use the function db.set_user_update_function() to set a callback function
+# For your convience, you can optionally use the function Database.set_callback('update_controls',function) to set a callback function
 # that will be called every time the controls are updated.  This allows you to do custom things like update
 # a preview image, change control parameters or just about anythong you want!
 db.update_controls()
