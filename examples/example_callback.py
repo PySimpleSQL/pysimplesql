@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
 # Here are our callback functions
 def en(db,win):

@@ -12,11 +12,11 @@ power and control of managing your own codebase.
 ## Install
 NOTE: PySimpleSQL is not yet on PyPi, but will be soon!
 ```
-pip install pysimplegui
+pip install PySimpleGUI
 pip install pysimplesql
 pip install sqlite3
 or
-pip3 install pysimplegui
+pip3 install PySimpleGUI
 pip3 install pysimplesql
 pip3 install sqlite3
 ```
@@ -26,7 +26,7 @@ pip3 install sqlite3
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
 # Define our layout. We will use the ss.record convenience function to create the controls
 layout = [
