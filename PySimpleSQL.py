@@ -7,6 +7,8 @@ except ImportError:
 import logging
 import sqlite3
 import functools
+import os.path
+from os import path
 logger = logging.getLogger(__name__)
 
 
@@ -605,9 +607,17 @@ class Database:
     """
     # TODO: add params for automapping...
     # TODO: destructor to close connections as well (and optimize db)
-    def __init__(self, sqlite3_database, sql_commands=None, win=None):
+    def __init__(self, sqlite3_database, win=None, sql_commands=None, sql_file=None):
+        """
+        Initialize a new @Database instance
+
+        :param sqlite3_database: the name of the database file.  It will be created if it doesn't exist.
+        :param win: @PySimpleGUI window instance
+        :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
+        :param sql_file: (file) SQL commands to run if @sqlite3_database is not present
+        """
         logger.info(f'Importing database {sqlite3_database}')
-        self.db = sqlite3_database
+        self.db = sqlite3_database      # type: str
         self.window=None
         self.con = sqlite3.connect(self.db)
         self.con.row_factory = sqlite3.Row
@@ -616,14 +626,28 @@ class Database:
         self.event_map = []
         self.relationships = []
         self.callbacks={}
-        
-        if sql_commands is not None:
+
+        if sql_commands is not None and not os.path.isfile(sqlite3_database):
+            # run SQL script if the database does not yet exist
+            self.con.executescript(sql_commands)
+
+        if sql_file is not None and not os.path.isfile(sqlite3_database):
+            # run SQL script from the file if the database does not yet exist
             with open(sql_commands, 'r') as file:
                 logger.info('Loading database into memory')
                 self.con.executescript(file.read())
 
         if win is not None:
             self.auto_bind(win)
+
+    def __del__(self):
+        # optimize the database for long-term benefits
+        if self.db!=':memory:':
+            q-'PRAGMA optimize;'
+            self.con.execute(q)
+        # Close the connection
+        self.con.close()
+
 
     # Override the [] operator to retrieve queries by key
     def __getitem__(self, key):
