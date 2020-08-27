@@ -130,17 +130,27 @@ In the example above, you could get the current item selection with the followin
 selected_restaurant=db['Restaurant'].['name']
 selected_item=db['Item']['name']
 ```
-
+or via the PySimpleGUI control elements with the following:
+```python
+selected_restaurant=win['Restaurant.name']
+selected_item=win['Item.name']
+```
 ### Any Questions?  It's that simple.
 
-To get the smoothest experience with PySimpleSQL, the magic is in the database creation.
+To get the best possible experience with PySimpleSQL, the magic is in the schema of the database.
 The automatic functionality of PySimpleSQL relies on just a couple of things:
-- foreign key constraints on the database tables
-- a CASCADE ON UPDATE constraint on any tables that should automatically refresh in the GUI
-- PySimpleGUI control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is supported as well. ss.record() is a convenience function/"custom control" to make adding records quick and easy!
-- The field 'name', (or the 2nd column of the database in the absense of a 'name' column) is what will display in comboxes for foreing key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of PySimpleSQL is in having everything happen automatically!
+- foreign key constraints on the database tables (lets PySimpleSQL know what the relationships are)
+- a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
+refreshed
+- PySimpleGUI control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is 
+supported as well. @Database.record() is a convenience function/"custom control" to make adding records quick and easy!
+- The field 'name', (or the 2nd column of the database in the absence of a 'name' column) is what will display in 
+comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
+PySimpleSQL is in having everything happen automatically!
 
-Here is another example sqlite table that shows the above rules at work.  Don't let this scare you, there are plenty of tools to create your database without resorting to raw SQL commands. These commands here are just shown for completeness (Creating the sqlite database is only done once anyways) 
+Here is another example sqlite table that shows the above rules at work.  Don't let this scare you, there are plenty of
+tools to create your database without resorting to raw SQL commands. These commands here are just shown for completeness
+(Creating the sqlite database is only done once anyways) 
 ```sql
 CREATE TABLE "Book"(
     "pkBook" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -161,7 +171,9 @@ CREATE TABLE "Chapter"(
 ```
 
 ### But wait, there's more!
-The above is literally all you have to know for working with simple and even moderate databases.  However, there is a lot of power in learning what is going on under the hood!  Starting with the fully automatic example above, we will work backwards to explain what is available to you for more control.
+The above is literally all you have to know for working with simple and even moderate databases.  However, there is a 
+lot of power in learning what is going on under the hood!  Starting with the fully automatic example above, we will work
+backwards to explain what is available to you for more control.
 
 #### PySimpleGUI elements:
 Referencing the example above, look at the following:
@@ -172,18 +184,21 @@ ss.record('Restaurant', 'name') # Table name, field name parameters
 # could have been written like this:
 [sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1))]
 ```
-As you can see, the ss.record() convenience function simplifies making record controls that adhere to the PySimpleSQL naming convention of Table.field.
-In fact, there is even more you can do with this. The ss.record() function can take a PySimpleGUI control element as a parameter as well, overriding the defaul Input() element.
+As you can see, the @Database.record() convenience function simplifies making record controls that adhere to the
+PySimpleSQL naming convention of Table.field. In fact, there is even more you can do with this. The @Database.record() 
+function can take a PySimpleGUI control element as a parameter as well, overriding the defaul Input() element.
 See this code which creates a combobox instead:
 ```python
 ss.record('Restaurant', 'fkType', sg.Combo)]
 ```
-Furthering that, the functions ss.set_text_size() and ss.set_control_size() can be used before calls to ss.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of record() will override the default control size, for plenty of flexibility!
+Furthering that, the functions @Database.set_text_size() and @Database.set_control_size() can be used before calls to 
+@Database.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of 
+@Database.record() will override the default control size, for plenty of flexibility.
 
 Place those two functions just above the layout definition shown in the example above and then run the code again
 ```python
-ss.set_text_size(10,1)
-ss.set_control_size(50,1)
+ss.set_text_size(10,1)    # Set the text/label size for all subsequent calls
+ss.set_control_size(50,1) # set the control size for all subsequent calls
 layout = [
     ss.record('Restaurant', 'name'),
     ss.record('Restaurant', 'location'),
@@ -202,9 +217,11 @@ layout += [[sg.Frame('Items', sub_layout)]]
 layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)]
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91287363-a71ea680-e75d-11ea-8b2f-d240c1ec2acf.png)
-You will see that now, the controls were resized using the new sizing rules.  Notice however that the 'Description' field isn't as wide as the others.  That is because we overridden the control size for just that single control.
+You will see that now, the controls were resized using the new sizing rules.  Notice however that the 'Description'
+field isn't as wide as the others.  That is because we overridden the control size for just that single control.
 
-Lets see one more example.  This time we will fix the oddly sized 'Description' field, as well as make the 'Restaurant' and 'Items' sections with their own sizing
+Lets see one more example.  This time we will fix the oddly sized 'Description' field, as well as make the 'Restaurant' 
+and 'Items' sections with their own sizing
 ```python
 # set the sizing for the Restaurant section
 ss.set_text_size(10,1)
