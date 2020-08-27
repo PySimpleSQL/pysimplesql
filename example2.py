@@ -29,6 +29,7 @@ while True:
     if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         print('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')

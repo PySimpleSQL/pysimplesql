@@ -605,8 +605,6 @@ class Database:
     Maintains an internal version of the actual database
     Tables can be accessed by key, I.e. db['Table_name"] to return a @Table instance
     """
-    # TODO: add params for automapping...
-    # TODO: destructor to close connections as well (and optimize db)
     def __init__(self, sqlite3_database, win=None, sql_commands=None, sql_file=None):
         """
         Initialize a new @Database instance
@@ -637,8 +635,6 @@ class Database:
                 logger.info('Loading database into memory')
                 self.con.executescript(file.read())
 
-
-
         if win is not None:
             self.auto_bind(win)
 
@@ -647,6 +643,7 @@ class Database:
         if self.db!=':memory:':
             q='PRAGMA optimize;'
             self.con.execute(q)
+
         # Close the connection
         self.con.close()
 
