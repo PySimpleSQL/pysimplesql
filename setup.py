@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import setuptools
 
 def readme():
@@ -24,4 +25,4 @@ setuptools.setup(
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
         "Topic :: Database :: Application",
         "Operating System :: OS Independent"
-    ),
+    )
