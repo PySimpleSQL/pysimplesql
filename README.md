@@ -1,15 +1,24 @@
+![image](https://user-images.githubusercontent.com/70232210/91427413-dd2a5c00-e82b-11ea-8a3d-dc706149422d.png)
 # PySimpleGUI User's Manual
 
-## Python database front-ends for humans - Binds PySimpleGUI to sqlite3 (MySQL planned) databases for rapid, effortless database application development!
+## Rapidly build and deploy database applications in Python
+Binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
+replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
+power and control of managing your own codebase.
+
 
 # Jump-Start
 
 ## Install
-
+NOTE: PySimpleSQL is not yet on PyPi, but will be soon!
 ```
 pip install pysimplegui
+pip install pysimplesql
+pip install sqlite3
 or
 pip3 install pysimplegui
+pip3 install pysimplesql
+pip3 install sqlite3
 ```
 
 ### This Code
