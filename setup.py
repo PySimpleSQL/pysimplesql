@@ -26,3 +26,4 @@ setuptools.setup(
         "Topic :: Database :: Application",
         "Operating System :: OS Independent"
     )
+)
