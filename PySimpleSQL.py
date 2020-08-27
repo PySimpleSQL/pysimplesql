@@ -188,7 +188,7 @@ class Table:
                 self.db[rel.child].prompt_save()
 
         dirty = False
-        for c in self.db.controlMap:
+        for c in self.db.control_map:
             # Compare the control version to the GUI version
             if c['table'].table == self.table:
                 control_val = c['control'].Get()
@@ -504,7 +504,7 @@ class Table:
         values = []
         # We are updating a record
         q = f'UPDATE {self.table} SET'
-        for v in self.db.controlMap:  # TODO see the camel case??
+        for v in self.db.control_map:
             if v['table'] == self:
                 q += f' {v["control"].Key.split(".",1)[1]}=?,'
                 values.append(escape(v['control'].Get()))
@@ -612,8 +612,8 @@ class Database:
         self.con = sqlite3.connect(self.db)
         self.con.row_factory = sqlite3.Row
         self.tables = {}
-        self.controlMap = []
-        self.eventMap = []
+        self.control_map = []
+        self.event_map = []
         self.relationships = []
         self.callbacks={}
         
@@ -631,7 +631,7 @@ class Database:
 
     def set_callback(self, callback, fctn):
         """
-       Set @Database callbacks. A runtime error will be thrown if the callback is not supported.
+       Set @Database callbacks. A runtime error will be raised if the callback is not supported.
        The following callbacks are supported:
            update_controls Called after controls are updated via @Database.update_controls. This allows for other GUI manipulation on each update of the GUI
 
@@ -808,11 +808,11 @@ class Database:
             'field': field,
         }
         logger.info(f'Mapping control {control.Key}')
-        self.controlMap.append(dic)
+        self.control_map.append(dic)
 
     def auto_map_events(self, win):
         # TODO: Change Event to E?
-        # TODO: Can we dynamically map a string representation of function instead of using the eventMap approach below?
+        # TODO: Can we dynamically map a string representation of function instead of using the event_map approach below?
         logger.info(f'Auto mapping events...')
         for control in win.AllKeysDict.keys():
             # See if this control has Event.table.func information
@@ -844,7 +844,7 @@ class Database:
             'function': fctn
         }
         logger.info(f'Mapping event {event} to function {fctn}')
-        self.eventMap.append(dic)
+        self.event_map.append(dic)
 
     def edit_protect(self):
         self.window['btnEditProtect'].metadata = not self.window['btnEditProtect'].metadata
@@ -867,7 +867,7 @@ class Database:
         logger.info('Updating controls...')
         # Update the current values
         # d= dictionary (the control map dictionary)
-        for d in self.controlMap:
+        for d in self.control_map:
             # If the optional table parameter was passed, we will only update controls bound to that table
             if table != '':
                 if d['table'].table != table:
@@ -940,7 +940,7 @@ class Database:
         # Enable/Disable controls based on the edit protection button and presence of a record
         # Note that we also must disable controls if there are no records!
         win = self.window
-        for e in self.eventMap:
+        for e in self.event_map:
             if e['event']=='btnEditProtect':
                 self.disable_controls(self.window['btnEditProtect'].metadata)
                 win['btnSaveRecord'].update(disabled=self.window['btnEditProtect'].metadata)
@@ -981,7 +981,7 @@ class Database:
         # Event functions must return True to update controls, or False not to update controls.
         # Events handled are responsible for requerying and updating controls
         if event:
-            for e in self.eventMap:
+            for e in self.event_map:
                 if e['event'] == event:
                     logger.info(f'Executing event {event} via event mapping.')
                     e['function']()
