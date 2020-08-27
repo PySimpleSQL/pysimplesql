@@ -840,6 +840,7 @@ class Database:
         # TODO: Can we dynamically map a string representation of function instead of using the event_map approach below?
         logger.info(f'Auto mapping events...')
         for control in win.AllKeysDict.keys():
+            control=str(control) # sometimes I end up with an integer control 0? TODO: Research
             # See if this control has Event.table.func information
             # Start by seeing if there is an 'Event.' and two '.' in the name
             if 'Event.' in str(control) and str(control).count('.') == 2:
