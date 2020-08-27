@@ -617,25 +617,27 @@ class Database:
         :param sql_file: (file) SQL commands to run if @sqlite3_database is not present
         """
         logger.info(f'Importing database {sqlite3_database}')
+        new_database = not os.path.isfile(sqlite3_database)
         self.db = sqlite3_database      # type: str
         self.window=None
-        self.con = sqlite3.connect(self.db)
-        self.con.row_factory = sqlite3.Row
         self.tables = {}
         self.control_map = []
         self.event_map = []
         self.relationships = []
         self.callbacks={}
-
-        if sql_commands is not None and not os.path.isfile(sqlite3_database):
+        self.con = sqlite3.connect(self.db)  # Open our database
+        self.con.row_factory = sqlite3.Row
+        if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
             self.con.executescript(sql_commands)
 
-        if sql_file is not None and not os.path.isfile(sqlite3_database):
+        if sql_file is not None and new_database:
             # run SQL script from the file if the database does not yet exist
-            with open(sql_commands, 'r') as file:
+            with open(sql_file, 'r') as file:
                 logger.info('Loading database into memory')
                 self.con.executescript(file.read())
+
+
 
         if win is not None:
             self.auto_bind(win)
@@ -643,7 +645,7 @@ class Database:
     def __del__(self):
         # optimize the database for long-term benefits
         if self.db!=':memory:':
-            q-'PRAGMA optimize;'
+            q='PRAGMA optimize;'
             self.con.execute(q)
         # Close the connection
         self.con.close()

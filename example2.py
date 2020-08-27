@@ -22,7 +22,7 @@ layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database('example2.db', win, 'example2.sql')      # <=== load the database and bind it to the window
+db = ss.Database('example2.db', win, sql_file='example2.sql')      # <=== load the database and bind it to the window
 
 while True:
     event, values = win.read()
