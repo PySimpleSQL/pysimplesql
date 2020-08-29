@@ -931,6 +931,9 @@ class Database:
                 if d['table'].table != table:
                     continue
 
+            if type(d) is not str:
+                continue
+
             updated_val = None
             # Update controls with foreign queries first
             # This will basically only be things like comboboxes
