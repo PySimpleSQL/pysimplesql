@@ -109,6 +109,7 @@ class Table:
         self.description_field = description_field
         self.query = query
         self.order = order
+        self.join = ''
         self.con = con
         self.dependents = []
         self.field_names = []
@@ -184,6 +185,24 @@ class Table:
         """
         self.query=q
 
+    def set_join_clause(self,clause):
+        """
+        Set the table's join string.  This is more for advanced users, as it will automatically generate from the
+        Relationships that have been set otherwise.
+        :param clause: The join clause, such as "LEFT JOIN That on This.pk=That.fk"
+        :return: None
+        """
+        self.join=clause
+
+    def set_order_clause(self,clause):
+        """
+        Set the table's order string. This is more for advanced users, as it will automatically generate from the
+        Relationships that have been set otherwise.
+        :param clause: The order clause, such as "Order by name ASC"
+        :return: None
+        """
+        self.order=clause
+
     def prompt_save(self):
         """
         Prompts the user if they want to save when saving a record that has been changed.
@@ -218,6 +237,34 @@ class Table:
                 # self.save_record(True) # TODO
                 # self.requery(False)
 
+    def generate_join_clause(self):
+        """
+        Automatically generates a join clause from the Relationships that have been set
+        :return: A join string to be used in a sqlite3 query
+        """
+        join = ''
+        for r in self.db.relationships:
+            if self.table == r.child:
+                join += f' {r.join} {r.parent} ON {r.child}.{r.fk} = {r.parent}.{r.pk}'
+        return join if self.join=='' else self.join
+
+    def generate_where_clause(self):
+        """
+        Generates a where clause from the Relationships that have been set
+        :return: A where clause string to be used in a sqlite3 query
+        """
+        where = ''
+        for r in self.db.relationships:
+            if self.table == r.child:
+                if r.requery_table:
+                    where += f' WHERE {self.table}.{r.fk}={str(self.db[r.parent].get_current(r.pk, 0))}'
+        return where
+    def generate_query(self):
+        """
+        Generate a query string using the relationships that have been set
+        :return: a query string for use with sqlite3
+        """
+        return f'{self.query}  {self.generate_join_clause()} {self.generate_where_clause()}'
 
     def requery(self, select_first=True, filtered=True):
         """
@@ -228,15 +275,11 @@ class Table:
         :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
         :return: None
         """
-        print(f'Requerying {self.table}')
-        join = ''
         if filtered:
-            for r in self.db.relationships:
-                if self.table==r.child:
-                    if r.requery_table:
-                        join += f' WHERE {self.table}.{r.fk}={str(self.db[r.parent].get_current(r.pk,0))}'
+            join=self.generate_join_clause()
+            where=self.generate_where_clause()
 
-        query = self.query+' '+join+' '+self.order
+        query = self.query+' '+join+' '+where+' '+self.order
         logger.info('Running query: '+query)
 
         cur = self.con.execute(query)
@@ -667,6 +710,8 @@ class Database:
            update_controls Called after controls are updated via @Database.update_controls. This allows for other GUI manipulation on each update of the GUI
            edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
            edit_disable Called after the editing mode is disabled
+           {control_name} Called while updating MAPPED controls.  This overrides the default control update implementation.
+           Note that the {control_name} callback function needs to return a value to pass to Win[control].update()
 
        :param callback: The name of the callback, from the list above
 
@@ -677,6 +722,12 @@ class Database:
         supported = [
             'update_controls', 'edit_enable', 'edit_disable'
         ]
+        # Add in support fow Window keys
+
+        for control in self.control_map:
+            supported.append(control['control'].Key.lower())
+        print(supported)
+        sg.popup('Check it')
         if callback in supported:
             self.callbacks[callback] = fctn
         else:
@@ -917,10 +968,15 @@ class Database:
                     continue
 
             updated_val = None
-            # Update controls with foreign queries first
-            # This will basically only be things like comboboxes
-            # TODO: move this to only compute if something else changes?
-            if type(d['control']) is sg.PySimpleGUI.Combo:
+
+            if d['control'].Key in self.callbacks:
+                # The user has set a callback for this control, we will use it!
+                updated_val=self.callbacks[d['control'].Key]
+
+            elif type(d['control']) is sg.PySimpleGUI.Combo:
+                # Update controls with foreign queries first
+                # This will basically only be things like comboboxes
+                # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
                 rels = self.get_relationships_for_table(d['table'])
                 for rel in rels:
@@ -946,12 +1002,11 @@ class Database:
 
             elif type(d['control']) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
-                sg.popup('Headings')
                 # Generate a new list!
-                updated_val=[] # List that will contain other lists
-                for row in d['table'].rows:
-                    lst=[row['fkVariation'],row['quantity']]
-                    updated_val.append(lst)
+                updated_val=[[]] # List that will contain other lists
+                # TODO: Fix this with some kind of sane default behavior.
+                # For now, just use the Database callbacks to handle Tables
+
 
             elif type(d['control']) is sg.PySimpleGUI.InputText or type(d['control']) is sg.PySimpleGUI.Multiline:
                 # Lets now update the control in the GUI
