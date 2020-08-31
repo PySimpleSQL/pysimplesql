@@ -110,6 +110,7 @@ class Table:
         self.query = query
         self.order = order
         self.join = ''
+        self.where='' # In addition to generated where!
         self.con = con
         self.dependents = []
         self.field_names = []
@@ -194,6 +195,13 @@ class Table:
         """
         self.join=clause
 
+    def set_where_clause(self,clause):
+        """
+        Set the table's where clause.  This is added to the auto-generated where clause from Relationship data!
+        :param clause: The where clause, such as "WHERE pkThis=100"
+        :return: None
+        """
+        self.where=clause
     def set_order_clause(self,clause):
         """
         Set the table's order string. This is more for advanced users, as it will automatically generate from the
@@ -250,7 +258,7 @@ class Table:
 
     def generate_where_clause(self):
         """
-        Generates a where clause from the Relationships that have been set
+        Generates a where clause from the Relationships that have been set, as well as the Table's where clause
         :return: A where clause string to be used in a sqlite3 query
         """
         where = ''
@@ -258,6 +266,15 @@ class Table:
             if self.table == r.child:
                 if r.requery_table:
                     where += f' WHERE {self.table}.{r.fk}={str(self.db[r.parent].get_current(r.pk, 0))}'
+
+        if where == '':
+            # There was no where clause from Relationships..
+            where = self.where
+        else:
+            # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
+            print('==================================' + self.where)
+            where = where + ' ' + self.where.replace('WHERE', 'AND')
+            print('==================================' + self.where)
         return where
     def generate_query(self):
         """
