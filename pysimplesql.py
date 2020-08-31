@@ -276,12 +276,19 @@ class Table:
             where = where + ' ' + self.where.replace('WHERE', 'AND')
             print('==================================' + self.where)
         return where
-    def generate_query(self):
+    def generate_query(self,join=True, where=True, order=True):
         """
         Generate a query string using the relationships that have been set
+        :param join: True if you want the join clause auto-generated, False if not
+        :param where: True if you want the where clause auto-generated, False if not
+        :param order: True if you want the order by clause auto-generated, False if not
         :return: a query string for use with sqlite3
         """
-        return f'{self.query}  {self.generate_join_clause()} {self.generate_where_clause()}'
+        q=self.query
+        q += self.join if join else ''
+        q += self.where if where else ''
+        q += self.order if order else ''
+        return q
 
     def requery(self, select_first=True, filtered=True):
         """
