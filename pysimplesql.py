@@ -31,7 +31,6 @@ class Row:
     """
     @Row class. This is a convenience class used by listboxes and comboboxes to display values
     while keeping them linked to a primary key.
-
     You may have to cast this to a str() to get the value.  Of course, there are methods to get the
     value or primary key either way.
     """
@@ -63,7 +62,6 @@ class Relationship:
     """
     @Relationship class is used to track primary/foreign key relationships in the database. See the following
     for more information: @Database.add_relationship and @Database.auto_add_relationships
-
     Note that this class offers little to the end user, and the above Database functions are all that is needed
     by the user.
     """
@@ -141,7 +139,6 @@ class Table:
     def set_search_order(self,order):
         """
         Set the search order when using the search box.
-
         This is a list of fields to be searched, in order.
         :param order: A list of field names to search
         :return: None
@@ -151,7 +148,6 @@ class Table:
     def set_callback(self,callback,fctn):
         """
         Set table callbacks. A runtime error will be thrown if the callback is not supported.
-
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the record will rollback if the callback returns false.
             after_save    called after a record is saved. The save will commit to the database if the callback returns true, else it will rollback the transaction
@@ -183,7 +179,6 @@ class Table:
     def prompt_save(self):
         """
         Prompts the user if they want to save when saving a record that has been changed.
-
         :return: True or False on whether the user intends to save the record
         """
         # TODO: children too?
@@ -219,7 +214,6 @@ class Table:
     def requery(self, select_first=True, filtered=True):
         """
         Requeries the table
-
         The @Table object maintains an internal representation of the actual database table.
         The requery method will requery the actual database  and sync the @Table objects to it
         :param select_first: If true, the first record will be selected after the requery
@@ -255,7 +249,6 @@ class Table:
     def first(self):
         """
         Move to the first record of the table
-
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
         @Table.set_by_pk
@@ -269,7 +262,6 @@ class Table:
     def last(self):
         """
         Move to the last record of the table
-
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
         @Table.set_by_pk
@@ -283,7 +275,6 @@ class Table:
     def next(self):
         """
         Move to the next record of the table
-
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
         @Table.set_by_pk
@@ -298,7 +289,6 @@ class Table:
     def previous(self):
         """
         Move to the previous record of the table
-
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
         @Table.set_by_pk
@@ -314,7 +304,6 @@ class Table:
     def search(self, string):
         """
         Move to the next record in the search table that contains @string.
-
         Successive calls will search from the current position, and wrap around back to the beginning.
         The search order from @Table.set_search_order() will be used.  If the search order is not set by the user,
         it will default to the 'name' field, or the 2nd column of the table.
@@ -366,7 +355,6 @@ class Table:
     def set_by_pk(self,pk):
         """
         Move to the record with this primary key
-
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
         and then the current record selection updated regardless of the new sort order.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -388,9 +376,9 @@ class Table:
     def get_current(self, field, default=""):
         """
         Get the current value pointed to for @field
-
         You can also use indexing of the @Database object to get the current value of a field
         I.e. db["{Table}].[{field'}]
+
         :param field: The field you want the value of
         :param default: A value to return if the record is blank
         :return: The value of the field requested
@@ -406,15 +394,13 @@ class Table:
     def get_current_pk(self):
         """
         Get the primary key of the currently selected record
-
         :return: the primary key
         """
         return self.get_current(self.pk_field)
 
     def get_max_pk(self):
         """
-        Get the highest primary key for this table.
-
+        The the highest primary key for this table.
         This can give some insight on what the next inserted primary key will be
         :return: The maximum primary key value currently in the table
         """
@@ -427,7 +413,6 @@ class Table:
     def get_current_row(self):
         """
         Get the sqlite3 row for the currently selected record of this table
-
         :return: @sqlite3.row
         """
         if self.rows:
@@ -453,9 +438,7 @@ class Table:
     def insert_record(self, field='', value=''):
         """
         Insert a new record. If field and value are passed, it will initially set that field to the value
-        (I.e. {Table}.name='New Record).
-
-        If none are provided, the default values for the field are used, as set in the
+        (I.e. {Table}.name='New Record). If none are provided, the default values for the field are used, as set in the
         database.
         :param field: The field to set
         :param value: The value to set (I.e "New record")
@@ -505,7 +488,6 @@ class Table:
     def save_record(self, display_message=True):
         """
         Save the currently selected record
-
         Saves any changes made via the GUI back to the database.  The before_save and after_save @callbacks will call
         your own functions for error checking if needed!
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
@@ -561,8 +543,8 @@ class Table:
     def delete_record(self, children=False):
         """
         Delete the currently selected record
-
         The before_delete and after_delete callbacks are run during this process to give some control over the process
+
         :param children: Delete child records (as defined by @Relationship that were set up) before deleting this record
         :return: None
         """
@@ -673,7 +655,6 @@ class Database:
     def set_callback(self, callback, fctn):
         """
        Set @Database callbacks. A runtime error will be raised if the callback is not supported.
-
        The following callbacks are supported:
            update_controls Called after controls are updated via @Database.update_controls. This allows for other GUI manipulation on each update of the GUI
            edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
@@ -697,7 +678,6 @@ class Database:
         """
         Auto-bind the window to the database, for the purpose of control, event and relationship mapping
         This can happen automatically on @Database creation with a parameter.
-
         This function literally just groups all of the auto_* methods.  See" @Database.auto_add_tables,
         @Database.auto_add_relationships, @Database.auto_map_controls, @Database.auto_map_events
         :param win: The @PySimpleGUI window
@@ -715,7 +695,6 @@ class Database:
     def add_table(self, table, pk_field, description_field, query='', order=''):
         """
         Manually add a table to the @Database
-
         When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run
         Note that @Database.auto_add_tables will do this automatically, which is also called from @Database.auto_bind
         and even from the @Database.__init__ with a parameter
@@ -733,7 +712,6 @@ class Database:
     def add_relationship(self, join, child, fk, parent, pk, requery_table):
         """
         Add a foreign key relationship between two tables of the database
-
         When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until tables are
         added via @Database.add_table, and the relationship of various tables is set with this function.
         Note that @Database.auto_add_relationships will do this automatically from the schema of the sqlite database,
@@ -753,7 +731,6 @@ class Database:
     def get_relationships_for_table(self, table):
         """
         Return the relationships for the passed-in table
-
         :param table: The table to get relationships for
         :return: A list of @Relationship objects
         """
@@ -874,8 +851,8 @@ class Database:
                 event_map = {
                     'Insert': self[table].insert_record, 'Save': self[table].save_record,
                     'Delete': self[table].delete_record, 'First': self[table].first, 'Previous': self[table].previous,
-                    'Next': self[table].next, 'Last': self[table].last, 'Search': functools.partial(self[table].search,f'txtSearch.{table}')
-
+Last': self[table].last, 'Search': functools.partial(self[table].search,f'txtSearch.{table}')
+                    'Next': self[table].next, '
                 }
                 if fctn in event_map:
                     self.map_event(control, event_map[fctn])
@@ -930,9 +907,6 @@ class Database:
             if table != '':
                 if d['table'].table != table:
                     continue
-
-            if type(d) is not str:
-                continue
 
             updated_val = None
             # Update controls with foreign queries first
