@@ -851,8 +851,8 @@ class Database:
                 event_map = {
                     'Insert': self[table].insert_record, 'Save': self[table].save_record,
                     'Delete': self[table].delete_record, 'First': self[table].first, 'Previous': self[table].previous,
-Last': self[table].last, 'Search': functools.partial(self[table].search,f'txtSearch.{table}')
-                    'Next': self[table].next, '
+                    'Last': self[table].last, 'Search': functools.partial(self[table].search,f'txtSearch.{table}'),
+                    'Next': self[table].next
                 }
                 if fctn in event_map:
                     self.map_event(control, event_map[fctn])
