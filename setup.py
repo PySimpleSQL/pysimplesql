@@ -11,7 +11,7 @@ def readme():
 
 setuptools.setup(
     name="pysimplesql",
-    version="0.1.0",
+    version="0.1.1",
     author="Jonathan Decker",
     author_email="pysimplesql@gmail.com",
     description="sqlite3 database binding for PySimpleGUI",

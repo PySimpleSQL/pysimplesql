@@ -176,6 +176,14 @@ class Table:
         else:
             raise RuntimeError( f'Callback "{callback}" not supported.')
 
+    def set_query(self,q):
+        """
+        Set the tables query string.  This is more for advanced users.  It defautls to "SELECT * FROM {Table};
+        :param q: The query string you would like to associate with the table
+        :return: None
+        """
+        self.query=q
+
     def prompt_save(self):
         """
         Prompts the user if they want to save when saving a record that has been changed.
@@ -934,17 +942,28 @@ class Database:
                             if entry.get_pk() == d['table'][rel.fk]:
                                 updated_val = entry
                                 break
-                        break     
+                        break
 
-            # Lets now update the control in the GUI
-            # For text objects, lets clear the field...
+            elif type(d['control']) is sg.PySimpleGUI.Table:
+                # Tables use an array of arrays for values.  Note that the headings can't be changed.
+                sg.popup('Headings')
+                # Generate a new list!
+                updated_val=[] # List that will contain other lists
+                for row in d['table'].rows:
+                    lst=[row['fkVariation'],row['quantity']]
+                    updated_val.append(lst)
+
             elif type(d['control']) is sg.PySimpleGUI.InputText or type(d['control']) is sg.PySimpleGUI.Multiline:
+                # Lets now update the control in the GUI
+                # For text objects, lets clear the field...
                 d['control'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
 
             elif type(d['control']) is sg.PySimpleGUI.Checkbox:
                 # d['control'].update(0)
                 # print('Checkbox...')
                 pass
+            else:
+                sg.popup(f'Unknown control type {type(d["control"])}')
 
             # If no field has been set, we will get it from the query object
             if not updated_val:
