@@ -726,8 +726,7 @@ class Database:
 
         for control in self.control_map:
             supported.append(control['control'].Key.lower())
-        print(supported)
-        sg.popup('Check it')
+
         if callback in supported:
             self.callbacks[callback] = fctn
         else:
