@@ -272,10 +272,9 @@ class Table:
             where = self.where
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            print('==================================' + self.where)
             where = where + ' ' + self.where.replace('WHERE', 'AND')
-            print('==================================' + self.where)
         return where
+
     def generate_query(self,join=True, where=True, order=True):
         """
         Generate a query string using the relationships that have been set
@@ -285,9 +284,9 @@ class Table:
         :return: a query string for use with sqlite3
         """
         q=self.query
-        q += self.join if join else ''
-        q += self.where if where else ''
-        q += self.order if order else ''
+        q += f' {self.join if join else ""}'
+        q += f' {self.where if where else ""}'
+        q += f' {self.order if order else ""}'
         return q
 
     def requery(self, select_first=True, filtered=True):
@@ -726,6 +725,21 @@ class Database:
     # Override the [] operator to retrieve queries by key
     def __getitem__(self, key):
         return self.tables[key]
+
+    def execute(self,q):
+        """
+        Convenience function to pass along to sqlite3.execute()
+        :param q: The query to execute
+        :return: sqlite3.cursor
+        """
+        return self.con.execute(q)
+
+    def commit(self):
+        """
+        Convience function to pass along to sqlite3.commit()
+        :return: None
+        """
+        self.con.commit()
 
     def set_callback(self, callback, fctn):
         """
