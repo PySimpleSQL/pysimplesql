@@ -679,25 +679,33 @@ class Database:
     Maintains an internal version of the actual database
     Tables can be accessed by key, I.e. db['Table_name"] to return a @Table instance
     """
-    def __init__(self, sqlite3_database, win=None, sql_commands=None, sql_file=None):
+    def __init__(self, db_path='', sqlite3_database=None, win=None, sql_commands=None, sql_file=None):
         """
         Initialize a new @Database instance
 
-        :param sqlite3_database: the name of the database file.  It will be created if it doesn't exist.
+        :param db_path: the name of the database file.  It will be created if it doesn't exist.
+        :param sqlite3_database: A sqlite3 database object
         :param win: @PySimpleGUI window instance
         :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
         :param sql_file: (file) SQL commands to run if @sqlite3_database is not present
         """
-        logger.info(f'Importing database {sqlite3_database}')
-        new_database = not os.path.isfile(sqlite3_database)
-        self.db = sqlite3_database      # type: str
+        if db_path != '' :
+            logger.info(f'Importing database {sqlite3_database}')
+            new_database = not os.path.isfile(sqlite3_database)
+            con = sqlite3.connect(db_path)  # Open our database
+
+        if sqlite3_database is not None :
+            con=sqlite3_database
+            new_database = False
+
+        self.path = db_path      # type: str
         self.window=None
         self.tables = {}
         self.control_map = []
         self.event_map = []
         self.relationships = []
         self.callbacks={}
-        self.con = sqlite3.connect(self.db)  # Open our database
+        self.con = con
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
@@ -714,7 +722,7 @@ class Database:
 
     def __del__(self):
         # optimize the database for long-term benefits
-        if self.db!=':memory:':
+        if self.path!=':memory:':
             q='PRAGMA optimize;'
             self.con.execute(q)
 
