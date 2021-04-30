@@ -679,7 +679,7 @@ class Database:
     Maintains an internal version of the actual database
     Tables can be accessed by key, I.e. db['Table_name"] to return a @Table instance
     """
-    def __init__(self, db_path='', sqlite3_database=None, win=None, sql_commands=None, sql_file=None):
+    def __init__(self, db_path=None,  win=None, sql_file=None, sqlite3_database=None, sql_commands=None):
         """
         Initialize a new @Database instance
 
@@ -689,9 +689,9 @@ class Database:
         :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
         :param sql_file: (file) SQL commands to run if @sqlite3_database is not present
         """
-        if db_path != '' :
-            logger.info(f'Importing database {sqlite3_database}')
-            new_database = not os.path.isfile(sqlite3_database)
+        if db_path is not None :
+            logger.info(f'Importing database: {db_path}')
+            new_database = not os.path.isfile(db_path)
             con = sqlite3.connect(db_path)  # Open our database
 
         if sqlite3_database is not None :
