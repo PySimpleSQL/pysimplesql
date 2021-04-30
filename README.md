@@ -1,6 +1,6 @@
 # PySimpleSQL User's Manual
 
-# DISCLAIMER:
+## DISCLAIMER:
 While PySimpleSQL works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
