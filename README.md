@@ -177,7 +177,7 @@ The above is literally all you have to know for working with simple and even mod
 lot of power in learning what is going on under the hood!  Starting with the fully automatic example above, we will work
 backwards to explain what is available to you for more control.
 
-#### PySimpleGUI elements:
+#### PySimpleSQL elements:
 Referencing the example above, look at the following:
 ```python
 # convience function for rapid front-end development
@@ -268,11 +268,11 @@ db.auto_bind(win) # automatically bind the window to the database
 db.auto_bind() likewise can be peeled back to it's own components and could have been written like this:
 ```python
 db.auto_add_tables()
-self.auto_add_relationships()
-self.auto_map_controls(win)
-self.auto_map_events(win)
-self.requery_all()
-self.update_controls()
+db.auto_add_relationships()
+db.auto_map_controls(win)
+db.auto_map_events(win)
+db.requery_all()
+db.update_controls()
 ```
 
 And finally, that brings us to the lower-level functions for binding the database.
@@ -288,7 +288,7 @@ db.add_table('Menu','pkMenu','name') #       These could have just as well been 
 
 # Set up relationships
 # Notice below that the first relationship has the last parameter to True.  This is what the ON UPDATE CASCADE constraint accomplishes.
-# Basically what it means is that then the Restaurant table is requeries, the associated Item table will automatically requery right after.
+# Basically what it means is that then the Restaurant table is requeried, the associated Item table will automatically requery right after.
 # This is what allows the GUI to seamlessly update all of the control elements when records are changed!
 # The other relationships have that parameter set to False - they still have a relationship, but they don't need requeried automatically
 db.add_relationship('LEFT JOIN', 'Item', 'fkRestaurant', 'Restaurant', 'pkRestaurant', True) 
