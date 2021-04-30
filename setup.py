@@ -8,7 +8,7 @@ def readme():
     except IOError:
         return ''
 
-requirements = ['logging','PySimpleGUI','sqlite3','functools','os']
+requirements = ['PySimpleGUI']
 
 setuptools.setup(
     name="pysimplesql",
