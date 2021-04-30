@@ -33,7 +33,9 @@ layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database('example2.db', win, sql_file='example2.sql')      # <=== load the database and bind it to the window
+db = ss.Database('example.db', win)      # <=== load the database and bind it to the window
+# NOTE: If you want to read in SQL commands and create a database instead of opening an existing one, just pass it in!
+# db = ss.Database('example.db', win, sql_file='example.sql')      # <=== load the database and bind it to the window
 
 # Set our callbacks
 db.set_callback('edit_enable',en)

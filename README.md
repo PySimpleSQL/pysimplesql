@@ -48,7 +48,7 @@ layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database(':memory:', 'example2.sql', win)      # <=== load the database and bind it to the window
+db = ss.Database(':memory:', 'example.sql', win)      # <=== load the database and bind it to the window
 
 while True:
     event, values = win.read()
@@ -254,12 +254,12 @@ layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)
 ### Binding the window to the element
 Referencing the same example above, the window and database were bound with this one single line:
 ```python
-db = ss.Database(':memory:', 'example2.sql', win) # Load in the database and bind it to win
+db = ss.Database(':memory:', 'example.sql', win) # Load in the database and bind it to win
 ```
 The above is a one-shot approach and all most users will ever need!
 The above could have been written as:
 ```python
-db=ss.Database(':memory:', 'example2.sql') # Load in the database
+db=ss.Database(':memory:', 'example.sql') # Load in the database
 db.auto_bind(win) # automatically bind the window to the database
 ```
 
