@@ -4,7 +4,7 @@
 While PySimpleSQL works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
-PySimpleSQL binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
+PySimpleSQL binds PySimpleGUI™ to sqlite3 databases for rapid, effortless database application development. Makes a great
 replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
 power and control of managing your own codebase. PySimpleSQL not only allows for super simple automatic control (not one single
 line of SQL needs written to use PySimpleSQL), but also allows for very low level control for situations that warrant it.
@@ -135,13 +135,13 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ![image](https://user-images.githubusercontent.com/70232210/91227678-e8c73700-e6f4-11ea-83ee-4712e687bfb4.png)
 
-Like PySimpleGUI, pySimpleSQL supports subscript notation, so your code can access the data easily in the format of db['Table']['field'].
+Like PySimpleGUI™, pySimpleSQL supports subscript notation, so your code can access the data easily in the format of db['Table']['field'].
 In the example above, you could get the current item selection with the following code:
 ```python
-selected_restaurant=db['Restaurant'].['name']
+selected_restaurant=db['Restaurant']['name']
 selected_item=db['Item']['name']
 ```
-or via the PySimpleGUI control elements with the following:
+or via the PySimpleGUI™ control elements with the following:
 ```python
 selected_restaurant=win['Restaurant.name']
 selected_item=win['Item.name']
@@ -153,7 +153,7 @@ The automatic functionality of PySimpleSQL relies on just a couple of things:
 - foreign key constraints on the database tables (lets PySimpleSQL know what the relationships are)
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
 refreshed
-- PySimpleGUI control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is 
+- PySimpleGUI™ control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is 
 supported as well. @Database.record() is a convenience function/"custom control" to make adding records quick and easy!
 - The field 'name', (or the 2nd column of the database in the absence of a 'name' column) is what will display in 
 comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
@@ -197,7 +197,7 @@ ss.record('Restaurant', 'name') # Table name, field name parameters
 ```
 As you can see, the @Database.record() convenience function simplifies making record controls that adhere to the
 PySimpleSQL naming convention of Table.field. In fact, there is even more you can do with this. The @Database.record() 
-function can take a PySimpleGUI control element as a parameter as well, overriding the defaul Input() element.
+function can take a PySimpleGUI™ control element as a parameter as well, overriding the defaul Input() element.
 See this code which creates a combobox instead:
 ```python
 ss.record('Restaurant', 'fkType', sg.Combo)]
