@@ -6,21 +6,30 @@ While PySimpleSQL works with and was inspired by the excellent PySimpleGUI™ pr
 ## Rapidly build and deploy database applications in Python
 PySimpleSQL binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
 replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
-power and control of managing your own codebase.
+power and control of managing your own codebase. PySimpleSQL not only allows for super simple automatic control (not one single
+line of SQL needs written to use PySimpleSQL), but also allows for very low level control for situations that warrant it.
 
+## History
+PySimpleSQL was conceived after having used PySimpleGUI™ to prototype a GUI in Python.  After some time it became apparent that
+my approach of prototyping in one language, just to implement it in another wasn't very efficient and didn't make much sense.
+I had taken this approach many times in the past due to the lack of a good RAD (Rapid Application Development) tool when it comes
+to making database front ends in Python.  Rather than spending my time porting my prototype over, one time I decided to try my hand
+at creating such a tool - and this is what I ended up with.
+Now make no mistake - I'm not a good project maintainer, and my goal was never to launch an open source project in the first place!
+The more I used this combination of PySimpleSQL and PySimpleGUI™ for my own database projects, the more I realized how many others 
+would benefit from it. With that being said, I will do my best to maintain and improve this tool over time.  Being new to open source
+as well as hosting projects like this, I have a lot to learn moving forward.  Your patience is appreciated.
 
-# Jump-Start
+# Lets do this!
 
 ## Install
 NOTE: PySimpleSQL is not yet on PyPi, but will be soon!
 ```
 pip install PySimpleGUI
 pip install pysimplesql
-pip install sqlite3
 or
 pip3 install PySimpleGUI
 pip3 install pysimplesql
-pip3 install sqlite3
 ```
 
 ### This Code
@@ -30,7 +39,7 @@ pip3 install sqlite3
 import PySimpleGUI as sg
 import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
-# Define our layout. We will use the ss.record convenience function to create the controls
+# Define our layout. We will use the pysimplesql.record() convenience function to create the controls
 layout = [
     ss.record('Restaurant', 'name'),
     ss.record('Restaurant', 'location'),
