@@ -1,8 +1,10 @@
-![image](https://user-images.githubusercontent.com/70232210/91427413-dd2a5c00-e82b-11ea-8a3d-dc706149422d.png)
-# PySimpleGUI User's Manual
+# PySimpleSQL User's Manual
+
+# DISCLAIMER:
+While PySimpleSQL works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
-Binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
+PySimpleSQL binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
 replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
 power and control of managing your own codebase.
 
