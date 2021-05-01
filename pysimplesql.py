@@ -834,7 +834,7 @@ class Database:
 
     def get_relationships_for_table(self, table):
         """
-        Return the relationships for the passed-in table
+        Return the relationships for the passed-in table.
         :param table: The table to get relationships for
         :return: A list of @Relationship objects
         """
@@ -845,6 +845,10 @@ class Database:
         return rel
 
     def get_cascaded_relationships(self):
+        """
+        Return a unique list of the relationships for this table that should requery with this table.
+        :return: A unique list of table names
+        """
         rel = []
         for r in self.relationships:
             if r.requery_table:
@@ -855,14 +859,26 @@ class Database:
         return rel
 
     def get_parent(self, table):
+        """
+        Return the parent table for the passed-in table
+        :param table: The table (str) to get relationships for
+        :return: The name of the Parent table, or '' if there is none
+        """
         for r in self.relationships:
             if r.child == table and r.requery_table:
                 return r.parent
-        return ''
+        return '' # TODO: should this return None?
 
 
 
     def auto_add_tables(self):
+        """
+        Automatically add @Table objects from an sqlite database by looping through the tables available.
+        When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
+        This is also called by @Database.auto_bind() or even from the @Database.__init__ with a parameter
+        Note that @Database.add_table can do this manually on a per-table basis.
+        :return: None
+        """
         logger.info('Automatically adding tables from the sqlite database...')
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.con.execute(q)
@@ -895,6 +911,15 @@ class Database:
     # dependent tables to requery automatically
     # TODO: clear relationships first so that successive calls don't add multiple entries.
     def auto_add_relationships(self):
+        """
+        Automatically add a foreign key relationship between tables of the database. This is done by foregn key constrains
+        within the sqlite database.  Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql is set)
+        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until tables are
+        added and the relationship of various tables is set.
+        Note that @Database.add_relationship() can do this manually.
+        which also happens automatically with @Database.auto_bind and even from the @Database.__init__ with a parameter
+        :return: None
+        """    
         for table in self.tables:
             rows = self.con.execute(f"PRAGMA foreign_key_list({table})")
             rows = rows.fetchall()
@@ -910,8 +935,20 @@ class Database:
                 logger.debug(f'Adding relationship {table}.{row["from"]} = {row["table"]}.{row["to"]}')
                 self.add_relationship('LEFT JOIN', table, row['from'], row['table'], row['to'], requery_table)
 
+    # Map a control.
+    # Optionally supply an FQ (Foreign Query Object), Primary Key and Foreign Key, and Foreign Feild
+    # TV=True Valeu, FV=False Value
+    def map_control(self, control, table, field):
+        dic = {
+            'control': control,
+            'table': table,
+            'field': field,
+        }
+        logger.info(f'Mapping control {control.Key}')
+        self.control_map.append(dic)
+                             
     def auto_map_controls(self, win):
-        # TODO: Should controls to be mapped start with C. to match events, and selectors?
+        # TODO: Should controls to be mapped start with "Control" to match events, and selectors?
         logger.info('Automapping controls...')
         for control in win.AllKeysDict.keys():
             # See if this control has table.field information
@@ -927,18 +964,15 @@ class Database:
                         # Map this control to table.field
                         self.map_control(win[control], self[lhs], rhs)
             
-    # Map a control.
-    # Optionally supply an FQ (Foreign Query Object), Primary Key and Foreign Key, and Foreign Feild
-    # TV=True Valeu, FV=False Value
-    def map_control(self, control, table, field):
+    
+    def map_event(self, event, fctn):
         dic = {
-            'control': control,
-            'table': table,
-            'field': field,
+            'event': event,
+            'function': fctn
         }
-        logger.info(f'Mapping control {control.Key}')
-        self.control_map.append(dic)
-
+        logger.info(f'Mapping event {event} to function {fctn}')
+        self.event_map.append(dic)
+                             
     def auto_map_events(self, win):
         # TODO: Change Event to E?
         # TODO: Can we dynamically map a string representation of function instead of using the event_map approach below?
@@ -968,15 +1002,10 @@ class Database:
 
 
 
-    def map_event(self, event, fctn):
-        dic = {
-            'event': event,
-            'function': fctn
-        }
-        logger.info(f'Mapping event {event} to function {fctn}')
-        self.event_map.append(dic)
+    
 
     def edit_protect(self):
+                             
         if self.window['btnEditProtect'].metadata:
             if 'edit_enable' in self.callbacks.keys():
                 if not self.callbacks['edit_enable'](self,self.window):
@@ -1003,6 +1032,7 @@ class Database:
 
     def update_controls(self,table=''):  # table type: str
         # TODO Fix bug where listbox first element is ghost selected
+        # TODO: Dosctring
         logger.info('Updating controls...')
         # Update the current values
         # d= dictionary (the control map dictionary)
@@ -1059,6 +1089,7 @@ class Database:
                 d['control'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
 
             elif type(d['control']) is sg.PySimpleGUI.Checkbox:
+                # TODO: FIXME
                 # d['control'].update(0)
                 # print('Checkbox...')
                 pass
@@ -1136,7 +1167,14 @@ class Database:
             self[k].requery()
                              
     def process_events(self, event, values):
-        # Events handled are responsible for requerying and updating controls as needed
+        """
+        Process mapped events.  This should be called once per iteration.
+        Events handled are responsible for requerying and updating controls as needed
+        :param event: The event returned by PySimpleGUI.read()
+        :param values: the values returned by PySimpleGUI.read()
+        :return: True if an event was handled, False otherwise
+        """
+        # TODO: what to do with values?
         if event:
             for e in self.event_map:
                 if e['event'] == event:
@@ -1155,6 +1193,12 @@ class Database:
         return False
 
     def disable_controls(self, disable,table=''):
+        """
+        Disable all controls assocated with table.
+        :param disable: True/False to disable/enable control(s)
+        :param table: table name assocated with controls to disable/enable
+        :return: None
+        """
         # TODO: fix this?  I'm not sure it works
         win=self.window
         for k, v in win.AllKeysDict.items():
@@ -1259,7 +1303,7 @@ def set_control_size(w,h):
 
 
 # Define a custom control for quickly adding database rows.
-# The automatic functions of pysimpledb require the controls to have a key of Table.field
+# The automatic functions of PySimpleSQL require the controls to have a key of Table.field
 # todo should I enable controls here for dirty checking?
 def record(table, field, control=sg.I, size=None,  name='' ):
     """
