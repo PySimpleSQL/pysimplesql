@@ -3,7 +3,7 @@
 try:
     import PySimpleGUI as sg
 except ImportError:
-    assert 'This module is designed to be used with PySimpleGUI.  Try installing with pip3 install pysimplegui'
+    assert 'This module is designed to be used with PySimpleGUI™.  Try installing with pip3 install PySimpleGUI'
 import logging
 import sqlite3
 import functools
