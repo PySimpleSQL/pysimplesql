@@ -336,3 +336,91 @@ db.update_controls()
 ```
 
 As you can see, there is a lot of power in the auto functionality of PySimpleSQL, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
+
+# BREAKDOWN OF ADVANCED FUNCTIONALITY
+PySimpleSQL does much more than just bridge the gap between PySimpleGUI™ and Sqlite databases! In full, PySimpleSQL contains:
+* Convenience functions for simplifying PySimpleGUI™ layout code
+* Control binding between PySimpleGUI™ controls and Sqlite database fields
+* Automatic requerying of related tables
+* Record navigation - Such as First, Previous, Next, Last, Searching and selector controls
+* Callbacks allow your own functions to expand control over your own database front ends
+* Event Mapping
+
+We will break each of these down below to give you a better understanding of how each of these features works.
+## Convenience Functions
+
+## Control Binding
+
+## Automatic Requerying
+
+## Record Navigation
+PySimpleSQL includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
+
+The convenience function PySimpleSQL.record_navigation() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the record_navigation() convenience function uses the Event Mapping features of PySimpleSQL, and your own code can do this too!
+
+See example below of how your can make your own record navigation controls instead of using the PySimpleSQL.record_navigation() convenience function:
+```python
+# PySimpleGUI™ layout code to create your own navigation buttons
+table='your_table_name' # This is the table in the database that you want to navigate
+layout+= [
+sg.Button('<<', key=f'Event.{table}.First', size=(1, 1)),
+sg.Button('<', key=f'Event.{table}.Previous', size=(1, 1)),
+sg.Button('>', key=f'Event.{table}.Next', size=(1, 1)),
+sg.Button('>>', key=f'Event.{table}.Last', size=(1, 1))
+]
+...
+...
+# Later in the code...
+# Auto map the events
+ss.auto_map_events(sg)
+```
+Notice the naming convention of the PySimpleGUI™ contrl keys in the example above.  They are in the format of "Event.table_name.event_type".  This is so that the Automatic event mapping of PySimpleSql will handle these.  Valid event_types include: Insert, Save, Delete, First, Previous, Next, Last and Search.
+
+Peeling this back further, you can rewrite the same without the special naming convention used by the automatic event mapper, and instead name the keys however you would like, then manually map them in the event mapper...
+
+```python
+# PySimpleGUI™ layout code to create your own navigation buttons
+table='your_table_name' # This is the table in the database that you want to navigate
+layout+= [
+sg.Button('<<', key=f'btnFirst', size=(1, 1)),
+sg.Button('<', key=f'btnPrevious', size=(1, 1)),
+sg.Button('>', key=f'btnNext', size=(1, 1)),
+sg.Button('>>', key=f'btnLast', size=(1, 1))
+]
+...
+...
+# Later in the code...
+# Manually map the events
+ss.map_event('btnFirst',ss[table].first)
+ss.map_event('btnPrevious',ss[table].previous)
+ss.map_event('btnNext',ss[table].next)
+ss.map_event('btnLast',ss[table].last)
+```
+
+Lastly, you can rewrite the same and handle the events yourself instead of relying on PySimpleSQL's event mapper
+
+```python
+# PySimpleGUI™ layout code to create your own navigation buttons
+table='your_table_name' # This is the table in the database that you want to navigate
+layout+= [
+sg.Button('<<', key=f'btnFirst', size=(1, 1)),
+sg.Button('<', key=f'btnPrevious', size=(1, 1)),
+sg.Button('>', key=f'btnNext', size=(1, 1)),
+sg.Button('>>', key=f'btnLast', size=(1, 1))
+]
+...
+...
+# Later in the code...
+# Manually map the events
+ss.map_event('btnFirst',ss[table].first)
+ss.map_event('btnPrevious',ss[table].previous)
+ss.map_event('btnNext',ss[table].next)
+ss.map_event('btnLast',ss[table].last)
+```
+
+Whether you want to use the PySimpleSQL.record_navigation() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
+## Callbacks
+
+## Event Mapping
+
+*
