@@ -348,7 +348,7 @@ PySimpleSQL does much more than just bridge the gap between PySimpleGUI™ and S
 
 We will break each of these down below to give you a better understanding of how each of these features works.
 ## Convenience Functions
-
+See Record Navigation below for some good examples...
 ## Control Binding
 
 ## Automatic Requerying
@@ -357,65 +357,214 @@ We will break each of these down below to give you a better understanding of how
 PySimpleSQL includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
 
 The convenience function PySimpleSQL.record_navigation() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the record_navigation() convenience function uses the Event Mapping features of PySimpleSQL, and your own code can do this too!
+See the code below on example usage of the PySimpleSQL.record_navigation() convenience function
+```python
+#!/usr/bin/python3
+import PySimpleGUI as sg
+import pysimplesql as ss
+
+# Create a small table just for demo purposes
+sql='''
+CREATE TABLE "Fruit"(
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT DEFAULT "New Fruit"
+);
+INSERT INTO "Fruit" ("name") VALUES ("Apple");
+INSERT INTO "Fruit" ("name") VALUES ("Orange");
+INSERT INTO "Fruit" ("name") VALUES ("Banana");
+INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
+'''
+
+# PySimpleGUI™ layout code to create your own navigation buttons
+table='Fruit' # This is the table in the database that you want to navigate
+layout = [
+ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+ss.record_navigation(table)       # PySimpleSQL.record_navigation() convenience function for easy navigation controls!
+]
+
+win=sg.Window('Navigation demo', layout, finalize=True)
+# note: Since win was passed as a parameter, binding is automatic (including event mapping!)
+# Also note, in-memory databases can be created with ":memory:"!
+db=ss.Database(':memory:', win, sql_commands=sql)
+
+while True:
+    event, values = win.read()
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        print(f'PySimpleDB event handler handled the event {event}!')
+    elif event == sg.WIN_CLOSED or event == 'Exit':
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        break
+    else:
+        print(f'This event ({event}) is not yet handled.')
+```
+Simple!
+But as stated earlier, PySimpleSQL.record_navigation is a swiss army knife!  Experiment with the code ablove, trying all of these variations to see all of goodness this convenience functions provides!
+```python
+ss.record_navigation(table,search=True) 
+ss.record_navigation(table,actions=True)  
+ss.record_navigation(table,actions=True,save=True) 
+ss.record_navigation(table,search=True,actions=True,save=True) 
+ss.record_navigation(table,search=True,actions=True,save=True,protect=True) 
+```
+
 
 See example below of how your can make your own record navigation controls instead of using the PySimpleSQL.record_navigation() convenience function:
 ```python
+#!/usr/bin/python3
+import PySimpleGUI as sg
+import pysimplesql as ss
+
+# Create a small table just for demo purposes
+sql='''
+CREATE TABLE "Fruit"(
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT DEFAULT "New Fruit"
+);
+INSERT INTO "Fruit" ("name") VALUES ("Apple");
+INSERT INTO "Fruit" ("name") VALUES ("Orange");
+INSERT INTO "Fruit" ("name") VALUES ("Banana");
+INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
+'''
+
 # PySimpleGUI™ layout code to create your own navigation buttons
-table='your_table_name' # This is the table in the database that you want to navigate
-layout+= [
-sg.Button('<<', key=f'Event.{table}.First', size=(1, 1)),
+table='Fruit' # This is the table in the database that you want to navigate
+layout = [
+ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+# Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
+[sg.Button('<<', key=f'Event.{table}.First', size=(1, 1)),
 sg.Button('<', key=f'Event.{table}.Previous', size=(1, 1)),
 sg.Button('>', key=f'Event.{table}.Next', size=(1, 1)),
 sg.Button('>>', key=f'Event.{table}.Last', size=(1, 1))
 ]
-...
-...
-# Later in the code...
-# Auto map the events
-ss.auto_map_events(sg)
+]
+
+win=sg.Window('Navigation demo', layout, finalize=True)
+# note: Since win was passed as a parameter, binding is automatic (including event mapping!)
+# Also note, in-memory databases can be created with ":memory:"!
+db=ss.Database(':memory:', win, sql_commands=sql)
+
+while True:
+    event, values = win.read()
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        print(f'PySimpleDB event handler handled the event {event}!')
+    elif event == sg.WIN_CLOSED or event == 'Exit':
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        break
+    else:
+        print(f'This event ({event}) is not yet handled.')
 ```
 Notice the naming convention of the PySimpleGUI™ contrl keys in the example above.  They are in the format of "Event.table_name.event_type".  This is so that the Automatic event mapping of PySimpleSql will handle these.  Valid event_types include: Insert, Save, Delete, First, Previous, Next, Last and Search.
 
 Peeling this back further, you can rewrite the same without the special naming convention used by the automatic event mapper, and instead name the keys however you would like, then manually map them in the event mapper...
 
 ```python
+#!/usr/bin/python3
+import PySimpleGUI as sg
+import pysimplesql as ss
+
+# Create a small table just for demo purposes
+sql='''
+CREATE TABLE "Fruit"(
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT DEFAULT "New Fruit"
+);
+INSERT INTO "Fruit" ("name") VALUES ("Apple");
+INSERT INTO "Fruit" ("name") VALUES ("Orange");
+INSERT INTO "Fruit" ("name") VALUES ("Banana");
+INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
+'''
+
 # PySimpleGUI™ layout code to create your own navigation buttons
-table='your_table_name' # This is the table in the database that you want to navigate
-layout+= [
-sg.Button('<<', key=f'btnFirst', size=(1, 1)),
+table='Fruit' # This is the table in the database that you want to navigate
+layout = [
+ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+# Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
+[sg.Button('<<', key=f'btnFirst', size=(1, 1)),
 sg.Button('<', key=f'btnPrevious', size=(1, 1)),
 sg.Button('>', key=f'btnNext', size=(1, 1)),
 sg.Button('>>', key=f'btnLast', size=(1, 1))
 ]
-...
-...
-# Later in the code...
-# Manually map the events
-ss.map_event('btnFirst',ss[table].first)
-ss.map_event('btnPrevious',ss[table].previous)
-ss.map_event('btnNext',ss[table].next)
-ss.map_event('btnLast',ss[table].last)
+]
+
+win=sg.Window('Navigation demo', layout, finalize=True)
+# note: Since win was passed as a parameter, binding is automatic (including event mapping!)
+# Also note, in-memory databases can be created with ":memory:"!
+db=ss.Database(':memory:', win, sql_commands=sql)
+
+# Manually map the events, since we did not adhere to the naming convention that the automatic mapper expects
+db.map_event('btnFirst',db[table].first)
+db.map_event('btnPrevious',db[table].previous)
+db.map_event('btnNext',db[table].next)
+db.map_event('btnLast',db[table].last)
+
+while True:
+    event, values = win.read()
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        print(f'PySimpleDB event handler handled the event {event}!')
+    elif event == sg.WIN_CLOSED or event == 'Exit':
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        break
+    else:
+        print(f'This event ({event}) is not yet handled.')
 ```
 
 Lastly, you can rewrite the same and handle the events yourself instead of relying on PySimpleSQL's event mapper
 
 ```python
+#!/usr/bin/python3
+import PySimpleGUI as sg
+import pysimplesql as ss
+
+# Create a small table just for demo purposes
+sql='''
+CREATE TABLE "Fruit"(
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	"name" TEXT DEFAULT "New Fruit"
+);
+INSERT INTO "Fruit" ("name") VALUES ("Apple");
+INSERT INTO "Fruit" ("name") VALUES ("Orange");
+INSERT INTO "Fruit" ("name") VALUES ("Banana");
+INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
+'''
+
 # PySimpleGUI™ layout code to create your own navigation buttons
-table='your_table_name' # This is the table in the database that you want to navigate
-layout+= [
-sg.Button('<<', key=f'btnFirst', size=(1, 1)),
+table='Fruit' # This is the table in the database that you want to navigate
+layout = [
+ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+# Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
+[sg.Button('<<', key=f'btnFirst', size=(1, 1)),
 sg.Button('<', key=f'btnPrevious', size=(1, 1)),
 sg.Button('>', key=f'btnNext', size=(1, 1)),
 sg.Button('>>', key=f'btnLast', size=(1, 1))
 ]
-...
-...
-# Later in the code...
-# Manually map the events
-ss.map_event('btnFirst',ss[table].first)
-ss.map_event('btnPrevious',ss[table].previous)
-ss.map_event('btnNext',ss[table].next)
-ss.map_event('btnLast',ss[table].last)
+]
+
+win=sg.Window('Navigation demo', layout, finalize=True)
+# note: Since win was passed as a parameter, binding is automatic (including event mapping!)
+# Also note, in-memory databases can be created with ":memory:"!
+db=ss.Database(':memory:', win, sql_commands=sql)
+
+
+
+while True:
+    event, values = win.read()
+    # Manually handle our record selector events, bypassing the event mapper completely
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        print(f'PySimpleDB event handler handled the event {event}!')
+    elif event == 'btnFirst':
+        db[table].first()
+    elif event == 'btnPrevious':
+        db[table].previous()
+    elif event == 'btnNext':
+        db[table].next()
+    elif event == 'btnLast':
+        db[table].last()
+    elif event == sg.WIN_CLOSED or event == 'Exit':
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        break
+    else:
+        print(f'This event ({event}) is not yet handled.')
+
 ```
 
 Whether you want to use the PySimpleSQL.record_navigation() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
