@@ -184,7 +184,7 @@ CREATE TABLE "Chapter"(
 ### But wait, there's more!
 The above is literally all you have to know for working with simple and even moderate databases.  However, there is a 
 lot of power in learning what is going on under the hood!  Starting with the fully automatic example above, we will work
-backwards to explain what is available to you for more control.
+backwards to explain what is available to you for more control at a lower level.
 
 #### PySimpleSQL elements:
 Referencing the example above, look at the following:
@@ -284,7 +284,7 @@ db.requery_all()
 db.update_controls()
 ```
 
-And finally, that brings us to the lower-level functions for binding the database.
+And finally, that brings us to the lowest-level functions for binding the database.
 This is how you can MANUALLY map tables, relationships, controls and events to the database.
 The above auto_map_* functions could have been manually achieved as follows:
 ```python
@@ -348,7 +348,15 @@ PySimpleSQL does much more than just bridge the gap between PySimpleGUI™ and S
 
 We will break each of these down below to give you a better understanding of how each of these features works.
 ## Convenience Functions
-See Record Navigation below for some good examples...
+There are currently only a few convenience functions to aid in quikly creating PySimpleGUI™ layout code
+Database.set_text_size(width,height) - Sets the PySimpleGUI™ text size for subsequent calls to Database.record(). Defaults to (15,1) otherwise.
+
+Database.set_control_size(width, height) - Sets the PySImpleGUI™ control size for subsequent calls to Database.record(). Defaults to (30,1) otherwise.
+
+Database.record(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating a PySimpleGUI™ text control and a PySimpleGUI™ Input control inline for purposes of displaying a record from the database.  This function also creates the naming convention (table.field) in the control's key parameter that PySimpleSQL uses for advanced automatic functionality. The optional control_type parameter allows you to bind control types other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will previx a text field before the control.
+
+Database.record_navigation()-
+
 ## Control Binding
 
 ## Automatic Requerying
