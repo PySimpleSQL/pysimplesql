@@ -1035,7 +1035,6 @@ class Database:
 
         save_buttons = [val for key, val in self.window.AllKeysDict.items() if 'btnSaveRecord' in key]
         for btn in save_buttons:
-            print(btn)
             btn.update(disabled=self.window['btnEditProtect'].metadata)
 
     def save_records(self,cascade_only=False):
@@ -1152,7 +1151,6 @@ class Database:
                 self.disable_controls(self.window['btnEditProtect'].metadata)
                 save_buttons = [val for key, val in self.window.AllKeysDict.items() if 'btnSaveRecord' in key]
                 for btn in save_buttons:
-                    print(btn)
                     btn.update(disabled=self.window['btnEditProtect'].metadata)
                 for t in self.tables:
                     if f'Event.{t}.Insert' in win.AllKeysDict.keys():
