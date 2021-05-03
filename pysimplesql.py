@@ -882,6 +882,8 @@ class Database:
         :return: None
         """
         logger.info('Automatically adding tables from the sqlite database...')
+        # Ensure we clear any current tables so that successive calls will not double the entries
+        self.tables = {}
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.con.execute(q)
         records = cur.fetchall()  # TODO: new version of this w/o cur
@@ -921,7 +923,9 @@ class Database:
         Note that @Database.add_relationship() can do this manually.
         which also happens automatically with @Database.auto_bind and even from the @Database.__init__ with a parameter
         :return: None
-        """    
+        """
+        # Ensure we clear any current tables so that successive calls will not double the entries
+        self.relationships = []
         for table in self.tables:
             rows = self.con.execute(f"PRAGMA foreign_key_list({table})")
             rows = rows.fetchall()
@@ -952,6 +956,8 @@ class Database:
     def auto_map_controls(self, win):
         # TODO: Should controls to be mapped start with "Control" to match events, and selectors?
         logger.info('Automapping controls...')
+        # clear out any previously mapped controls to ensure successive calls doesn't produce duplicates
+        self.control_map = []
         for control in win.AllKeysDict.keys():
             # See if this control has table.field information
             # Start by seeing if there is a '.'
@@ -979,6 +985,8 @@ class Database:
         # TODO: Change Event to E?
         # TODO: Can we dynamically map a string representation of function instead of using the event_map approach below?
         logger.info(f'Auto mapping events...')
+        # clear out any previously mapped controls to ensure successive calls doesn't produce duplicates
+        self.event_map = []
         for control in win.AllKeysDict.keys():
             control=str(control) # sometimes I end up with an integer control 0? TODO: Research
             # See if this control has Event.table.func information
