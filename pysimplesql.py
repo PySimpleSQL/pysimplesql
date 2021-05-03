@@ -567,7 +567,7 @@ class Table:
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
         :return: None
         """
-        # Ensure that there is actually something to delete
+        # Ensure that there is actually something to save
         if not len(self.rows):
             return
 
@@ -1020,7 +1020,8 @@ class Database:
         self.window['btnEditProtect'].metadata = not self.window['btnEditProtect'].metadata
         self.update_controls()
 
-    def save_records(self,cascade_only=True):
+    def save_records(self,cascade_only=False):
+        logger.info(f'Preparing to save records in all tables...')
         self.window.refresh() # todo remove?
         i=0
         tables=self.get_cascaded_relationships() if cascade_only else self.tables
@@ -1029,6 +1030,7 @@ class Database:
         for t in tables:
             if i==last_index:
                 msg=True
+            logger.info(f'Saving records for table {t}...')
             self[t].save_record(msg)
             i += 1
 
