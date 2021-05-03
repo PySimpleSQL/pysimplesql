@@ -18,7 +18,7 @@ sub_layout = [
          ss.record('Item', 'price'),
          ss.record('Item', 'description', sg.MLine, (30, 7))
          ])],
-    ss.actions('Item', navigation=False, search=False)
+    ss.actions('Item', write_protect=False,navigation=False,save=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
 layout += [ss.actions('Restaurant')]
