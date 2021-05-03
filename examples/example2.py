@@ -21,7 +21,7 @@ sub_layout = [
     ss.actions('Item', navigation=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.actions('Restaurant', protect=True, search=True, save=True)]
+layout += [ss.actions('Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)

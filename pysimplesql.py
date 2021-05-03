@@ -1004,7 +1004,7 @@ class Database:
                 }
                 if fctn in event_map:
                     self.map_event(control, event_map[fctn])
-            elif control == 'btnEditProtect':
+            elif 'btnEditProtect' in control:
                 self.map_event(control, self.edit_protect)
             elif 'btnSaveRecord' in control: # also covers btnSaveRecord0,1,2 et
                 # all save buttons essentially save everything (I.e. not table related, but database wide)
@@ -1028,11 +1028,15 @@ class Database:
         self.window['btnEditProtect'].metadata = not self.window['btnEditProtect'].metadata
 
         # Now we need to change the Insert/Save/Delete buttons!
-        self.window['btnSaveRecord'].update(disabled=self.window['btnEditProtect'].metadata)
         for t in self.tables:
             if f'Event.{t}.Insert' in self.window.AllKeysDict.keys():
                 self.window[f'Event.{t}.Insert'].update(disabled=self.window['btnEditProtect'].metadata)
                 self.window[f'Event.{t}.Delete'].update(disabled=self.window['btnEditProtect'].metadata)
+
+        save_buttons = [val for key, val in self.window.AllKeysDict.items() if 'btnSaveRecord' in key]
+        for btn in save_buttons:
+            print(btn)
+            btn.update(disabled=self.window['btnEditProtect'].metadata)
 
     def save_records(self,cascade_only=False):
         logger.info(f'Preparing to save records in all tables...')
@@ -1146,7 +1150,10 @@ class Database:
         for e in self.event_map:
             if e['event']=='btnEditProtect':
                 self.disable_controls(self.window['btnEditProtect'].metadata)
-                win['btnSaveRecord'].update(disabled=self.window['btnEditProtect'].metadata)
+                save_buttons = [val for key, val in self.window.AllKeysDict.items() if 'btnSaveRecord' in key]
+                for btn in save_buttons:
+                    print(btn)
+                    btn.update(disabled=self.window['btnEditProtect'].metadata)
                 for t in self.tables:
                     if f'Event.{t}.Insert' in win.AllKeysDict.keys():
                         win[f'Event.{t}.Insert'].update(disabled=self.window['btnEditProtect'].metadata)
@@ -1282,6 +1289,7 @@ def actions(table, write_protect=True, navigation=True, insert=True, delete=True
 
     if insert: layout += [sg.B('', key=f'Event.{table}.Insert', size=(1, 1), button_color=('black','chartreuse3'), image_data=add_16)]
     if delete: layout += [sg.B('', key=f'Event.{table}.Delete', size=(1, 1), button_color=('white','red'), image_data=delete_16)]
+
     if save:   layout += [sg.B('', key=f'btnSaveRecord', size=(1, 1), button_color=('white','white'), image_data=save_16)]
 
     if search:
