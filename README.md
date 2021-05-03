@@ -37,7 +37,7 @@ pip3 install pysimplesql
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
 # Define our layout. We will use the pysimplesql.record() convenience function to create the controls
 layout = [
@@ -45,25 +45,26 @@ layout = [
     ss.record('Restaurant', 'location'),
     ss.record('Restaurant', 'fkType', sg.Combo)]
 sub_layout = [
-    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True),
-    sg.Col(
-        [ss.record('Item', 'name'),
-         ss.record('Item', 'fkMenu', sg.Combo),
-         ss.record('Item', 'price'),
-         ss.record('Item', 'description', sg.MLine, (30, 7))
-         ])],
+    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+                enable_events=True),
+     sg.Col(
+         [ss.record('Item', 'name'),
+          ss.record('Item', 'fkMenu', sg.Combo),
+          ss.record('Item', 'price'),
+          ss.record('Item', 'description', sg.MLine, (30, 7))
+          ])],
     ss.record_actions('Item', False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)]
+layout += [ss.actions('Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database(':memory:', 'example.sql', win)      # <=== load the database and bind it to the window
+db = ss.Database(':memory:', 'example.sql', win)  # <=== load the database and bind it to the window
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         print('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         break
@@ -207,25 +208,27 @@ Furthering that, the functions @Database.set_text_size() and @Database.set_contr
 @Database.record() will override the default control size, for plenty of flexibility.
 
 Place those two functions just above the layout definition shown in the example above and then run the code again
+
 ```python
-ss.set_text_size(10,1)    # Set the text/label size for all subsequent calls
-ss.set_control_size(50,1) # set the control size for all subsequent calls
+ss.set_text_size(10, 1)  # Set the text/label size for all subsequent calls
+ss.set_control_size(50, 1)  # set the control size for all subsequent calls
 layout = [
     ss.record('Restaurant', 'name'),
     ss.record('Restaurant', 'location'),
     ss.record('Restaurant', 'fkType', sg.Combo)]
 sub_layout = [
-    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True),
-    sg.Col(
-        [ss.record('Item', 'name'),
-         ss.record('Item', 'fkMenu', sg.Combo),
-         ss.record('Item', 'price'),
-         ss.record('Item', 'description', sg.MLine, (30, 7)) #Override the default size for this element!
-         ])],
+    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+                enable_events=True),
+     sg.Col(
+         [ss.record('Item', 'name'),
+          ss.record('Item', 'fkMenu', sg.Combo),
+          ss.record('Item', 'price'),
+          ss.record('Item', 'description', sg.MLine, (30, 7))  # Override the default size for this element!
+          ])],
     ss.record_actions('Item', False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)]
+layout += [ss.actions('Restaurant', protect=True, search=True, save=True)]
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91287363-a71ea680-e75d-11ea-8b2f-d240c1ec2acf.png)
 You will see that now, the controls were resized using the new sizing rules.  Notice however that the 'Description'
@@ -233,29 +236,31 @@ field isn't as wide as the others.  That is because we overridden the control si
 
 Lets see one more example.  This time we will fix the oddly sized 'Description' field, as well as make the 'Restaurant' 
 and 'Items' sections with their own sizing
+
 ```python
 # set the sizing for the Restaurant section
-ss.set_text_size(10,1)
-ss.set_control_size(90,1)
+ss.set_text_size(10, 1)
+ss.set_control_size(90, 1)
 layout = [
     ss.record('Restaurant', 'name'),
     ss.record('Restaurant', 'location'),
     ss.record('Restaurant', 'fkType', sg.Combo)]
 # set the sizing for the Items section
-ss.set_text_size(10,1)
-ss.set_control_size(50,1)
+ss.set_text_size(10, 1)
+ss.set_control_size(50, 1)
 sub_layout = [
-    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True),
-    sg.Col(
-        [ss.record('Item', 'name'),
-         ss.record('Item', 'fkMenu', sg.Combo),
-         ss.record('Item', 'price'),
-         ss.record('Item', 'description', sg.MLine, (50, 10)) #Override the default size for this element
-         ])],
+    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+                enable_events=True),
+     sg.Col(
+         [ss.record('Item', 'name'),
+          ss.record('Item', 'fkMenu', sg.Combo),
+          ss.record('Item', 'price'),
+          ss.record('Item', 'description', sg.MLine, (50, 10))  # Override the default size for this element
+          ])],
     ss.record_actions('Item', False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.record_navigation('Restaurant',protect=True,search=True,save=True)]
+layout += [ss.actions('Restaurant', protect=True, search=True, save=True)]
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91288080-8e62c080-e75e-11ea-8438-86035d4d6609.png)
 
@@ -355,7 +360,7 @@ Database.set_control_size(width, height) - Sets the PySImpleGUI™ control size 
 
 Database.record(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating a PySimpleGUI™ text control and a PySimpleGUI™ Input control inline for purposes of displaying a record from the database.  This function also creates the naming convention (table.field) in the control's key parameter that PySimpleSQL uses for advanced automatic functionality. The optional control_type parameter allows you to bind control types other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will previx a text field before the control.
 
-Database.record_navigation()-
+Database.actions()-
 
 ## Control Binding
 
@@ -364,15 +369,16 @@ Database.record_navigation()-
 ## Record Navigation
 PySimpleSQL includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
 
-The convenience function PySimpleSQL.record_navigation() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the record_navigation() convenience function uses the Event Mapping features of PySimpleSQL, and your own code can do this too!
-See the code below on example usage of the PySimpleSQL.record_navigation() convenience function
+The convenience function PySimpleSQL.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the actions() convenience function uses the Event Mapping features of PySimpleSQL, and your own code can do this too!
+See the code below on example usage of the PySimpleSQL.actions() convenience function
+
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
 import pysimplesql as ss
 
 # Create a small table just for demo purposes
-sql='''
+sql = '''
 CREATE TABLE "Fruit"(
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	"name" TEXT DEFAULT "New Fruit"
@@ -384,39 +390,40 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 '''
 
 # PySimpleGUI™ layout code to create your own navigation buttons
-table='Fruit' # This is the table in the database that you want to navigate
+table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
-ss.record_navigation(table)       # PySimpleSQL.record_navigation() convenience function for easy navigation controls!
+    ss.record(table, 'name', name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.actions(table)  # PySimpleSQL.actions() convenience function for easy navigation controls!
 ]
 
-win=sg.Window('Navigation demo', layout, finalize=True)
+win = sg.Window('Navigation demo', layout, finalize=True)
 # note: Since win was passed as a parameter, binding is automatic (including event mapping!)
 # Also note, in-memory databases can be created with ":memory:"!
-db=ss.Database(':memory:', win, sql_commands=sql)
+db = ss.Database(':memory:', win, sql_commands=sql)
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')
 ```
 Simple!
-But as stated earlier, PySimpleSQL.record_navigation is a swiss army knife!  Experiment with the code ablove, trying all of these variations to see all of goodness this convenience functions provides!
+But as stated earlier, PySimpleSQL.actions is a swiss army knife!  Experiment with the code ablove, trying all of these variations to see all of goodness this convenience functions provides!
+
 ```python
-ss.record_navigation(table,search=True) 
-ss.record_navigation(table,actions=True)  
-ss.record_navigation(table,actions=True,save=True) 
-ss.record_navigation(table,search=True,actions=True,save=True) 
-ss.record_navigation(table,search=True,actions=True,save=True,protect=True) 
+ss.actions(table, search=False)
+ss.actions(table, save=False)
+ss.actions(table, edit_protect=False)
+ss.actions(table, insert=False)
+ss.actions(table, delete=False, save=False) 
 ```
 
 
-See example below of how your can make your own record navigation controls instead of using the PySimpleSQL.record_navigation() convenience function:
+See example below of how your can make your own record navigation controls instead of using the PySimpleSQL.actions() convenience function:
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
@@ -485,13 +492,14 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table='Fruit' # This is the table in the database that you want to navigate
 layout = [
-ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
-# Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
-[sg.Button('<<', key=f'btnFirst', size=(1, 1)),
-sg.Button('<', key=f'btnPrevious', size=(1, 1)),
-sg.Button('>', key=f'btnNext', size=(1, 1)),
-sg.Button('>>', key=f'btnLast', size=(1, 1))
-]
+    ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
+    [
+        sg.Button('<<', key=f'btnFirst', size=(1, 1)),
+        sg.Button('<', key=f'btnPrevious', size=(1, 1)),
+        sg.Button('>', key=f'btnNext', size=(1, 1)),
+        sg.Button('>>', key=f'btnLast', size=(1, 1))
+    ]
 ]
 
 win=sg.Window('Navigation demo', layout, finalize=True)
@@ -538,13 +546,14 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table='Fruit' # This is the table in the database that you want to navigate
 layout = [
-ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
-# Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
-[sg.Button('<<', key=f'btnFirst', size=(1, 1)),
-sg.Button('<', key=f'btnPrevious', size=(1, 1)),
-sg.Button('>', key=f'btnNext', size=(1, 1)),
-sg.Button('>>', key=f'btnLast', size=(1, 1))
-]
+    ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
+    [
+        sg.Button('<<', key=f'btnFirst', size=(1, 1)),
+        sg.Button('<', key=f'btnPrevious', size=(1, 1)),
+        sg.Button('>', key=f'btnNext', size=(1, 1)),
+        sg.Button('>>', key=f'btnLast', size=(1, 1))
+    ]
 ]
 
 win=sg.Window('Navigation demo', layout, finalize=True)
@@ -575,7 +584,7 @@ while True:
 
 ```
 
-Whether you want to use the PySimpleSQL.record_navigation() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
+Whether you want to use the PySimpleSQL.actions() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
 ## Callbacks
 
 ## Event Mapping
