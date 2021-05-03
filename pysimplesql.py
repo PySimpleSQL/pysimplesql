@@ -1018,7 +1018,13 @@ class Database:
                     return
 
         self.window['btnEditProtect'].metadata = not self.window['btnEditProtect'].metadata
-        self.update_controls()
+
+        # Now we need to change the Insert/Save/Delete buttons!
+        self.window['btnSaveRecord'].update(disabled=self.window['btnEditProtect'].metadata)
+        for t in self.tables:
+            if f'Event.{t}.Insert' in self.window.AllKeysDict.keys():
+                self.window[f'Event.{t}.Insert'].update(disabled=self.window['btnEditProtect'].metadata)
+                self.window[f'Event.{t}.Delete'].update(disabled=self.window['btnEditProtect'].metadata)
 
     def save_records(self,cascade_only=False):
         logger.info(f'Preparing to save records in all tables...')
