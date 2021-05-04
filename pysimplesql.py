@@ -1,9 +1,6 @@
 #!/usr/bin/python3
 
-try:
-    import PySimpleGUI as sg
-except ImportError:
-    assert 'This module is designed to be used with PySimpleGUI™.  Try installing with pip3 install PySimpleGUI'
+import PySimpleGUI as sg
 import logging
 import sqlite3
 import functools
@@ -1347,7 +1344,7 @@ def set_control_size(w,h):
 # Define a custom control for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the controls to have a key of Table.field
 # todo should I enable controls here for dirty checking?
-def record(table, field, control=sg.Input, size=None,  label='' ):
+def record(table, field, control=sg.I, size=None,  label='' ):
     """
     Convenience function for adding PySimpleGUI elements to the window
     The automatic functionality of PySimpleSQL relies on PySimpleGUI control elements to have the key {Table}.{name}
@@ -1379,7 +1376,7 @@ def selector(table,control=sg.LBox,size=None):
     if control==sg.Listbox:
         layout = [control(values=(), size=size or _default_control_size, key=key, select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True)]
     elif control==sg.Slider:
-        layout = [control(enable_events=True,orientation='h',disable_number_display=True,key=key)]
+        layout = [control(enable_events=True,size=size or _default_control_size,orientation='h',disable_number_display=True,key=key)]
     elif control==sg.Combo:
         layout=[control(values=(), size=size or _default_control_size, readonly=True, enable_events=True, key=key)]
     else:
