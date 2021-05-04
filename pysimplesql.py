@@ -598,6 +598,7 @@ class Table:
 
             # Add the where clause
             q += f' WHERE {self.pk_field}={self.get_current(self.pk_field)};'
+            logger.info(f'Performing query: {q} {str(values)}')
             self.con.execute(q, tuple(values))
 
             # callback
@@ -615,7 +616,7 @@ class Table:
             self.set_by_pk(pk)
             #self.requery_dependents()
             self.db.update_controls(self.table)
-            logger.info(f'Record Saved: {q} {str(values)}')
+            logger.info(f'Record Saved!')
         if display_message:
 
             sg.popup('Updates saved successfully!',keep_on_top=True)
@@ -1346,7 +1347,7 @@ def set_control_size(w,h):
 # Define a custom control for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the controls to have a key of Table.field
 # todo should I enable controls here for dirty checking?
-def record(table, field, control=sg.I, size=None,  label='' ):
+def record(table, field, control=sg.Input, size=None,  label='' ):
     """
     Convenience function for adding PySimpleGUI elements to the window
     The automatic functionality of PySimpleSQL relies on PySimpleGUI control elements to have the key {Table}.{name}
