@@ -24,9 +24,9 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=requirements,
     classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
-        "Topic :: Database :: Application",
-        "Operating System :: OS Independent"
-    ]
+        "Programming Language :: Python",
+        "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+        "Topic :: Database :: Front-Ends",
+        "Operating System :: OS Independent",
+    ],
 )

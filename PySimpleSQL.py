@@ -1378,7 +1378,7 @@ def selector(table,control=sg.LBox,size=None):
     elif control==sg.Slider:
         layout = [control(enable_events=True,size=size or _default_control_size,orientation='h',disable_number_display=True,key=key)]
     elif control==sg.Combo:
-        layout=[control(values=(), size=size or _default_control_size, readonly=True, enable_events=True, key=key)]
+        layout=[control(values=(), size=size or _default_control_size, readonly=True, enable_events=True, key=key,auto_size_text=False)]
     else:
         raise RuntimeError(f'Control type "{control}" not supported as a selector.')
     return layout

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import PySimpleSQL as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 print(sg.sys.version)
 # Create a small table just for demo purposes. In your own program, you would probably
 # use a premade database on the filesystem instead.
@@ -32,7 +32,7 @@ record_columns=[
 layout = [
     ss.selector("Colors", size=(10,10))+[sg.Col(record_columns,vertical_alignment='t')],
     ss.actions("Colors"),
-    ss.selector("Colors",control=sg.Slider,size=(50,18))+ss.selector("Colors",control=sg.Combo)
+    ss.selector("Colors",control=sg.Slider,size=(26,18))+ss.selector("Colors",control=sg.Combo, size=(30,10))
 ]
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)
