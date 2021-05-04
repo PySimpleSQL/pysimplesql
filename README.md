@@ -392,7 +392,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.record(table, 'name', label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
     ss.actions(table)  # PySimpleSQL.actions() convenience function for easy navigation controls!
 ]
 
@@ -444,7 +444,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table='Fruit' # This is the table in the database that you want to navigate
 layout = [
-ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+ss.record(table,'name',label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
 # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
 [sg.Button('<<', key=f'Event.{table}.First', size=(1, 1)),
 sg.Button('<', key=f'Event.{table}.Previous', size=(1, 1)),
@@ -492,7 +492,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table='Fruit' # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.record(table,'name',label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [
         sg.Button('<<', key=f'btnFirst', size=(1, 1)),
@@ -546,7 +546,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table='Fruit' # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table,'name',name='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.record(table,'name',label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [
         sg.Button('<<', key=f'btnFirst', size=(1, 1)),

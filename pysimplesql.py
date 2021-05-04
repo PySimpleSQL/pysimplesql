@@ -1327,7 +1327,7 @@ def set_control_size(w,h):
 # Define a custom control for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the controls to have a key of Table.field
 # todo should I enable controls here for dirty checking?
-def record(table, field, control=sg.I, size=None,  name='' ):
+def record(table, field, control=sg.I, size=None,  label='' ):
     """
     Convenience function for adding PySimpleGUI elements to the window
     The automatic functionality of PySimpleSQL relies on PySimpleGUI control elements to have the key {Table}.{name}
@@ -1338,7 +1338,7 @@ def record(table, field, control=sg.I, size=None,  name='' ):
     :param field: The field name in the database this control element will be mapped to
     :param control: The control type desired (defaults to PySimpleGUI.Input)
     :param size: Overrides the default control size that was set with @set_control_size, for this control element only
-    :param name: The text/label will automatically be generated from the @field name. If a different text/label is
+    :param label: The text/label will automatically be generated from the @field name. If a different text/label is
                  desired, it can be specified here.
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
              will not need to be wrapped in [] in your layout code.
@@ -1347,7 +1347,7 @@ def record(table, field, control=sg.I, size=None,  name='' ):
     global _default_control_size
 
     layout = [
-        sg.T(field.replace('fk','').capitalize()+':' if name=='' else name, size=_default_text_size),
+        sg.T(field.replace('fk','').capitalize()+':' if label=='' else label, size=_default_text_size),
         control('', key=f'{table}.{field}', size=size or _default_control_size)
     ]
     return layout
