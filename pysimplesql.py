@@ -426,6 +426,11 @@ class Table:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
+    def set_by_index(self,index):
+        self.current_index=index
+        self.requery_dependents()
+        self.db.update_controls()
+
     def set_by_pk(self,pk):
         """
         Move to the record with this primary key
@@ -503,8 +508,8 @@ class Table:
         # Associate a listbox with this query object.  This will be used to select the appropriate record
         # self.selector={'control':_listBox,'pk':_pk,'field':_field}
         # TODO: any other controls??  Maybe a slider, combobox, etc?
-        if type(control) != sg.PySimpleGUI.Listbox:
-            raise RuntimeError(f'AddSelector error: Not a supported Listbox control.')
+        if type(control) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider]:
+            raise RuntimeError(f'add_selector() error: {control} is not a supported control.')
 
         logger.info(f'Adding {control.Key} as a selector for the {self.table} table.')
         self.selector = control
@@ -1125,22 +1130,26 @@ class Database:
             # Finally, we will update the actual GUI control!
             d['control'].update(updated_val)
 
-        # We can update the listbox selector controls
+        # We can update the selector controls
         # We do it down here because it's not a mapped control...
-        # Check for listbox selector events
+        # Check for selector events
         for k, table in self.tables.items():
             if table.selector:
                 # Build a list to update the list box!
-                lb = table.selector
-                
+                control = table.selector
                 pk = table.pk_field
                 field = table.description_field  # TODO: use field!
 
-                lst = []
-                for r in table.rows:
-                    lst.append(Row(r[pk], r[field]))
+                if type(control)==sg.PySimpleGUI.Listbox:
+                    lst = []
+                    for r in table.rows:
+                        lst.append(Row(r[pk], r[field]))
 
-                lb.update(lst, set_to_index=self[k].current_index)
+                    control.update(lst, set_to_index=self[k].current_index)
+                elif type(control)==sg.PySimpleGUI.Slider:
+                    # We need to re-range the control depending on the number of records
+                    l=len(table.rows)
+                    control.update(value= table._current_index +1,range=(1,l))
 
 
         # Enable/Disable controls based on the edit protection button and presence of a record
@@ -1197,7 +1206,6 @@ class Database:
         :param values: the values returned by PySimpleGUI.read()
         :return: True if an event was handled, False otherwise
         """
-        # TODO: what to do with values?
         if event:
             for e in self.event_map:
                 if e['event'] == event:
@@ -1205,13 +1213,19 @@ class Database:
                     e['function']()
                     return True
                 
-            # Check for listbox selector events
-            for k in self.tables.keys():
-                if self[k].selector:
-                    # print (vars(self[k].listBox))
-                    if event == self[k].selector.Key and len(self[k].rows)>0:
-                        row = values[self[k].selector.Key][0]
-                        self[k].set_by_pk(row.get_pk())
+            # Check for  selector events
+            for k, table in self.tables.items():
+                if table.selector:
+                    control = table.selector
+                    pk = table.pk_field
+                    field = table.description_field  # TODO: use field!
+                    if type(control) == sg.PySimpleGUI.Listbox:
+                        if event == table.selector.Key and len(table.rows)>0:
+                            row = values[table.selector.Key][0]
+                            table.set_by_pk(row.get_pk())
+                            return True
+                    if type(control) == sg.PySimpleGUI.Slider:
+                        table.set_by_index(int(values[event])-1)
                         return True
         return False
 
@@ -1353,4 +1367,14 @@ def record(table, field, control=sg.I, size=None,  label='' ):
     return layout
 
 
+def selector(table,control=sg.LBox,size=None):
+    if control not in [sg.LB,sg.Listbox,sg.LBox,sg.List, sg.Slider]:
+        raise RuntimeError(f'Control type "{control}" not supported as a selector.')
+
+    if control==sg.LB or control==sg.Listbox or control==sg.LBox or control==sg.List:
+        layout = [control(values=(), size=size or _default_control_size, key=f'SELECTOR.{table}', select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True)]
+    elif control==sg.Slider:
+        layout = [control(enable_events=True,orientation='h',disable_number_display=True,key=f'SELECTOR.{table}')]
+
+    return layout
 
