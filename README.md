@@ -39,7 +39,7 @@ pip3 install pysimplesql
 import PySimpleGUI as sg
 import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
-# Define our layout. We will use the pysimplesql.record() convenience function to create the controls
+# Define our layout. We will use the PySimpleSQL.record() convenience function to create the controls
 layout = [
     ss.record('Restaurant', 'name'),
     ss.record('Restaurant', 'location'),

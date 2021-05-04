@@ -11,10 +11,10 @@ def readme():
 requirements = ['PySimpleGUI']
 
 setuptools.setup(
-    name="pysimplesql",
+    name="PySimpleSQL",
     version="0.0.1",
     author="Jonathan Decker",
-    author_email="pysimplesql@gmail.com",
+    author_email="PySimpleSQL@gmail.com",
     description="sqlite3 database binding for PySimpleGUI",
     long_description=readme(),
     long_description_content_type="text/markdown",
