@@ -20,6 +20,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     keywords="SQL sqlite database application front-end access libre office GUI PySimpleGUI",
     url="https://github.com/PySimpleSQL/PySimpleSQL",
+    download_url="https://github.com/PySimpleSQL/PySimpleSQL/archive/refs/tags/0.0.1.tar.gz",
     packages=setuptools.find_packages(),
     install_requires=requirements,
     classifiers=[
