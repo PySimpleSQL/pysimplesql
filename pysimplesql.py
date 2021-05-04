@@ -100,7 +100,7 @@ class Table:
             query = f'SELECT * FROM {table}'
         # No order was passed in, so we will generate generic one
         if order == '':
-            order = f' ORDER BY {description_field} ASC'
+            order = f' ORDER BY {description_field} COLLATE NOCASE ASC'
             
         self.db = db_reference                      #type: Database
         self._current_index = 0
