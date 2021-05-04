@@ -12,7 +12,7 @@ requirements = ['PySimpleGUI']
 
 setuptools.setup(
     name="PySimpleSQL",
-    version="0.0.1",
+    version="0.0.2",
     author="Jonathan Decker",
     author_email="PySimpleSQL@gmail.com",
     description="sqlite3 database binding for PySimpleGUI",
