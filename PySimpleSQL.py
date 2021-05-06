@@ -37,11 +37,11 @@ class Row:
         self.val = val
 
     def __repr__(self):
-        return self.val
+        return str(self.val)
 
     def __str__(self):
         # This override is so that comboboxes can display the value
-        return self.val
+        return str(self.val)
 
     def get_pk(self):
         """Return the primary key portion of the row"""
