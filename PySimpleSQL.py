@@ -1069,9 +1069,9 @@ class Database:
 
             updated_val = None
 
-            if d['control'].Key in self.callbacks:
+            if d['control'].Key.lower() in self.callbacks:
                 # The user has set a callback for this control, we will use it!
-                updated_val=self.callbacks[d['control'].Key]
+                updated_val=self.callbacks[d['control'].Key.lower()](d['control'],self,self.window)
 
             elif type(d['control']) is sg.PySimpleGUI.Combo:
                 # Update controls with foreign queries first
