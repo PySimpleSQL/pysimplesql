@@ -23,7 +23,8 @@ as well as hosting projects like this, I have a lot to learn moving forward.  Yo
 # Lets do this!
 
 ## Install
-NOTE: PySimpleSQL is not yet on PyPi, but will be soon!
+NOTE: I will try to keep current progress updated on Pypi so that pip installs the latest version.
+However, the single PySimpleSQL.py file can just as well be copied directly into the root folder of your own project.
 ```
 pip install PySimpleGUI
 pip install pysimplesql
@@ -35,41 +36,45 @@ pip3 install pysimplesql
 ### This Code
 
 ```python
-#!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import PySimpleSQL as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import logging
+logger=logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
-# Define our layout. We will use the PySimpleSQL.record() convenience function to create the controls
+# Define our layout. We will use the ss.record convenience function to create the controls
 layout = [
-    ss.record('Restaurant', 'name'),
-    ss.record('Restaurant', 'location'),
-    ss.record('Restaurant', 'fkType', sg.Combo)]
+    ss.record('Restaurant.name'),
+    ss.record('Restaurant.location'),
+    ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
 sub_layout = [
-    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
-                enable_events=True),
-     sg.Col(
-         [ss.record('Item', 'name'),
-          ss.record('Item', 'fkMenu', sg.Combo),
-          ss.record('Item', 'price'),
-          ss.record('Item', 'description', sg.MLine, (30, 7))
-          ])],
-    ss.record_actions('Item', False)
+    ss.selector('selector1','Item',size=(35,10))+
+    [sg.Col([ss.record('Item.name'),
+         ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
+         ss.record('Item.price'),
+         ss.record('Item.description', sg.MLine, (30, 7))
+    ])],
+    ss.actions('actions1','Item', edit_protect=False,navigation=False,save=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.actions('Restaurant')]
+layout += [ss.actions('actions2','Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database(':memory:', 'example.sql', win)  # <=== load the database and bind it to the window
+db = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the database and bind it to the window
+# NOTE: ":memory:" is a special database URL for in-memory databases
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
-        print('PySimpleDB event handler handled the event!')
+
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
         break
     else:
-        print(f'This event ({event}) is not yet handled.')
+        logger.info(f'This event ({event}) is not yet handled.')
+
 ```
 along with this sqlite table
 ```sql
@@ -136,7 +141,7 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ![image](https://user-images.githubusercontent.com/70232210/91227678-e8c73700-e6f4-11ea-83ee-4712e687bfb4.png)
 
-Like PySimpleGUI™, pySimpleSQL supports subscript notation, so your code can access the data easily in the format of db['Table']['field'].
+Like PySimpleGUI™, pySimpleSQL supports subscript notation, so your code can access the data easily in the format of db['Table']['column'].
 In the example above, you could get the current item selection with the following code:
 ```python
 selected_restaurant=db['Restaurant']['name']
@@ -147,15 +152,15 @@ or via the PySimpleGUI™ control elements with the following:
 selected_restaurant=win['Restaurant.name']
 selected_item=win['Item.name']
 ```
-### Any Questions?  It's that simple.
+### It really is that simple.  All of the heavy lifting is done in the background!
 
 To get the best possible experience with PySimpleSQL, the magic is in the schema of the database.
 The automatic functionality of PySimpleSQL relies on just a couple of things:
-- foreign key constraints on the database tables (lets PySimpleSQL know what the relationships are)
+- foreign key constraints on the database tables (lets PySimpleSQL know what the relationships are, though manual relationship mapping is also available)
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
-refreshed
+changed
 - PySimpleGUI™ control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is 
-supported as well. @Database.record() is a convenience function/"custom control" to make adding records quick and easy!
+supported as well. @Database.record() is a convenience function/"custom element" to make adding records quick and easy!
 - The field 'name', (or the 2nd column of the database in the absence of a 'name' column) is what will display in 
 comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
 PySimpleSQL is in having everything happen automatically!
@@ -184,8 +189,8 @@ CREATE TABLE "Chapter"(
 
 ### But wait, there's more!
 The above is literally all you have to know for working with simple and even moderate databases.  However, there is a 
-lot of power in learning what is going on under the hood!  Starting with the fully automatic example above, we will work
-backwards to explain what is available to you for more control at a lower level.
+lot of power in learning what is going on under the hood.  Starting with the fully automatic example above, we will work
+backwards and unravel things to explain what is available to you for more control at a lower level.
 
 #### PySimpleSQL elements:
 Referencing the example above, look at the following:
@@ -197,11 +202,11 @@ ss.record('Restaurant', 'name') # Table name, field name parameters
 [sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1))]
 ```
 As you can see, the @Database.record() convenience function simplifies making record controls that adhere to the
-PySimpleSQL naming convention of Table.field. In fact, there is even more you can do with this. The @Database.record() 
-function can take a PySimpleGUI™ control element as a parameter as well, overriding the defaul Input() element.
+PySimpleSQL naming convention of Table.column. In fact, there is even more you can do with this. The @Database.record() 
+method can take a PySimpleGUI™ control element as a parameter as well, overriding the defaul Input() element.
 See this code which creates a combobox instead:
 ```python
-ss.record('Restaurant', 'fkType', sg.Combo)]
+ss.record('Restaurant.fkType', sg.Combo)]
 ```
 Furthering that, the functions @Database.set_text_size() and @Database.set_control_size() can be used before calls to 
 @Database.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of 
@@ -210,29 +215,28 @@ Furthering that, the functions @Database.set_text_size() and @Database.set_contr
 Place those two functions just above the layout definition shown in the example above and then run the code again
 
 ```python
-ss.set_text_size(10, 1)  # Set the text/label size for all subsequent calls
-ss.set_control_size(50, 1)  # set the control size for all subsequent calls
+# set the sizing for the Restaurant section
+ss.set_text_size(10, 1)
+ss.set_control_size(90, 1)
 layout = [
-    ss.record('Restaurant', 'name'),
-    ss.record('Restaurant', 'location'),
-    ss.record('Restaurant', 'fkType', sg.Combo)]
+    ss.record('Restaurant.name'),
+    ss.record('Restaurant.location'),
+    ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
 sub_layout = [
-    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
-                enable_events=True),
-     sg.Col(
-         [ss.record('Item', 'name'),
-          ss.record('Item', 'fkMenu', sg.Combo),
-          ss.record('Item', 'price'),
-          ss.record('Item', 'description', sg.MLine, (30, 7))  # Override the default size for this element!
-          ])],
-    ss.record_actions('Item', False)
+    ss.selector('selector1','Item',size=(35,10))+
+    [sg.Col([ss.record('Item.name'),
+         ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
+         ss.record('Item.price'),
+         ss.record('Item.description', sg.MLine, (30, 7))  # Override the default size for this element!
+    ])],
+    ss.actions('actions1','Item', edit_protect=False,navigation=False,save=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.actions('Restaurant', protect=True, search=True, save=True)]
+layout += [ss.actions('actions2','Restaurant')]
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91287363-a71ea680-e75d-11ea-8b2f-d240c1ec2acf.png)
 You will see that now, the controls were resized using the new sizing rules.  Notice however that the 'Description'
-field isn't as wide as the others.  That is because we overridden the control size for just that single control.
+field isn't as wide as the others.  That is because we overridden the control size for just that single control (see code above).
 
 Lets see one more example.  This time we will fix the oddly sized 'Description' field, as well as make the 'Restaurant' 
 and 'Items' sections with their own sizing
@@ -242,25 +246,20 @@ and 'Items' sections with their own sizing
 ss.set_text_size(10, 1)
 ss.set_control_size(90, 1)
 layout = [
-    ss.record('Restaurant', 'name'),
-    ss.record('Restaurant', 'location'),
-    ss.record('Restaurant', 'fkType', sg.Combo)]
-# set the sizing for the Items section
-ss.set_text_size(10, 1)
-ss.set_control_size(50, 1)
+    ss.record('Restaurant.name'),
+    ss.record('Restaurant.location'),
+    ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
 sub_layout = [
-    [sg.Listbox(values=(), size=(35, 10), key="SELECTOR.Item", select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
-                enable_events=True),
-     sg.Col(
-         [ss.record('Item', 'name'),
-          ss.record('Item', 'fkMenu', sg.Combo),
-          ss.record('Item', 'price'),
-          ss.record('Item', 'description', sg.MLine, (50, 10))  # Override the default size for this element
-          ])],
-    ss.record_actions('Item', False)
+    ss.selector('selector1','Item',size=(35,10))+
+    [sg.Col([ss.record('Item.name'),
+         ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
+         ss.record('Item.price'),
+         ss.record('Item.description', sg.MLine, (50,10))  # Override the default size for this element!
+    ])],
+    ss.actions('actions1','Item', edit_protect=False,navigation=False,save=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.actions('Restaurant', protect=True, search=True, save=True)]
+layout += [ss.actions('actions2','Restaurant')]
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91288080-8e62c080-e75e-11ea-8438-86035d4d6609.png)
 
