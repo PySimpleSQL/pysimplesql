@@ -7,7 +7,7 @@ CREATE TABLE "Restaurant"(
 	"pkRestaurant" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	"name" TEXT DEFAULT "New Restaurant",
 	"location" TEXT,
-	"fkType" INTEGER,
+	"fkType" INTEGER DEFAULT 1,
 	FOREIGN KEY(fkType) REFERENCES Type(pkType)
 );
 
@@ -15,7 +15,7 @@ CREATE TABLE "Item"(
 	"pkItem" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	"name" TEXT DEFAULT "New Item",
 	"fkRestaurant" INTEGER,
-	"fkMenu" INTEGER,
+	"fkMenu" INTEGER DEFAULT 1,
 	"price" TEXT,
 	"description" TEXT,
 	FOREIGN KEY(fkRestaurant) REFERENCES Restaurant(pkRestaurant) ON UPDATE CASCADE,

@@ -162,7 +162,7 @@ class Table:
         :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance, and return True or False
         :return: None
         """
-        callback=callback.lower()
+
         supported=[
             'before_save', 'after_save', 'before_delete', 'after_delete',
             'before_update', 'after_update', # Aliases for before/after_save
@@ -506,7 +506,7 @@ class Table:
         # Associate a listbox with this query object.  This will be used to select the appropriate record
         # self.selector={'control':_listBox,'pk':_pk,'field':_field}
 
-        if type(control) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo]:
+        if type(control) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
             raise RuntimeError(f'add_selector() error: {control} is not a supported control.')
 
         logger.info(f'Adding {control.Key} as a selector for the {self.table} table.')
@@ -770,19 +770,20 @@ class Database:
        :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance
        :return: None
        """
-        callback = callback.lower()
-        supported = [
-            'update_controls', 'edit_enable', 'edit_disable'
-        ]
-        # Add in support fow Window keys
+        supported = ['update_controls', 'edit_enable', 'edit_disable']
 
+        # Add in mapped controls
         for control in self.control_map:
-            supported.append(control['control'].Key.lower())
+            supported.append(control['control'].Key)
+
+        # Add in other window controls
+        for control in self.window.AllKeysDict:
+            supported.append(control)
 
         if callback in supported:
             self.callbacks[callback] = fctn
         else:
-            raise RuntimeError( f'Callback "{callback}" not supported.')
+            raise RuntimeError( f'Callback "{callback}" not supported. callback: {callback} supported: {supported}')
         
     def auto_bind(self, win):
         """
@@ -1069,9 +1070,10 @@ class Database:
 
             updated_val = None
 
-            if d['control'].Key.lower() in self.callbacks:
-                # The user has set a callback for this control, we will use it!
-                updated_val=self.callbacks[d['control'].Key.lower()]()
+            # If there is a callback for this control, use it
+            if d['control'].Key in self.callbacks:
+                print(f'{ d["control"].Key} is in callbacks!')
+                self.callbacks[d['control'].Key]()
 
             elif type(d['control']) is sg.PySimpleGUI.Combo:
                 # Update controls with foreign queries first
@@ -1103,32 +1105,33 @@ class Database:
             elif type(d['control']) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
                 # Generate a new list!
-                updated_val=[[]] # List that will contain other lists
+                # List that will contain other lists
                 # TODO: Fix this with some kind of sane default behavior.
                 # For now, just use the Database callbacks to handle Tables
-
+                pass
 
             elif type(d['control']) is sg.PySimpleGUI.InputText or type(d['control']) is sg.PySimpleGUI.Multiline:
                 # Lets now update the control in the GUI
                 # For text objects, lets clear the field...
                 d['control'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
+                updated_val = d['table'][d['field']]
 
             elif type(d['control']) is sg.PySimpleGUI.Checkbox:
                 # TODO: FIXME
                 # d['control'].update(0)
                 # print('Checkbox...')
-                pass
+                updated_val = d['table'][d['field']]
             else:
                 sg.popup(f'Unknown control type {type(d["control"])}')
 
-            # If no field has been set, we will get it from the query object
-            if not updated_val:
-                # print('updatedVal not set...')
-                updated_val = d['table'][d['field']]
 
             # Finally, we will update the actual GUI control!
-            d['control'].update(updated_val)
+            if updated_val is not None:
+                d['control'].update(updated_val)
 
+        # ---------
+        # SELECTORS
+        # ---------
         # We can update the selector controls
         # We do it down here because it's not a mapped control...
         # Check for selector events
@@ -1148,6 +1151,12 @@ class Database:
                         # We need to re-range the control depending on the number of records
                         l=len(table.rows)
                         control.update(value= table._current_index +1,range=(1,l))
+
+                    elif type(d['control']) is sg.PySimpleGUI.Table:
+                        # Make all the headings
+                        for k,v in enumerate(self.rows()):
+                            print(f'k: {k}')
+                            print(f'v:{v}')
 
 
 
@@ -1182,7 +1191,7 @@ class Database:
 
 
 
-        # Run callback
+        # Run callbacks
         if 'update_controls' in self.callbacks.keys():
             # Running user update function
             logger.info('Running the update_controls callback...')
@@ -1209,7 +1218,7 @@ class Database:
             for e in self.event_map:
                 if e['event'] == event:
                     logger.info(f'Executing event {event} via event mapping.')
-                    e['function']()
+                    e['function'](event,values)
                     return True
                 
             # Check for  selector events
@@ -1379,6 +1388,15 @@ def selector(table,control=sg.LBox,size=None):
         layout = [control(enable_events=True,size=size or _default_control_size,orientation='h',disable_number_display=True,key=key)]
     elif control==sg.Combo:
         layout=[control(values=(), size=size or _default_control_size, readonly=True, enable_events=True, key=key,auto_size_text=False)]
+    elif control==sg.Table:
+        # We have to get header information directly from the sqlite3 database, as the Database class has not been
+        # instanced yet!
+        headings=[]
+        q=f'PRAGMA table_info(table);'
+
+        for k,v in db[table].rows:
+            headings.append(f'k:{k} v:{v}')
+        layout=[control(values=([[1,2,3]]), headings=headings,  enable_events=True, key=key)]
     else:
         raise RuntimeError(f'Control type "{control}" not supported as a selector.')
     return layout
