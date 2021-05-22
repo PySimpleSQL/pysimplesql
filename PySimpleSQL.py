@@ -624,7 +624,7 @@ class Table:
         self.db.update_elements()
         self.db.window.refresh()
 
-    def save_record(self, display_message=True, update_elements=True):
+    def save_record(self, message=None, update_elements=True):
         """
         Save the currently selected record
         Saves any changes made via the GUI back to the database.  The before_save and after_save @callbacks will call
@@ -634,13 +634,15 @@ class Table:
         """
         # Ensure that there is actually something to save
         if not len(self.rows):
-            return
+            return False
+
 
         # callback
         if 'before_save' in self.callbacks.keys():
-            if not self.callbacks['before_save']():
+            if self.callbacks['before_save']()==False:
+                logger.info("We are not saving!")
                 if update_elements: self.db.update_elements(self.table)
-                return
+                return False
 
         values = []
         # We are updating a record
@@ -688,9 +690,9 @@ class Table:
             logger.info(f'Record Saved!')
         else:
             logger.info('Nothing to save.')
-        if display_message:
-            sg.popup('Updates saved successfully!', keep_on_top=True)
-
+        if message is not None:
+            sg.popup(message, keep_on_top=True)
+        return True
     def delete_record(self, cascade=True):
         """
         Delete the currently selected record
@@ -1234,16 +1236,23 @@ class Database:
 
     def save_records(self, cascade_only=False):
         logger.info(f'Preparing to save records in all tables...')
-        self.window.refresh()  # todo remove?
+        msg = None
+        #self.window.refresh()  # todo remove?
         i = 0
         tables = self.get_cascaded_relationships() if cascade_only else self.tables
         last_index = len(self.tables) - 1
-        msg = False
+
+        successes=0
         for t in tables:
             if i == last_index:
-                msg = True
+                if i==successes:
+                    msg='Updates saved successfully!'
+                else:
+                    msg=None
+                    # todo: roll back changes?
             logger.info(f'Saving records for table {t}...')
-            self[t].save_record(msg,update_elements=False)
+            if self[t].save_record(msg,update_elements=False)==True:
+                successes+=1
             i += 1
         self.update_elements()
     def update_elements(self, table=''):  # table type: str

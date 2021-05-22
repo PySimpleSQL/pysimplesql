@@ -4,6 +4,12 @@ import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
+# Zip code validation
+def validate_zip():
+    if len(win['Addresses.zip'].get())!=5:
+        sg.popup('Check your zip code and try again!',title="Zip code validation failed!")
+        return False
+    return True
 # -------------------------------------
 # CREATE A SIMPLE DATABASE TO WORK WITH
 # -------------------------------------
@@ -67,7 +73,8 @@ db=ss.Database(':memory:', win,  sql_commands=sql) #<=== Here is the magic!
 # Note:  sql_commands in only run if journal.db does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 
-
+# Use a callback to validate the zip code
+db['Addresses'].set_callback('before_save',validate_zip)
 
 # ---------
 # MAIN LOOP
@@ -82,6 +89,8 @@ while True:
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
+
+
 
 """
 I hope that you enjoyed this simple demo of a Journal database.  
