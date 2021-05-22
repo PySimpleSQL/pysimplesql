@@ -753,14 +753,14 @@ class Table:
                 return row[self.description_field]
         return None
 
-    def table_values(self):
+    def table_values(self,columns=None):
         # Populate entries
         values = []
-
+        column_names=self.field_names if columns==None else columns
         for row in self.rows:
             lst = []
             rels = self.db.get_relationships_for_table(self)
-            for field in self.field_names:
+            for field in column_names:
                 found = False
                 for rel in rels:
                     if field == rel.fk:
@@ -1361,7 +1361,7 @@ class Database:
 
                     elif type(control) is sg.PySimpleGUI.Table:
                         # Populate entries
-                        values = table.table_values()
+                        values = table.table_values(control.metadata['columns'])
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
@@ -1643,7 +1643,7 @@ def set_element_size(w, h):
 # Define a custom control for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the controls to have a key of Table.field
 # todo should I enable controls here for dirty checking?
-def record(key, element=sg.I, size=None, label='', label_above=False, quick_editor=True, **kwargs):
+def record(key, element=sg.I, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
     """
     Convenience function for adding PySimpleGUI elements to the window
     The automatic functionality of PySimpleSQL relies on PySimpleGUI control elements to have the key {Table}.{name}
@@ -1667,7 +1667,9 @@ def record(key, element=sg.I, size=None, label='', label_above=False, quick_edit
     layout_label= [
         sg.T(column.replace('fk', '').replace('_', ' ').capitalize() + ':' if label == '' else label,size=_default_text_size)
     ]
-    if label_above:
+    if no_label:
+        layout=layout_element
+    elif label_above:
         layout=[
             sg.Col(layout=[layout_label,layout_element])
         ]
@@ -1679,7 +1681,7 @@ def record(key, element=sg.I, size=None, label='', label_above=False, quick_edit
     return layout
 
 
-def selector(key, table, element=sg.LBox, size=None, **kwargs):
+def selector(key, table, element=sg.LBox, size=None, columns=None,**kwargs):
     r = random.randint(0, 1000)
     meta={'type': TYPE_SELECTOR, 'table': table}
     if element == sg.Listbox:
@@ -1702,7 +1704,7 @@ def selector(key, table, element=sg.LBox, size=None, **kwargs):
         # Make an empty list of values
         vals=[]
         vals.append(['']*len(kwargs['headings']))
-
+        meta['columns']=columns
         layout = [
             element(
                 values=vals, headings=kwargs['headings'], visible_column_map=kwargs['visible_column_map'],
