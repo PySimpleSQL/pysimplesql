@@ -48,6 +48,7 @@ INSERT INTO State VALUES (2, "PA");
 INSERT INTO State VALUES (3, "NY");
 
 INSERT INTO Addresses VALUES (1, 2, "John", "Smith", "123 Main St.","Suite A","Cleveland",1,44101);
+INSERT INTO Addresses VALUES (2, 1, "Sally", "Jones", "111 North St.","Suite A","Pittsburgh",2,44101);
 """
 
 # -------------------------
