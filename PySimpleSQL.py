@@ -1239,7 +1239,7 @@ class Database:
                     return
 
         self._edit_protect = not self._edit_protect
-        self.update_elements()
+        self.update_elements(edit_protect_only=True)
 
 
     def save_records(self, cascade_only=False):
@@ -1275,12 +1275,58 @@ class Database:
         self.update_elements()
 
 
-    def update_elements(self, table=''):  # table type: str
+    def update_elements(self, table='', edit_protect_only=False):  # table type: str
         # TODO Fix bug where listbox first element is ghost selected
         # TODO: Dosctring
         logger.info('Updating PySimpleGUI elements...')
         # Update the current values
         # d= dictionary (the control map dictionary)
+
+        # Enable/Disable controls based on the edit protection button and presence of a record
+        # Note that we also must disable controls if there are no records!
+        # TODO FIXME!!!
+        win = self.window
+        for e in self.event_map:
+            if '.edit_protect' in e['event']:
+                self.disable_controls(self._edit_protect)
+
+        # Disable/Enable action elements based on edit_protect or other situations
+        for t in self.tables:
+            for m in self.event_map:
+                # Disable delete and mapped controls for this table if there are no records in this table or edit protect mode
+                hide = len(self[t].rows) == 0 or self._edit_protect
+                if '.table_delete' in m['event']:
+                    if m['table'] == t:
+                        win[m['event']].update(disabled=hide)
+                        # self.disable_controls(hide, t)
+
+                # Disable insert on children with no parent records or edit protect mode
+                parent = self.get_parent(t)
+                if parent is not None:
+                    hide = len(self[parent].rows) == 0 or self._edit_protect
+                else:
+                    hide = self._edit_protect
+                if '.table_insert' in m['event']:
+                    if m['table'] == t:
+                        win[m['event']].update(disabled=hide)
+                    pass
+                # Disable db_save when needed
+                # TODO: Disable when no changes to data?
+                hide = self._edit_protect
+                if '.db_save' in m['event']:
+                    win[m['event']].update(disabled=hide)
+
+                # Disable table_save when needed
+                # TODO: Disable when no changes to data?
+                hide = self._edit_protect
+                if '.table_save' in m['event']:
+                    win[m['event']].update(disabled=hide)
+
+                # Enable/Disable quick edit buttons
+                if '.quick_edit' in m['event']:
+                    win[m['event']].update(disabled=hide)
+        if edit_protect_only: return
+
         for d in self.control_map:
             # If the optional table parameter was passed, we will only update controls bound to that table
             if table != '':
@@ -1409,50 +1455,7 @@ class Database:
                         control.update(values=values,select_rows=index)
                         eat_events(self.window)
 
-        # Enable/Disable controls based on the edit protection button and presence of a record
-        # Note that we also must disable controls if there are no records!
-        # TODO FIXME!!!
-        win = self.window
-        for e in self.event_map:
-            if '.edit_protect' in e['event']:
-                self.disable_controls(self._edit_protect)
 
-
-        # Disable/Enable action elements based on edit_protect or other situations
-        for t in self.tables:
-            for m in self.event_map:
-                # Disable delete and mapped controls for this table if there are no records in this table or edit protect mode
-                hide=len(self[t].rows) == 0 or self._edit_protect
-                if '.table_delete' in m['event']:
-                    if m['table'] == t:
-                        win[m['event']].update(disabled=hide)
-                        #self.disable_controls(hide, t)
-
-                # Disable insert on children with no parent records or edit protect mode
-                parent = self.get_parent(t)
-                if parent is not None:
-                    hide = len(self[parent].rows)==0 or self._edit_protect
-                else:
-                    hide=self._edit_protect
-                if '.table_insert' in m['event']:
-                    if m['table'] == t:
-                        win[m['event']].update(disabled=hide)
-                    pass
-                # Disable db_save when needed
-                # TODO: Disable when no changes to data?
-                hide=self._edit_protect
-                if '.db_save' in m['event']:
-                    win[m['event']].update(disabled=hide)
-
-                # Disable table_save when needed
-                # TODO: Disable when no changes to data?
-                hide = self._edit_protect
-                if '.table_save' in m['event']:
-                    win[m['event']].update(disabled=hide)
-
-                # Enable/Disable quick edit buttons
-                if '.quick_edit' in m['event']:
-                    win[m['event']].update(disabled=hide)
 
 
         # Run callbacks
