@@ -37,6 +37,12 @@ EVENT_SEARCH_DB=10
 EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
 
+# ------------------------
+# RECORD SAVE RETURN TYPES
+# ------------------------
+SAVE_FAIL=0     # Save failed due to callback
+SAVE_SUCCESS=1  # Save was successful
+SAVE_NONE=2     # There was nothing to save
 
 # Hack for fixing false table events that are generated when the
 # table.update() method is called.  Call this after each call to update()!
@@ -624,7 +630,7 @@ class Table:
         self.db.update_elements()
         self.db.window.refresh()
 
-    def save_record(self, message=None, update_elements=True):
+    def save_record(self, display_message=True, update_elements=True):
         """
         Save the currently selected record
         Saves any changes made via the GUI back to the database.  The before_save and after_save @callbacks will call
@@ -634,7 +640,8 @@ class Table:
         """
         # Ensure that there is actually something to save
         if not len(self.rows):
-            return False
+            if display_message: sg.popup('There were no updates to save.',keep_on_top=True)
+            return SAVE_NONE
 
 
         # callback
@@ -642,7 +649,8 @@ class Table:
             if self.callbacks['before_save']()==False:
                 logger.info("We are not saving!")
                 if update_elements: self.db.update_elements(self.table)
-                return False
+                if display_message: sg.popup('Updates not saved.', keep_on_top=True)
+                return SAVE_FAIL
 
         values = []
         # We are updating a record
@@ -674,25 +682,25 @@ class Table:
             if 'after_save' in self.callbacks.keys():
                 if not self.callbacks['after_save'](self.db, self.db.window):
                     self.con.rollback()
-                else:
-                    self.con.commit()
-            else:
-                self.con.commit()
+                    return SAVE_FAIL
+
+            # If we ,ade it here, we can commit the changes
+            self.con.commit()
 
             # Lets refresh our data
-
             pk = self.get_current_pk()
             self.requery(update_elements)
             self.set_by_pk(pk,update_elements,False)
             #self.requery_dependents()
-            if update_elements:
-                self.db.update_elements(self.table)
+            if update_elements:self.db.update_elements(self.table)
             logger.info(f'Record Saved!')
+            if display_message: sg.popup('Updates saved successfully!')
+            return SAVE_SUCCESS
         else:
             logger.info('Nothing to save.')
-        if message is not None:
-            sg.popup(message, keep_on_top=True)
-        return True
+            if display_message: sg.popup('There were no updates to save!')
+            return SAVE_NONE
+
     def delete_record(self, cascade=True):
         """
         Delete the currently selected record
@@ -877,13 +885,13 @@ class Database:
             self.auto_bind(win)
 
     def __del__(self):
-        # optimize the database for long-term benefits
-        if self.path != ':memory:':
-            q = 'PRAGMA optimize;'
-            self.con.execute(q)
-
-        # Close the connection
+        # Only do cleanup if this is not an imported database
         if not self.imported_database:
+            # optimize the database for long-term benefits
+            if self.path != ':memory:':
+                q = 'PRAGMA optimize;'
+                self.con.execute(q)
+            # Close the connection
             self.con.close()
 
     # Override the [] operator to retrieve queries by key
@@ -1243,18 +1251,30 @@ class Database:
         last_index = len(self.tables) - 1
 
         successes=0
+        failures=0
+        no_actions=0
         for t in tables:
-            if i == last_index:
-                if i==successes:
-                    msg='Updates saved successfully!'
-                else:
-                    msg=None
-                    # todo: roll back changes?
             logger.info(f'Saving records for table {t}...')
-            if self[t].save_record(msg,update_elements=False)==True:
+            result=self[t].save_record(False,update_elements=False)
+            if result==SAVE_FAIL:
+                failures+=1
+            elif result==SAVE_SUCCESS:
                 successes+=1
-            i += 1
+            elif result==SAVE_NONE:
+                no_actions+=1
+        logger.debug(f'Successes: {successes}, Failures: {failures}, No Actions: {no_actions}')
+
+        if failures==0:
+            if successes==0:
+                sg.popup('There was nothing to update.', keep_on_top=True)
+            else:
+                sg.popup('Updates saved successfully!',keep_on_top=True)
+        else:
+            sg.popup('There was a problem saving some updates.', keep_on_top=True)
+
         self.update_elements()
+
+
     def update_elements(self, table=''):  # table type: str
         # TODO Fix bug where listbox first element is ghost selected
         # TODO: Dosctring
