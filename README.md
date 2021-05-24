@@ -37,7 +37,7 @@ pip3 install pysimplesql
 
 ```python
 import PySimpleGUI as sg
-import PySimpleSQL as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
@@ -374,7 +374,7 @@ See the code below on example usage of the PySimpleSQL.actions() convenience fun
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss
+import pysimplesql as ss
 
 # Create a small table just for demo purposes
 sql = '''
@@ -427,7 +427,7 @@ See example below of how your can make your own record navigation controls inste
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss
+import pysimplesql as ss
 
 # Create a small table just for demo purposes
 sql = '''
@@ -475,7 +475,7 @@ Peeling this back further, you can rewrite the same without the special naming c
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss
+import pysimplesql as ss
 
 # Create a small table just for demo purposes
 sql = '''
@@ -529,7 +529,7 @@ Lastly, you can rewrite the same and handle the events yourself instead of relyi
 ```python
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import PySimpleSQL as ss
+import pysimplesql as ss
 
 # Create a small table just for demo purposes
 sql = '''

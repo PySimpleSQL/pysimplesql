@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-import PySimpleSQL as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)

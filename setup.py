@@ -11,16 +11,16 @@ def readme():
 requirements = ['PySimpleGUI']
 
 setuptools.setup(
-    name="PySimpleSQL",
+    name="pysimplesql",
     version="0.0.4",
     author="Jonathan Decker",
-    author_email="PySimpleSQL@gmail.com",
+    author_email="pysimplesql@gmail.com",
     description="sqlite3 database binding for PySimpleGUI",
     long_description="It's alive!",#readme(),
     long_description_content_type="text/markdown",
     keywords="SQL sqlite database application front-end access libre office GUI PySimpleGUI",
-    url="https://github.com/PySimpleSQL/PySimpleSQL",
-    download_url="https://github.com/PySimpleSQL/PySimpleSQL/archive/refs/tags/0.0.4.tar.gz",
+    url="https://github.com/PySimpleSQL/pysimplesql",
+    download_url="https://github.com/PySimpleSQL/pysimplesql/archive/refs/tags/0.0.4.tar.gz",
     packages=setuptools.find_packages(),
     install_requires=requirements,
     classifiers=[
