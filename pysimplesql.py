@@ -127,14 +127,14 @@ class Table:
     @Database.add_table @Database.auto_add_tables
     """
 
-    def __init__(self, db_reference, con, table, pk_field, description_field, query='', order=''):
+    def __init__(self, db_reference, con, table, pk_column, description_column, query='', order=''):
         """
 
         :param db_reference: This is a reference to the @ Database object, for convenience
         :param con:  This is a reference to the sqlie connection, also for convience
         :param table: Name (string) of the table
-        :param pk_field: The name of the field containing the primary key for this table
-        :param description_field: The name of the field used for display to users (normally in a combobox or listbox)
+        :param pk_column: The name of the column containing the primary key for this table
+        :param description_column: The name of the column used for display to users (normally in a combobox or listbox)
         :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {table}"
         :param order: The sort order of the returned query
         """
@@ -145,27 +145,27 @@ class Table:
             query = f'SELECT * FROM {table}'
         # No order was passed in, so we will generate generic one
         if order == '':
-            order = f' ORDER BY {description_field} COLLATE NOCASE ASC'
+            order = f' ORDER BY {description_column} COLLATE NOCASE ASC'
 
         self.db = db_reference  # type: Database
         self._current_index = 0
         self.table = table  # type: str
-        self.pk_field = pk_field
-        self.description_field = description_field
+        self.pk_column = pk_column
+        self.description_column = description_column
         self.query = query
         self.order = order
         self.join = ''
         self.where = ''  # In addition to generated where!
         self.con = con
         self.dependents = []
-        self.field_names = []
+        self.column_names = []
         self.rows = []
         self.search_order = []
         self.selector = []
         self.callbacks = {}
         # self.requery(True)
 
-    # Override the [] operator to retrieve fields by key
+    # Override the [] operator to retrieve columns by key
     def __getitem__(self, key):
         return self.get_current(key)
 
@@ -187,7 +187,7 @@ class Table:
         """
         Set the search order when using the search box.
         This is a list of columns to be searched, in order.
-        :param order: A list of field names to search
+        :param order: A list of column names to search
         :return: None
         """
         self.search_order = order
@@ -261,15 +261,15 @@ class Table:
         logger.info(f'Setting {self.table} order clause to {clause}')
         self.order = clause
 
-    def set_description_field(self,field):
+    def set_description_column(self, column):
         """
-        Set the table's description field. This is the column that will display in Listboxes, Comboboxes, etc.
+        Set the table's description column. This is the column that will display in Listboxes, Comboboxes, etc.
         Normally, this is either the 'name' column, or the 2nd column of the table.  This allows you to specify something
         different
-        :param field: The the column to use
+        :param column: The the column to use
         :return: None
         """
-        self.description_field=field
+        self.description_column=column
 
     def prompt_save(self):
         """
@@ -289,13 +289,13 @@ class Table:
             # Compare the DB version to the GUI version
             if c['table'].table == self.table:
                 element_val = c['element'].Get()
-                table_val = self[c['field']]
+                table_val = self[c['column']]
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
                 if element_val != table_val:
-                    print(f'{c["element"].Key}:{c["element"].Get()} != {c["field"]}:{self[c["field"]]}')
+                    print(f'{c["element"].Key}:{c["element"].Get()} != {c["column"]}:{self[c["column"]]}')
                     dirty = True
 
         if dirty:
@@ -444,7 +444,7 @@ class Table:
         Move to the next record in the search table that contains @string.
         Successive calls will search from the current position, and wrap around back to the beginning.
         The search order from @Table.set_search_order() will be used.  If the search order is not set by the user,
-        it will default to the 'name' field, or the 2nd column of the table.
+        it will default to the 'name' column, or the 2nd column of the table.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
         @Table.set_by_pk
@@ -509,7 +509,7 @@ class Table:
         logger.info(f'Setting table {self.table} record by primary key {pk}')
         i = 0
         for r in self.rows:
-            if r[self.pk_field] == pk:
+            if r[self.pk_column] == pk:
                 self.current_index = i
                 break
             else:
@@ -518,19 +518,19 @@ class Table:
         if dependents: self.requery_dependents(update=update)
         if update: self.db.update_elements(self.table)
 
-    def get_current(self, field, default=""):
+    def get_current(self, column, default=""):
         """
-        Get the current value pointed to for @field
-        You can also use indexing of the @Database object to get the current value of a field
-        I.e. db["{Table}].[{field'}]
+        Get the current value pointed to for @column
+        You can also use indexing of the @Database object to get the current value of a column
+        I.e. db["{Table}].[{column'}]
 
-        :param field: The field you want the value of
+        :param column: The column you want the value of
         :param default: A value to return if the record is blank
-        :return: The value of the field requested
+        :return: The value of the column requested
         """
         if self.rows:
-            if self.get_current_row()[field] != '':
-                return self.get_current_row()[field]
+            if self.get_current_row()[column] != '':
+                return self.get_current_row()[column]
             else:
                 return default
         else:
@@ -541,7 +541,7 @@ class Table:
         Get the primary key of the currently selected record
         :return: the primary key
         """
-        return self.get_current(self.pk_field)
+        return self.get_current(self.pk_column)
 
     def get_max_pk(self):
         """
@@ -550,7 +550,7 @@ class Table:
         :return: The maximum primary key value currently in the table
         """
         # TODO: Maybe get this right from the table object instead of running a query?
-        q = f'SELECT MAX({self.pk_field}) AS highest FROM {self.table};'
+        q = f'SELECT MAX({self.pk_column}) AS highest FROM {self.table};'
         cur = self.con.execute(q)
         records = cur.fetchone()
         return records['highest']
@@ -563,7 +563,7 @@ class Table:
         if self.rows:
             return self.rows[self.current_index]
 
-    def add_selector(self, element):  # _listBox,_pk,_field):
+    def add_selector(self, element):  # _listBox,_pk,_column):
         """
         Use a element such as a listbox as a selector item for this table.
         This can be done via this method, or via auto_map_elements by naming the element key "selector.{Table}"
@@ -577,12 +577,12 @@ class Table:
         logger.info(f'Adding {element.Key} as a selector for the {self.table} table.')
         self.selector.append(element)
 
-    def insert_record(self, field='', value=''):
+    def insert_record(self, column='', value=''):
         """
-        Insert a new record. If field and value are passed, it will initially set that field to the value
-        (I.e. {Table}.name='New Record). If none are provided, the default values for the field are used, as set in the
+        Insert a new record. If column and value are passed, it will initially set that column to the value
+        (I.e. {Table}.name='New Record). If none are provided, the default values for the column are used, as set in the
         database.
-        :param field: The field to set
+        :param column: The column to set
         :param value: The value to set (I.e "New record")
         :return:
         """
@@ -590,26 +590,26 @@ class Table:
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
 
-        fields = []
+        columns = []
         values = []
-        if field != '' and value != '':
-            fields.append(field)
+        if column != '' and value != '':
+            columns.append(column)
             values.append(value)
 
         # Make sure we take into account the foreign key relationships...
         for r in self.db.relationships:
             if self.table == r.child:
                 if r.requery_table:
-                    fields.append(r.fk)
+                    columns.append(r.fk)
                     values.append(self.db[r.parent].get_current_pk())
 
-        fields = ",".join([str(x) for x in fields])
+        columns = ",".join([str(x) for x in columns])
         values = ",".join([str(x) for x in values])
         # We will make a blank record and insert it
-        # q = f'INSERT INTO {self.table} ({fields}) VALUES ({q_marks});'
+        # q = f'INSERT INTO {self.table} ({columns}) VALUES ({q_marks});'
         q = f'INSERT INTO {self.table} '
-        if fields != '':
-            q += f'({fields}) VALUES ({values});'
+        if columns != '':
+            q += f'({columns}) VALUES ({values});'
         else:
             q += 'DEFAULT VALUES'
         logger.info(q)
@@ -671,7 +671,7 @@ class Table:
             q = q[:-1]
 
             # Add the where clause
-            q += f' WHERE {self.pk_field}={self.get_current(self.pk_field)};'
+            q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
             logger.info(f'Performing query: {q} {str(values)}')
             self.con.execute(q, tuple(values))
 
@@ -728,13 +728,13 @@ class Table:
             for qry in self.db.tables:
                 for r in self.db.relationships:
                     if r.parent == self.table:
-                        q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_field)}'
+                        q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
                         self.con.execute(q)
                         logger.info(f'Delete query executed: {q}')
                         self.db[r.child].requery(False)
 
 
-        q = f'DELETE FROM {self.table} WHERE {self.pk_field}={self.get_current(self.pk_field)};'
+        q = f'DELETE FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)};'
         self.con.execute(q)
 
         # callback
@@ -756,25 +756,25 @@ class Table:
 
     def get_description_for_pk(self,pk):
         for row in self.rows:
-            if row[self.pk_field]==pk:
-                return row[self.description_field]
+            if row[self.pk_column]==pk:
+                return row[self.description_column]
         return None
 
     def table_values(self,columns=None):
         # Populate entries
         values = []
-        column_names=self.field_names if columns==None else columns
+        column_names=self.column_names if columns == None else columns
         for row in self.rows:
             lst = []
             rels = self.db.get_relationships_for_table(self)
-            for field in column_names:
+            for col in column_names:
                 found = False
                 for rel in rels:
-                    if field == rel.fk:
-                        lst.append(self.db[rel.parent].get_description_for_pk(row[field]))
+                    if col == rel.fk:
+                        lst.append(self.db[rel.parent].get_description_for_pk(row[col]))
                         found = True
                         break
-                if not found: lst.append(row[field])
+                if not found: lst.append(row[col])
             values.append(lst)
         return values
 
@@ -791,7 +791,7 @@ class Table:
         db = self.db
         table_name = self.table
         layout = []
-        headings = self.field_names.copy()
+        headings = self.column_names.copy()
         visible = [1] * len(headings); visible[0] = 0
         col_width=int(55/(len(headings)-1))
         for i in range(0,len(headings)):
@@ -802,9 +802,9 @@ class Table:
         layout.append(actions("act_quick_edit",table_name,edit_protect=False))
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
-        for col in self.field_names:
+        for col in self.column_names:
             column=f'{table_name}.{col}'
-            if col!=self.pk_field:
+            if col!=self.pk_column:
                 layout.append([record(column)])
 
         quick_win = sg.Window(f'Quick Edit - {table_name}', layout, keep_on_top=True, finalize=True)
@@ -966,7 +966,7 @@ class Database:
         logger.info('Auto binding finished!')
 
     # Add a Table object
-    def add_table(self, table, pk_field, description_field, query='', order=''):
+    def add_table(self, table, pk_column, description_column, query='', order=''):
         """
         Manually add a table to the @Database
         When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run
@@ -974,14 +974,14 @@ class Database:
         and even from the @Database.__init__ with a parameter
 
         :param table: The name of the table (must match sqlite)
-        :param pk_field: The primary key field
-        :param description_field: The field to be used to display to users
+        :param pk_column: The primary key column
+        :param description_column: The column to be used to display to users
         :param query: The initial query for the table.  Set to "SELECT * FROM {Table}" if none is passed
         :param order: The initial sort order for the query
         :return: None
         """
-        self.tables.update({table: Table(self, self.con, table, pk_field, description_field, query, order)})
-        self[table].set_search_order([description_field])  # set a default sort order
+        self.tables.update({table: Table(self, self.con, table, pk_column, description_column, query, order)})
+        self[table].set_search_order([description_column])  # set a default sort order
 
     def add_relationship(self, join, child, fk, parent, pk, requery_table):
         """
@@ -992,9 +992,9 @@ class Database:
         which also happens automatically with @Database.auto_bind and even from the @Database.__init__ with a parameter
         :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
         :param child: The child table containing the foreign key
-        :param fk: The foreign key field of the child table
+        :param fk: The foreign key column of the child table
         :param parent: The parent table containing the primary key
-        :param pk: The primary key field of the parent table
+        :param pk: The primary key column of the parent table
         :param requery_table: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql)
 
         :return: None
@@ -1060,22 +1060,22 @@ class Database:
             records2 = cur2.fetchall()
             names = []
 
-            # auto generate description field.  Default it to the 2md column,
+            # auto generate description column.  Default it to the 2nd column,
             # but can be overwritten below
-            description_field = records2[1]['name']
+            description_column = records2[1]['name']
 
-            pk_field = None
+            pk_column = None
             for t2 in records2:
                 names.append(t2['name'])
                 if t2['pk']:
-                    pk_field = t2['name']
+                    pk_column = t2['name']
                 if t2['name'] == 'name':
-                    description_field = t2['name']
+                    description_column = t2['name']
 
             logger.debug(
-                f'Adding table {t["name"]} to schema with primary key {pk_field} and description of {description_field}')
-            self.add_table(t['name'], pk_field, description_field)
-            self.tables[t['name']].field_names = names
+                f'Adding table {t["name"]} to schema with primary key {pk_column} and description of {description_column}')
+            self.add_table(t['name'], pk_column, description_column)
+            self.tables[t['name']].column_names = names
 
     # Make sure to send a list of table names to requery if you want
     # dependent tables to requery automatically
@@ -1110,11 +1110,11 @@ class Database:
     # Map an element.
     # Optionally supply an FQ (Foreign Query Object), Primary Key and Foreign Key, and Foreign Feild
     # TV=True Valeu, FV=False Value
-    def map_element(self, element, table, field):
+    def map_element(self, element, table, column):
         dic = {
             'element': element,
             'table': table,
-            'field': field,
+            'column': column,
         }
         logger.info(f'Mapping element {element.Key}')
         self.element_map.append(dic)
@@ -1136,7 +1136,7 @@ class Database:
             if element.metadata['type']==TYPE_RECORD:
                 table,col = key.split('.')
                 if table in self.tables:
-                    if col in self[table].field_names:
+                    if col in self[table].column_names:
                         # Map this element to table.column
                         self.map_element(element, self[table], col)
 
@@ -1285,7 +1285,7 @@ class Database:
         win = self.window
         for e in self.event_map:
             if '.edit_protect' in e['event']:
-                self.disable_elements(self._edit_protect)
+                self.disable_elements(t,self._edit_protect)
 
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.tables:
@@ -1295,7 +1295,7 @@ class Database:
                 if '.table_delete' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-                        self.disable_elements(hide, t)
+                        self.disable_elements(t,hide)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -1347,10 +1347,10 @@ class Database:
                 target_table=None
                 rels = self.get_relationships_for_table(d['table'])
                 for rel in rels:
-                    if rel.fk == d['field']:
+                    if rel.fk == d['column']:
                         target_table = self[rel.parent]
-                        pk = target_table.pk_field
-                        description = target_table.description_field
+                        pk = target_table.pk_column
+                        description = target_table.description_column
                         break
                 lst = []
                 if target_table==None:
@@ -1361,10 +1361,10 @@ class Database:
                         lst.append(Row(row[pk], row[description]))
 
     
-                    # Map the value to the combobox, by getting the description_field and using it to set the value
+                    # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
     
-                        if row[target_table.pk_field] == d['table'][rel.fk]:
+                        if row[target_table.pk_column] == d['table'][rel.fk]:
                             for entry in lst:
                                 if entry.get_pk() == d['table'][rel.fk]:
                                     updated_val = entry
@@ -1393,12 +1393,12 @@ class Database:
 
             elif type(d['element']) is sg.PySimpleGUI.InputText or type(d['element']) is sg.PySimpleGUI.Multiline:
                 # Lets now update the element in the GUI
-                # For text objects, lets clear the field...
+                # For text objects, lets clear it first...
                 d['element'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
-                updated_val = d['table'][d['field']]
+                updated_val = d['table'][d['column']]
 
             elif type(d['element']) is sg.PySimpleGUI.Checkbox:
-                updated_val = d['table'][d['field']]
+                updated_val = d['table'][d['column']]
             else:
                 sg.popup(f'Unknown element type {type(d["element"])}')
 
@@ -1415,15 +1415,15 @@ class Database:
         for k, table in self.tables.items():
             if len(table.selector):
                 for element in table.selector:
-                    pk = table.pk_field
-                    field = table.description_field  # TODO: use field!
+                    pk = table.pk_column
+                    column = table.description_column
                     if element.Key in self.callbacks:
                         self.callbacks[element.Key]()
 
                     elif type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
                         lst = []
                         for r in table.rows:
-                            lst.append(Row(r[pk], r[field]))
+                            lst.append(Row(r[pk], r[column]))
 
                         element.update(values=lst, set_to_index=table.current_index)
                     elif type(element) == sg.PySimpleGUI.Slider:
@@ -1490,8 +1490,8 @@ class Database:
             for k, table in self.tables.items():
                 if len(table.selector):
                     for element in table.selector:
-                        pk = table.pk_field
-                        field = table.description_field  # TODO: use field!
+                        pk = table.pk_column
+                        column = table.description_column
                         if element.Key in event and len(table.rows) > 0:
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
@@ -1510,7 +1510,7 @@ class Database:
                                 table.set_by_pk(pk, True)
         return False
 
-    def disable_elements(self, disable, table_name):
+    def disable_elements(self, table_name, disable=None, visible=None):
         """
         Disable all elements assocated with table.
         :param disable: True/False to disable/enable element(s)
@@ -1520,14 +1520,15 @@ class Database:
         for c in self.element_map:
             if c['table'] .table!= table_name:
                 continue
-            print(f'Disabling elements for {table_name}')
-            print(c['element'])
             element=c['element']
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.AllKeysDict.keys():
-                logger.info(f'Updating element {element.Key} to {disable}')
-                element.update(disabled=disable)
+                logger.info(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
+                if disable is not None:
+                    element.update(disabled=disable)
+                if visible is not None:
+                    element.update(visible=visible)
 
 
 # RECORD SELECTOR ICONS
@@ -1680,7 +1681,7 @@ def record(key, element=sg.I, size=None, label='', no_label=False, label_above=F
     :param record: The table.column in the database this element will be mapped to
     :param element: The element type desired (defaults to PySimpleGUI.Input)
     :param size: Overrides the default element size that was set with @set_element_size, for this element element only
-    :param label: The text/label will automatically be generated from the @field name. If a different text/label is
+    :param label: The text/label will automatically be generated from the @column name. If a different text/label is
                  desired, it can be specified here.
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
              will not need to be wrapped in [] in your layout code.
