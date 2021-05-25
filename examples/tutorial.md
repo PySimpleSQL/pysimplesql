@@ -1,19 +1,29 @@
 #Database Applications with PySimpleGUI 
 
 This is a simple tutorial to show how easy database interaction can be by using PySImpleGUI and **pysimplesql** together.
+For this tutorial, we are going to build a simple Journal/Diary application to show how quickly a database front end can
+be realized. In this Journal, we are going to track the date, an entry, a title for the entry, and even allow the user to
+select a mood for the day.
 
 ***DISCLAIMER***: While the names are similar, PySimpleGUI and **pysimplesql** have no affiliation.  The **pysimplesql** 
 project was inspired by PySimpleGUI however, and strives for the same ease-of-use!
 
 ##Lets get started!
-For this tutorial, we are going to build a simple Journal/Diary application to show how quickly a database front end can
-be realized. In this Journal, we are going to track the date, an entry, a title for the entry, and even allow the user to
-select a mood for the day.
+First, lets make sure we have both PySimpleGUI and pysimplesql installed:
+```python
+pip install PySimpleGUI
+pip install pysimplesql
+````
+or 
+```python
+pip3 install PySimpleGUI
+pip3 install pysimplesql
+```
 
-Lets first start with a database to work with.  If you're not a database expert, don't worry!  There are many tools available
+Next, we will build a database to work with.  If you're not a database expert, don't worry!  There are many tools available
 to help you build your own databases - but I personally like to stick to raw SQL commands.
 
-Create a file named "journal.sql" with the following contents:
+Create a file named "journal.sql" with the following contents or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/db/v1/journal.sql):
 ```SQL
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
@@ -43,20 +53,9 @@ There are a couple of things to point out in the SQL above.  First, notice the F
 an already existing database that did not define it's foreign key constraints - but since we are starting fresh this is 
 the best way to go. Also notice the DEFAULT title.  New records created with **pysimplesql** will use this when available.
 
-Next, lets make sure we have both PySimpleGUI and pysimplesql installed:
-```python
-pip install PySimpleGUI
-pip install pysimplesql
-
-or 
-
-pip3 install PySimpleGUI
-pip3 install pysimplesql
-```
-
 Ok, now with the database and prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
 later (data validation, etc.).  I'm going to use that approach here.  With that said, create a file "journal.py" with the 
-following contents:
+following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v1/journal.py)
 ```python
 # import PySimpleGUI and pysimplesql
 import PySimpleGUI as sg
