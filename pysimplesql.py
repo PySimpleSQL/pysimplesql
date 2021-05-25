@@ -1298,7 +1298,7 @@ class Database:
                 if '.table_delete' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-                        # self.disable_controls(hide, t)
+                        self.disable_controls(hide, t)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -1520,16 +1520,17 @@ class Database:
         :param table: table name assocated with controls to disable/enable
         :return: None
         """
-        # TODO: fix this?  I'm not sure it works
-
         for c in self.control_map:
-            if c['table'] != table_name:
+            if c['table'] .table!= table_name:
                 continue
-            if type(v) is sg.PySimpleGUI.InputText or type(v) is sg.PySimpleGUI.MLine or type(
-                    v) is sg.PySimpleGUI.Combo or type(v) is sg.PySimpleGUI.Checkbox:
-                if k.split('.')[0] in self.window.AllKeysDict.keys():
-                    logger.info(f'Updating control {k} to {disable}')
-                    v.update(disabled=disable)
+            print(f'Disabling elements for {table_name}')
+            print(c['control'])
+            element=c['control']
+            if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
+                    element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
+                #if element.Key in self.window.AllKeysDict.keys():
+                logger.info(f'Updating control {element.Key} to {disable}')
+                element.update(disabled=disable)
 
 
 # RECORD SELECTOR ICONS
