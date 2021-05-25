@@ -24,7 +24,7 @@ as well as hosting projects like this, I have a lot to learn moving forward.  Yo
 
 ## Install
 NOTE: I will try to keep current progress updated on Pypi so that pip installs the latest version.
-However, the single **pysimplesql**.py file can just as well be copied directly into the root folder of your own project.
+However, the single **pysimplesql.py** file can just as well be copied directly into the root folder of your own project.
 ```
 pip install PySimpleGUI
 pip install **pysimplesql**
@@ -141,7 +141,7 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ![image](https://user-images.githubusercontent.com/70232210/91227678-e8c73700-e6f4-11ea-83ee-4712e687bfb4.png)
 
-Like PySimpleGUI™, pySimpleSQL supports subscript notation, so your code can access the data easily in the format of db['Table']['column'].
+Like PySimpleGUI™, **pysimplesql** supports subscript notation, so your code can access the data easily in the format of db['Table']['column'].
 In the example above, you could get the current item selection with the following code:
 ```python
 selected_restaurant=db['Restaurant']['name']
@@ -159,7 +159,7 @@ The automatic functionality of **pysimplesql** relies on just a couple of things
 - foreign key constraints on the database tables (lets **pysimplesql** know what the relationships are, though manual relationship mapping is also available)
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
 changed
-- PySimpleGUI™ control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is 
+- PySimpleGUI™ control keys need to be named {table}.{column} for automatic mapping.  Of course, manual mapping is 
 supported as well. @Database.record() is a convenience function/"custom element" to make adding records quick and easy!
 - The field 'name', (or the 2nd column of the database in the absence of a 'name' column) is what will display in 
 comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
@@ -199,10 +199,12 @@ Referencing the example above, look at the following:
 ss.record('Restaurant', 'name') # Table name, field name parameters
 
 # could have been written like this:
-[sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1))]
+[sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1), metadata={'type': TYPE_RECORD})]
 ```
 As you can see, the @Database.record() convenience function simplifies making record controls that adhere to the
-**pysimplesql** naming convention of Table.column. In fact, there is even more you can do with this. The @Database.record() 
+**pysimplesql** naming convention of Table.column. Also notice that **pysimplesql** temporarily makes use of the PySimpleGUI metadata keyword argument - but don't worry, this is only during initial setup and the element's metadata
+will still be available to you in your own program.
+There is even more you can do with this. The @Database.record() 
 method can take a PySimpleGUI™ control element as a parameter as well, overriding the defaul Input() element.
 See this code which creates a combobox instead:
 ```python
@@ -336,7 +338,7 @@ db.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
 # For your convience, you can optionally use the function Database.set_callback('update_controls',function) to set a callback function
 # that will be called every time the controls are updated.  This allows you to do custom things like update
 # a preview image, change control parameters or just about anythong you want!
-db.update_controls()
+db.update_elements()
 ```
 
 As you can see, there is a lot of power in the auto functionality of pysimplesql, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
@@ -352,12 +354,12 @@ As you can see, there is a lot of power in the auto functionality of pysimplesql
 
 We will break each of these down below to give you a better understanding of how each of these features works.
 ## Convenience Functions
-There are currently only a few convenience functions to aid in quikly creating PySimpleGUI™ layout code
+There are currently only a few convenience functions to aid in quickly creating PySimpleGUI™ layout code
 Database.set_text_size(width,height) - Sets the PySimpleGUI™ text size for subsequent calls to Database.record(). Defaults to (15,1) otherwise.
 
 Database.set_control_size(width, height) - Sets the PySImpleGUI™ control size for subsequent calls to Database.record(). Defaults to (30,1) otherwise.
 
-Database.record(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating a PySimpleGUI™ text control and a PySimpleGUI™ Input control inline for purposes of displaying a record from the database.  This function also creates the naming convention (table.field) in the control's key parameter that **pysimplesql** uses for advanced automatic functionality. The optional control_type parameter allows you to bind control types other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will previx a text field before the control.
+Database.record(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating a PySimpleGUI™ text element and a PySimpleGUI™ Input element inline for purposes of displaying a record from the database.  This function also creates the naming convention (table.column) in the control's key parameter that **pysimplesql** uses for advanced automatic functionality. The optional control_type parameter allows you to bind control types other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will prefix a text field before the control.
 
 Database.actions()-
 
@@ -368,7 +370,7 @@ Database.actions()-
 ## Record Navigation
 **pysimplesql** includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
 
-The convenience function **pysimplesql**.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the actions() convenience function uses the Event Mapping features of **pysimplesql**, and your own code can do this too!
+The convenience function pysimplesql.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the actions() convenience function uses the Event Mapping features of **pysimplesql**, and your own code can do this too!
 See the code below on example usage of the **pysimplesql**.actions() convenience function
 
 ```python
@@ -446,10 +448,10 @@ table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
     ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
-    [sg.Button('<<', key=f'Event.{table}.First', size=(1, 1)),
-     sg.Button('<', key=f'Event.{table}.Previous', size=(1, 1)),
-     sg.Button('>', key=f'Event.{table}.Next', size=(1, 1)),
-     sg.Button('>>', key=f'Event.{table}.Last', size=(1, 1))
+    [sg.Button('<<', key=f'btnFirst', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_FIRST, 'table': table, 'function': None}),
+     sg.Button('<', key=f'btnPrevious', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_PREVIOUS, 'table': table, 'function': None}),
+     sg.Button('>', key=f'btnNext', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_NEXT, 'table': table, 'function': None}),
+     sg.Button('>>', key=f'btnLast', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_LAST, 'table': table, 'function': None})
      ]
 ]
 
@@ -468,9 +470,9 @@ while True:
     else:
         print(f'This event ({event}) is not yet handled.')
 ```
-Notice the naming convention of the PySimpleGUI™ contrl keys in the example above.  They are in the format of "Event.table_name.event_type".  This is so that the Automatic event mapping of PySimpleSql will handle these.  Valid event_types include: Insert, Save, Delete, First, Previous, Next, Last and Search.
+Notice the metadata use in the navigation buttons above.  This is so that the Automatic event mapping of **pysimplesql** will handle these.  Valid event_types can be found right at the start of the pysimplesql.py file.
 
-Peeling this back further, you can rewrite the same without the special naming convention used by the automatic event mapper, and instead name the keys however you would like, then manually map them in the event mapper...
+Peeling this back further, you can rewrite the same without the special metadata used by the automatic event mapper, then manually map them in the event mapper yourself...
 
 ```python
 #!/usr/bin/python3
