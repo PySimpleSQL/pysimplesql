@@ -20,7 +20,7 @@ layout=[
 ]
 win=sg.Window('Journal example', layout, finalize=True)
 db=ss.Database('journal.db', win,  sql_script='journal.sql') #<=== Here is the magic!
-# Note:  sql_script in only run if journal.db does not exist!  This has the effect of creating a new blank
+# Note:  sql_script is only run if journal.db does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
