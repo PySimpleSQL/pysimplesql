@@ -1,22 +1,22 @@
-# PySimpleSQL User's Manual
+# **pysimplesql** User's Manual
 
 ## DISCLAIMER:
-While PySimpleSQL works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
+While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
-PySimpleSQL binds PySimpleGUI™ to sqlite3 databases for rapid, effortless database application development. Makes a great
+**pysimplesql** binds PySimpleGUI™ to sqlite3 databases for rapid, effortless database application development. Makes a great
 replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
-power and control of managing your own codebase. PySimpleSQL not only allows for super simple automatic control (not one single
-line of SQL needs written to use PySimpleSQL), but also allows for very low level control for situations that warrant it.
+power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
+line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
 
 ## History
-PySimpleSQL was conceived after having used PySimpleGUI™ to prototype a GUI in Python.  After some time it became apparent that
+**pysimplesql** was conceived after having used PySimpleGUI™ to prototype a GUI in Python.  After some time it became apparent that
 my approach of prototyping in one language, just to implement it in another wasn't very efficient and didn't make much sense.
 I had taken this approach many times in the past due to the lack of a good RAD (Rapid Application Development) tool when it comes
 to making database front ends in Python.  Rather than spending my time porting my prototype over, one time I decided to try my hand
 at creating such a tool - and this is what I ended up with.
 Now make no mistake - I'm not a good project maintainer, and my goal was never to launch an open source project in the first place!
-The more I used this combination of PySimpleSQL and PySimpleGUI™ for my own database projects, the more I realized how many others 
+The more I used this combination of **pysimplesql** and PySimpleGUI™ for my own database projects, the more I realized how many others 
 would benefit from it. With that being said, I will do my best to maintain and improve this tool over time.  Being new to open source
 as well as hosting projects like this, I have a lot to learn moving forward.  Your patience is appreciated.
 
@@ -24,20 +24,20 @@ as well as hosting projects like this, I have a lot to learn moving forward.  Yo
 
 ## Install
 NOTE: I will try to keep current progress updated on Pypi so that pip installs the latest version.
-However, the single PySimpleSQL.py file can just as well be copied directly into the root folder of your own project.
+However, the single **pysimplesql**.py file can just as well be copied directly into the root folder of your own project.
 ```
 pip install PySimpleGUI
-pip install pysimplesql
+pip install **pysimplesql**
 or
 pip3 install PySimpleGUI
-pip3 install pysimplesql
+pip3 install **pysimplesql**
 ```
 
 ### This Code
 
 ```python
 import PySimpleGUI as sg
-import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss                               # <=== pysimplesql lines will be marked like this.  There's only a few!
 import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
@@ -67,7 +67,7 @@ db = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the 
 while True:
     event, values = win.read()
 
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):                  # <=== let pysimplesql process its own events! Simple!
         logger.info('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
@@ -154,16 +154,16 @@ selected_item=win['Item.name']
 ```
 ### It really is that simple.  All of the heavy lifting is done in the background!
 
-To get the best possible experience with PySimpleSQL, the magic is in the schema of the database.
-The automatic functionality of PySimpleSQL relies on just a couple of things:
-- foreign key constraints on the database tables (lets PySimpleSQL know what the relationships are, though manual relationship mapping is also available)
+To get the best possible experience with **pysimplesql**, the magic is in the schema of the database.
+The automatic functionality of **pysimplesql** relies on just a couple of things:
+- foreign key constraints on the database tables (lets **pysimplesql** know what the relationships are, though manual relationship mapping is also available)
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
 changed
 - PySimpleGUI™ control keys need to be named {table}.{field} for automatic mapping.  Of course, manual mapping is 
 supported as well. @Database.record() is a convenience function/"custom element" to make adding records quick and easy!
 - The field 'name', (or the 2nd column of the database in the absence of a 'name' column) is what will display in 
 comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
-PySimpleSQL is in having everything happen automatically!
+**pysimplesql** is in having everything happen automatically!
 
 Here is another example sqlite table that shows the above rules at work.  Don't let this scare you, there are plenty of
 tools to create your database without resorting to raw SQL commands. These commands here are just shown for completeness
@@ -180,7 +180,7 @@ CREATE TABLE "Chapter"(
     "fkBook" INTEGER,
     "startPage" INTEGER,
     -- SECRET SAUCE BELOW! If you have foreign key constraints set on the database,
-    -- then PySimpleSQL will pick them up!
+    -- then pysimplesql will pick them up!
     -- note: ON UPDATE CASCADE only needed if you want automatic GUI refreshing
     -- (i.e. not every constraint needs them, like fields that will populate comboboxes for example)
     FOREIGN KEY(fkBook) REFERENCES Book(pkBook) ON UPDATE CASCADE
@@ -192,7 +192,7 @@ The above is literally all you have to know for working with simple and even mod
 lot of power in learning what is going on under the hood.  Starting with the fully automatic example above, we will work
 backwards and unravel things to explain what is available to you for more control at a lower level.
 
-#### PySimpleSQL elements:
+#### **pysimplesql** elements:
 Referencing the example above, look at the following:
 ```python
 # convience function for rapid front-end development
@@ -202,7 +202,7 @@ ss.record('Restaurant', 'name') # Table name, field name parameters
 [sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1))]
 ```
 As you can see, the @Database.record() convenience function simplifies making record controls that adhere to the
-PySimpleSQL naming convention of Table.column. In fact, there is even more you can do with this. The @Database.record() 
+**pysimplesql** naming convention of Table.column. In fact, there is even more you can do with this. The @Database.record() 
 method can take a PySimpleGUI™ control element as a parameter as well, overriding the defaul Input() element.
 See this code which creates a combobox instead:
 ```python
@@ -292,7 +292,7 @@ And finally, that brings us to the lowest-level functions for binding the databa
 This is how you can MANUALLY map tables, relationships, controls and events to the database.
 The above auto_map_* functions could have been manually achieved as follows:
 ```python
-# Add the tables you want PySimpleSQL to handle.  The function db.auto_add_tables() will add all tables found in the database 
+# Add the tables you want pysimplesql to handle.  The function db.auto_add_tables() will add all tables found in the database 
 # by default.  However, you may only need to work with a couple of tables in the database, and this is how you would do that
 db.add_table('Restaurant','pkRestaurant','name') # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
 db.add_table('Item','pkItem','name') # Note: While I personally prefer to use the pk{Table} and fk{Table} naming
@@ -310,7 +310,7 @@ db.add_relationship('LEFT JOIN', 'Item', 'fkMenu', 'Menu', 'pkMenu', False)
 
 # Map our controls
 # Note that you can map any control to any Table/field combination that you would like.
-# The {Table}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of PySimpleSQL!
+# The {Table}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
 db.map_control(win['Restaurant.name'],'Restaurant','name')
 db.map_control(win['Restaurant.location'],'Restaurant','location')
 db.map_control(win['Restaurant.fkType'],'Type','pkType')
@@ -339,10 +339,10 @@ db.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
 db.update_controls()
 ```
 
-As you can see, there is a lot of power in the auto functionality of PySimpleSQL, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
+As you can see, there is a lot of power in the auto functionality of pysimplesql, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
 
 # BREAKDOWN OF ADVANCED FUNCTIONALITY
-PySimpleSQL does much more than just bridge the gap between PySimpleGUI™ and Sqlite databases! In full, PySimpleSQL contains:
+**pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and Sqlite databases! In full, **pysimplesql** contains:
 * Convenience functions for simplifying PySimpleGUI™ layout code
 * Control binding between PySimpleGUI™ controls and Sqlite database fields
 * Automatic requerying of related tables
@@ -357,7 +357,7 @@ Database.set_text_size(width,height) - Sets the PySimpleGUI™ text size for sub
 
 Database.set_control_size(width, height) - Sets the PySImpleGUI™ control size for subsequent calls to Database.record(). Defaults to (30,1) otherwise.
 
-Database.record(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating a PySimpleGUI™ text control and a PySimpleGUI™ Input control inline for purposes of displaying a record from the database.  This function also creates the naming convention (table.field) in the control's key parameter that PySimpleSQL uses for advanced automatic functionality. The optional control_type parameter allows you to bind control types other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will previx a text field before the control.
+Database.record(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating a PySimpleGUI™ text control and a PySimpleGUI™ Input control inline for purposes of displaying a record from the database.  This function also creates the naming convention (table.field) in the control's key parameter that **pysimplesql** uses for advanced automatic functionality. The optional control_type parameter allows you to bind control types other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will previx a text field before the control.
 
 Database.actions()-
 
@@ -366,10 +366,10 @@ Database.actions()-
 ## Automatic Requerying
 
 ## Record Navigation
-PySimpleSQL includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
+**pysimplesql** includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
 
-The convenience function PySimpleSQL.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the actions() convenience function uses the Event Mapping features of PySimpleSQL, and your own code can do this too!
-See the code below on example usage of the PySimpleSQL.actions() convenience function
+The convenience function **pysimplesql**.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the actions() convenience function uses the Event Mapping features of **pysimplesql**, and your own code can do this too!
+See the code below on example usage of the **pysimplesql**.actions() convenience function
 
 ```python
 #!/usr/bin/python3
@@ -391,8 +391,8 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
-    ss.actions(table)  # PySimpleSQL.actions() convenience function for easy navigation controls!
+    ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
+    ss.actions(table)  # pysimplesql.actions() convenience function for easy navigation controls!
 ]
 
 win = sg.Window('Navigation demo', layout, finalize=True)
@@ -402,7 +402,7 @@ db = ss.Database(':memory:', win, sql_commands=sql)
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
@@ -411,7 +411,7 @@ while True:
         print(f'This event ({event}) is not yet handled.')
 ```
 Simple!
-But as stated earlier, PySimpleSQL.actions is a swiss army knife!  Experiment with the code ablove, trying all of these variations to see all of goodness this convenience functions provides!
+But as stated earlier, **pysimplesql**.actions is a swiss army knife!  Experiment with the code ablove, trying all of these variations to see all of goodness this convenience functions provides!
 
 ```python
 ss.actions(table, search=False)
@@ -422,7 +422,7 @@ ss.actions(table, delete=False, save=False)
 ```
 
 
-See example below of how your can make your own record navigation controls instead of using the PySimpleSQL.actions() convenience function:
+See example below of how your can make your own record navigation controls instead of using the **pysimplesql**.actions() convenience function:
 
 ```python
 #!/usr/bin/python3
@@ -444,7 +444,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [sg.Button('<<', key=f'Event.{table}.First', size=(1, 1)),
      sg.Button('<', key=f'Event.{table}.Previous', size=(1, 1)),
@@ -460,7 +460,7 @@ db = ss.Database(':memory:', win, sql_commands=sql)
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
@@ -492,7 +492,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [
         sg.Button('<<', key=f'btnFirst', size=(1, 1)),
@@ -515,7 +515,7 @@ db.map_event('btnLast', db[table].last)
 
 while True:
     event, values = win.read()
-    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
@@ -524,7 +524,7 @@ while True:
         print(f'This event ({event}) is not yet handled.')
 ```
 
-Lastly, you can rewrite the same and handle the events yourself instead of relying on PySimpleSQL's event mapper
+Lastly, you can rewrite the same and handle the events yourself instead of relying on **pysimplesql**'s event mapper
 
 ```python
 #!/usr/bin/python3
@@ -546,7 +546,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', label='Fruit Name'),  # PySimpleSQL.record() convenience function for easy record creation!
+    ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [
         sg.Button('<<', key=f'btnFirst', size=(1, 1)),
@@ -564,7 +564,7 @@ db = ss.Database(':memory:', win, sql_commands=sql)
 while True:
     event, values = win.read()
     # Manually handle our record selector events, bypassing the event mapper completely
-    if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == 'btnFirst':
         db[table].first()
@@ -582,7 +582,7 @@ while True:
 
 ```
 
-Whether you want to use the PySimpleSQL.actions() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
+Whether you want to use the **pysimplesql**.actions() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
 ## Callbacks
 
 ## Event Mapping
