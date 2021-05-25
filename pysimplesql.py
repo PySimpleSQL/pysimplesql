@@ -285,17 +285,17 @@ class Table:
                 self.db[rel.child].prompt_save()
 
         dirty = False
-        for c in self.db.control_map:
-            # Compare the control version to the GUI version
+        for c in self.db.element_map:
+            # Compare the DB version to the GUI version
             if c['table'].table == self.table:
-                control_val = c['control'].Get()
+                element_val = c['element'].Get()
                 table_val = self[c['field']]
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
-                if control_val != table_val:
-                    print(f'{c["control"].Key}:{c["control"].Get()} != {c["field"]}:{self[c["field"]]}')
+                if element_val != table_val:
+                    print(f'{c["element"].Key}:{c["element"].Get()} != {c["field"]}:{self[c["field"]]}')
                     dirty = True
 
         if dirty:
@@ -458,7 +458,7 @@ class Table:
             if not self.callbacks['before_search'](self.db, self.db.window):
                 return
 
-        # See if the string is a control name # TODO this is a bit of an ugly hack, but it works
+        # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
         if string in self.db.window.AllKeysDict.keys():
             string = self.db.window[string].get()
         if string == '':
@@ -563,22 +563,19 @@ class Table:
         if self.rows:
             return self.rows[self.current_index]
 
-    def add_selector(self, control):  # _listBox,_pk,_field):
+    def add_selector(self, element):  # _listBox,_pk,_field):
         """
-        Use a control such as a listbox as a selector item for this table.
-        This can be done via this method, or via auto_map_controls by naming the control key "selector.{Table}"
+        Use a element such as a listbox as a selector item for this table.
+        This can be done via this method, or via auto_map_elements by naming the element key "selector.{Table}"
 
-        :param control: the @PySinpleGUI element used as a selector control
+        :param element: the @PySinpleGUI element used as a selector element
         :return: None
         """
-        # Associate a listbox with this query object.  This will be used to select the appropriate record
-        # self.selector={'control':_listBox,'pk':_pk,'field':_field}
+        if type(element) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
+            raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
-        if type(control) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
-            raise RuntimeError(f'add_selector() error: {control} is not a supported control.')
-
-        logger.info(f'Adding {control.Key} as a selector for the {self.table} table.')
-        self.selector.append(control)
+        logger.info(f'Adding {element.Key} as a selector for the {self.table} table.')
+        self.selector.append(element)
 
     def insert_record(self, field='', value=''):
         """
@@ -590,7 +587,7 @@ class Table:
         :return:
         """
         # todo: you don't add a record if there isn't a parent!!!
-        # todo: this is currently filtered out by enabling of the control, but it should be filtered here too!
+        # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
 
         fields = []
@@ -655,17 +652,17 @@ class Table:
         values = []
         # We are updating a record
         q = f'UPDATE {self.table} SET'
-        for v in self.db.control_map:
+        for v in self.db.element_map:
             if v['table'] == self:
-                q += f' {v["control"].Key.split(".", 1)[1]}=?,'
+                q += f' {v["element"].Key.split(".", 1)[1]}=?,'
 
-                if type(v['control'])==sg.Combo:
-                    if type(v['control'].get())==str:
-                        val = v['control'].get()
+                if type(v['element'])==sg.Combo:
+                    if type(v['element'].get())==str:
+                        val = v['element'].get()
                     else:
-                        val=v['control'].get().get_pk()
+                        val=v['element'].get().get_pk()
                 else:
-                    val=v['control'].get()
+                    val=v['element'].get()
 
                 values.append(val)
         if values:
@@ -865,7 +862,7 @@ class Database:
         self.window = None
         self._edit_protect=False
         self.tables = {}
-        self.control_map = []
+        self.element_map = []
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships = []
         self.callbacks = {}
@@ -922,11 +919,11 @@ class Database:
         """
        Set @Database callbacks. A runtime error will be raised if the callback is not supported.
        The following callbacks are supported:
-           update_controls Called after controls are updated via @Database.update_controls. This allows for other GUI manipulation on each update of the GUI
+           update_elements Called after elements are updated via @Database.update_elements. This allows for other GUI manipulation on each update of the GUI
            edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
            edit_disable Called after the editing mode is disabled
-           {control_name} Called while updating MAPPED controls.  This overrides the default control update implementation.
-           Note that the {control_name} callback function needs to return a value to pass to Win[control].update()
+           {element_name} Called while updating MAPPED element.  This overrides the default element update implementation.
+           Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
 
        :param callback: The name of the callback, from the list above
 
@@ -934,15 +931,15 @@ class Database:
        :return: None
        """
         logger.info(f'Callback {callback} being set on database')
-        supported = ['update_controls', 'edit_enable', 'edit_disable']
+        supported = ['update_elements', 'edit_enable', 'edit_disable']
 
-        # Add in mapped controls
-        for control in self.control_map:
-            supported.append(control['control'].Key)
+        # Add in mapped elements
+        for element in self.element_map:
+            supported.append(element['element'].Key)
 
-        # Add in other window controls
-        for control in self.window.AllKeysDict:
-            supported.append(control)
+        # Add in other window elements
+        for element in self.window.AllKeysDict:
+            supported.append(element)
 
         if callback in supported:
             self.callbacks[callback] = fctn
@@ -954,7 +951,7 @@ class Database:
         Auto-bind the window to the database, for the purpose of control, event and relationship mapping
         This can happen automatically on @Database creation with a parameter.
         This function literally just groups all of the auto_* methods.  See" @Database.auto_add_tables,
-        @Database.auto_add_relationships, @Database.auto_map_controls, @Database.auto_map_events
+        @Database.auto_add_relationships, @Database.auto_map_elements, @Database.auto_map_events
         :param win: The @PySimpleGUI window
         :return:  None
         """
@@ -1110,22 +1107,22 @@ class Database:
                 logger.debug(f'Adding relationship {table}.{row["from"]} = {row["table"]}.{row["to"]}')
                 self.add_relationship('LEFT JOIN', table, row['from'], row['table'], row['to'], requery_table)
 
-    # Map a control.
+    # Map an element.
     # Optionally supply an FQ (Foreign Query Object), Primary Key and Foreign Key, and Foreign Feild
     # TV=True Valeu, FV=False Value
-    def map_element(self, control, table, field):
+    def map_element(self, element, table, field):
         dic = {
-            'control': control,
+            'element': element,
             'table': table,
             'field': field,
         }
-        logger.info(f'Mapping control {control.Key}')
-        self.control_map.append(dic)
+        logger.info(f'Mapping element {element.Key}')
+        self.element_map.append(dic)
 
     def auto_map_elements(self, win, keys=None):
-        logger.info('Automapping controls...')
-        # clear out any previously mapped controls to ensure successive calls doesn't produce duplicates
-        self.control_map = []
+        logger.info('Automapping elements...')
+        # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
+        self.element_map = []
         for key in win.AllKeysDict.keys():
             element=win[key]
             # Skip this element if there is no metadata present
@@ -1140,7 +1137,7 @@ class Database:
                 table,col = key.split('.')
                 if table in self.tables:
                     if col in self[table].field_names:
-                        # Map this control to table.field
+                        # Map this element to table.column
                         self.map_element(element, self[table], col)
 
             # Map Selector Element
@@ -1167,11 +1164,11 @@ class Database:
 
     def auto_map_events(self, win):
         logger.info(f'Auto mapping events...')
-        # clear out any previously mapped controls to ensure successive calls doesn't produce duplicates
+        # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
 
         for key in win.AllKeysDict.keys():
-            #key = str(key)  # sometimes I end up with an integer control 0? TODO: Research
+            #key = str(key)  # sometimes I end up with an integer element 0? TODO: Research
             element = win[key]
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
@@ -1280,25 +1277,25 @@ class Database:
         # TODO: Dosctring
         logger.info('Updating PySimpleGUI elements...')
         # Update the current values
-        # d= dictionary (the control map dictionary)
+        # d= dictionary (the element map dictionary)
 
-        # Enable/Disable controls based on the edit protection button and presence of a record
-        # Note that we also must disable controls if there are no records!
+        # Enable/Disable elements based on the edit protection button and presence of a record
+        # Note that we also must disable elements if there are no records!
         # TODO FIXME!!!
         win = self.window
         for e in self.event_map:
             if '.edit_protect' in e['event']:
-                self.disable_controls(self._edit_protect)
+                self.disable_elements(self._edit_protect)
 
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.tables:
             for m in self.event_map:
-                # Disable delete and mapped controls for this table if there are no records in this table or edit protect mode
+                # Disable delete and mapped elements for this table if there are no records in this table or edit protect mode
                 hide = len(self[t].rows) == 0 or self._edit_protect
                 if '.table_delete' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-                        self.disable_controls(hide, t)
+                        self.disable_elements(hide, t)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -1327,8 +1324,8 @@ class Database:
                     win[m['event']].update(disabled=hide)
         if edit_protect_only: return
 
-        for d in self.control_map:
-            # If the optional table parameter was passed, we will only update controls bound to that table
+        for d in self.element_map:
+            # If the optional table parameter was passed, we will only update elements bound to that table
             if table != '':
                 if d['table'].table != table:
                     continue
@@ -1336,14 +1333,14 @@ class Database:
             updated_val = None
 
 
-            # If there is a callback for this control, use it
-            if d['control'].Key in self.callbacks:
-                logger.debug(f'{d["control"].Key} IS IN callbacks')
-                self.callbacks[d['control'].Key]()
+            # If there is a callback for this element, use it
+            if d['element'].Key in self.callbacks:
+                logger.debug(f'{d["element"].Key} IS IN callbacks')
+                self.callbacks[d['element'].Key]()
 
 
-            elif type(d['control']) is sg.PySimpleGUI.Combo:
-                # Update controls with foreign queries first
+            elif type(d['element']) is sg.PySimpleGUI.Combo:
+                # Update elements with foreign queries first
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
@@ -1357,7 +1354,7 @@ class Database:
                         break
                 lst = []
                 if target_table==None:
-                    logger.warning(f"Error! Cound not find a related table for element {d['control'].Key} bound to table {d['table'].table}")
+                    logger.warning(f"Error! Cound not find a related table for element {d['element'].Key} bound to table {d['table'].table}")
                 # Populate the combobox entries
                 else:
                     for row in target_table.rows:
@@ -1373,8 +1370,8 @@ class Database:
                                     updated_val = entry
                                     break
                             break
-                d['control'].update(values=lst)
-            elif type(d['control']) is sg.PySimpleGUI.Table:
+                d['element'].update(values=lst)
+            elif type(d['element']) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
                 values = d['table'].table_values()
                 # Select the current one
@@ -1390,53 +1387,53 @@ class Database:
                     index = []
                 else:
                     index = [index]
-                d['control'].update(values=values, select_rows=index)
+                d['element'].update(values=values, select_rows=index)
                 eat_events(self.window)
                 continue
 
-            elif type(d['control']) is sg.PySimpleGUI.InputText or type(d['control']) is sg.PySimpleGUI.Multiline:
-                # Lets now update the control in the GUI
+            elif type(d['element']) is sg.PySimpleGUI.InputText or type(d['element']) is sg.PySimpleGUI.Multiline:
+                # Lets now update the element in the GUI
                 # For text objects, lets clear the field...
-                d['control'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
+                d['element'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
                 updated_val = d['table'][d['field']]
 
-            elif type(d['control']) is sg.PySimpleGUI.Checkbox:
+            elif type(d['element']) is sg.PySimpleGUI.Checkbox:
                 updated_val = d['table'][d['field']]
             else:
-                sg.popup(f'Unknown control type {type(d["control"])}')
+                sg.popup(f'Unknown element type {type(d["element"])}')
 
-            # Finally, we will update the actual GUI control!
+            # Finally, we will update the actual GUI element!
             if updated_val is not None:
-                d['control'].update(updated_val)
+                d['element'].update(updated_val)
 
         # ---------
         # SELECTORS
         # ---------
-        # We can update the selector controls
-        # We do it down here because it's not a mapped control...
+        # We can update the selector elements
+        # We do it down here because it's not a mapped element...
         # Check for selector events
         for k, table in self.tables.items():
             if len(table.selector):
-                for control in table.selector:
+                for element in table.selector:
                     pk = table.pk_field
                     field = table.description_field  # TODO: use field!
-                    if control.Key in self.callbacks:
-                        self.callbacks[control.Key]()
+                    if element.Key in self.callbacks:
+                        self.callbacks[element.Key]()
 
-                    elif type(control) == sg.PySimpleGUI.Listbox or type(control) == sg.PySimpleGUI.Combo:
+                    elif type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
                         lst = []
                         for r in table.rows:
                             lst.append(Row(r[pk], r[field]))
 
-                        control.update(values=lst, set_to_index=table.current_index)
-                    elif type(control) == sg.PySimpleGUI.Slider:
-                        # We need to re-range the control depending on the number of records
+                        element.update(values=lst, set_to_index=table.current_index)
+                    elif type(element) == sg.PySimpleGUI.Slider:
+                        # We need to re-range the element depending on the number of records
                         l = len(table.rows)
-                        control.update(value=table._current_index + 1, range=(1, l))
+                        element.update(value=table._current_index + 1, range=(1, l))
 
-                    elif type(control) is sg.PySimpleGUI.Table:
+                    elif type(element) is sg.PySimpleGUI.Table:
                         # Populate entries
-                        values = table.table_values(control.metadata['columns'])
+                        values = table.table_values(element.metadata['columns'])
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
@@ -1452,17 +1449,17 @@ class Database:
                             index=[]
                         else:
                             index=[index]
-                        control.update(values=values,select_rows=index)
+                        element.update(values=values,select_rows=index)
                         eat_events(self.window)
 
 
 
 
         # Run callbacks
-        if 'update_controls' in self.callbacks.keys():
+        if 'update_elements' in self.callbacks.keys():
             # Running user update function
-            logger.info('Running the update_controls callback...')
-            self.callbacks['update_controls'](self, self.window)
+            logger.info('Running the update_elements callback...')
+            self.callbacks['update_elements'](self, self.window)
 
     def requery_all(self,update=True):
         """
@@ -1476,7 +1473,7 @@ class Database:
     def process_events(self, event, values):
         """
         Process mapped events.  This should be called once per iteration.
-        Events handled are responsible for requerying and updating controls as needed
+        Events handled are responsible for requerying and updating elements as needed
         :param event: The event returned by PySimpleGUI.read()
         :param values: the values returned by PySimpleGUI.read()
         :return: True if an event was handled, False otherwise
@@ -1492,44 +1489,44 @@ class Database:
             # Check for  selector events
             for k, table in self.tables.items():
                 if len(table.selector):
-                    for control in table.selector:
+                    for element in table.selector:
                         pk = table.pk_field
                         field = table.description_field  # TODO: use field!
-                        if control.Key in event and len(table.rows) > 0:
-                            if type(control) == sg.PySimpleGUI.Listbox:
-                                row = values[control.Key][0]
+                        if element.Key in event and len(table.rows) > 0:
+                            if type(element) == sg.PySimpleGUI.Listbox:
+                                row = values[element.Key][0]
                                 table.set_by_pk(row.get_pk())
                                 return True
-                            elif type(control) == sg.PySimpleGUI.Slider:
+                            elif type(element) == sg.PySimpleGUI.Slider:
                                 table.set_by_index(int(values[event]) - 1)
                                 return True
-                            elif type(control) == sg.PySimpleGUI.Combo:
+                            elif type(element) == sg.PySimpleGUI.Combo:
                                 row = values[event]
                                 table.set_by_pk(row.get_pk())
                                 return True
-                            elif type(control) is sg.PySimpleGUI.Table:
+                            elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index][0]
                                 table.set_by_pk(pk, True)
         return False
 
-    def disable_controls(self, disable, table_name):
+    def disable_elements(self, disable, table_name):
         """
-        Disable all controls assocated with table.
-        :param disable: True/False to disable/enable control(s)
-        :param table: table name assocated with controls to disable/enable
+        Disable all elements assocated with table.
+        :param disable: True/False to disable/enable element(s)
+        :param table: table name assocated with elements to disable/enable
         :return: None
         """
-        for c in self.control_map:
+        for c in self.element_map:
             if c['table'] .table!= table_name:
                 continue
             print(f'Disabling elements for {table_name}')
-            print(c['control'])
-            element=c['control']
+            print(c['element'])
+            element=c['element']
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.AllKeysDict.keys():
-                logger.info(f'Updating control {element.Key} to {disable}')
+                logger.info(f'Updating element {element.Key} to {disable}')
                 element.update(disabled=disable)
 
 
@@ -1580,9 +1577,9 @@ def get_record_info(record):
 def actions(key, table, edit_protect=True, navigation=True, insert=True, delete=True, save=True, search=True,
             search_size=(30, 1), bind_return_key=True):
     """
-    Allows for easily adding record navigation and controls to the PySimpleGUI window
+    Allows for easily adding record navigation and elements to the PySimpleGUI window
     The navigation elements are separated into different sections as detailed by the parameters.
-    :param table: The table that this "control" will provide actions for
+    :param table: The table that this "element" will provide actions for
     :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that toggles
                     the ability on an off to prevent accidental changes in the database by enabling/disabling the insert,
                     edit and save buttons.
@@ -1670,19 +1667,19 @@ def set_element_size(w, h):
     _default_element_size = (w, h)
 
 
-# Define a custom control for quickly adding database rows.
-# The automatic functions of PySimpleSQL require the controls to have a key of Table.field
-# todo should I enable controls here for dirty checking?
+# Define a custom element for quickly adding database rows.
+# The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
+# todo should I enable elements here for dirty checking?
 def record(key, element=sg.I, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
     """
     Convenience function for adding PySimpleGUI elements to the window
-    The automatic functionality of PySimpleSQL relies on PySimpleGUI control elements to have the key {Table}.{name}
-    This convenience function will create a text label, along with a control with this naming convention.
-    See @set_text_size and @set_control_size for setting default sizes of these elements.
+    The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Table}.{name}
+    This convenience function will create a text label, along with a element with this naming convention.
+    See @set_text_size and @set_element_size for setting default sizes of these elements.
 
     :param record: The table.column in the database this element will be mapped to
-    :param control: The control type desired (defaults to PySimpleGUI.Input)
-    :param size: Overrides the default control size that was set with @set_control_size, for this control element only
+    :param element: The element type desired (defaults to PySimpleGUI.Input)
+    :param size: Overrides the default element size that was set with @set_element_size, for this element element only
     :param label: The text/label will automatically be generated from the @field name. If a different text/label is
                  desired, it can be specified here.
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
