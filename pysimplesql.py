@@ -1513,7 +1513,7 @@ class Database:
                                 table.set_by_pk(pk, True)
         return False
 
-    def disable_controls(self, disable, table=''):
+    def disable_controls(self, disable, table_name):
         """
         Disable all controls assocated with table.
         :param disable: True/False to disable/enable control(s)
@@ -1521,12 +1521,9 @@ class Database:
         :return: None
         """
         # TODO: fix this?  I'm not sure it works
-        win = self.window
-        for k, v in win.AllKeysDict.items():
-            if k is not str:
-                continue
 
-            if table != '' and k.split('.')[0] != table:
+        for c in self.control_map:
+            if c['table'] != table_name:
                 continue
             if type(v) is sg.PySimpleGUI.InputText or type(v) is sg.PySimpleGUI.MLine or type(
                     v) is sg.PySimpleGUI.Combo or type(v) is sg.PySimpleGUI.Checkbox:

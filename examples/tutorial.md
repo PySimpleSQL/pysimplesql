@@ -20,11 +20,23 @@ pip3 install PySimpleGUI
 pip3 install pysimplesql
 ```
 
-Next, we will build a database to work with.  If you're not a database expert, don't worry!  There are many tools available
-to help you build your own databases - but I personally like to stick to raw SQL commands.
 
-Create a file named "journal.sql" with the following contents or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/db/v1/journal.sql):
-```SQL
+
+
+
+Ok, now with the database and prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
+later (data validation, etc.).  I'm going to use that approach here.  With that said, create a file "journal.py" with the 
+following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v1/journal.py)
+```python
+# import PySimpleGUI and pysimplesql
+import PySimpleGUI as sg
+import pysimplesql as ss
+
+# --------------------------
+# CREATE OUR DATABASE SCHEMA
+# --------------------------
+# Note that databases can be created from files as well instead of just embedded commands, as well as existing databases.
+sql="""
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "entry_date"    INTEGER DEFAULT (date('now')),
@@ -46,20 +58,7 @@ INSERT INTO Mood VALUES (3,"Angry");
 INSERT INTO Mood VALUES (4,"Emotional");
 INSERT INTO Mood VALUES (5,"Content");
 INSERT INTO Mood VALUES (6,"Curious");
-```
-
-There are a couple of things to point out in the SQL above.  First, notice the FOREIGN KEY constraint.  This is what tells
-**pysimplesql** what the relationships are in the database.  These can be manually mapped as well if you are working with
-an already existing database that did not define it's foreign key constraints - but since we are starting fresh this is 
-the best way to go. Also notice the DEFAULT title.  New records created with **pysimplesql** will use this when available.
-
-Ok, now with the database and prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
-later (data validation, etc.).  I'm going to use that approach here.  With that said, create a file "journal.py" with the 
-following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v1/journal.py)
-```python
-# import PySimpleGUI and pysimplesql
-import PySimpleGUI as sg
-import pysimplesql as ss
+"""
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
@@ -69,7 +68,7 @@ headings=['id','Date:              ','Mood:      ','Title:                      
 visible=[0,1,1,1] # Hide the id column
 layout=[
     ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    ss.actions('act_journal','Journal'), # These are your database controls (Previous, Next, Save, Insert, etc!)
+    ss.actions('act_journal','Journal', edit_protect=False), # These are your database controls (Previous, Next, Save, Insert, etc!)
     ss.record('Journal.entry_date', label='Date:'),
     ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
     ss.record('Journal.title'),
@@ -77,7 +76,7 @@ layout=[
 ]
 
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database(':memory:', win, sql_script='journal.sql') #<=== Here is the magic!
+db=ss.Database(':memory:', win, sql_commands=sql) #<=== Here is the magic!
 # Note:  ':memory:' is a special address for in-memory databases
 
 # ---------
@@ -93,6 +92,15 @@ while True:
         break
     else:
         print(f'This event ({event}) is not yet handled.')
-
 ```
- Go ahead and run the program!
+The code above is all you need for a quick database front end!  If you're not a database expert, don't worry!  Don't let
+the embedded SQL in this example scare you. There are many tools available to help you build your own databases - but I 
+personally like to stick to raw SQL commands.  Also keep in mind that SQL code does not have to be embedded, as it can be
+loaded externally as well. Existing databases won't even need any of this SQL at all! With that said, 
+There are a couple of things to point out in the SQL above.  First, notice the FOREIGN KEY constraint.  This is what tells
+**pysimplesql** what the relationships are in the database.  These can be manually mapped as well if you are working with
+an already existing database that did not define it's foreign key constraints - but since we are starting fresh this is 
+the best way to go. Also notice the DEFAULT title.  New records created with **pysimplesql** will use this when available.
+
+
+ Go ahead and run the program!  It's literally a fully functioning program already.
