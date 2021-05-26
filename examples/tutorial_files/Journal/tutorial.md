@@ -26,7 +26,7 @@ pip3 install pysimplesql
 
 Ok, now with the prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
 later (data validation, etc.).  I'm going to use that approach here.  With that said, create a file "journal.py" with the 
-following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v1/journal.py)
+following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v1/journal.py))
 ```python
 # import PySimpleGUI and pysimplesql
 import PySimpleGUI as sg
@@ -197,6 +197,7 @@ Up until now, the database has been created in-memory.  In-memory databases wipe
 be a pretty poor choice for a Journal application!  We will now fix that issue and start saving the data to the hard drive.
 
 See code below for the changes to make our data persistent! (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v3/journal.py)):
+
 ```python
 # import PySimpleGUI and pysimplesql
 import PySimpleGUI as sg
@@ -206,7 +207,7 @@ import pysimplesql as ss
 # CREATE OUR DATABASE SCHEMA
 # --------------------------
 # Note that databases can be created from files as well instead of just embedded commands, as well as existing databases.
-sql="""
+sql = """
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "entry_date"    INTEGER DEFAULT (date('now')),
@@ -234,19 +235,20 @@ INSERT INTO Mood VALUES (6,"Curious");
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-headings=['id','Date:              ','Mood:      ','Title:                                 ']
-visible=[0,1,1,1] # Hide the id column
-layout=[
-    ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    ss.actions('act_journal','Journal', edit_protect=False), # These are your database controls (Previous, Next, Save, Insert, etc!)
-    ss.record('Journal.entry_date', label='Date:'),
-    ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
-    ss.record('Journal.title', size=(71,1)),
-    ss.record('Journal.entry', sg.MLine, size=(71,20))
+headings = ['id', 'Date:              ', 'Mood:      ', 'Title:                                 ']
+visible = [0, 1, 1, 1]  # Hide the id column
+layout = [
+ ss.selector('sel_journal', 'Journal', sg.Table, num_rows=10, headings=headings, visible_column_map=visible),
+ ss.actions('act_journal', 'Journal', edit_protect=False),
+ # These are your database controls (Previous, Next, Save, Insert, etc!)
+ ss.record('Journal.entry_date', label='Date:'),
+ ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30, 10), auto_size_text=False),
+ ss.record('Journal.title', size=(71, 1)),
+ ss.record('Journal.entry', sg.MLine, size=(71, 20))
 ]
 
-win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database('journal.db', win, sql_commands=sql) #<=== ONE SIMPLE CHANGE!!!
+win = sg.Window('Journal example', layout, finalize=True)
+db = ss.Database('../../journal.db', win, sql_commands=sql)  # <=== ONE SIMPLE CHANGE!!!
 # Now we just give the new databasase a name - "journal.db" in this case.  If journal.db is not present
 # when this code is run, then a new one is created using the commands supplied to the sql_commands keyword argument.
 # If journal.db does exist, then it is used and the sql_commands are not run at all.
@@ -254,21 +256,21 @@ db=ss.Database('journal.db', win, sql_commands=sql) #<=== ONE SIMPLE CHANGE!!!
 # Reverse the default sort order so new journal entries appear at the top
 db['Journal'].set_order_clause('ORDER BY entry_date DESC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched
-db['Journal'].set_search_order(['entry_date','title','entry'])
+db['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 
 # ---------
 # MAIN LOOP
 # ---------
 while True:
-    event, values = win.read()
+ event, values = win.read()
 
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
-        print(f'pysimpledb event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
-        break
-    else:
-        print(f'This event ({event}) is not yet handled.')
+ if db.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+  print(f'pysimpledb event handler handled the event {event}!')
+ elif event == sg.WIN_CLOSED or event == 'Exit':
+  db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
+  break
+ else:
+  print(f'This event ({event}) is not yet handled.')
 ```
 
 Go ahead and run the program now, make some new entries and save them.  Close and reopen the program and you'll see that
