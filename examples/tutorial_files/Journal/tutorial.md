@@ -274,6 +274,7 @@ while True:
  else:
   print(f'This event ({event}) is not yet handled.')
 ```
+![v3](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v3/journal.png)
 
 Go ahead and run the program now, make some new entries and save them.  Close and reopen the program and you'll see that
 data is now persisting on the hard drive!
