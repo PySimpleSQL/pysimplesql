@@ -389,7 +389,7 @@ features of **pysimplesql**!
 - How to install and import **pysimplesql** into your project
 - How to use the FOREIGN KEY and DEFAULT constraints in your SQL schema
 - How to embed SQL schema code right in your program
-- Creating both im-memory databases and persistent databases
+- Creating both in-memory databases and persistent databases
 - using the ss.record(), ss.selector() and ss.actions convenience functions to simplify construction of your PySimpleGUI
 layouts and ensure they work automatically with **pysimplesql**
 - How to change default control size with the size=(w,h) keyword argument to ss.record()
