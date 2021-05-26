@@ -24,7 +24,7 @@ pip3 install pysimplesql
 
 
 
-Ok, now with the database and prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
+Ok, now with the prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
 later (data validation, etc.).  I'm going to use that approach here.  With that said, create a file "journal.py" with the 
 following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/scripts/v1/journal.py)
 ```python
@@ -105,7 +105,9 @@ the best way to go. Also notice the DEFAULT title.  New records created with **p
 
  Go ahead and run the program!  **It's literally a fully functioning program already** - though we will add onto it to improve
  things a bit.  Make a few entries by using the insert button to create them.  Notice that at first the elements are disabled,
- as there is no record yet selected. This all happens automatically!
+ as there is no record yet selected. This all happens automatically! Explore the interface a bit too to get familiar with
+how everything works.  **pysimplesql** was even smart enough to put an edit button next to the mood combo box so that new
+moods can be created (or existing ones edited).
  
 ## Next improvement - cleaning up the interface
 The first iteration of our design is already working and functional.  In this improvement, we will fine-tune the GUI to 
