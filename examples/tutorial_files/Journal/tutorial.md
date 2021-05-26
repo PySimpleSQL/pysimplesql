@@ -8,7 +8,7 @@ select a mood for the day.
 ***DISCLAIMER***: While the names are similar, PySimpleGUI and **pysimplesql** have no affiliation.  The **pysimplesql** 
 project was inspired by PySimpleGUI however, and strives for the same ease-of-use!
 
-##Lets get started!
+## Lets get started!
 First, lets make sure we have both PySimpleGUI and pysimplesql installed:
 ```python
 pip install PySimpleGUI
@@ -94,6 +94,7 @@ while True:
         print(f'This event ({event}) is not yet handled.')
 ```
 ![v1](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v1/journal.png)
+
 The code above is all you need for a quick database front end!  If you're not a database expert, don't worry!  Don't let
 the embedded SQL in this example scare you. There are many tools available to help you build your own databases - but I 
 personally like to stick to raw SQL commands.  Also keep in mind that SQL code does not have to be embedded, as it can be
@@ -109,6 +110,7 @@ the best way to go. Also notice the DEFAULT title.  New records created with **p
  as there is no record yet selected. This all happens automatically! Explore the interface a bit too to get familiar with
 how everything works.  **pysimplesql** was even smart enough to put an edit button next to the mood combo box so that new
 moods can be created or existing ones edited or deleted (see below).
+
 ![quick editor](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v1/quick_edit.png)
 
  
