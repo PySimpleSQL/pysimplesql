@@ -379,5 +379,19 @@ while True:
         print(f'This event ({event}) is not yet handled.')
 ```
 ![v4](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v4/journal.png)
+
 Now run the example again.  You can now see that we are validating our expected date format using the simple callback 
 features of **pysimplesql**!
+
+# LEARNINGS FROM THIS TUTORIAL
+- How to install and import **pysimplesql** into your project
+- How to use the FOREIGN KEY and DEFAULT constraints in your SQL schema
+- How to embed SQL schema code right in your program
+- using the ss.record(), ss.selector() and ss.actions convenience functions to simplify construction of your PySimpleGUI
+layouts and ensure they work automatically with **pysimplesql**
+- How to change default control size with the size=(w,h) keyword argument to ss.record()
+- How to change sort order of tables with db[table].set_order_clause()
+- How to change the search order of tables with db[table].set_search_order()]
+- How to use the callback system to create a simple validation callback
+
+Any ideas on improvements for this tutorial of the simple Journal application?  Just drop an email to pysimplesql@gmail.com!
