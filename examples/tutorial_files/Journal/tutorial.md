@@ -198,7 +198,7 @@ while True:
 Now that's better!  Now the interface looks a little cleaner, the sorting of the selector table looks better and the search 
 function is much more usable!
 
-## Next improvement - persistance of the data
+## Next improvement - persistence of the data
 Up until now, the database has been created in-memory.  In-memory databases wipe clean after each use, and therefore would
 be a pretty poor choice for a Journal application!  We will now fix that issue and start saving the data to the hard drive.
 
@@ -389,6 +389,7 @@ features of **pysimplesql**!
 - How to install and import **pysimplesql** into your project
 - How to use the FOREIGN KEY and DEFAULT constraints in your SQL schema
 - How to embed SQL schema code right in your program
+- Creating both im-memory databases and persistent databases
 - using the ss.record(), ss.selector() and ss.actions convenience functions to simplify construction of your PySimpleGUI
 layouts and ensure they work automatically with **pysimplesql**
 - How to change default control size with the size=(w,h) keyword argument to ss.record()
