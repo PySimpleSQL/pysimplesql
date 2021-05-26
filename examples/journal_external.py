@@ -26,7 +26,7 @@ db=ss.Database('journal.db', win,  sql_script='journal.sql') #<=== Here is the m
 # Reverse the default sort order so new journal entries appear at the top
 db['Journal'].set_order_clause('ORDER BY entry_date DESC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched
-db['Journal'].set_search_order(['entry_Date','title','entry'])
+db['Journal'].set_search_order(['entry_date','title','entry'])
 
 # ---------
 # MAIN LOOP
