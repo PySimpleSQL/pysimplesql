@@ -189,6 +189,7 @@ while True:
     else:
         print(f'This event ({event}) is not yet handled.')
 ```
+![v2](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v2/journal.png)
 
 Now that's better!  Now the interface looks a little cleaner, the sorting of the selector table looks better and the search 
 function is much more usable!
