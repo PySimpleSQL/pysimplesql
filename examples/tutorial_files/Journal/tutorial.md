@@ -26,7 +26,7 @@ pip3 install pysimplesql
 
 Ok, now with the prerequisites out of the way, lets build our application.  I like to start with a rough version, then add features
 later (data validation, etc.).  I'm going to use that approach here.  With that said, create a file "journal.py" with the 
-following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/journal/v1/journal.py))
+following contents (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/Journal/v1/journal.py))
 ```python
 # import PySimpleGUI and pysimplesql
 import PySimpleGUI as sg
@@ -122,7 +122,7 @@ be just a bit cleaner. Mainly, we will fix a few issues that stick out to me:
 the bottom. 
 - The search function only searches in the title column
   
-See code below for the simple changes to make these fixes happen (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/journal/v2/journal.py)):
+See code below for the simple changes to make these fixes happen (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/Journal/v2/journal.py)):
 ```python
 import PySimpleGUI as sg
 import pysimplesql as ss
@@ -202,7 +202,7 @@ function is much more usable!
 Up until now, the database has been created in-memory.  In-memory databases wipe clean after each use, and therefore would
 be a pretty poor choice for a Journal application!  We will now fix that issue and start saving the data to the hard drive.
 
-See code below for the changes to make our data persistent! (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/journal/v3/journal.py)):
+See code below for the changes to make our data persistent! (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/Journal/v3/journal.py)):
 
 ```python
 # import PySimpleGUI and pysimplesql
@@ -288,7 +288,7 @@ Right now, the user can type pretty much anything for the date.  We should fix t
 and sort correctly.  We will use the before_save callback to validate this data.  If our callback returns True, then the
 save will be allowed to proceed.
 
-See code below for the changes to validate our data! (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/journal/v4/journal.py)):
+See code below for the changes to validate our data! (or get the file [here](https://raw.githubusercontent.com/PySimpleSQL/pysimplesql/master/examples/tutorial_files/Journal/v4/journal.py)):
 ```python
 # import PySimpleGUI and pysimplesql
 import PySimpleGUI as sg
