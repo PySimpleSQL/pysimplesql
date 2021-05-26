@@ -1295,7 +1295,7 @@ class Database:
         win = self.window
         for e in self.event_map:
             if '.edit_protect' in e['event']:
-                self.disable_elements(t,self._edit_protect)
+                self.disable_elements(table,self._edit_protect)
 
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.tables:
