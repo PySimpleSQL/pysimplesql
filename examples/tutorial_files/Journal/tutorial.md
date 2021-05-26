@@ -1,4 +1,4 @@
-#Database Applications with PySimpleGUI 
+# Database Applications with PySimpleGUI 
 
 This is a simple tutorial to show how easy database interaction can be by using PySImpleGUI and **pysimplesql** together.
 For this tutorial, we are going to build a simple Journal/Diary application to show how quickly a database front end can
