@@ -116,7 +116,7 @@ moods can be created or existing ones edited or deleted (see below).
  
 ## Next improvement - cleaning up the interface
 The first iteration of our design is already working and functional.  In this improvement, we will fine-tune the GUI to 
-be just a bit cleaner. Mainly, we will fix two issues that stick out to me:
+be just a bit cleaner. Mainly, we will fix a few issues that stick out to me:
 - The title input element would look nice if it were as wide as the entry MLine element
 - The sorting in the table selector would be nice if it were reversed so that new entries appeared at the top rather than
 the bottom. 
