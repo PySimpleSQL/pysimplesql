@@ -17,7 +17,8 @@ version = '0.0.6'
 checker = UpdateChecker()
 result = checker.check('pysimplesql', version)
 if result is not None:
-    print(f'***** pysimplesql update to v{result.available_version} available! Just run pip3 install pysimplesql --upgrade *****')
+    release_date=f'(released {result.release_date}) ' if result.release_date is not None else ''
+    print(f'***** pysimplesql update to v{result.available_version} {release_date}available! Be sure to run pip3 install pysimplesql --upgrade *****')
 
 # ---------------------------
 # Types for automatic mapping
