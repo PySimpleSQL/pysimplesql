@@ -108,7 +108,9 @@ the best way to go. Also notice the DEFAULT title.  New records created with **p
  things a bit.  Make a few entries by using the insert button to create them.  Notice that at first the elements are disabled,
  as there is no record yet selected. This all happens automatically! Explore the interface a bit too to get familiar with
 how everything works.  **pysimplesql** was even smart enough to put an edit button next to the mood combo box so that new
-moods can be created (or existing ones edited).
+moods can be created or existing ones edited or deleted (see below).
+![quick editor](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v1/quick_edit.png)
+
  
 ## Next improvement - cleaning up the interface
 The first iteration of our design is already working and functional.  In this improvement, we will fine-tune the GUI to 
