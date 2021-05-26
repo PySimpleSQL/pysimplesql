@@ -34,7 +34,7 @@ INSERT INTO Mood VALUES (6,"Curious");
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-headings=['id','Date:              ','Mood:      ','Title:                                 ']
+headings=['id','Date:              ','Mood:      ','Title:                                 '] # The width of the headings defines column width!
 visible=[0,1,1,1] # Hide the id column
 layout=[
     ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
