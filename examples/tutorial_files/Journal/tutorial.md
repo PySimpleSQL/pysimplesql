@@ -378,3 +378,6 @@ while True:
     else:
         print(f'This event ({event}) is not yet handled.')
 ```
+![v4](https://github.com/PySimpleSQL/pysimplesql/raw/master/examples/tutorial_files/Journal/v4/journal.png)
+Now run the example again.  You can now see that we are validating our expected date format using the simple callback 
+features of **pysimplesql**!

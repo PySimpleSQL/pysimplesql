@@ -33,6 +33,21 @@ pip3 install PySimpleGUI
 pip3 install **pysimplesql**
 ```
 
+**pysimplesql** is now in active development and constantly changing. When an update is available, a message similar to 
+the following will be displayed in the output of the program:
+
+```***** pysimplesql update to v0.0.5 available! Just run pip3 install pysimplesql --upgrade *****```
+
+Be sure to update the package when you get this message, or from time to time with
+the following command:
+```
+pip install pysimplesql --upgrade
+```
+or
+```
+pip3 install pysimplesql --upgrade
+```
+
 ### This Code
 
 ```python

@@ -7,8 +7,17 @@ import functools
 import os.path
 import random
 from os import path
-
+from update_checker import UpdateChecker
 logger = logging.getLogger(__name__)
+
+# -------------------------
+# Check for package updates
+# -------------------------
+version = '0.0.6'
+checker = UpdateChecker()
+result = checker.check('pysimplesql', version)
+if result is not None:
+    print(f'***** pysimplesql update to v{result.available_version} available! Just run pip3 install pysimplesql --upgrade *****')
 
 # ---------------------------
 # Types for automatic mapping
