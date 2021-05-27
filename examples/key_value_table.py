@@ -7,9 +7,10 @@ logging.basicConfig(level=logging.CRITICAL)               # <=== You can set the
 sql="""
 CREATE TABLE "Settings"(
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-	"key" TEXT,
+	"key" TEXT, 
 	"value" TEXT
 );
+-- There is nothing special about the key and value column names, they can literally be anything.
 INSERT INTO SETTINGS VALUES (1,'company_name','My company');
 INSERT INTO SETTINGS VALUES (2,'debug_mode',True);
 INSERT INTO SETTINGS VALUES (3,'antialiasing', True);
