@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import setuptools
+from setuptools import setup, Extension
 
 def readme():
     try:
@@ -10,7 +10,7 @@ def readme():
 
 requirements = ['PySimpleGUI','update_checker']
 
-setuptools.setup(
+setup(
     name="pysimplesql",
     version="0.0.8",
     author="Jonathan Decker",
