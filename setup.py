@@ -12,7 +12,7 @@ requirements = ['PySimpleGUI','update_checker']
 
 setuptools.setup(
     name="pysimplesql",
-    version="0.0.7",
+    version="0.0.8",
     author="Jonathan Decker",
     author_email="pysimplesql@gmail.com",
     description="sqlite3 database binding for PySimpleGUI",
@@ -20,7 +20,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     keywords="SQL sqlite database application front-end access libre office GUI PySimpleGUI",
     url="https://github.com/PySimpleSQL/pysimplesql",
-    download_url="https://github.com/PySimpleSQL/pysimplesql/archive/refs/tags/0.0.7.tar.gz",
+    download_url="https://github.com/PySimpleSQL/pysimplesql/archive/refs/tags/0.0.8.tar.gz",
     packages=setuptools.find_packages(),
     install_requires=requirements,
     classifiers=[
