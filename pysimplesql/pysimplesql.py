@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # -------------------------
 # Check for package updates
 # -------------------------
-version = '0.0.6'
+version = '0.0.7'
 checker = UpdateChecker()
 result = checker.check('pysimplesql', version)
 if result is not None:
