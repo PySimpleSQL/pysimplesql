@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-
 import PySimpleGUI as sg
 import logging
 import sqlite3
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 # -------------------------
 # Check for package updates
 # -------------------------
-version = __version__ = '0.0.8'
+version = __version__ = '0.0.9'
 checker = UpdateChecker()
 result = checker.check('pysimplesql', version)
 if result is not None:

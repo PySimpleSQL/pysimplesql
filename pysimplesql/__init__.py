@@ -1,2 +1,2 @@
 name = "pysimplesql"
-from pysimplesql import *
+from .pysimplesql import *
