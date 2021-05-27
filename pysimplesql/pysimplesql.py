@@ -76,8 +76,6 @@ def escape(query_string):
     query_string = str(query_string)
     return query_string
 
-
-
 class Row:
     """
     @Row class. This is a convenience class used by listboxes and comboboxes to display values
@@ -545,6 +543,11 @@ class Table:
         else:
             return default
 
+    def get_keyed_value(self,value_column, key_column, key_value):
+        for r in self.rows:
+            if r[key_column] == key_value:
+                return r[value_column]
+
     def get_current_pk(self):
         """
         Get the primary key of the currently selected record
@@ -644,11 +647,12 @@ class Table:
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
         :return: None
         """
+        saved=False
+
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message: sg.popup('There were no updates to save.',keep_on_top=True)
             return SAVE_NONE
-
 
         # callback
         if 'before_save' in self.callbacks.keys():
@@ -663,17 +667,26 @@ class Table:
         q = f'UPDATE {self.table} SET'
         for v in self.db.element_map:
             if v['table'] == self:
-                q += f' {v["element"].Key.split(".", 1)[1]}=?,'
-
-                if type(v['element'])==sg.Combo:
-                    if type(v['element'].get())==str:
-                        val = v['element'].get()
-                    else:
-                        val=v['element'].get().get_pk()
-                else:
+                if '?' in v['element'].Key and '=' in v['element'].Key:
                     val=v['element'].get()
+                    table_info, where_info = v['element'].Key.split('?')
+                    q_kv = f'UPDATE {self.table} SET {v["column"]} = ? WHERE {v["where_column"]} = "{v["where_value"]}";'
+                    print(q_kv)
+                    print(val)
+                    self.con.execute(q_kv, tuple([val]))
+                    saved=True
+                else:
+                    q += f' {v["element"].Key.split(".", 1)[1]}=?,'
 
-                values.append(val)
+                    if type(v['element'])==sg.Combo:
+                        if type(v['element'].get())==str:
+                            val = v['element'].get()
+                        else:
+                            val=v['element'].get().get_pk()
+                    else:
+                        val=v['element'].get()
+
+                    values.append(val)
         if values:
             # there was something to update
             # Remove the trailing comma
@@ -683,8 +696,10 @@ class Table:
             q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
             logger.info(f'Performing query: {q} {str(values)}')
             self.con.execute(q, tuple(values))
+            saved=True
 
-            # callback
+        # callback
+        if saved:
             if 'after_save' in self.callbacks.keys():
                 if not self.callbacks['after_save'](self.db, self.db.window):
                     self.con.rollback()
@@ -1117,13 +1132,14 @@ class Database:
                 self.add_relationship('LEFT JOIN', table, row['from'], row['table'], row['to'], requery_table)
 
     # Map an element.
-    # Optionally supply an FQ (Foreign Query Object), Primary Key and Foreign Key, and Foreign Feild
-    # TV=True Valeu, FV=False Value
-    def map_element(self, element, table, column):
+    # Optionally a where_column and a where_value.  This is useful for key,value pairs!
+    def map_element(self, element, table, column, where_column=None, where_value=None):
         dic = {
             'element': element,
             'table': table,
             'column': column,
+            'where_column': where_column,
+            'where_value': where_value
         }
         logger.info(f'Mapping element {element.Key}')
         self.element_map.append(dic)
@@ -1143,11 +1159,21 @@ class Database:
 
             # Map Record Element
             if element.metadata['type']==TYPE_RECORD:
-                table,col = key.split('.')
+                # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+                if '?' in key:
+                    table_info, where_info = key.split('?')
+                else:
+                    table_info = key; where_info = None
+                table, col = table_info.split('.')
+                if where_info is None:
+                    where_column=where_value=None
+                else:
+                    where_column,where_value=where_info.split('=')
+
                 if table in self.tables:
                     if col in self[table].column_names:
                         # Map this element to table.column
-                        self.map_element(element, self[table], col)
+                        self.map_element(element, self[table], col, where_column, where_value)
 
             # Map Selector Element
             if element.metadata['type']==TYPE_SELECTOR:
@@ -1347,7 +1373,11 @@ class Database:
                 logger.debug(f'{d["element"].Key} IS IN callbacks')
                 self.callbacks[d['element'].Key]()
 
-
+            elif d['where_column'] is not None:
+                # We are looking for a key,value pair or similar.  Lets sift through and see what to put
+                updated_val=d['table'].get_keyed_value(d['column'], d['where_column'], d['where_value'])
+                if type(d['element']) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
+                    updated_val=int(updated_val)
             elif type(d['element']) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign queries first
                 # This will basically only be things like comboboxes
@@ -1413,6 +1443,7 @@ class Database:
 
             # Finally, we will update the actual GUI element!
             if updated_val is not None:
+                print(f'KV: element: {d["element"].Key} updated_val: {updated_val}')
                 d['element'].update(updated_val)
 
         # ---------
@@ -1584,12 +1615,15 @@ def get_record_info(record):
     """
     return record.split('.')
 
-def actions(key, table, edit_protect=True, navigation=True, insert=True, delete=True, save=True, search=True,
+def actions(key, table, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None, search=None,
             search_size=(30, 1), bind_return_key=True):
     """
     Allows for easily adding record navigation and elements to the PySimpleGUI window
     The navigation elements are separated into different sections as detailed by the parameters.
+    :param key: The key to give these controls
     :param table: The table that this "element" will provide actions for
+    :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
+                    The individual keyword arguments will trump the default parameter
     :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that toggles
                     the ability on an off to prevent accidental changes in the database by enabling/disabling the insert,
                     edit and save buttons.
@@ -1604,6 +1638,13 @@ def actions(key, table, edit_protect=True, navigation=True, insert=True, delete=
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
              will not need to be wrapped in [] in your layout code.
     """
+    edit_protect=default if edit_protect is None else edit_protect
+    navigation=default if navigation is None else navigation
+    insert=default if insert is None else insert
+    delete=default if delete is None else delete
+    save=default if save is None else save
+    search=default if search is None else search
+
     layout = []
     meta = {'type': TYPE_EVENT, 'event_type': None, 'table': None, 'function': None}
 
@@ -1697,12 +1738,21 @@ def record(key, element=sg.I, size=None, label='', no_label=False, label_above=F
     """
     global _default_text_size
     global _default_element_size
-    table,column=key.split('.')
+
+    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+    if '?' in key:
+        table_info, where_info=key.split('?')
+        label_text=where_info.split('=')[1].replace('fk','').replace('_',' ').capitalize() + ':'
+    else:
+        table_info=key; where_info=None
+        label_text=table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    table,column=table_info.split('.')
+
     layout_element = [
-        element('', key=f'{table}.{column}', size=size or _default_element_size, metadata={'type': TYPE_RECORD}, **kwargs)
+        element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD}, **kwargs)
     ]
     layout_label= [
-        sg.T(column.replace('fk', '').replace('_', ' ').capitalize() + ':' if label == '' else label,size=_default_text_size)
+        sg.T(label_text if label == '' else label,size=_default_text_size)
     ]
     if no_label:
         layout=layout_element
@@ -1712,6 +1762,8 @@ def record(key, element=sg.I, size=None, label='', no_label=False, label_above=F
         ]
     else:
         layout=layout_label+layout_element
+
+    # Add the quick editor button where appropriate
     if element==sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'function': None}
         layout+=[sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
