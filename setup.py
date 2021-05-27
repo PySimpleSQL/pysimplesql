@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from setuptools import setup, Extension
+from setuptools import setup, find_packages
 
 def readme():
     try:
@@ -21,7 +21,7 @@ setup(
     keywords="SQL sqlite database application front-end access libre office GUI PySimpleGUI",
     url="https://github.com/PySimpleSQL/pysimplesql",
     download_url="https://github.com/PySimpleSQL/pysimplesql/archive/refs/tags/0.0.8.tar.gz",
-    packages=setup.find_packages(),
+    packages=find_packages(),
     install_requires=requirements,
     classifiers=[
         "Programming Language :: Python",
