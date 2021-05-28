@@ -298,12 +298,21 @@ class Table:
                 element_val = c['element'].Get()
                 table_val = self[c['column']]
 
+                if type(element_val) is Row:
+                    print('It is a row!')
+                    element_val=element_val.get_val()
+
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
+
                 if element_val != table_val:
-                    print(f'{c["element"].Key}:{c["element"].Get()} != {c["column"]}:{self[c["column"]]}')
                     dirty = True
+                    sym='!='
+                else:
+                    sym='='
+
+                print(f'{c["element"].Key}:{element_val}({len(element_val)}) {sym} {c["column"]}:{table_val}({len(table_val)})')
 
         if dirty:
             save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
