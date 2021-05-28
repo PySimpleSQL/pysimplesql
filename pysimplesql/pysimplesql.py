@@ -671,8 +671,6 @@ class Table:
                     val=v['element'].get()
                     table_info, where_info = v['element'].Key.split('?')
                     q_kv = f'UPDATE {self.table} SET {v["column"]} = ? WHERE {v["where_column"]} = "{v["where_value"]}";'
-                    print(q_kv)
-                    print(val)
                     self.con.execute(q_kv, tuple([val]))
                     saved=True
                 else:
@@ -916,7 +914,7 @@ class Database:
             self.con.close()
 
     # Override the [] operator to retrieve queries by key
-    def __getitem__(self, key):
+    def __getitem__(self, key:str) -> Table:
         return self.tables[key]
 
     def execute_script(self,script):
@@ -1443,7 +1441,6 @@ class Database:
 
             # Finally, we will update the actual GUI element!
             if updated_val is not None:
-                print(f'KV: element: {d["element"].Key} updated_val: {updated_val}')
                 d['element'].update(updated_val)
 
         # ---------
