@@ -59,3 +59,15 @@ while True:
         break
     else:
         print(f'This event ({event}) is not yet handled.')
+
+"""
+This example showed how to easily access key,value information stored in tables.  A classic example of this is with
+storing settings for your own program
+
+Learnings from this example:
+- embedding sql commands in code for table creation
+- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Database()
+- using ss.record() and ss.actions() functions for easy GUI element creation
+- using the extended key naming syntax for keyed records (Table.value_column?key_column=key_value)
+- using the Table.get_keyed_value() method for keyed data retrieval
+"""
