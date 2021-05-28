@@ -285,7 +285,7 @@ class Table:
         """
         # TODO: children too?
         if self.current_index is None or self.rows == []: return
-        return  # hack this in for now
+        #return  # hack this in for now
         # handle dependents first
         for rel in self.db.relationships:
             if rel.parent == self.table and rel.requery_table:
@@ -298,13 +298,16 @@ class Table:
                 element_val = c['element'].Get()
                 table_val = self[c['column']]
 
+                # For elements where the value is a Row type, we need to compare primary keys
                 if type(element_val) is Row:
-                    print('It is a row!')
-                    element_val=element_val.get_val()
+                    element_val=element_val.get_pk()
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
+                # Strip trailing whitespace from strings
+                if type(table_val) is str: table_val=table_val.rstrip()
+                if type(element_val) is str: element_val = element_val.rstrip()
 
                 if element_val != table_val:
                     dirty = True
@@ -312,14 +315,14 @@ class Table:
                 else:
                     sym='='
 
-                print(f'{c["element"].Key}:{element_val}({len(element_val)}) {sym} {c["column"]}:{table_val}({len(table_val)})')
+                #print(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
 
         if dirty:
             save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
-                print(save_changes + 'SAVING')
-                # self.save_record(True) # TODO
-                # self.requery(False)
+                print('Saving changes!')
+                self.save_record(False,False) # TODO
+                #self.requery(False)
 
     def generate_join_clause(self):
         """
