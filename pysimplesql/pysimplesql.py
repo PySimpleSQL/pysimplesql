@@ -1,23 +1,12 @@
 #!/usr/bin/python3
 import PySimpleGUI as sg
-import logging
 import sqlite3
 import functools
 import os.path
 import random
-from os import path
-from update_checker import UpdateChecker
+import logging
 logger = logging.getLogger(__name__)
 
-# -------------------------
-# Check for package updates
-# -------------------------
-version = __version__ = '0.0.9'
-checker = UpdateChecker()
-result = checker.check('pysimplesql', version)
-if result is not None:
-    release_date=f'(released {result.release_date}) ' if result.release_date is not None else ''
-    print(f'***** pysimplesql update to v{result.available_version} {release_date}available! Be sure to run pip3 install pysimplesql --upgrade *****')
 
 # ---------------------------
 # Types for automatic mapping
