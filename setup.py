@@ -20,7 +20,7 @@ def main():
         long_description_content_type="text/markdown",
         keywords=app.__keywords__,
         url=app.__url__,
-        download_url=f"https://github.com/PySimpleSQL/pysimplesql/archive/refs/tags/{app.__version__}.tar.gz",
+        download_url=f"https://github.com/PySimpleSQL/pysimplesql/archive/refs/tags/v{app.__version__}.tar.gz",
         packages=find_packages(),
         install_requires=app.__requires__,
         extras_require=app.__extra_requires__,
