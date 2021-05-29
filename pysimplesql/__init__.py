@@ -10,16 +10,13 @@ __author__ = "Jonathan Decker"
 __author_email__ = "pysimplesql@gmail.com"
 __url__ = "https://github.com/PySimpleSQL/pysimplesql"
 __platforms__ = "ALL"
-
 __classifiers__ = [
         "Programming Language :: Python",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Topic :: Database :: Front-Ends",
         "Operating System :: OS Independent",
 ]
-
 __requires__ =  ['PySimpleGUI','update_checker']
-
 __extra_requires__ = {
 }
 
