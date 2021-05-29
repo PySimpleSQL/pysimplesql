@@ -1802,5 +1802,3 @@ def selector(key, table, element=sg.LBox, size=None, columns=None,**kwargs):
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
     return layout
-
-

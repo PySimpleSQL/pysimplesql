@@ -30,4 +30,4 @@ checker = UpdateChecker()
 result = checker.check('pysimplesql', __version__)
 if result is not None:
     release_date=f'(released {result.release_date}) ' if result.release_date is not None else ''
-    print(f'***** pysimplesql update to v{result.available_version} {release_date} available! Be sure to run pip3 install pysimplesql --upgrade *****')
+    print(f'***** pysimplesql update from {__version__} to {result.available_version} {release_date} available! Be sure to run pip3 install pysimplesql --upgrade *****')
