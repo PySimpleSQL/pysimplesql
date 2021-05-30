@@ -61,7 +61,7 @@ db['Colors'].set_search_order(['name','example']) # the search box will search i
 while True:
     event, values = win.read()
 
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db=None              # <= ensures proper closing of the sqlite database and runs a database optimization

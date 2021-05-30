@@ -1522,8 +1522,9 @@ class Database:
 
     def process_events(self, event:str, values:list) -> bool:
         """
-        Process mapped events.
+        Process mapped events for this specific Database instance.
 
+        Not to be confused with pysimplesql.process_events(), which processes events for ALL Database instances.
         This should be called once per iteration in your event loop
          .. note:: Events handled are responsible for requerying and updating elements as needed
 
@@ -1823,3 +1824,23 @@ def selector(key, table, element=sg.LBox, size=None, columns=None,**kwargs):
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
     return layout
+
+def process_events(event:str, values:list) -> bool:
+    """
+        Process mapped events for ALL Database instances.
+
+        Not to be confused with pysimplesql.Database.process_events(), which processes events for individual Database instances.
+        This should be called once per iteration in your event loop
+         .. note:: Events handled are responsible for requerying and updating elements as needed
+
+        :param event: The event returned by PySimpleGUI.read()
+        :type event: str
+        :param values: the values returned by PySimpleGUI.read()
+        :type values: list
+        :returns: True if an event was handled, False otherwise
+        :rtype: bool
+        """
+    handled=False
+    for i in Database.instances:
+        if i.process_events(event, values): handled=True
+    return handled

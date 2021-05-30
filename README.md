@@ -82,7 +82,7 @@ db = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the 
 while True:
     event, values = win.read()
 
-    if db.process_events(event, values):                  # <=== let pysimplesql process its own events! Simple!
+    if ss.process_events(event, values):                  # <=== let pysimplesql process its own events! Simple!
         logger.info('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
@@ -302,7 +302,7 @@ db.auto_add_relationships()
 db.auto_map_controls(win)
 db.auto_map_events(win)
 db.requery_all()
-db.update_controls()
+db.update_elements()
 ```
 
 And finally, that brings us to the lowest-level functions for binding the database.
