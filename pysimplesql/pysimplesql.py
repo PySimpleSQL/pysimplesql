@@ -125,6 +125,7 @@ class Table:
     @Table class is used for an internal representation of database tables. These are added by the following:
     @Database.add_table @Database.auto_add_tables
     """
+    instances=[] # Track our instances
 
     def __init__(self, db_reference, con, table, pk_column, description_column, query='', order=''):
         """
@@ -138,6 +139,7 @@ class Table:
         :param order: The sort order of the returned query
         """
         # todo finish the order processing!
+        Table.instances.append(self)
 
         # No query was passed in, so we will generate a generic one
         if query == '':
@@ -867,6 +869,7 @@ class Database:
     Maintains an internal version of the actual database
     Tables can be accessed by key, I.e. db['Table_name"] to return a @Table instance
     """
+    instances = []  # Track our instances
 
     def __init__(self, db_path=None, win=None, sql_script=None, sqlite3_database=None, sql_commands=None):
         """
@@ -878,6 +881,8 @@ class Database:
         :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
         :param sql_script: (file) SQL commands to run if @sqlite3_database is not present
         """
+        Database.instances.append(self)
+
         if db_path is not None:
             logger.info(f'Importing database: {db_path}')
             new_database = not os.path.isfile(db_path)
