@@ -11,15 +11,14 @@ power and control of managing your own codebase. **pysimplesql** not only allows
 line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
 """
 #!/usr/bin/python3
+# The first two imports are for docstrings
+from __future__ import annotations
+from typing import List, Union, Optional, Tuple, Callable
 import PySimpleGUI as sg
 import sqlite3
 import functools
 import os.path
 import random
-# The next two imports are for docstrings
-from typing import List, Union, Optional, Tuple, Callable
-from __future__ import annotations
-# Support logging information
 import logging
 logger = logging.getLogger(__name__)
 
