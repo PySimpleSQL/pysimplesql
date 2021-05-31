@@ -46,10 +46,10 @@ layout=[
 ]
 
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database('journal.db', win, sql_commands=sql) #<=== ONE SIMPLE CHANGE!!!
-# Now we just give the new databasase a name - "journal.db" in this case.  If journal.db is not present
+db=ss.Form('journal.frm', win, sql_commands=sql) #<=== ONE SIMPLE CHANGE!!!
+# Now we just give the new databasase a name - "journal.frm" in this case.  If journal.frm is not present
 # when this code is run, then a new one is created using the commands supplied to the sql_commands keyword argument.
-# If journal.db does exist, then it is used and the sql_commands are not run at all.
+# If journal.frm does exist, then it is used and the sql_commands are not run at all.
 
 # Reverse the default sort order so new journal entries appear at the top
 db['Journal'].set_order_clause('ORDER BY entry_date DESC')

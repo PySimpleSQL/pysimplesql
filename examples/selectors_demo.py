@@ -27,13 +27,13 @@ INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Blue","The ocea
 
 description = """
 Many different types of PySimpleGUI elements can be used as Selector controls to select database records.
-Navigation buttons, the Search box, ListBoxes, ComboBoxes, Sliders and tables can all be set to control
+Navigation buttons, the Search box, ListBoxes, ComboBoxes, Sliders and queries can all be set to control
 record navigation. Multiple selectors can be used simultaneously and they will all work together in harmony. Try each selector
 on this form and watch it all just work!
 """
 
 # PySimpleGUI™ layout code
-headings=['id','Name     ','Example                                          ','Primary Color?'] # Table column widths can be set by the spacing of the headings!
+headings=['id','Name     ','Example                                          ','Primary Color?'] # Query column widths can be set by the spacing of the headings!
 visible=[0,1,1,1] # Hide the primary key column in the table
 record_columns=[
     ss.record('Colors.name',label='Color name:'),
@@ -53,7 +53,7 @@ layout = [
 ]
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)
-db=ss.Database(':memory:', win, sql_commands=sql) #<=== Here is the magic!
+db=ss.Form(':memory:', win, sql_commands=sql) #<=== Here is the magic!
 # note: Since win was passed as a parameter, binding is automatic (including event mapping!)
 # Also note, in-memory databases can be created with ":memory:"!
 

@@ -44,8 +44,8 @@ layout=[
     ss.record('Journal.entry', sg.MLine, size=(71,20))
 ]
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database(':memory:', win,  sql_commands=sql) #<=== Here is the magic!
-# Note:  sql_commands in only run if journal.db does not exist!  This has the effect of creating a new blank
+db=ss.Form(':memory:', win, sql_commands=sql) #<=== Here is the magic!
+# Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
@@ -101,7 +101,7 @@ def cb_table_update():
 # set our callbacks!
 db.set_callback('Journal.entry_date',cb_date_decode)        # decode the date when this element updates...
 db['Journal'].set_callback('before_save',cb_date_encode)    # encode the date before saving the record...
-#db.set_callback('sel_journal',cb_table_update)          # Override the default element update for the table to display correct dates there too!
+#frm.set_callback('sel_journal',cb_table_update)          # Override the default element update for the table to display correct dates there too!
                                                             # *******COMMENT/UNCOMMENT LINE ABOVE TO SEE THE TABLE CHANGE HOW IT DISPLAYS DATE INFO!!!*******
 db.update_elements()                                        # Manually update the elements so the callbacks trigger on initial run
 
@@ -129,15 +129,15 @@ callback additions from the original journal_internal.py!
 
 Learnings from this example:
 - Using callbacks to manipulate data presented to the GUI, and to manipiulate GUI data going back to the database
-- Using Table.set_search_order() to set the search order of the table for search operations.
+- Using Query.set_search_order() to set the search order of the table for search operations.
 - embedding sql commands in code for table creation
 - creating a default/empty database with sql commands
 - using ss.record() and ss.selector() functions for easy GUI element creation
 - using Tables as ss.selector() element types
-- eating events when calling Table.update
-- changing the sort order of database tables
+- eating events when calling Query.update
+- changing the sort order of database queries
 - before_update callbacks
 - GUI element callbacks
-- forcing elements to update with fresh data with db.update_elements()
-- retreiving the description field from a table if the primary key is known with Table.get_description_for_pk()
+- forcing elements to update with fresh data with frm.update_elements()
+- retreiving the description field from a table if the primary key is known with Query.get_description_for_pk()
 """

@@ -4,27 +4,31 @@ import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
-# Define our layout. We will use the ss.record convenience function to create the controls
+# Create our form
+# NOTE: ":memory:" is a special database URL for in-memory databases
+frm=ss.Form(":memory:", sql_script='example.sql', prefix_queries='q')
+
+# Define our layout. We will use the Form.record convenience function to create the controls
 layout = [
-    ss.record('Restaurant.name'),
-    ss.record('Restaurant.location'),
-    ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
+    frm.record('qRestaurant.name'),
+    frm.record('qRestaurant.location'),
+    frm.record('qRestaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
 sub_layout = [
-    ss.selector('selector1','Item',size=(35,10))+
-    [sg.Col([ss.record('Item.name'),
-         ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
-         ss.record('Item.price'),
-         ss.record('Item.description', sg.MLine, (30, 7))
+    frm.selector('selector1','qItem',size=(35,10))+
+    [sg.Col([frm.record('qItem.name'),
+         frm.record('qItem.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
+         frm.record('qItem.price'),
+         frm.record('qItem.description', sg.MLine, (30, 7))
     ])],
-    ss.actions('actions1','Item', edit_protect=False,navigation=False,save=False, search=False)
+    frm.actions('actions1','qItem', edit_protect=False,navigation=False,save=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.actions('actions2','Restaurant')]
+layout += [frm.actions('actions2','qRestaurant')]
 
-# Initialize our window and database, then bind them together
+# Initialize our window then bind to the form
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Form(':memory:', win, sql_script='example.sql')      # <=== load the database and bind it to the window
-# NOTE: ":memory:" is a special database URL for in-memory databases
+frm.bind(win)   # <=== Binding the Form to the Window is easy!
+
 
 while True:
     event, values = win.read()

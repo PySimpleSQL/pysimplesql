@@ -47,7 +47,7 @@ layout=[
 ]
 
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database(':memory:', win, sql_commands=sql) #<=== Here is the magic!
+db=ss.Form(':memory:', win, sql_commands=sql) #<=== Here is the magic!
 # Note:  ':memory:' is a special address for in-memory databases
 
 # ---------

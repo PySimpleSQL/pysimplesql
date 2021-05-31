@@ -19,8 +19,8 @@ layout=[
     ss.record('Journal.entry', sg.MLine, size=(71,20))
 ]
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database('journal.db', win,  sql_script='journal.sql') #<=== Here is the magic!
-# Note:  sql_script is only run if journal.db does not exist!  This has the effect of creating a new blank
+db=ss.Form('journal.db', win, sql_script='journal.sql') #<=== Here is the magic!
+# Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
@@ -48,10 +48,10 @@ Without comments, this could have been done in about30 lines of code! Seriously 
 usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
-- Using Table.set_search_order() to set the search order of the table for search operations.
-- creating a default/empty database with an external sql script with the sql_script keyword argument to ss.Database()
+- Using Query.set_search_order() to set the search order of the table for search operations.
+- creating a default/empty database with an external sql script with the sql_script keyword argument to ss.Form()
 - using ss.record() and ss.selector() functions for easy GUI element creation
 - using the label keyword argument to ss.record() to define a custom label
 - using Tables as ss.selector() element types
-- changing the sort order of database tables
+- changing the sort order of database queries
 """

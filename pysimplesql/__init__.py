@@ -13,7 +13,7 @@ __platforms__ = "ALL"
 __classifiers__ = [
         "Programming Language :: Python",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-        "Topic :: Database :: Front-Ends",
+        "Topic :: Form :: Front-Ends",
         "Operating System :: OS Independent",
 ]
 __requires__ =  ['PySimpleGUI','update_checker']
