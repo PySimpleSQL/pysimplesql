@@ -1640,7 +1640,7 @@ class Form:
         :rtype: bool
         """
         if self.window is None:
-            print(f'***** Form appears to be unbound.  D0 you have frm.bind(win) in your code? ***')
+            print(f'***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***')
             return False
         elif event:
             for e in self.event_map:
