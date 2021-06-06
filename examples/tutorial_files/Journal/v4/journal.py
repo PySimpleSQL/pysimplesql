@@ -29,6 +29,10 @@ INSERT INTO Mood VALUES (4,"Emotional");
 INSERT INTO Mood VALUES (5,"Content");
 INSERT INTO Mood VALUES (6,"Curious");
 """
+frm=ss.Form('journal.db', sql_commands=sql)
+# Now we just gave the new databasase a name - "journal.db" in this case.  If journal.db is not present
+# when this code is run, then a new one is created using the commands supplied to the sql_commands keyword argument.
+# If journal.db does exist, then it is used and the sql_commands are not run at all.
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
@@ -37,24 +41,21 @@ INSERT INTO Mood VALUES (6,"Curious");
 headings=['id','Date:              ','Mood:      ','Title:                                 '] # The width of the headings defines column width!
 visible=[0,1,1,1] # Hide the id column
 layout=[
-    ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    ss.actions('act_journal','Journal', edit_protect=False), # These are your database controls (Previous, Next, Save, Insert, etc!)
-    ss.record('Journal.entry_date', label='Date:'),
-    ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
-    ss.record('Journal.title', size=(71,1)),
-    ss.record('Journal.entry', sg.MLine, size=(71,20))
+    frm.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
+    frm.actions('act_journal','Journal', edit_protect=False), # These are your database controls (Previous, Next, Save, Insert, etc!)
+    frm.record('Journal.entry_date', label='Date:'),
+    frm.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
+    frm.record('Journal.title', size=(71,1)),
+    frm.record('Journal.entry', sg.MLine, size=(71,20))
 ]
 
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Form('journal.db', win, sql_commands=sql) #<=== ONE SIMPLE CHANGE!!!
-# Now we just give the new databasase a name - "journal.frm" in this case.  If journal.frm is not present
-# when this code is run, then a new one is created using the commands supplied to the sql_commands keyword argument.
-# If journal.frm does exist, then it is used and the sql_commands are not run at all.
+frm.bind(win)
 
 # Reverse the default sort order so new journal entries appear at the top
-db['Journal'].set_order_clause('ORDER BY entry_date DESC')
+frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched
-db['Journal'].set_search_order(['entry_date','title','entry'])
+frm['Journal'].set_search_order(['entry_date','title','entry'])
 
 # ---------------
 # DATA VALIDATION
@@ -72,7 +73,7 @@ def cb_validate():
     return False
 
 #  Set the callback to run before save
-db['Journal'].set_callback('before_save',cb_validate)
+frm['Journal'].set_callback('before_save',cb_validate)
 
 # ---------
 # MAIN LOOP
@@ -83,7 +84,7 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         print(f'pysimpledb event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')

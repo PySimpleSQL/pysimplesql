@@ -1639,7 +1639,10 @@ class Form:
         :returns: True if an event was handled, False otherwise
         :rtype: bool
         """
-        if event:
+        if self.window is None:
+            print(f'***** Form appears to be unbound.  D0 you have frm.bind(win) in your code? ***')
+            return False
+        elif event:
             for e in self.event_map:
                 if e['event'] == event:
                     logger.info(f"Executing event {event} via event mapping.")
@@ -1667,6 +1670,7 @@ class Form:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index][0]
                                 table.set_by_pk(pk, True)
+                                return True
         return False
 
     def update_element_states(self, table_name:str, disable:bool=None, visible:bool=None) -> None:
