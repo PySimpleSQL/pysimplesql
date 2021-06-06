@@ -297,11 +297,6 @@ class Table:
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
-                # Cast to similar types
-                if type(element_val) != type(table_val):
-                    element_val=str(element_val)
-                    table_val=str(table_val)
-
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val=table_val.rstrip()
                 if type(element_val) is str: element_val = element_val.rstrip()
@@ -311,8 +306,8 @@ class Table:
                     sym='!='
                 else:
                     sym='='
-                logger.debug(f'element type: {type(element_val)} column_type: {type(table_val)}')
-                logger.debug(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
+
+                #print(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
 
         if dirty:
             save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
