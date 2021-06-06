@@ -52,6 +52,9 @@ INSERT INTO Addresses VALUES (1, 2, "John", "Smith", "123 Main St.","Suite A","C
 INSERT INTO Addresses VALUES (2, 1, "Sally", "Jones", "111 North St.","Suite A","Pittsburgh",2,44101);
 """
 
+# Create our frm
+frm=ss.Form(':memory:', sql_commands=sql)
+
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
@@ -60,23 +63,21 @@ columns=['pkAddresses','firstName','lastName','city','fkState']
 headings=['pk','First name:    ','Last name:     ','City:        ','State']
 visible=[0,1,1,1,1] # Hide the primary key column
 layout=[
-    ss.selector("sel","Addresses",sg.Table, headings=headings,visible_column_map=visible, columns=columns,num_rows=10),
-    ss.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10)),
-    ss.record("Addresses.firstName", label="First name:"),
-    ss.record("Addresses.lastName", label="Last name:"),
-    ss.record("Addresses.address1", label="Address 1:"),
-    ss.record("Addresses.address2", label="Address 2:"),
-    ss.record("Addresses.city", label="City/State:", size=(23,1)) + ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10)),
-    [sg.Text("Zip:"+" "*63)] + ss.record("Addresses.zip", no_label=True,size=(6,1)),
-    ss.actions("browser","Addresses",edit_protect=False)
+    frm.selector("sel","Addresses",sg.Table, headings=headings,visible_column_map=visible, columns=columns,num_rows=10),
+    frm.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10)),
+    frm.record("Addresses.firstName", label="First name:"),
+    frm.record("Addresses.lastName", label="Last name:"),
+    frm.record("Addresses.address1", label="Address 1:"),
+    frm.record("Addresses.address2", label="Address 2:"),
+    frm.record("Addresses.city", label="City/State:", size=(23,1)) + frm.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10)),
+    [sg.Text("Zip:"+" "*63)] + frm.record("Addresses.zip", no_label=True,size=(6,1)),
+    frm.actions("browser","Addresses",edit_protect=False)
 ]
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Form(':memory:', win, sql_commands=sql) #<=== Here is the magic!
-# Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
-# database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
+frm.bind(win)   # <=== Binding the Form to the Window is easy!
 
 # Use a callback to validate the zip code
-db['Addresses'].set_callback('before_save',validate_zip)
+frm['Addresses'].set_callback('before_save',validate_zip)
 
 # ---------
 # MAIN LOOP
@@ -87,7 +88,7 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')

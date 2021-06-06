@@ -591,6 +591,7 @@ class Query:
                 if o in self.rows[i].keys():
                     if self.rows[i][o]:
                         if string.lower() in self.rows[i][o].lower():
+                            print(string.lower())
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
@@ -602,7 +603,7 @@ class Query:
                                     self.current_index = old_index
                                     self.requery_dependents()
                                     self.frm.update_elements(self.table)
-                                    return
+                            return
         return False
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
@@ -921,9 +922,8 @@ class Query:
     def quick_editor(self, pk_update_funct=None,funct_param=None):
         # Reset the keygen to keep consistent naming
         keygen_reset_all()
-        frm = Form(sqlite3_database=self.frm.con)
-        db = self.frm
-        table_name = self.table
+        quick_frm = Form(sqlite3_database=self.frm.con)
+        query_name = self.name
         layout = []
         headings = self.column_names.copy()
         visible = [1] * len(headings); visible[0] = 0
@@ -932,36 +932,37 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            frm.selector('quick_edit', table_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
-        layout.append(frm.actions("act_quick_edit",table_name,edit_protect=False))
+            quick_frm.selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
+        layout.append(quick_frm.actions("act_quick_edit2",query_name,edit_protect=False))
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_names:
-            column=f'{table_name}.{col}'
+            column=f'{query_name}.{col}'
             if col!=self.pk_column:
-                layout.append([frm.record(column)])
+                layout.append([quick_frm.record(column)])
 
-        quick_win = sg.Window(f'Quick Edit - {table_name}', layout, keep_on_top=True, finalize=True)
-        frm.bind(quick_win)
+        quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True)
+        quick_frm.bind(quick_win)
 
         # Select the current entry to start with
         if pk_update_funct is not None:
             if funct_param is None:
-                frm[table_name].set_by_pk(pk_update_funct())
+                quick_frm[query_name].set_by_pk(pk_update_funct())
             else:
-                frm[table_name].set_by_pk(pk_update_funct(funct_param))
+                quick_frm[query_name].set_by_pk(pk_update_funct(funct_param))
 
         while True:
             event, values = quick_win.read()
 
-            if frm.process_events(event, values):
+            if quick_frm.process_events(event, values):
                 logger.info(f'PySimpleDB event handler handled the event {event}!')
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             else:
                 logger.info(f'This event ({event}) is not yet handled.')
-        self.requery()
         quick_win.close()
+        self.requery()
+
 
 
 class Form:
@@ -1018,6 +1019,7 @@ class Form:
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
         self.auto_add_relationships()
+        self.requery_all(False)
 
     def __del__(self):
         # Only do cleanup if this is not an imported database
@@ -1097,7 +1099,6 @@ class Form:
         self.window = win
         self.auto_map_elements(win)
         self.auto_map_events(win)
-        self.requery_all(False)
         self.update_elements()
         logger.debug('Binding finished!')
 
@@ -1814,8 +1815,6 @@ class Form:
         :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
                  will not need to be wrapped in [] in your layout code.
         """
-        global _default_label_size
-        global _default_element_size
 
         # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
         if '?' in key:
@@ -1853,14 +1852,14 @@ class Form:
         meta = {'type': TYPE_SELECTOR, 'table': table}
         if element == sg.Listbox:
             layout = [
-                element(values=(), size=size or _default_element_size, key=key,
+                element(values=(), size=size or Form._default_element_size, key=key,
                         select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
                         enable_events=True, metadata=meta)]
         elif element == sg.Slider:
-            layout = [element(enable_events=True, size=size or _default_element_size, orientation='h',
+            layout = [element(enable_events=True, size=size or Form._default_element_size, orientation='h',
                               disable_number_display=True, key=key, metadata=meta)]
         elif element == sg.Combo:
-            w = _default_element_size[0]
+            w = Form._default_element_size[0]
             layout = [element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
                               auto_size_text=False, metadata=meta)]
         elif element == sg.Table:
@@ -1973,6 +1972,19 @@ def update_elements(query:str = None, edit_protect_only:bool = False) -> None:
     """
     for i in Form.instances:
         i.update_elements(query, edit_protect_only)
+
+def bind(win:sg.Window) -> None:
+    """
+    Bind ALL forms to window
+
+    Not to be confused with pysimplesql.Form.bind(), which binds specific forms to the window.
+    :param win: The PySimpleGUI window to bind all forms to
+    :type win: PysimpleGUI.Window
+    :returns: None
+    :rtype: None
+    """
+    for i in Form.instances:
+        i.bind(win)
 
 # Aliases
 # Earlier versions of pysimplesql did not use the Form/Query topology

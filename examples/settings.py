@@ -16,38 +16,33 @@ INSERT INTO SETTINGS VALUES (2,'debug_mode',True,'Check if you would like debug 
 INSERT INTO SETTINGS VALUES (3,'antialiasing', True,'Would you like to render with antialiasing?');
 INSERT INTO SETTINGS VALUES (4, 'query_retries', 3,'Retry queries this many times before aborting.');
 """
-
-# When using ss.record() to create entries based on key/value pairs, it just uses an extended syntax.
-# Where ss.record('Settings.value') would return the value column from the Settings table FOR THE CURRENT RECORD,
-# the extended syntax of ss.record('Settings.value?key=first_name will return the value column from the Settings
+frm = ss.Form('Settigs.db', sql_commands=sql)      # <=== load the database and bind it to the window
+print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
+# When using Form.record() to create entries based on key/value pairs, it just uses an extended syntax.
+# Where Form.record('Settings.value') would return the value column from the Settings table FOR THE CURRENT RECORD,
+# the extended syntax of Form.record('Settings.value?key=first_name') will return the value column from the Settings
 # table where the key column is equal to 'first_name'.  This is basically the equivalent in SQL as the statement
 # SELECT value FROM Settings WHERE key='first_name';
 layout=[
     [sg.Text('APPLICATION SETTINGS')],
     [sg.HorizontalSeparator()],
-    ss.record('Settings.value?key=company_name'),
+    frm.record('Settings.value?key=company_name', tooltip=frm['Settings'].get_keyed_value('description', 'key', 'company_name')),
+    # Notice how we can use get_keyed_value() to retrieve values from keys in the query.  We are using it to set tooltips.
     [sg.Text('')],
-    ss.record('Settings.value?key=debug_mode',sg.CBox),
+    frm.record('Settings.value?key=debug_mode',sg.CBox, tooltip=frm['Settings'].get_keyed_value('description', 'key', 'debug_mode')),
     [sg.Text('')],
-    ss.record('Settings.value?key=antialiasing', sg.CBox),
+    frm.record('Settings.value?key=antialiasing', sg.CBox, tooltip=frm['Settings'].get_keyed_value('description', 'key', 'antialiasing')),
     [sg.Text('')],
-    ss.record('Settings.value?key=query_retries'),
+    frm.record('Settings.value?key=query_retries', tooltip=frm['Settings'].get_keyed_value('description', 'key', 'query_retries')),
     # For the actions, we don't want to offer users to insert or delete records from the settings table,
     # and there is no use for navigation buttons due to the key,value nature of the data.  Therefore, we will
     # disable all actions (default=False) except for the Save action (save=True)
-    ss.actions('nav','Settings',default=False, save=True)
+    frm.actions('nav','Settings',default=False, save=True)
 ]
 
-# Initialize our window and database, then bind them together
+# Initialize our window then bind it to the Form
 win = sg.Window('Preferences: Application Settings', layout, finalize=True)
-form = ss.Form('Settigs.db', win, sql_commands=sql)      # <=== load the database and bind it to the window
-
-# Now that the database is loaded, lets set our tool tips using the description column.
-# The Query.get_keyed_value can return the value column where the key column equals a specific value as well.
-win['Settings.value?key=company_name'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'company_name'))
-win['Settings.value?key=debug_mode'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
-win['Settings.value?key=antialiasing'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'antialiasing'))
-win['Settings.value?key=query_retries'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'query_retries'))
+frm.bind(win)
 
 while True:
     event, values = win.read()
@@ -55,7 +50,7 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
        print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        form=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
+        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
         break
     else:
         print(f'This event ({event}) is not yet handled.')

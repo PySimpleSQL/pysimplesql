@@ -28,6 +28,11 @@ INSERT INTO Mood VALUES (3,"Angry");
 INSERT INTO Mood VALUES (4,"Content");
 INSERT INTO Journal (id,mood_id,title,entry)VALUES (1,1,"My first entry!","I am excited to write my thoughts every day")
 """
+frm=ss.Form(':memory:', sql_commands=sql) #<=== Here is the magic!
+# Reverse the default sort order so new journal entries appear at the top
+frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
+# Set the column order for search operations.  By default, only the column designated as the description column is searched
+frm['Journal'].set_search_order(['entry_date','title','entry'])
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
@@ -36,22 +41,15 @@ INSERT INTO Journal (id,mood_id,title,entry)VALUES (1,1,"My first entry!","I am 
 headings=['id','Date:              ','Mood:      ','Title:                                 ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
-    ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    ss.actions('act_journal','Journal'),
-    ss.record('Journal.entry_date'),
-    ss.record('Journal.mood_id', sg.Combo, size=(30,10), auto_size_text=False),
-    ss.record('Journal.title'),
-    ss.record('Journal.entry', sg.MLine, size=(71,20))
+    frm.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
+    frm.actions('act_journal','Journal'),
+    frm.record('Journal.entry_date'),
+    frm.record('Journal.mood_id', sg.Combo, size=(30,10), auto_size_text=False),
+    frm.record('Journal.title'),
+    frm.record('Journal.entry', sg.MLine, size=(71,20))
 ]
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Form(':memory:', win, sql_commands=sql) #<=== Here is the magic!
-# Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
-# database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
-
-# Reverse the default sort order so new journal entries appear at the top
-db['Journal'].set_order_clause('ORDER BY entry_date DESC')
-# Set the column order for search operations.  By default, only the column designated as the description column is searched
-db['Journal'].set_search_order(['entry_date','title','entry'])
+frm.bind(win)
 
 # ------------------------------------------------------
 # SET UP CALLBACKS FOR ENCODING/DECODING UNIX TIMESTAMPS
@@ -60,8 +58,8 @@ db['Journal'].set_search_order(['entry_date','title','entry'])
 def cb_date_decode():
     # Decode the timestamp to a readable date
     logger.info(f'In callback, decoding date...')
-    if db['Journal']['entry_date']:
-        win['Journal.entry_date'].update(datetime.utcfromtimestamp(db['Journal']['entry_date']).strftime('%m/%d/%y'))
+    if frm['Journal']['entry_date']:
+        win['Journal.entry_date'].update(datetime.utcfromtimestamp(frm['Journal']['entry_date']).strftime('%m/%d/%y'))
     else:
         win['Journal.entry_date'].update('')
 
@@ -76,19 +74,18 @@ def cb_date_encode():
 def cb_table_update():
     # Update the table element
     logger.info(f"In callback, updating the table element")
-    if not db['Journal']['entry_date']:
+    if not frm['Journal']['entry_date']:
         lst = [['', '', '', '']] # build an empty list
         win['Journal.entry_date'].update(lst)
         ss.eat_events(win) # This must be calld anytime the update method is used on a table
         return
     lst = []
     # Make sure we have up-to-date results
-    for r in db['Journal'].rows:
-        lst.append([r['id'], datetime.utcfromtimestamp(r['entry_date']).strftime('%m/%d/%y'), db['Mood'].get_description_for_pk(r['mood_id']), r['title']])
-
+    for r in frm['Journal'].rows:
+        lst.append([r['id'], datetime.utcfromtimestamp(r['entry_date']).strftime('%m/%d/%y'), frm['Mood'].get_description_for_pk(r['mood_id']), r['title']])
     # Get the primary key to select.  We have to use the list above instead of getting it directly
     # from the table, as the data has yet to be updated
-    pk = db['Journal']['id']
+    pk = frm['Journal']['id']
     index = 0
     for v in lst:
         if v[0] == pk:
@@ -99,11 +96,11 @@ def cb_table_update():
     ss.eat_events(win) # This must be calld anytime the update method is used on a table
 
 # set our callbacks!
-db.set_callback('Journal.entry_date',cb_date_decode)        # decode the date when this element updates...
-db['Journal'].set_callback('before_save',cb_date_encode)    # encode the date before saving the record...
+frm.set_callback('Journal.entry_date',cb_date_decode)        # decode the date when this element updates...
+frm['Journal'].set_callback('before_save',cb_date_encode)    # encode the date before saving the record...
 #frm.set_callback('sel_journal',cb_table_update)          # Override the default element update for the table to display correct dates there too!
                                                             # *******COMMENT/UNCOMMENT LINE ABOVE TO SEE THE TABLE CHANGE HOW IT DISPLAYS DATE INFO!!!*******
-db.update_elements()                                        # Manually update the elements so the callbacks trigger on initial run
+frm.update_elements()                                        # Manually update the elements so the callbacks trigger on initial run
 
 # ---------
 # MAIN LOOP
@@ -114,7 +111,7 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
