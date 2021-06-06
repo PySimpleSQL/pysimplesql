@@ -1321,9 +1321,7 @@ class Database:
 
     def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
         """
-        Updated the GUI elements to reflect values from the database for this Database instance only
-
-        Not to be confused with pysimplesql.update_elements(), which updates GUI elements for all Database instances.
+        Updated the GUI elements to reflect values from the database
 
 
         :param table_name: (optional) name of table to update elements for, otherwise updates elements for all tables
@@ -1846,20 +1844,3 @@ def process_events(event:str, values:list) -> bool:
     for i in Database.instances:
         if i.process_events(event, values): handled=True
     return handled
-
-def update_elements(table_name: str = None, edit_protect_only: bool = False) -> None:
-    """
-    Updated the GUI elements to reflect values from the database for ALL Database instances
-
-    Not to be confused with pysimplesql.Database.update_elements(), which updates GUI elements for individual instances.
-
-
-    :param table_name: (optional) name of table to update elements for, otherwise updates elements for all tables
-    :type table_name: str
-    :param edit_protect_only: (default False) If true, only update items affected by edit_protect
-    :type edit_protect_only: bool
-    :returns: None
-    :rtype: None
-    """
-    for i in Database.instances:
-        i.update_elements(table_name, edit_protect_only)
