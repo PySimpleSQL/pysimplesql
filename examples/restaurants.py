@@ -23,7 +23,7 @@ layout += [ss.actions('actions2','Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Form(':memory:', win, sql_script='example.sql')      # <=== load the database and bind it to the window
+db = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the database and bind it to the window
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 while True:

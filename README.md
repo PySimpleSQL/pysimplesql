@@ -211,7 +211,7 @@ backwards and unravel things to explain what is available to you for more contro
 Referencing the example above, look at the following:
 ```python
 # convience function for rapid front-end development
-ss.record('Restaurant', 'name') # Query name, field name parameters
+ss.record('Restaurant', 'name') # Table name, field name parameters
 
 # could have been written like this:
 [sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1), metadata={'type': TYPE_RECORD})]
@@ -233,7 +233,7 @@ Place those two functions just above the layout definition shown in the example 
 
 ```python
 # set the sizing for the Restaurant section
-ss.set_label_size(10, 1)
+ss.set_text_size(10, 1)
 ss.set_control_size(90, 1)
 layout = [
     ss.record('Restaurant.name'),
@@ -260,7 +260,7 @@ and 'Items' sections with their own sizing
 
 ```python
 # set the sizing for the Restaurant section
-ss.set_label_size(10, 1)
+ss.set_text_size(10, 1)
 ss.set_control_size(90, 1)
 layout = [
     ss.record('Restaurant.name'),
@@ -286,18 +286,18 @@ layout += [ss.actions('actions2','Restaurant')]
 ### Binding the window to the element
 Referencing the same example above, the window and database were bound with this one single line:
 ```python
-db = ss.Form(':memory:', 'example.sql', win) # Load in the database and bind it to win
+db = ss.Database(':memory:', 'example.sql', win) # Load in the database and bind it to win
 ```
 The above is a one-shot approach and all most users will ever need!
 The above could have been written as:
 ```python
-db=ss.Form(':memory:', 'example.sql') # Load in the database
+db=ss.Database(':memory:', 'example.sql') # Load in the database
 db.auto_bind(win) # automatically bind the window to the database
 ```
 
 db.auto_bind() likewise can be peeled back to it's own components and could have been written like this:
 ```python
-db.auto_add_queries()
+db.auto_add_tables()
 db.auto_add_relationships()
 db.auto_map_controls(win)
 db.auto_map_events(win)
@@ -309,12 +309,12 @@ And finally, that brings us to the lowest-level functions for binding the databa
 This is how you can MANUALLY map tables, relationships, controls and events to the database.
 The above auto_map_* functions could have been manually achieved as follows:
 ```python
-# Add the queries you want pysimplesql to handle.  The function frm.auto_add_tables() will add all queries found in the database 
-# by default.  However, you may only need to work with a couple of queries in the database, and this is how you would do that
-db.add_query('Restaurant','pkRestaurant','name') # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
-db.add_query('Item','pkItem','name') # Note: While I personally prefer to use the pk{Query} and fk{Query} naming
-db.add_query('Type','pkType','name') #       conventions, it's not necessary for pySimpleSQL
-db.add_query('Menu','pkMenu','name') #       These could have just as well been restaurantID and itemID for example
+# Add the tables you want pysimplesql to handle.  The function db.auto_add_tables() will add all tables found in the database 
+# by default.  However, you may only need to work with a couple of tables in the database, and this is how you would do that
+db.add_table('Restaurant','pkRestaurant','name') # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
+db.add_table('Item','pkItem','name') # Note: While I personally prefer to use the pk{Table} and fk{Table} naming
+db.add_table('Type','pkType','name') #       conventions, it's not necessary for pySimpleSQL
+db.add_table('Menu','pkMenu','name') #       These could have just as well been restaurantID and itemID for example
 
 # Set up relationships
 # Notice below that the first relationship has the last parameter to True.  This is what the ON UPDATE CASCADE constraint accomplishes.
@@ -326,8 +326,8 @@ db.add_relationship('LEFT JOIN', 'Restaurant', 'fkType', 'Type', 'pkType', False
 db.add_relationship('LEFT JOIN', 'Item', 'fkMenu', 'Menu', 'pkMenu', False)
 
 # Map our controls
-# Note that you can map any control to any Query/field combination that you would like.
-# The {Query}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
+# Note that you can map any control to any Table/field combination that you would like.
+# The {Table}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
 db.map_control(win['Restaurant.name'],'Restaurant','name')
 db.map_control(win['Restaurant.location'],'Restaurant','location')
 db.map_control(win['Restaurant.fkType'],'Type','pkType')
@@ -341,7 +341,7 @@ db.map_control(win['Item.description'],'Item','description')
 # In the above example, this was all done in the background, as we used convenience functions to add record navigation buttons.
 # However, we could have made our own buttons and mapped them to events.  Below is such an example
 db.map_event('Edit.Restaurant.First',db['Restaurant'].First) # button control with the key of 'Edit.Restaurant.First'
-                                                             # mapped to the Query.First method
+                                                             # mapped to the Table.First method
 db.map_event('Edit.Restaurant.Previous',db['Restaurant'].Previous)
 db.map_event('Edit.Restaurant.Next',db['Restaurant'].Next)
 db.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
@@ -350,7 +350,7 @@ db.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
 # Event mapping will be covered in more detail later...
 
 # This is the magic function which populates all of the controls we mapped!
-# For your convience, you can optionally use the function Form.set_callback('update_controls',function) to set a callback function
+# For your convience, you can optionally use the function Database.set_callback('update_controls',function) to set a callback function
 # that will be called every time the controls are updated.  This allows you to do custom things like update
 # a preview image, change control parameters or just about anythong you want!
 db.update_elements()

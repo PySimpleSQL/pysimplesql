@@ -40,14 +40,14 @@ layout=[
 
 # Initialize our window and database, then bind them together
 win = sg.Window('Preferences: Application Settings', layout, finalize=True)
-form = ss.Form('Settigs.db', win, sql_commands=sql)      # <=== load the database and bind it to the window
+db = ss.Database('Settigs.db', win, sql_commands=sql)      # <=== load the database and bind it to the window
 
 # Now that the database is loaded, lets set our tool tips using the description column.
-# The Query.get_keyed_value can return the value column where the key column equals a specific value as well.
-win['Settings.value?key=company_name'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'company_name'))
-win['Settings.value?key=debug_mode'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
-win['Settings.value?key=antialiasing'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'antialiasing'))
-win['Settings.value?key=query_retries'].set_tooltip(form['Settings'].get_keyed_value('description', 'key', 'query_retries'))
+# The Table.get_keyed_value can return the value column where the key column equals a specific value as well.
+win['Settings.value?key=company_name'].set_tooltip(db['Settings'].get_keyed_value('description','key','company_name'))
+win['Settings.value?key=debug_mode'].set_tooltip(db['Settings'].get_keyed_value('description','key','debug_mode'))
+win['Settings.value?key=antialiasing'].set_tooltip(db['Settings'].get_keyed_value('description','key','antialiasing'))
+win['Settings.value?key=query_retries'].set_tooltip(db['Settings'].get_keyed_value('description','key','query_retries'))
 
 while True:
     event, values = win.read()
@@ -55,19 +55,19 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
        print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        form=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
+        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
         break
     else:
         print(f'This event ({event}) is not yet handled.')
 
 """
-This example showed how to easily access key,value information stored in queries.  A classic example of this is with
+This example showed how to easily access key,value information stored in tables.  A classic example of this is with
 storing settings for your own program
 
 Learnings from this example:
 - embedding sql commands in code for table creation
-- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
+- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Database()
 - using ss.record() and ss.actions() functions for easy GUI element creation
-- using the extended key naming syntax for keyed records (Query.value_column?key_column=key_value)
-- using the Query.get_keyed_value() method for keyed data retrieval
+- using the extended key naming syntax for keyed records (Table.value_column?key_column=key_value)
+- using the Table.get_keyed_value() method for keyed data retrieval
 """
