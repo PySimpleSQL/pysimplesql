@@ -1,25 +1,9 @@
-"""
-# **pysimplesql** User's Manual
-
-## DISCLAIMER:
-While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
-
-## Rapidly build and deploy database applications in Python
-**pysimplesql** binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
-replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the
-power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
-line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
-"""
 #!/usr/bin/python3
 import PySimpleGUI as sg
 import sqlite3
 import functools
 import os.path
 import random
-# The next two imports are for docstrings
-from typing import List, Union, Optional, Tuple, Callable
-from __future__ import annotations
-# Support logging information
 import logging
 logger = logging.getLogger(__name__)
 
@@ -59,17 +43,10 @@ SAVE_SUCCESS=1  # Save was successful
 SAVE_NONE=2     # There was nothing to save
 
 
-def eat_events(win:sg.Window) -> None:
+def eat_events(win:sg.Window):
     """
     Eat extra events emitted by PySimpleGUI.Table.update().
-
-    Call this function directly after update() is run on a Table element. The reason is that updating the selection or values
-    will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
-
-    :param win: A PySimpleGUI Window instance
-    :type win: PySimpleGUI.Window
-    :returns: None
-    :rtype: None
+    Call this function any time update() is run on a Table element
     """
     while True:
         event,values=win.read(timeout=0)
@@ -81,23 +58,24 @@ def escape(query_string:str) -> str:
     """
     Safely escape characters in strings needed for queries
 
-     .. note:: This is not yet implemented and is here in the case that it is needed in the future.
+    Parameters:
+    query_string (str):
 
-     :param query_string: The query to escape
-     :type query_string: str
-     :returns: An escaped string
-     :rtype: str
+    Returns:
+    str: escaped (safe) version of the query_string
     """
+    # I'm not sure we will need this, but it's here in the case that we do
     query_string = str(query_string)
     return query_string
 
 class Row:
     """
-    This is a convenience class used by listboxes and comboboxes to display values while keeping them linked to a primary key.
-
-    You may have to cast this to a str() to get the value.  Of course, there are methods to get the value or primary key either way.
-    .. note:: This class is not typically used by the end user.
+    @Row class. This is a convenience class used by listboxes and comboboxes to display values
+    while keeping them linked to a primary key.
+    You may have to cast this to a str() to get the value.  Of course, there are methods to get the
+    value or primary key either way.
     """
+
     def __init__(self, pk, val):
         self.pk = pk
         self.val = val
@@ -124,29 +102,13 @@ class Row:
 
 class Relationship:
     """
-    This class is used to track primary/foreign key relationships in the database.
-
-    See the following for more information: @Database.add_relationship and @Database.auto_add_relationships
-    .. note:: This class is not typically used the end user,
+    @Relationship class is used to track primary/foreign key relationships in the database. See the following
+    for more information: @Database.add_relationship and @Database.auto_add_relationships
+    Note that this class offers little to the end user, and the above Database functions are all that is needed
+    by the user.
     """
 
-    def __init__(self, join:str, child:str, fk:Union[str,int], parent:str, pk:Union[str,int], requery_table:bool) -> Relationship:
-        """
-        Initialize a new Relationship instance
-
-        :param join: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
-        :type: str
-        :param child: The table name of the child table
-        :type child: str
-        :param fk: The child table's foreign key column
-        :type fk: Union[str,int]
-        :param parent: The table name of the parent table
-        :type parent: str
-        :param pk: The parent table's primary key column
-        :type pk: Union[str,int]
-        :returns: A Relationship instance
-        :rtype: Relationship
-        """
+    def __init__(self, join, child, fk, parent, pk, requery_table):
         self.join = join
         self.child = child
         self.fk = fk
@@ -155,53 +117,40 @@ class Relationship:
         self.requery_table = requery_table
 
     def __str__(self):
-        """
-        Return a join clause when cast to a string
-        """
         return f'{self.join} {self.parent} ON {self.child}.{self.fk}={self.parent}.{self.pk}'
 
 
 class Table:
     """
-    This class is used for an internal representation of database tables. These are added by the following:
-    Database.add_table Database.auto_add_tables
+    @Table class is used for an internal representation of database tables. These are added by the following:
+    @Database.add_table @Database.auto_add_tables
     """
     instances=[] # Track our instances
 
-    def __init__(self, db_reference:Database, con:sqlite3.Connection, table_name:str, pk_column:str, description_column:str, query:Optional[str]='', order:Optional[str]='') -> Table:
+    def __init__(self, db_reference, con, table, pk_column, description_column, query='', order=''):
         """
-        Initialize a new Table instance
 
         :param db_reference: This is a reference to the @ Database object, for convenience
-        :type db_reference: Database
         :param con:  This is a reference to the sqlie connection, also for convience
-        :type con: sqlite3.Connection
-        :param table_name: Name of the table
-        :type table_name: str
+        :param table: Name (string) of the table
         :param pk_column: The name of the column containing the primary key for this table
-        :type pk_column: str
         :param description_column: The name of the column used for display to users (normally in a combobox or listbox)
-        :type description_column: str
-        :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {table_name}"
-        :type query: str
-        :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} COLLATE NOCASE ASC"
-        :type order: str
-        :returns: A Table instance
-        :rtype: Table
+        :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {table}"
+        :param order: The sort order of the returned query
         """
         # todo finish the order processing!
         Table.instances.append(self)
 
         # No query was passed in, so we will generate a generic one
         if query == '':
-            query = f'SELECT * FROM {table_name}'
+            query = f'SELECT * FROM {table}'
         # No order was passed in, so we will generate generic one
         if order == '':
             order = f' ORDER BY {description_column} COLLATE NOCASE ASC'
 
         self.db = db_reference  # type: Database
         self._current_index = 0
-        self.table = table_name  # type: str
+        self.table = table  # type: str
         self.pk_column = pk_column
         self.description_column = description_column
         self.query = query
@@ -235,23 +184,18 @@ class Table:
         else:
             self._current_index = val
 
-    def set_search_order(self, order:list) -> None:
+    def set_search_order(self, order):
         """
         Set the search order when using the search box.
-
-        This is a list of columns to be searched, in order
-
+        This is a list of columns to be searched, in order.
         :param order: A list of column names to search
-        :type order: list
-        :returns: None
-        :rtype: None
+        :return: None
         """
         self.search_order = order
 
-    def set_callback(self, callback:str, fctn:Callable[[Database, sg.Window], bool]) -> None:
+    def set_callback(self, callback, fctn):
         """
         Set table callbacks. A runtime error will be thrown if the callback is not supported.
-
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the record will rollback if the callback returns false.
             after_save    called after a record is saved. The save will commit to the database if the callback returns true, else it will rollback the transaction
@@ -261,13 +205,10 @@ class Table:
             after_delete  called after a record is deleted. The delete will commit to the database if the callback returns true, else it will rollback the transaction
             before_search called before searching.  The search will continue if the callback returns True
             after_search  called after a search has been performed.  The record change will undo if the callback returns False
-
         :param callback: The name of the callback, from the list above
-        :type callback: str
+
         :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance, and return True or False
-        :type fctn: Callable[[Database, sg.Window], bool]
-        :returns: None
-        :rtype: None
+        :return: None
         """
         logger.info(f'Callback {callback} being set on table {self.table}')
         supported = [
@@ -283,83 +224,58 @@ class Table:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
-    def set_query(self, query:str) -> None:
+    def set_query(self, q):
         """
-        Set the tables query string.
-
-        This is more for advanced users.  It defaults to "SELECT * FROM {Table}; You can override the default with this method
-
-        :param query: The query string you would like to associate with the table
-        :type query: str
-        :returns: None
-        :rtype: None
+        Set the tables query string.  This is more for advanced users.  It defautls to "SELECT * FROM {Table};
+        :param q: The query string you would like to associate with the table
+        :return: None
         """
-        logger.info(f'Setting {self.table} query to {query}')
-        self.query = query
+        logger.info(f'Setting {self.table} query to {q}')
+        self.query = q
 
-    def set_join_clause(self, clause:str) -> None:
+    def set_join_clause(self, clause):
         """
-        Set the table's join string.
-
-        This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
-
+        Set the table's join string.  This is more for advanced users, as it will automatically generate from the
+        Relationships that have been set otherwise.
         :param clause: The join clause, such as "LEFT JOIN That on This.pk=That.fk"
-        :type clause: str
-        :returns: None
-        :rtype: None
+        :return: None
         """
         logger.info(f'Setting {self.table} join clause to {clause}')
         self.join = clause
 
-    def set_where_clause(self, clause:str) -> None:
+    def set_where_clause(self, clause):
         """
-        Set the table's where clause.
-
-        This is ADDED TO the auto-generated where clause from Relationship data
-
+        Set the table's where clause.  This is added to the auto-generated where clause from Relationship data!
         :param clause: The where clause, such as "WHERE pkThis=100"
-        :type clause: str
-        :returns: None
-        :rtype: None
+        :return: None
         """
         logger.info(f'Setting {self.table} where clause to {clause}')
         self.where = clause
 
-    def set_order_clause(self, clause:str) -> None:
+    def set_order_clause(self, clause):
         """
-        Set the table's order clause.
-
-        This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
-
+        Set the table's order string. This is more for advanced users, as it will automatically generate from the
+        Relationships that have been set otherwise.
         :param clause: The order clause, such as "Order by name ASC"
-        :type clause: str
-        :returns: None
-        :rtype: None
+        :return: None
         """
         logger.info(f'Setting {self.table} order clause to {clause}')
         self.order = clause
 
-    def set_description_column(self, column:str) -> None:
+    def set_description_column(self, column):
         """
-        Set the table's description column.
-
-        This is the column that will display in Listboxes, Comboboxes, etc.
-        By default,this is initialized to either the 'name' column, or the 2nd column of the table.  This method allows you to specify
-        something different
-
+        Set the table's description column. This is the column that will display in Listboxes, Comboboxes, etc.
+        Normally, this is either the 'name' column, or the 2nd column of the table.  This allows you to specify something
+        different
         :param column: The the column to use
-        :type column: str
-        :returns: None
-        :rtype: None
+        :return: None
         """
         self.description_column=column
 
-    def prompt_save(self) -> bool:
+    def prompt_save(self):
         """
-        Prompts the user if they want to save when changes are detected and the current record is about to change
-
-        :returns: True or False on whether the user intends to save the record
-        :rtype: bool
+        Prompts the user if they want to save when saving a record that has been changed.
+        :return: True or False on whether the user intends to save the record
         """
         # TODO: children too?
         if self.current_index is None or self.rows == []: return
@@ -404,17 +320,13 @@ class Table:
             save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
                 print('Saving changes!')
-                self.save_record(False,False)
+                self.save_record(False,False) # TODO
+                #self.requery(False)
 
-
-    def generate_join_clause(self) -> str:
+    def generate_join_clause(self):
         """
         Automatically generates a join clause from the Relationships that have been set
-
-        This typically isn't used by end users
-
-        :returns: A join string to be used in a sqlite3 query
-        :rtype: str
+        :return: A join string to be used in a sqlite3 query
         """
         join = ''
         for r in self.db.relationships:
@@ -422,14 +334,10 @@ class Table:
                 join += f' {r.join} {r.parent} ON {r.child}.{r.fk} = {r.parent}.{r.pk}'
         return join if self.join == '' else self.join
 
-    def generate_where_clause(self) -> str:
+    def generate_where_clause(self):
         """
         Generates a where clause from the Relationships that have been set, as well as the Table's where clause
-
-        This is not typically used by end users
-
-        :returns: A where clause string to be used in a sqlite3 query
-        :rtype: str
+        :return: A where clause string to be used in a sqlite3 query
         """
         where = ''
         for r in self.db.relationships:
@@ -447,18 +355,13 @@ class Table:
             where = where + ' ' + self.where.replace('WHERE', 'AND')
         return where
 
-    def generate_query(self, join:bool=True, where:bool=True, order:bool=True) -> str:
+    def generate_query(self, join=True, where=True, order=True):
         """
         Generate a query string using the relationships that have been set
-
         :param join: True if you want the join clause auto-generated, False if not
-        :type join: bool
         :param where: True if you want the where clause auto-generated, False if not
-        :type where: bool
         :param order: True if you want the order by clause auto-generated, False if not
-        :type order: bool
-        :returns: a query string for use with sqlite3
-        :rtype: str
+        :return: a query string for use with sqlite3
         """
         q = self.query
         q += f' {self.join if join else ""}'
