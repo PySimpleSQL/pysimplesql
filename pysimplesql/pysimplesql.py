@@ -916,12 +916,11 @@ class Query:
         for rel in rels:
             if col == rel.fk:
                 return rel.parent
-        return self.name # None could be found, return ourself
+        return self.table # None could be found, return ourself
 
     def quick_editor(self, pk_update_funct=None,funct_param=None):
         # Reset the keygen to keep consistent naming
         keygen_reset_all()
-        frm = Form(sqlite3_database=self.frm.con)
         db = self.frm
         table_name = self.table
         layout = []
@@ -932,29 +931,29 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            frm.selector('quick_edit', table_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
-        layout.append(frm.actions("act_quick_edit",table_name,edit_protect=False))
+            selector('quick_edit', table_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
+        layout.append(actions("act_quick_edit",table_name,edit_protect=False))
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_names:
             column=f'{table_name}.{col}'
             if col!=self.pk_column:
-                layout.append([frm.record(column)])
+                layout.append([record(column)])
 
         quick_win = sg.Window(f'Quick Edit - {table_name}', layout, keep_on_top=True, finalize=True)
-        frm.bind(quick_win)
+        quick_db=Form(sqlite3_database=self.frm.con, win=quick_win)
 
         # Select the current entry to start with
         if pk_update_funct is not None:
             if funct_param is None:
-                frm[table_name].set_by_pk(pk_update_funct())
+                quick_db[table_name].set_by_pk(pk_update_funct())
             else:
-                frm[table_name].set_by_pk(pk_update_funct(funct_param))
+                quick_db[table_name].set_by_pk(pk_update_funct(funct_param))
 
         while True:
             event, values = quick_win.read()
 
-            if frm.process_events(event, values):
+            if quick_db.process_events(event, values):
                 logger.info(f'PySimpleDB event handler handled the event {event}!')
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
@@ -1324,26 +1323,26 @@ class Form:
                 continue
             if element.metadata['type'] == TYPE_EVENT:
                 event_type=element.metadata['event_type']
-                query=element.metadata['query']
+                table=element.metadata['table']
                 function=element.metadata['function']
 
                 funct=None
 
-                event_query=query if query in self.queries else None
+                event_table=table if table in self.queries else None
                 if event_type==EVENT_FIRST:
-                    if query in self.queries: funct=self[query].first
+                    if table in self.queries: funct=self[table].first
                 elif event_type==EVENT_PREVIOUS:
-                    if query in self.queries: funct=self[query].previous
+                    if table in self.queries: funct=self[table].previous
                 elif event_type==EVENT_NEXT:
-                    if query in self.queries: funct=self[query].next
+                    if table in self.queries: funct=self[table].next
                 elif event_type==EVENT_LAST:
-                    if query in self.queries: funct=self[query].last
+                    if table in self.queries: funct=self[table].last
                 elif event_type==EVENT_SAVE:
-                    if query in self.queries: funct=self[query].save_record
+                    if table in self.queries: funct=self[table].save_record
                 elif event_type==EVENT_INSERT:
-                    if query in self.queries: funct=self[query].insert_record
+                    if table in self.queries: funct=self[table].insert_record
                 elif event_type==EVENT_DELETE:
-                    if query in self.queries: funct=self[query].delete_record
+                    if table in self.queries: funct=self[table].delete_record
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
@@ -1353,13 +1352,13 @@ class Form:
                     # Build the search box name
                     search_element,command=key.split('.')
                     search_box=f'{search_element}.input_search'
-                    if query in self.queries: funct=functools.partial(self[query].search, search_box)
+                    if table in self.queries: funct=functools.partial(self[table].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
-                    t,c,e=key.split('.') #table, column, event
-                    referring_table=query
-                    query=self[query].get_related_table_for_column(c)
-                    funct=functools.partial(self[query].quick_editor,self[referring_table].get_current,c)
+                    t,c,e=key.split('.')
+                    referring_table=table
+                    table=self[table].get_related_table_for_column(c)
+                    funct=functools.partial(self[table].quick_editor,self[referring_table].get_current,c)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
                 else:
@@ -1367,7 +1366,7 @@ class Form:
 
 
                 if funct is not None:
-                    self.map_event(key, funct, event_query)
+                    self.map_event(key, funct, event_table)
 
 
 
@@ -1715,7 +1714,7 @@ class Form:
         """
         Form._default_element_size = (w, h)
 
-    def actions(self, key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
+    def actions(self, key, table, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
                 search=None,
                 search_size=(30, 1), bind_return_key=True):
         """
@@ -1747,48 +1746,48 @@ class Form:
         search = default if search is None else search
 
         layout = []
-        meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None}
+        meta = {'type': TYPE_EVENT, 'event_type': None, 'table': None, 'function': None}
 
         # Form-level events
         if edit_protect:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'table': None, 'function': None}
             layout += [sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
                             image_data=edit_16,
                             metadata=meta)]
         if save:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'table': None, 'function': None}
             layout += [
                 sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
                      metadata=meta)]
 
         # Query-level events
         if navigation:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table, 'function': None}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta)
             ]
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table, 'function': None}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta)
             ]
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table, 'function': None}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta)
             ]
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table, 'function': None}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta),
             ]
         if insert:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table, 'function': None}
             layout += [sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
                             image_data=add_16, metadata=meta)]
         if delete:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table, 'function': None}
             layout += [sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
                             image_data=delete_16, metadata=meta)]
         if search:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table, 'function': None}
             layout += [
                 sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),
                 sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)
@@ -1819,13 +1818,13 @@ class Form:
 
         # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
         if '?' in key:
-            query_info, where_info = key.split('?')
+            table_info, where_info = key.split('?')
             label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
         else:
-            query_info = key;
+            table_info = key;
             where_info = None
-            label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
-        query, column = query_info.split('.')
+            label_text = table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+        table, column = table_info.split('.')
 
         layout_element = [
             element('', key=key, size=size or Form._default_element_size, metadata={'type': TYPE_RECORD}, **kwargs)
@@ -1844,7 +1843,7 @@ class Form:
 
         # Add the quick editor button where appropriate
         if element == sg.Combo and quick_editor:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'function': None}
             layout += [sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
         return layout
 

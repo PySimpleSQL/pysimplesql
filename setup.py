@@ -28,7 +28,6 @@ def main():
         license=[
             c.rsplit('::', 1)[1].strip()
             for c in app.__classifiers__
-
             if c.startswith('License ::')
         ][0],
         include_package_data=True,
