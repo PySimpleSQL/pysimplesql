@@ -29,7 +29,7 @@ db = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the 
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close

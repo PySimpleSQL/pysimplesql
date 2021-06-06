@@ -52,7 +52,7 @@ win['Settings.value?key=query_retries'].set_tooltip(db['Settings'].get_keyed_val
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
        print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
