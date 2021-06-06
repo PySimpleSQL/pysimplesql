@@ -42,19 +42,16 @@ SAVE_FAIL=0     # Save failed due to callback
 SAVE_SUCCESS=1  # Save was successful
 SAVE_NONE=2     # There was nothing to save
 
-
-def eat_events(win:sg.Window):
-    """
-    Eat extra events emitted by PySimpleGUI.Table.update().
-    Call this function any time update() is run on a Table element
-    """
+# Hack for fixing false table events that are generated when the
+# table.update() method is called.  Call this after each call to update()!
+def eat_events(win):
     while True:
         event,values=win.read(timeout=0)
         if event=='__TIMEOUT__':
             break
     return
 
-def escape(query_string:str) -> str:
+def escape(query_string):
     """
     Safely escape characters in strings needed for queries
 
@@ -1309,21 +1306,21 @@ class Database:
         self.update_elements()
 
 
-    def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
-        """
-        Updated the GUI elements to reflect values from the database
-
-
-        :param table_name: (optional) name of table to update elements for, otherwise updates elements for all tables
-        :type table_name: str
-        :param edit_protect_only: (default False) If true, only update items affected by edit_protect
-        :type edit_protect_only: bool
-        :returns: None
-        :rtype: None
-        """
+    def update_elements(self, table='', edit_protect_only=False):  # table type: str
         # TODO Fix bug where listbox first element is ghost selected
+        # TODO: Dosctring
         logger.info('Updating PySimpleGUI elements...')
+        # Update the current values
+        # d= dictionary (the element map dictionary)
+
+        # Enable/Disable elements based on the edit protection button and presence of a record
+        # Note that we also must disable elements if there are no records!
+        # TODO FIXME!!!
         win = self.window
+        for e in self.event_map:
+            if '.edit_protect' in e['event']:
+                self.disable_elements(table,self._edit_protect)
+
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.tables:
             for m in self.event_map:
@@ -1332,7 +1329,7 @@ class Database:
                 if '.table_delete' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-                        self.update_element_states(t, hide)
+                        self.disable_elements(t,hide)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -1343,13 +1340,15 @@ class Database:
                 if '.table_insert' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-
+                    pass
                 # Disable db_save when needed
+                # TODO: Disable when no changes to data?
                 hide = self._edit_protect
                 if '.db_save' in m['event']:
                     win[m['event']].update(disabled=hide)
 
                 # Disable table_save when needed
+                # TODO: Disable when no changes to data?
                 hide = self._edit_protect
                 if '.table_save' in m['event']:
                     win[m['event']].update(disabled=hide)
@@ -1359,16 +1358,18 @@ class Database:
                     win[m['event']].update(disabled=hide)
         if edit_protect_only: return
 
-        # d= dictionary (the element map dictionary)
         for d in self.element_map:
-            # If the optional table_name parameter was passed, we will only update elements bound to that table
-            if table_name is not None:
-                if d['table'].table != table_name:
+            # If the optional table parameter was passed, we will only update elements bound to that table
+            if table != '':
+                if d['table'].table != table:
                     continue
 
             updated_val = None
+
+
             # If there is a callback for this element, use it
             if d['element'].Key in self.callbacks:
+                logger.debug(f'{d["element"].Key} IS IN callbacks')
                 self.callbacks[d['element'].Key]()
 
             elif d['where_column'] is not None:
@@ -1376,7 +1377,6 @@ class Database:
                 updated_val=d['table'].get_keyed_value(d['column'], d['where_column'], d['where_value'])
                 if type(d['element']) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
                     updated_val=int(updated_val)
-
             elif type(d['element']) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign queries first
                 # This will basically only be things like comboboxes
@@ -1401,6 +1401,7 @@ class Database:
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
+    
                         if row[target_table.pk_column] == d['table'][rel.fk]:
                             for entry in lst:
                                 if entry.get_pk() == d['table'][rel.fk]:
@@ -1489,53 +1490,46 @@ class Database:
                         element.update(values=values,select_rows=index)
                         eat_events(self.window)
 
+
+
+
         # Run callbacks
         if 'update_elements' in self.callbacks.keys():
             # Running user update function
             logger.info('Running the update_elements callback...')
             self.callbacks['update_elements'](self, self.window)
 
-    def requery_all(self, update_elements=True) -> None:
+    def requery_all(self,update=True):
         """
         Requeries all tables in the database
-
-        This effectively re-loads the data from the actual sqlite3 tables into Table class objects
-
-        :param update_elements: True to update elements after this operation
-        :type update_elements: bool
-        :returns: None
-        :rtype: None
+        :return: None
         """
         logger.info('Requerying all tables...')
         for k in self.tables.keys():
-            self[k].requery(update_elements)
+            self[k].requery(update)
 
-    def process_events(self, event:str, values:list) -> bool:
+    def process_events(self, event, values):
         """
-        Process mapped events.
-
-        This should be called once per iteration in your event loop
-         .. note:: Events handled are responsible for requerying and updating elements as needed
-
+        Process mapped events.  This should be called once per iteration.
+        Events handled are responsible for requerying and updating elements as needed
         :param event: The event returned by PySimpleGUI.read()
-        :type event: str
         :param values: the values returned by PySimpleGUI.read()
-        :type values: list
-        :returns: True if an event was handled, False otherwise
-        :rtype: bool
+        :return: True if an event was handled, False otherwise
         """
         if event:
             for e in self.event_map:
                 if e['event'] == event:
                     logger.info(f"Executing event {event} via event mapping.")
                     e['function']()
-                    logger.debug(f'Done processing event!')
+                    logger.info(f'Done processing event!')
                     return True
 
             # Check for  selector events
             for k, table in self.tables.items():
                 if len(table.selector):
                     for element in table.selector:
+                        pk = table.pk_column
+                        column = table.description_column
                         if element.Key in event and len(table.rows) > 0:
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
@@ -1554,17 +1548,12 @@ class Database:
                                 table.set_by_pk(pk, True)
         return False
 
-    def update_element_states(self, table_name:str, disable:bool=None, visible:bool=None) -> None:
+    def disable_elements(self, table_name, disable=None, visible=None):
         """
-        Disable/enable and/or show/hide all elements assocated with a table.
-
-        :param table_name: table name assocated with elements to disable/enable
-        :type table_name: str
-        :param disable: True/False to disable/enable element(s), None for no change
-        :type disable: bool
-        :param visible: True/False to make elements visible or not, None for no change
-        :returns: None
-        :rtype: None
+        Disable all elements assocated with table.
+        :param disable: True/False to disable/enable element(s)
+        :param table: table name assocated with elements to disable/enable
+        :return: None
         """
         for c in self.element_map:
             if c['table'] .table!= table_name:
@@ -1573,7 +1562,7 @@ class Database:
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.AllKeysDict.keys():
-                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
+                logger.info(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
                 if disable is not None:
                     element.update(disabled=disable)
                 if visible is not None:

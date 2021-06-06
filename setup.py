@@ -1,4 +1,4 @@
-"""Setup script for pysimplesql"""
+"Setup script for pysimplesql"
 
 from setuptools import setup, find_packages
 import os

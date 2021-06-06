@@ -1,4 +1,4 @@
-"""Sqlite3 binding for PySimpleGUI"""
+"Sqlite3 binding for PySimpleGUI"
 
 from .pysimplesql import *
 from update_checker import UpdateChecker
