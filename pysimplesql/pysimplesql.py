@@ -448,6 +448,7 @@ class Query:
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
             where = where + ' ' + self.where.replace('WHERE', 'AND')
+
         return where
 
     def generate_query(self, join:bool=True, where:bool=True, order:bool=True) -> str:
@@ -687,7 +688,7 @@ class Query:
         if self.rows:
             return self.rows[self.current_index]
 
-    def add_selector(self, element):  # _listBox,_pk,_column):
+    def add_selector(self, element, query:str=None, where_column:str=None, where_value:str=None):  # _listBox,_pk,_column):
         """
         Use a element such as a listbox as a selector item for this table.
         This can be done via this method, or via auto_map_elements by naming the element key "selector.{Query}"
@@ -695,11 +696,13 @@ class Query:
         :param element: the @PySinpleGUI element used as a selector element
         :return: None
         """
+        print(f'query: {query} where_column: {where_column} where_value: {where_value}')
         if type(element) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
             raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
         logger.info(f'Adding {element.Key} as a selector for the {self.table} table.')
-        self.selector.append(element)
+        d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
+        self.selector.append(d)
 
     def insert_record(self, column='', value=''):
         """
@@ -1253,7 +1256,11 @@ class Form:
             'query': query,
             'column': column,
             'where_column': where_column,
-            'where_value': where_value
+            'where_value': where_value,
+            # Element-level query clauses
+            'where_clause': None,
+            'order_clause': None,
+            'join_clause': None
         }
         logger.info(f'Mapping element {element.Key}')
         self.element_map.append(dic)
@@ -1291,10 +1298,26 @@ class Form:
 
             # Map Selector Element
             if element.metadata['type']==TYPE_SELECTOR:
+                k=element.metadata['table']
+                if k is None: continue
+                if '?' in k:
+                    query_info, where_info = k.split('?')
+                    where_column,where_value=where_info.split('=')
+                else:
+                    query_info = k;
+                    where_info = where_column = where_value = None
+                query= query_info
+
                 if element.metadata['table'] in self.queries:
-                    self[element.metadata['table']].add_selector(element)
+                    self[element.metadata['table']].add_selector(element,query,where_column,where_value)
                 else:
                     logger.info(f'Count not add selector {str(element)}')
+
+    def set_element_clause(self,element,where:str=None,order:str=None) -> None:
+        for e in self.element_map:
+            if e['element']==element:
+                e['where_clause']=where
+                e['order_clause']=order
 
     def map_event(self, event, fctn, table=None):
         dic = {
@@ -1565,7 +1588,8 @@ class Form:
         # Check for selector events
         for k, table in self.queries.items():
             if len(table.selector):
-                for element in table.selector:
+                for e in table.selector:
+                    element=e['element']
                     pk = table.pk_column
                     column = table.description_column
                     if element.Key in self.callbacks:
@@ -1574,7 +1598,11 @@ class Form:
                     elif type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
                         lst = []
                         for r in table.rows:
-                            lst.append(Row(r[pk], r[column]))
+                            if e['where_column'] is not None:
+                                if r[e['where_column']] == e['where_value']:
+                                    lst.append(Row(r[pk], r[column]))
+                            else:
+                                lst.append(Row(r[pk], r[column]))
 
                         element.update(values=lst, set_to_index=table.current_index)
                     elif type(element) == sg.PySimpleGUI.Slider:
@@ -1653,7 +1681,8 @@ class Form:
             # Check for  selector events
             for k, table in self.queries.items():
                 if len(table.selector):
-                    for element in table.selector:
+                    for e in table.selector:
+                        element=e['element']
                         if element.Key in event and len(table.rows) > 0:
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
