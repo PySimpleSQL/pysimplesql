@@ -57,6 +57,11 @@ SAVE_FAIL=0     # Save failed due to callback
 SAVE_SUCCESS=1  # Save was successful
 SAVE_NONE=2     # There was nothing to save
 
+def strip(string:str) -> str:
+    """
+    Strips :x from string
+    """
+    return string.split(':')[0]
 
 def eat_events(win:sg.Window) -> None:
     """
@@ -696,7 +701,6 @@ class Query:
         :param element: the @PySinpleGUI element used as a selector element
         :return: None
         """
-        print(f'query: {query} where_column: {where_column} where_value: {where_value}')
         if type(element) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
             raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
@@ -1274,6 +1278,8 @@ class Form:
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
                 continue
+            if element.metadata['Form'] != self:
+                continue
             # If we passed in a cutsom list of elements
             if keys is not None:
                 if key not in keys: continue
@@ -1300,6 +1306,7 @@ class Form:
             if element.metadata['type']==TYPE_SELECTOR:
                 k=element.metadata['table']
                 if k is None: continue
+                if element.metadata['Form'] != self: continue
                 if '?' in k:
                     query_info, where_info = k.split('?')
                     where_column,where_value=where_info.split('=')
@@ -1308,8 +1315,8 @@ class Form:
                     where_info = where_column = where_value = None
                 query= query_info
 
-                if element.metadata['table'] in self.queries:
-                    self[element.metadata['table']].add_selector(element,query,where_column,where_value)
+                if query in self.queries:
+                    self[query].add_selector(element,query,where_column,where_value)
                 else:
                     logger.info(f'Count not add selector {str(element)}')
 
@@ -1345,6 +1352,8 @@ class Form:
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
                 logger.debug(f'Skipping mapping of {key}')
+                continue
+            if element.metadata['Form'] != self:
                 continue
             if element.metadata['type'] == TYPE_EVENT:
                 event_type=element.metadata['event_type']
@@ -1599,8 +1608,12 @@ class Form:
                         lst = []
                         for r in table.rows:
                             if e['where_column'] is not None:
-                                if r[e['where_column']] == e['where_value']:
+                                if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
+                                    #print(f"{r[e['where_column']]} == {e['where_value']}")
                                     lst.append(Row(r[pk], r[column]))
+                                else:
+                                    pass
+                                    #print(f"{r[e['where_column']]} != {e['where_value']}")
                             else:
                                 lst.append(Row(r[pk], r[column]))
 
@@ -1781,48 +1794,48 @@ class Form:
         search = default if search is None else search
 
         layout = []
-        meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None}
+        meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': self}
 
         # Form-level events
         if edit_protect:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': self}
             layout += [sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
                             image_data=edit_16,
                             metadata=meta)]
         if save:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': self}
             layout += [
                 sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
                      metadata=meta)]
 
         # Query-level events
         if navigation:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': self}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta)
             ]
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': self}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta)
             ]
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': self}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta)
             ]
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': self}
             layout += [
                 sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta),
             ]
         if insert:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': self}
             layout += [sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
                             image_data=add_16, metadata=meta)]
         if delete:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': self}
             layout += [sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
                             image_data=delete_16, metadata=meta)]
         if search:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': self}
             layout += [
                 sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),
                 sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)
@@ -1833,7 +1846,7 @@ class Form:
     # Define a custom element for quickly adding database rows.
     # The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
     # todo should I enable elements here for dirty checking?
-    def record(self, key, element=sg.I, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
+    def record(self, table, element=sg.I, key=None, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
         """
         Convenience function for adding PySimpleGUI elements to the window
         The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Query}.{name}
@@ -1850,17 +1863,20 @@ class Form:
         """
 
         # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-        if '?' in key:
-            query_info, where_info = key.split('?')
+        if '?' in table:
+            query_info, where_info = table.split('?')
             label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
         else:
-            query_info = key;
+            query_info = table;
             where_info = None
             label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
         query, column = query_info.split('.')
 
+        key=table if key is None else key
+        print(key)
+        key=keygen(key)
         layout_element = [
-            element('', key=key, size=size or Form._default_element_size, metadata={'type': TYPE_RECORD}, **kwargs)
+            element('', key=key, size=size or Form._default_element_size, metadata={'type': TYPE_RECORD, 'Form': self}, **kwargs)
         ]
         layout_label = [
             sg.T(label_text if label == '' else label, size=Form._default_label_size)
@@ -1876,13 +1892,13 @@ class Form:
 
         # Add the quick editor button where appropriate
         if element == sg.Combo and quick_editor:
-            meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None}
+            meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': self}
             layout += [sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
         return layout
 
     def selector(self, key, table, element=sg.LBox, size=None, columns=None, **kwargs):
-        r = random.randint(0, 1000)
-        meta = {'type': TYPE_SELECTOR, 'table': table}
+        key=keygen(key)
+        meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': self}
         if element == sg.Listbox:
             layout = [
                 element(values=(), size=size or Form._default_element_size, key=key,
@@ -1936,7 +1952,7 @@ edit_24 = b'iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAADqUlEQVR42qWUW2gUVxjH
 first_24 = b'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'
 
 _keygen={}
-def keygen(key,separator='.'):
+def keygen(key,separator=':'):
     global _keygen
     # Generate a unique key by attaching a sequential integer to the end
     if key not in _keygen:
@@ -2019,6 +2035,10 @@ def bind(win:sg.Window) -> None:
     for i in Form.instances:
         i.bind(win)
 
+def selector(key, table, element=sg.LBox, size=None, columns=None, **kwargs):
+    for i in Form.instances:
+        layout=i.selector(key,table,element,size,columns,**kwargs)
+    return layout
 # Aliases
 # Earlier versions of pysimplesql did not use the Form/Query topology
 Database=Form
