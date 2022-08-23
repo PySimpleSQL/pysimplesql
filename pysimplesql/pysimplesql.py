@@ -2049,5 +2049,5 @@ Table=Query
 
 # TODO: clean up.  just slapping this together for testing
 def form_relationship(child, fk, parent, pk) -> None:
-    Form.relationsips.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
+    Form.relationships.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
     logger.info(f'***** Setting form relationship between {child} and {parent}')
