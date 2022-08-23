@@ -167,7 +167,7 @@ class Relationship:
 
 class Query:
     """
-    This class is used for an internal representation of database queries. These are added by the following:
+    This class is used for an internal representation of database queries/tables. These are added by the following:
     Form.add_table Form.auto_add_tables
     """
     instances=[] # Track our instances
@@ -979,8 +979,9 @@ class Form:
     Queries can be accessed by key, I.e. frm['query_name"] to return a Query instance
     """
     instances = []  # Track our instances
+    relationships = [] # Track our relationhips
 
-    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries=''):
+    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None):
         """
         Initialize a new @Form instance
 
@@ -989,6 +990,7 @@ class Form:
         :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
         :param sql_script: (file) SQL commands to run if @sqlite3_database is not present
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
+        :param parent: parent form to base queries off of
         """
         Form.instances.append(self)
 
@@ -1003,6 +1005,7 @@ class Form:
             new_database = False
             self.imported_database=True
 
+        self.parent = parent
         self.db_path = db_path  # type: str
         self.window = None
         self._edit_protect=False
@@ -2043,3 +2046,8 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, **kwargs):
 # Earlier versions of pysimplesql did not use the Form/Query topology
 Database=Form
 Table=Query
+
+# TODO: clean up.  just slapping this together for testing
+def form_relationship(child, fk, parent, pk) -> None:
+    Form.relationsips.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
+    logger.info(f'***** Setting form relationship between {child} and {parent}')
