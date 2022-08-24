@@ -305,6 +305,8 @@ class Query:
         logger.info(f'Setting {self.table} query to {query}')
         self.query = query
 
+
+
     def set_join_clause(self, clause:str) -> None:
         """
         Set the table's join string.
@@ -346,6 +348,48 @@ class Query:
         """
         logger.info(f'Setting {self.table} order clause to {clause}')
         self.order = clause
+
+    def update_column_names(self,names=None) -> None:
+        """
+        Generate column names for the query.  This may need done, for eample, when a manual query using joins
+        is used.
+
+        This is more for advanced users.
+        :param names: a list of names (optional)
+        """
+        # Now we need to set  new column names, as the query could have changed
+        if names!=None:
+            self.column_names=names
+            print('returning.....')
+            return
+
+        cur = self.con.execute(self.generate_query())
+        records = cur.fetchall()  # TODO: new version of this w/o cur
+        for t in records:
+            # Now lets get the pk
+            # TODO: should we capture on_update, on_delete and match from PRAGMA?
+            q2 = f'PRAGMA table_info({t["name"]})'
+            cur2 = self.con.execute(q2)
+            records2 = cur2.fetchall()
+            names = []  # column names
+
+            # auto generate description column.  Default it to the 2nd column,
+            # but can be overwritten below
+            description_column = records2[1]['name']
+
+            pk_column = None
+            for t2 in records2:
+                names.append(t2['name'])
+                if t2['pk']:
+                    pk_column = t2['name']
+                if t2['name'] == 'name':
+                    description_column = t2['name']
+
+            query_name = t['name']
+            logger.debug(
+                f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
+            self.frm.add_query(query_name, t['name'], pk_column, description_column)
+            self.column_names = names
 
     def set_description_column(self, column:str) -> None:
         """
@@ -1224,7 +1268,7 @@ class Form:
             logger.debug(
                 f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
             self.add_query(query_name,t['name'], pk_column, description_column)
-            self.queries[query_name].column_names = names
+            self.queries[query_name].column_names = names #TODO: use new add column names??
 
     # Make sure to send a list of table names to requery if you want
     # dependent queries to requery automatically
