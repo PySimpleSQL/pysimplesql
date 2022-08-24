@@ -912,6 +912,7 @@ class Query:
                 found = False
                 for rel in rels:
                     if col == rel.fk:
+                        #print(f'{col} {rel.fk} {row[col]}')
                         lst.append(self.frm[rel.parent].get_description_for_pk(row[col]))
                         found = True
                         break
@@ -1652,6 +1653,7 @@ class Form:
             # Running user update function
             logger.info('Running the update_elements callback...')
             self.callbacks['update_elements'](self, self.window)
+
 
     def requery_all(self, update_elements=True) -> None:
         """
