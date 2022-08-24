@@ -1878,7 +1878,7 @@ class Form:
         query, column = query_info.split('.')
 
         key=table if key is None else key
-        print(key)
+        #print(key)
         key=keygen(key)
         layout_element = [
             element('', key=key, size=size or Form._default_element_size, metadata={'type': TYPE_RECORD, 'Form': self}, **kwargs)
