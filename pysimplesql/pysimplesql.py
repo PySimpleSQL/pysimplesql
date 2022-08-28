@@ -269,6 +269,7 @@ class Query:
             after_delete  called after a record is deleted. The delete will commit to the database if the callback returns true, else it will rollback the transaction
             before_search called before searching.  The search will continue if the callback returns True
             after_search  called after a search has been performed.  The record change will undo if the callback returns False
+            record_changed called after a record has changed (previous,next, etc) TODO: What about selectors?
 
         :param callback: The name of the callback, from the list above
         :type callback: str
@@ -281,7 +282,7 @@ class Query:
         supported = [
             'before_save', 'after_save', 'before_delete', 'after_delete',
             'before_update', 'after_update',  # Aliases for before/after_save
-            'before_search', 'after_search'
+            'before_search', 'after_search', 'record_changed'
         ]
         if callback in supported:
             # handle our convenience aliases
@@ -564,6 +565,9 @@ class Query:
         self.current_index = 0
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
+        # callback
+        if 'record_changed' in self.callbacks.keys():
+            self.callbacks['before_search'](self.frm, self.frm.window)
 
     def last(self, update=True, dependents=True):
         """
@@ -577,6 +581,9 @@ class Query:
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
+        # callback
+        if 'record_changed' in self.callbacks.keys():
+            self.callbacks['before_search'](self.frm, self.frm.window)
 
     def next(self, update=True, dependents=True):
         """
@@ -591,6 +598,9 @@ class Query:
             self.current_index += 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements()
+            # callback
+            if 'record_changed' in self.callbacks.keys():
+                self.callbacks['before_search'](self.frm, self.frm.window)
 
     def previous(self, update=True,dependents=True):
         """
@@ -606,6 +616,9 @@ class Query:
             self.current_index -= 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements()
+            # callback
+            if 'record_changed' in self.callbacks.keys():
+                self.callbacks['before_search'](self.frm, self.frm.window)
 
     def search(self, string, update=True, dependents=True):
         """
@@ -653,6 +666,9 @@ class Query:
                                     self.current_index = old_index
                                     self.requery_dependents()
                                     self.frm.update_elements(self.table)
+                            # callback
+                            if 'record_changed' in self.callbacks.keys():
+                                self.callbacks['before_search'](self.frm, self.frm.window)
                             return
         return False
         # If we have made it here, then it was not found!
