@@ -567,7 +567,7 @@ class Query:
         if update: self.frm.update_elements()
         # callback
         if 'record_changed' in self.callbacks.keys():
-            self.callbacks['before_search'](self.frm, self.frm.window)
+            self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def last(self, update=True, dependents=True):
         """
@@ -583,7 +583,7 @@ class Query:
         if update: self.frm.update_elements()
         # callback
         if 'record_changed' in self.callbacks.keys():
-            self.callbacks['before_search'](self.frm, self.frm.window)
+            self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def next(self, update=True, dependents=True):
         """
@@ -600,7 +600,7 @@ class Query:
             if update: self.frm.update_elements()
             # callback
             if 'record_changed' in self.callbacks.keys():
-                self.callbacks['before_search'](self.frm, self.frm.window)
+                self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def previous(self, update=True,dependents=True):
         """
@@ -618,7 +618,7 @@ class Query:
             if update: self.frm.update_elements()
             # callback
             if 'record_changed' in self.callbacks.keys():
-                self.callbacks['before_search'](self.frm, self.frm.window)
+                self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def search(self, string, update=True, dependents=True):
         """
@@ -668,7 +668,7 @@ class Query:
                                     self.frm.update_elements(self.table)
                             # callback
                             if 'record_changed' in self.callbacks.keys():
-                                self.callbacks['before_search'](self.frm, self.frm.window)
+                                self.callbacks['record_changed'](self.frm, self.frm.window)
                             return
         return False
         # If we have made it here, then it was not found!
