@@ -853,6 +853,9 @@ class Query:
                     self.con.execute(q_kv, tuple([val]))
                     saved=True
                 else:
+                    # TODO: what to do if there isn't a key split to do?
+                    if '.' not in v['element'].Key:
+                        continue
                     q += f' {v["element"].Key.split(".", 1)[1]}=?,'
 
                     if type(v['element'])==sg.Combo:
