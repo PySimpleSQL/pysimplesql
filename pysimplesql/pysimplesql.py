@@ -2122,6 +2122,9 @@ def form_relationship(child, fk, parent, pk) -> None:
 # CONVENIENCE FUNCTIONS
 # ---------------------
 # TODO: How to save Form in metadata?  Perhaps ive forms names and reference them that way??
+# For exapmle - give forms names!  and reference them by name string
+# They could even be converted later to a real form during form creation?
+
 # Global variables to set default sizes for the record function below
 _default_label_size = (15, 1)
 _default_element_size = (30, 1)
