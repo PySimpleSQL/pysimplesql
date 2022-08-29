@@ -1,7 +1,7 @@
 """Sqlite3 binding for PySimpleGUI"""
 
 from .pysimplesql import *
-from update_checker import UpdateChecker
+from update_checker import UpdateChecker # pip install update-checker
 
 __name__ = "pysimplesql"
 __version__ = "develop"

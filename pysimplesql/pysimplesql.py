@@ -2116,3 +2116,200 @@ Table=Query
 def form_relationship(child, fk, parent, pk) -> None:
     Form.relationships.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
     logger.info(f'***** Setting form relationship between {child} and {parent}')
+
+
+# ---------------------
+# CONVENIENCE FUNCTIONS
+# ---------------------
+# TODO: How to save Form in metadata?  Perhaps ive forms names and reference them that way??
+# Global variables to set default sizes for the record function below
+_default_label_size = (15, 1)
+_default_element_size = (30, 1)
+
+def set_label_size(self,w, h):
+    """
+    Sets the default label (text) size when record() is used"
+    :param w: the width desired
+    :param h: the height desired
+    :return: None
+    """
+    _default_label_size = (w, h)
+
+def set_element_size(self,w, h):
+    """
+    Sets the defualt text (label) size when @record is used.  The size parameter of @record will override this
+    :param w: the width desiered
+    :param h: the height desired
+    :return: None
+    """
+    _default_element_size = (w, h)
+
+def actions(self, key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
+            search=None,
+            search_size=(30, 1), bind_return_key=True):
+    """
+    Allows for easily adding record navigation and elements to the PySimpleGUI window
+    The navigation elements are separated into different sections as detailed by the parameters.
+    :param key: The key to give these controls
+    :param table: The table that this "element" will provide actions for
+    :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
+                    The individual keyword arguments will trump the default parameter
+    :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that toggles
+                    the ability on an off to prevent accidental changes in the database by enabling/disabling the insert,
+                    edit and save buttons.
+    :param navigation: The standard << < > >> (First, previous, next, last) buttons for navigation
+    :param insert: Button to insert new records
+    :param delete: Button to delete current record
+    :param save: Button to save record.  Note that the save button feature saves changes made to any table, therefore only one
+                 save button is needed per window. This parameter only works if the @actions parameter is set.
+    :param search: A search Input element. Size can be specified with the @search_size parameter
+    :param search_size: The size of the search input element
+    :param bind_return_key: Bind the return key to the search button. Defaults to true
+    :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
+             will not need to be wrapped in [] in your layout code.
+    """
+    edit_protect = default if edit_protect is None else edit_protect
+    navigation = default if navigation is None else navigation
+    insert = default if insert is None else insert
+    delete = default if delete is None else delete
+    save = default if save is None else save
+    search = default if search is None else search
+
+    layout = []
+    meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': self}
+
+    # Form-level events
+    if edit_protect:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': self}
+        layout += [sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
+                        image_data=edit_16,
+                        metadata=meta)]
+    if save:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': self}
+        layout += [
+            sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
+                 metadata=meta)]
+
+    # Query-level events
+    if navigation:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': self}
+        layout += [
+            sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta)
+        ]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': self}
+        layout += [
+            sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta)
+        ]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': self}
+        layout += [
+            sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta)
+        ]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': self}
+        layout += [
+            sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta),
+        ]
+    if insert:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': self}
+        layout += [sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
+                        image_data=add_16, metadata=meta)]
+    if delete:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': self}
+        layout += [sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
+                        image_data=delete_16, metadata=meta)]
+    if search:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': self}
+        layout += [
+            sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),
+            sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)
+        ]
+
+    return layout
+
+# Define a custom element for quickly adding database rows.
+# The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
+# todo should I enable elements here for dirty checking?
+def record(self, table, element=sg.I, key=None, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
+    """
+    Convenience function for adding PySimpleGUI elements to the window
+    The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Query}.{name}
+    This convenience function will create a text label, along with a element with this naming convention.
+    See @set_label_size and @set_element_size for setting default sizes of these elements.
+
+    :param record: The table.column in the database this element will be mapped to
+    :param element: The element type desired (defaults to PySimpleGUI.Input)
+    :param size: Overrides the default element size that was set with @set_element_size, for this element element only
+    :param label: The text/label will automatically be generated from the @column name. If a different text/label is
+                 desired, it can be specified here.
+    :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
+             will not need to be wrapped in [] in your layout code.
+    """
+
+    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+    if '?' in table:
+        query_info, where_info = table.split('?')
+        label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    else:
+        query_info = table;
+        where_info = None
+        label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    query, column = query_info.split('.')
+
+    key=table if key is None else key
+    #print(key)
+    key=keygen(key)
+    layout_element = [
+        element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': self}, **kwargs)
+    ]
+    layout_label = [
+        sg.T(label_text if label == '' else label, size=_default_label_size)
+    ]
+    if no_label:
+        layout = layout_element
+    elif label_above:
+        layout = [
+            sg.Col(layout=[layout_label, layout_element])
+        ]
+    else:
+        layout = layout_label + layout_element
+
+    # Add the quick editor button where appropriate
+    if element == sg.Combo and quick_editor:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': self}
+        layout += [sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
+    return layout
+
+def selector(self, key, table, element=sg.LBox, size=None, columns=None, **kwargs):
+    key=keygen(key)
+    meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': self}
+    if element == sg.Listbox:
+        layout = [
+            element(values=(), size=size or _default_element_size, key=key,
+                    select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+                    enable_events=True, metadata=meta)]
+    elif element == sg.Slider:
+        layout = [element(enable_events=True, size=size or _default_element_size, orientation='h',
+                          disable_number_display=True, key=key, metadata=meta)]
+    elif element == sg.Combo:
+        w = _default_element_size[0]
+        layout = [element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
+                          auto_size_text=False, metadata=meta)]
+    elif element == sg.Table:
+        required_kwargs = ['headings', 'visible_column_map', 'num_rows']
+        for kwarg in required_kwargs:
+            if kwarg not in kwargs:
+                raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
+
+        # Make an empty list of values
+        vals = []
+        vals.append([''] * len(kwargs['headings']))
+        meta['columns'] = columns
+        layout = [
+            element(
+                values=vals, headings=kwargs['headings'], visible_column_map=kwargs['visible_column_map'],
+                num_rows=kwargs['num_rows'], enable_events=True, key=key, select_mode=sg.TABLE_SELECT_MODE_BROWSE,
+                justification='left', metadata=meta
+            )
+        ]
+    else:
+        raise RuntimeError(f'Element type "{element}" not supported as a selector.')
+    return layout
