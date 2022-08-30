@@ -1045,11 +1045,12 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationhips
 
-    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
+    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
         """
         Initialize a new @Form instance
 
         :param db_path: the name of the database file.  It will be created if it doesn't exist.
+        :param bind: (PySimpleSQL Window) Bind this window to the Form
         :param sqlite3_database: A sqlite3 database object
         :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
         :param sql_script: (file) SQL commands to run if @sqlite3_database is not present
@@ -1096,6 +1097,9 @@ class Form:
         self.auto_add_queries(prefix_queries)
         self.auto_add_relationships()
         self.requery_all(False)
+        if bind!=None:
+            self.window=bind
+            self.bind(self.window)
 
     def __del__(self):
         # Only do cleanup if this is not an imported database
@@ -1110,6 +1114,23 @@ class Form:
     # Override the [] operator to retrieve queries by key
     def __getitem__(self, key:str) -> Query:
         return self.queries[key]
+
+    def bind(self, win):
+        """
+        Bind the Window to the Form for the purpose of GUI element, event and relationship mapping
+        This can happen automatically on@Form creation with a parameter.
+        This function literally just groups all of the auto_* methods.  See" Form.auto_add_tables,
+        Form.auto_add_relationships, Form.auto_map_elements, @orm.auto_map_events
+        :param win: The PySimpleGUI window
+        :return:  None
+        """
+        logger.info('Bnding Window to Form...')
+        self.window = win
+        self.auto_map_elements(win)
+        self.auto_map_events(win)
+        self.update_elements()
+        logger.debug('Binding finished!')
+
 
     def execute_script(self,script):
         with open(script, 'r') as file:
@@ -1162,21 +1183,6 @@ class Form:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported. callback: {callback} supported: {supported}')
 
-    def bind(self, win):
-        """
-        Bind the Window to the Form for the purpose of GUI element, event and relationship mapping
-        This can happen automatically on@Form creation with a parameter.
-        This function literally just groups all of the auto_* methods.  See" Form.auto_add_tables,
-        Form.auto_add_relationships, Form.auto_map_elements, @orm.auto_map_events
-        :param win: The PySimpleGUI window
-        :return:  None
-        """
-        logger.info('Bnding Window to Form...')
-        self.window = win
-        self.auto_map_elements(win)
-        self.auto_map_events(win)
-        self.update_elements()
-        logger.debug('Binding finished!')
 
     # Add a Query object
     def add_query(self, name, table, pk_column, description_column, query='', order=''):
@@ -1349,7 +1355,12 @@ class Form:
             if type(element.metadata) is not dict:
                 continue
 
+            # Skip this element if it's an event
+            if element.metadata['type'] == TYPE_EVENT:
+                continue
+
             # Process the filter to ensure this element should be mapped to this Form
+            logger.debug(element.metadata)
             if element.metadata['filter'] == self.filter:
                 element.metadata['Form'] = self
 
