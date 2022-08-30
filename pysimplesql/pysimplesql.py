@@ -1045,7 +1045,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationhips
 
-    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None):
+    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
         """
         Initialize a new @Form instance
 
@@ -1055,6 +1055,7 @@ class Form:
         :param sql_script: (file) SQL commands to run if @sqlite3_database is not present
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: parent form to base queries off of
+        :param filter: (optional) Only import elements with the same filter
         """
         Form.instances.append(self)
 
@@ -1069,6 +1070,7 @@ class Form:
             new_database = False
             self.imported_database=True
 
+        self.filter = filter
         self.parent = parent
         self.db_path = db_path  # type: str
         self.window = None
@@ -2118,9 +2120,9 @@ def form_relationship(child, fk, parent, pk) -> None:
     logger.info(f'***** Setting form relationship between {child} and {parent}')
 
 
-# ---------------------
+# ----------------------------------------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
-# ---------------------
+# ----------------------------------------------------------------------------------------------------------------------
 # TODO: How to save Form in metadata?  Perhaps ive forms names and reference them that way??
 # For exapmle - give forms names!  and reference them by name string
 # They could even be converted later to a real form during form creation?
@@ -2147,14 +2149,73 @@ def set_element_size(self,w, h):
     """
     _default_element_size = (w, h)
 
-def actions(self, key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
-            search=None,
-            search_size=(30, 1), bind_return_key=True):
+# Define a custom element for quickly adding database rows.
+# The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
+# todo should I enable elements here for dirty checking?
+def record(table, element=sg.I, key=None, size=None, label='', no_label=False, label_above=False, quick_editor=True, filter=None, **kwargs):
+    """
+    Convenience function for adding PySimpleGUI elements to the window
+    The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Query}.{name}
+    This convenience function will create a text label, along with a element with this naming convention.
+    See @set_label_size and @set_element_size for setting default sizes of these elements.
+
+    :param record: The table.column in the database this element will be mapped to #TODO Rename!
+    :param element: The element type desired (defaults to PySimpleGUI.Input)
+    :param size: Overrides the default element size that was set with @set_element_size, for this element element only
+    :param label: The text/label will automatically be generated from the @column name. If a different text/label is
+                 desired, it can be specified here.
+    :param no_label: Do not automatically generate a label for this element
+    :param label_above: Place the label above the element instead of to the left
+    :param quick_editor: For records that reference another table, place a quick edit button next to this element
+    :param key: ???????
+    :param filter: Can be used to reference different Forms in the same layout.  Use a matching filter when creating
+            the form
+    :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
+             will not need to be wrapped in [] in your layout code.
+    """
+    # TODO: See what the metadata does??
+
+    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+    if '?' in table:
+        query_info, where_info = table.split('?')
+        label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    else:
+        query_info = table;
+        where_info = None
+        label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    query, column = query_info.split('.')
+
+    key=table if key is None else key
+    #print(key)
+    key=keygen(key)
+    layout_element = [
+        element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': self, 'filter': filter}, **kwargs)
+    ]
+    layout_label = [
+        sg.T(label_text if label == '' else label, size=_default_label_size)
+    ]
+    if no_label:
+        layout = layout_element
+    elif label_above:
+        layout = [
+            sg.Col(layout=[layout_label, layout_element])
+        ]
+    else:
+        layout = layout_label + layout_element
+
+    # Add the quick editor button where appropriate
+    if element == sg.Combo and quick_editor:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': self, 'filter': filter}
+        layout += [sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
+    return layout
+
+def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
+            search=None, search_size=(30, 1), bind_return_key=True):
     """
     Allows for easily adding record navigation and elements to the PySimpleGUI window
     The navigation elements are separated into different sections as detailed by the parameters.
     :param key: The key to give these controls
-    :param table: The table that this "element" will provide actions for
+    :param query: The table that this "element" will provide actions for
     :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
                     The individual keyword arguments will trump the default parameter
     :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that toggles
@@ -2228,62 +2289,11 @@ def actions(self, key, query, default=True, edit_protect=None, navigation=None, 
 
     return layout
 
-# Define a custom element for quickly adding database rows.
-# The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
-# todo should I enable elements here for dirty checking?
-def record(self, table, element=sg.I, key=None, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
-    """
-    Convenience function for adding PySimpleGUI elements to the window
-    The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Query}.{name}
-    This convenience function will create a text label, along with a element with this naming convention.
-    See @set_label_size and @set_element_size for setting default sizes of these elements.
 
-    :param record: The table.column in the database this element will be mapped to
-    :param element: The element type desired (defaults to PySimpleGUI.Input)
-    :param size: Overrides the default element size that was set with @set_element_size, for this element element only
-    :param label: The text/label will automatically be generated from the @column name. If a different text/label is
-                 desired, it can be specified here.
-    :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
-             will not need to be wrapped in [] in your layout code.
-    """
 
-    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-    if '?' in table:
-        query_info, where_info = table.split('?')
-        label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
-    else:
-        query_info = table;
-        where_info = None
-        label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
-    query, column = query_info.split('.')
-
-    key=table if key is None else key
-    #print(key)
+def selector(self, key, table, element=sg.LBox, size=None, columns=None, filter=None, **kwargs):
     key=keygen(key)
-    layout_element = [
-        element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': self}, **kwargs)
-    ]
-    layout_label = [
-        sg.T(label_text if label == '' else label, size=_default_label_size)
-    ]
-    if no_label:
-        layout = layout_element
-    elif label_above:
-        layout = [
-            sg.Col(layout=[layout_label, layout_element])
-        ]
-    else:
-        layout = layout_label + layout_element
-
-    # Add the quick editor button where appropriate
-    if element == sg.Combo and quick_editor:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': self}
-        layout += [sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
-    return layout
-
-def selector(self, key, table, element=sg.LBox, size=None, columns=None, **kwargs):
-    key=keygen(key)
-    meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': self}
+    meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': self, 'filter': filter}
     if element == sg.Listbox:
         layout = [
             element(values=(), size=size or _default_element_size, key=key,
