@@ -1355,14 +1355,14 @@ class Form:
             if type(element.metadata) is not dict:
                 continue
 
+
+            # Process the filter to ensure this element should be mapped to this Form
+            if element.metadata['filter'] == self.filter:
+                element.metadata['Form'] = self
+
             # Skip this element if it's an event
             if element.metadata['type'] == TYPE_EVENT:
                 continue
-
-            # Process the filter to ensure this element should be mapped to this Form
-            logger.debug(element.metadata)
-            if element.metadata['filter'] == self.filter:
-                element.metadata['Form'] = self
 
             if element.metadata['Form'] != self:
                 continue
@@ -2036,7 +2036,7 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     return layout
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
-            search=None, search_size=(30, 1), bind_return_key=True):
+            search=None, search_size=(30, 1), bind_return_key=True, filter=None):
     """
     Allows for easily adding record navigation and elements to the PySimpleGUI window
     The navigation elements are separated into different sections as detailed by the parameters.
@@ -2066,48 +2066,48 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
     search = default if search is None else search
 
     layout = []
-    meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': None}
+    meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
 
     # Form-level events
     if edit_protect:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
         layout += [sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
                         image_data=edit_16,
                         metadata=meta)]
     if save:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
         layout += [
             sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
                  metadata=meta)]
 
     # Query-level events
     if navigation:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [
             sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta)
         ]
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [
             sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta)
         ]
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [
             sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta)
         ]
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [
             sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta),
         ]
     if insert:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
                         image_data=add_16, metadata=meta)]
     if delete:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
                         image_data=delete_16, metadata=meta)]
     if search:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout += [
             sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),
             sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)
