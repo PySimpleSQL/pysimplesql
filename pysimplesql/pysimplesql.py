@@ -993,7 +993,6 @@ class Query:
     def quick_editor(self, pk_update_funct=None,funct_param=None):
         # Reset the keygen to keep consistent naming
         keygen_reset_all()
-        quick_frm = Form(sqlite3_database=self.frm.con)
         query_name = self.name
         layout = []
         headings = self.column_names.copy()
@@ -1003,17 +1002,18 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            quick_frm.selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
-        layout.append(quick_frm.actions("act_quick_edit2",query_name,edit_protect=False))
+            selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
+        layout.append(actions("act_quick_edit2",query_name,edit_protect=False))
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_names:
             column=f'{query_name}.{col}'
             if col!=self.pk_column:
-                layout.append([quick_frm.record(column)])
+                layout.append([record(column)])
 
         quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True)
-        quick_frm.bind(quick_win)
+        quick_frm = Form(sqlite3_database=self.frm.con, bind=quick_win)
+
 
         # Select the current entry to start with
         if pk_update_funct is not None:
@@ -1784,22 +1784,27 @@ class Form:
                     for e in table.selector:
                         element=e['element']
                         if element.Key in event and len(table.rows) > 0:
+                            changed=False # assume that a change will not take place
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
                                 table.set_by_pk(row.get_pk())
-                                return True
+                                changed=True
                             elif type(element) == sg.PySimpleGUI.Slider:
                                 table.set_by_index(int(values[event]) - 1)
-                                return True
+                                changed=True
                             elif type(element) == sg.PySimpleGUI.Combo:
                                 row = values[event]
                                 table.set_by_pk(row.get_pk())
-                                return True
+                                changed=True
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index][0]
                                 table.set_by_pk(pk, True)
-                                return True
+                                changed=True
+                            if changed:
+                                if 'record_changed' in table.callbacks.keys():
+                                    table.callbacks['record_changed'](self, self.window)
+                            return changed
         return False
 
     def update_element_states(self, table_name:str, disable:bool=None, visible:bool=None) -> None:
