@@ -24,7 +24,6 @@ INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Yellow","Banana
 INSERT INTO "Colors" ("name","example","primary_color") VALUES ("White","White is the presence of all color",0);
 INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Blue","The ocean is blue",1);
 '''
-frm=ss.Form(':memory:', sql_commands=sql) #<=== Here is the magic!
 
 description = """
 Many different types of PySimpleGUI elements can be used as Selector controls to select database records.
@@ -37,15 +36,15 @@ on this frm and watch it all just work!
 headings=['id','Name     ','Example                                          ','Primary Color?'] # Query column widths can be set by the spacing of the headings!
 visible=[0,1,1,1] # Hide the primary key column in the table
 record_columns=[
-    frm.record('Colors.name',label='Color name:'),
-    frm.record('Colors.example',label='Example usage: '),
-    frm.record('Colors.primary_color',label= 'Primary Color?',element=sg.CBox),
+    ss.record('Colors.name',label='Color name:'),
+    ss.record('Colors.example',label='Example usage: '),
+    ss.record('Colors.primary_color',label= 'Primary Color?',element=sg.CBox),
 ]
 selectors=[
-    frm.selector('tableSelector', 'Colors', element=sg.Table, headings=headings, visible_column_map=visible,num_rows=10)+
-    frm.selector('selector1','Colors', size=(15,10)),
-    frm.actions('colorActions','Colors'),
-    frm.selector('selector2','Colors',element=sg.Slider,size=(26,18))+frm.selector('selector3','Colors',element=sg.Combo, size=(30,10)),
+    ss.selector('tableSelector', 'Colors', element=sg.Table, headings=headings, visible_column_map=visible,num_rows=10)+
+    ss.selector('selector1','Colors', size=(15,10)),
+    ss.actions('colorActions','Colors'),
+    ss.selector('selector2','Colors',element=sg.Slider,size=(26,18))+ss.selector('selector3','Colors',element=sg.Combo, size=(30,10)),
 ]
 layout = [
     [sg.Text(description)],
@@ -54,7 +53,7 @@ layout = [
 ]
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)
-frm.bind(win)
+frm=ss.Form(':memory:', sql_commands=sql, bind=win) #<=== Here is the magic!
 
 frm['Colors'].set_search_order(['name','example']) # the search box will search in both the name and example columns
 while True:
