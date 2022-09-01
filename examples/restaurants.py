@@ -4,30 +4,29 @@ import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
-# Create our Form
-frm = ss.Form(':memory:', sql_script='example.sql')      # <=== load the database
-# NOTE: ":memory:" is a special database URL for in-memory databases
 
 # Define our layout. We will use the Form.record convenience function to create the controls
 layout = [
-    frm.record('Restaurant.name'),
-    frm.record('Restaurant.location'),
-    frm.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
+    ss.record('Restaurant.name'),
+    ss.record('Restaurant.location'),
+    ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
 sub_layout = [
-    frm.selector('selector1','Item',size=(35,10))+
-    [sg.Col([frm.record('Item.name'),
-         frm.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
-         frm.record('Item.price'),
-         frm.record('Item.description', sg.MLine, (30, 7))
+    ss.selector('selector1','Item',size=(35,10))+
+    [sg.Col([ss.record('Item.name'),
+         ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
+         ss.record('Item.price'),
+         ss.record('Item.description', sg.MLine,size=(30, 7))
     ])],
-    frm.actions('actions1','Item', edit_protect=False,navigation=False,save=False, search=False)
+    ss.actions('actions1','Item', edit_protect=False,navigation=False,save=False, search=False)
 ]
 layout += [[sg.Frame('Items', sub_layout)]]
-layout += [frm.actions('actions2','Restaurant')]
+layout += [ss.actions('actions2','Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-frm.bind(win)
+# Create our Form
+frm = ss.Form(':memory:', sql_script='example.sql', bind=win)      # <=== load the database
+# NOTE: ":memory:" is a special database URL for in-memory databases
 
 
 while True:
