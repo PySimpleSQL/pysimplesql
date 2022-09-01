@@ -16,8 +16,7 @@ INSERT INTO SETTINGS VALUES (2,'debug_mode',True,'Check if you would like debug 
 INSERT INTO SETTINGS VALUES (3,'antialiasing', True,'Would you like to render with antialiasing?');
 INSERT INTO SETTINGS VALUES (4, 'query_retries', 3,'Retry queries this many times before aborting.');
 """
-frm = ss.Form('Settigs.db', sql_commands=sql)      # <=== load the database and bind it to the window
-print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
+
 # When using Form.record() to create entries based on key/value pairs, it just uses an extended syntax.
 # Where Form.record('Settings.value') would return the value column from the Settings table FOR THE CURRENT RECORD,
 # the extended syntax of Form.record('Settings.value?key=first_name') will return the value column from the Settings
@@ -26,23 +25,30 @@ print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
 layout=[
     [sg.Text('APPLICATION SETTINGS')],
     [sg.HorizontalSeparator()],
-    frm.record('Settings.value?key=company_name', tooltip=frm['Settings'].get_keyed_value('description', 'key', 'company_name')),
+    ss.record('Settings.value?key=company_name'),
     # Notice how we can use get_keyed_value() to retrieve values from keys in the query.  We are using it to set tooltips.
     [sg.Text('')],
-    frm.record('Settings.value?key=debug_mode',sg.CBox, tooltip=frm['Settings'].get_keyed_value('description', 'key', 'debug_mode')),
+    ss.record('Settings.value?key=debug_mode',sg.CBox),
     [sg.Text('')],
-    frm.record('Settings.value?key=antialiasing', sg.CBox, tooltip=frm['Settings'].get_keyed_value('description', 'key', 'antialiasing')),
+    ss.record('Settings.value?key=antialiasing', sg.CBox),
     [sg.Text('')],
-    frm.record('Settings.value?key=query_retries', tooltip=frm['Settings'].get_keyed_value('description', 'key', 'query_retries')),
+    ss.record('Settings.value?key=query_retries'),
     # For the actions, we don't want to offer users to insert or delete records from the settings table,
     # and there is no use for navigation buttons due to the key,value nature of the data.  Therefore, we will
     # disable all actions (default=False) except for the Save action (save=True)
-    frm.actions('nav','Settings',default=False, save=True)
+    ss.actions('nav','Settings',default=False, save=True)
 ]
 
 # Initialize our window then bind it to the Form
 win = sg.Window('Preferences: Application Settings', layout, finalize=True)
-frm.bind(win)
+frm = ss.Form('Settigs.db', sql_commands=sql, bind=win)      # <=== load the database and bind it to the window
+
+tooltip = ss['Settings'].get_keyed_value('description', 'key', 'company_name')
+tooltip=frm['Settings'].get_keyed_value('description', 'key', 'debug_mode')
+tooltip=ss['Settings'].get_keyed_value('description', 'key', 'antialiasing')
+tooltip=frm['Settings'].get_keyed_value('description', 'key', 'query_retries')
+
+print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
 
 while True:
     event, values = win.read()
