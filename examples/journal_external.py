@@ -4,14 +4,6 @@ import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
-frm=ss.Form('journal.db', sql_script='journal.sql')   #<=== Here is the magic!
-# Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
-# database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
-
-# Reverse the default sort order so new journal entries appear at the top
-frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
-# Set the column order for search operations.  By default, only the column designated as the description column is searched
-frm['Journal'].set_search_order(['entry_date','title','entry'])
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
@@ -20,15 +12,22 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 headings=['id','Date:              ','Mood:      ','Title:                                 ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
-    frm.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    frm.actions('act_journal','Journal'),
-    frm.record('Journal.entry_date'),
-    frm.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
-    frm.record('Journal.title'),
-    frm.record('Journal.entry', sg.MLine, size=(71,20))
+    ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
+    ss.actions('act_journal','Journal'),
+    ss.record('Journal.entry_date'),
+    ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
+    ss.record('Journal.title'),
+    ss.record('Journal.entry', sg.MLine, size=(71,20))
 ]
 win=sg.Window('Journal example', layout, finalize=True)
-frm.bind(win)
+frm=ss.Form('journal.db', sql_script='journal.sql', bind=win)   #<=== Here is the magic!
+# Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
+# database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
+
+# Reverse the default sort order so new journal entries appear at the top
+frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
+# Set the column order for search operations.  By default, only the column designated as the description column is searched
+frm['Journal'].set_search_order(['entry_date','title','entry'])
 
 # ---------
 # MAIN LOOP
