@@ -1554,7 +1554,7 @@ class Form:
         :rtype: None
         """
         # TODO Fix bug where listbox first element is ghost selected
-        logger.info('Updating PySimpleGUI elements...')
+        logger.info('update_elements(): Updating PySimpleGUI elements...')
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
@@ -1684,13 +1684,16 @@ class Form:
         for k, table in self.queries.items():
             if len(table.selector):
                 for e in table.selector:
+                    logger.debug(f'update_elements: SELECTOR FOUND')
                     element=e['element']
+                    logger.debug(f'{type(element)}')
                     pk = table.pk_column
                     column = table.description_column
                     if element.Key in self.callbacks:
                         self.callbacks[element.Key]()
 
-                    elif type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
+                    if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
+                        logger.debug(f'update_elements: List/Combo selector found...')
                         lst = []
                         for r in table.rows:
                             if e['where_column'] is not None:
@@ -1710,6 +1713,7 @@ class Form:
                         element.update(value=table._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
+                        logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
                         values = table.table_values(element.metadata['columns'])
 
@@ -1727,6 +1731,7 @@ class Form:
                             index=[]
                         else:
                             index=[index]
+                        logger.debug(f'Selector:: index:{index} found:{found}')
                         element.update(values=values,select_rows=index)
                         eat_events(self.window)
 

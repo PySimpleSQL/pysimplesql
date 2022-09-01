@@ -52,9 +52,6 @@ INSERT INTO Addresses VALUES (1, 2, "John", "Smith", "123 Main St.","Suite A","C
 INSERT INTO Addresses VALUES (2, 1, "Sally", "Jones", "111 North St.","Suite A","Pittsburgh",2,44101);
 """
 
-# Create our frm
-frm=ss.Form(':memory:', sql_commands=sql)
-
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
@@ -63,18 +60,20 @@ columns=['pkAddresses','firstName','lastName','city','fkState']
 headings=['pk','First name:    ','Last name:     ','City:        ','State']
 visible=[0,1,1,1,1] # Hide the primary key column
 layout=[
-    frm.selector("sel","Addresses",sg.Table, headings=headings,visible_column_map=visible, columns=columns,num_rows=10),
-    frm.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10)),
-    frm.record("Addresses.firstName", label="First name:"),
-    frm.record("Addresses.lastName", label="Last name:"),
-    frm.record("Addresses.address1", label="Address 1:"),
-    frm.record("Addresses.address2", label="Address 2:"),
-    frm.record("Addresses.city", label="City/State:", size=(23,1)) + frm.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10)),
-    [sg.Text("Zip:"+" "*63)] + frm.record("Addresses.zip", no_label=True,size=(6,1)),
-    frm.actions("browser","Addresses",edit_protect=False)
+    ss.selector("sel","Addresses",sg.Table, headings=headings,visible_column_map=visible, columns=columns,num_rows=10),
+    ss.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10)),
+    ss.record("Addresses.firstName", label="First name:"),
+    ss.record("Addresses.lastName", label="Last name:"),
+    ss.record("Addresses.address1", label="Address 1:"),
+    ss.record("Addresses.address2", label="Address 2:"),
+    ss.record("Addresses.city", label="City/State:", size=(23,1)) + ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10)),
+    [sg.Text("Zip:"+" "*63)] + ss.record("Addresses.zip", no_label=True,size=(6,1)),
+    ss.actions("browser","Addresses",edit_protect=False)
 ]
 win=sg.Window('Journal example', layout, finalize=True)
-frm.bind(win)   # <=== Binding the Form to the Window is easy!
+# Create our frm
+frm=ss.Form(':memory:', sql_commands=sql, bind=win)
+
 
 # Use a callback to validate the zip code
 frm['Addresses'].set_callback('before_save',validate_zip)
