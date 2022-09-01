@@ -43,10 +43,10 @@ layout=[
 win = sg.Window('Preferences: Application Settings', layout, finalize=True)
 frm = ss.Form('Settigs.db', sql_commands=sql, bind=win)      # <=== load the database and bind it to the window
 
-tooltip = ss['Settings'].get_keyed_value('description', 'key', 'company_name')
-tooltip=frm['Settings'].get_keyed_value('description', 'key', 'debug_mode')
-tooltip=ss['Settings'].get_keyed_value('description', 'key', 'antialiasing')
-tooltip=frm['Settings'].get_keyed_value('description', 'key', 'query_retries')
+win['Settings.value?key=company_name'].update(tooltip = frm['Settings'].get_keyed_value('description', 'key', 'company_name'))
+win['Settings.value?key=debug mode'].update(tooltip=frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
+win['Settings.value?key=antialiasing'].update(tooltip=ss['Settings'].get_keyed_value('description', 'key', 'antialiasing'))
+win['Settings.value?key=query_retries'].update(tooltip=frm['Settings'].get_keyed_value('description', 'key', 'query_retries'))
 
 print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
 
