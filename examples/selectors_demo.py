@@ -43,13 +43,15 @@ record_columns=[
 selectors=[
     ss.selector('tableSelector', 'Colors', element=sg.Table, headings=headings, visible_column_map=visible,num_rows=10)+
     ss.selector('selector1','Colors', size=(15,10)),
-    ss.actions('colorActions','Colors'),
     ss.selector('selector2','Colors',element=sg.Slider,size=(26,18))+ss.selector('selector3','Colors',element=sg.Combo, size=(30,10)),
+
+
 ]
 layout = [
     [sg.Text(description)],
     [sg.Frame('Test out all of these selectors and watch the magic!',selectors)],
     [sg.Col(record_columns,vertical_alignment='t')],
+    ss.actions('colorActions','Colors')
 ]
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)
