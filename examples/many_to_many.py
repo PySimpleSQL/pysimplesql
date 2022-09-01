@@ -45,26 +45,24 @@ INSERT INTO "FavoriteColor" VALUES (7,3,7);
 INSERT INTO "FavoriteColor" VALUES (8,3,6);
 INSERT INTO "FavoriteColor" VALUES (9,3,4);
 '''
-frm = ss.Form(':memory:', sql_commands=sql)      # <=== load the database into the Form
-# NOTE: ":memory:" is a special database URL for in-memory databases
 
 person_layout=[
-    frm.selector('sel_person','Person', size=(48,10)),
-    frm.actions('act_person','Person',edit_protect=False, search=False),
-    frm.record('Person.name', label_above=True)
+    ss.selector('sel_person','Person', size=(48,10)),
+    ss.actions('act_person','Person',edit_protect=False, search=False),
+    ss.record('Person.name', label_above=True)
 ]
 color_layout=[
-    frm.selector('sel_color','Color', size=(48,10)),
-    frm.actions('act_color','Color',edit_protect=False, search=False),
-    frm.record('Color.name', label_above=True)
+    ss.selector('sel_color','Color', size=(48,10)),
+    ss.actions('act_color','Color',edit_protect=False, search=False),
+    ss.record('Color.name', label_above=True)
 ]
 headings=['ID (this will be hidden)','Person            ','Favorite Color     ']
 vis=[0,1,1]
 favorites_layout=[
-    frm.selector('sel_favorite','FavoriteColor',sg.Table,num_rows=10,headings=headings,visible_column_map=vis),
-    frm.actions('act_favorites','FavoriteColor',edit_protect=False, search=False),
-    frm.record('FavoriteColor.person_id', label='Person:',element=sg.Combo, size=(30,10), auto_size_text=False),
-    frm.record('FavoriteColor.color_id', label='Color:',element=sg.Combo, size=(30,10), auto_size_text=False)
+    ss.selector('sel_favorite','FavoriteColor',sg.Table,num_rows=10,headings=headings,visible_column_map=vis),
+    ss.actions('act_favorites','FavoriteColor',edit_protect=False, search=False),
+    ss.record('FavoriteColor.person_id', label='Person:',element=sg.Combo, size=(30,10), auto_size_text=False),
+    ss.record('FavoriteColor.color_id', label='Color:',element=sg.Combo, size=(30,10), auto_size_text=False)
 ]
 layout=[
     [sg.Frame('Person Editor', layout=person_layout)],
@@ -74,7 +72,9 @@ layout=[
 
 # Initialize our window and database, then bind them together
 win = sg.Window('Many-to-many table test', layout, finalize=True)
-frm.bind(win)
+frm = ss.Form(':memory:', sql_commands=sql, bind=win)      # <=== load the database into the Form
+# NOTE: ":memory:" is a special database URL for in-memory databases
+
 
 while True:
     event, values = win.read()
