@@ -1377,6 +1377,7 @@ class Form:
                     table_info, where_info = key.split('?')
                 else:
                     table_info = key; where_info = None
+
                 table, col = table_info.split('.')
                 if where_info is None:
                     where_column=where_value=None
