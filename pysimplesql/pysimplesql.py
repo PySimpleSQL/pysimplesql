@@ -653,7 +653,7 @@ class Query:
             for i in list(range(self.current_index + 1, len(self.rows))) + list(range(0, self.current_index)):
                 if o in self.rows[i].keys():
                     if self.rows[i][o]:
-                        if string.lower() in self.rows[i][o].lower():
+                        if string.lower() in str(self.rows[i][o]).lower():
                             print(string.lower())
                             old_index = self.current_index
                             self.current_index = i
