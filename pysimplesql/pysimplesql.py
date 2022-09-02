@@ -11,6 +11,9 @@ power and control of managing your own codebase. **pysimplesql** not only allows
 line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
 """
 #!/usr/bin/python3
+
+# TODO: Make a list of controls to enable/disable along with edit_protect.  This would be a pretty cool feature
+
 # The first two imports are for docstrings
 from __future__ import annotations
 from typing import List, Union, Optional, Tuple, Callable
@@ -1506,6 +1509,8 @@ class Form:
         self._edit_protect = not self._edit_protect
         self.update_elements(edit_protect_only=True)
 
+    def get_edit_protect(self):
+        return self._edit_protect
 
     def save_records(self, cascade_only=False):
         logger.info(f'Preparing to save records in all queries...')
