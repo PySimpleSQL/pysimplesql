@@ -20,6 +20,16 @@ The more I used this combination of **pysimplesql** and PySimpleGUI™ for my ow
 would benefit from it. With that being said, I will do my best to maintain and improve this tool over time.  Being new to open source
 as well as hosting projects like this, I have a lot to learn moving forward.  Your patience is appreciated.
 
+## Basic Concepts
+**pysimplesql** borrows on common concepts in other database front-end applications such as LibreOffice or MS Access.
+The basic concept revolves around Forms, which are invisible containers that connect to an underlying database, and
+Queries, which use SQL to access the tables within the database. Forms in **pysimplesql** are very flexible in that
+a multiple forms (and their underlying databases and tables) can be bound to the same PySimpleGUI™ Window. This allows 
+for a tremendous amount of flexibility in your projects. Binding a **pysimplesql** Form to a PySimpleGUI™ Window is
+very easy, and automatically binds Elements of the Window to records in your own database.  Be sure to check out the 
+many examples to get a quick idea of just how quick and easy it is to develop database application with the combination
+of **pysimplesql** and PySimpleGUI™!
+
 # Lets do this!
 
 ## Install
@@ -27,10 +37,10 @@ NOTE: I will try to keep current progress updated on Pypi so that pip installs t
 However, the single **pysimplesql.py** file can just as well be copied directly into the root folder of your own project.
 ```
 pip install PySimpleGUI
-pip install **pysimplesql**
+pip install pysimplesql
 or
 pip3 install PySimpleGUI
-pip3 install **pysimplesql**
+pip3 install pysimplesql
 ```
 
 **pysimplesql** is now in active development and constantly changing. When an update is available, a message similar to 
@@ -76,7 +86,7 @@ layout += [ss.actions('actions2','Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-db = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the database and bind it to the window
+frm = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the database and bind it to the window
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 while True:
@@ -159,8 +169,8 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 Like PySimpleGUI™, **pysimplesql** supports subscript notation, so your code can access the data easily in the format of db['Table']['column'].
 In the example above, you could get the current item selection with the following code:
 ```python
-selected_restaurant=db['Restaurant']['name']
-selected_item=db['Item']['name']
+selected_restaurant=frm['Restaurant']['name']
+selected_item=frm['Item']['name']
 ```
 or via the PySimpleGUI™ control elements with the following:
 ```python
