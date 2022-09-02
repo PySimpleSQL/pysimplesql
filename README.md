@@ -68,6 +68,7 @@ logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # Define our layout. We will use the ss.record convenience function to create the controls
+# Form and record navigation controls will be added with the ss.actions() convenience function
 layout = [
     ss.record('Restaurant.name'),
     ss.record('Restaurant.location'),
@@ -86,7 +87,7 @@ layout += [ss.actions('actions2','Restaurant')]
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-frm = ss.Database(':memory:', win,sql_script='example.sql')      # <=== load the database and bind it to the window
+frm = ss.Database(':memory:', sql_script='example.sql', bind=win)      # <=== load the database and bind it to the window
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 while True:
@@ -166,7 +167,8 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ![image](https://user-images.githubusercontent.com/70232210/91227678-e8c73700-e6f4-11ea-83ee-4712e687bfb4.png)
 
-Like PySimpleGUI™, **pysimplesql** supports subscript notation, so your code can access the data easily in the format of db['Table']['column'].
+Like PySimpleGUI™, **pysimplesql** supports subscript notation, so your code can access the data easily in the format of
+Form['Table']['column'].
 In the example above, you could get the current item selection with the following code:
 ```python
 selected_restaurant=frm['Restaurant']['name']
@@ -181,18 +183,19 @@ selected_item=win['Item.name']
 
 To get the best possible experience with **pysimplesql**, the magic is in the schema of the database.
 The automatic functionality of **pysimplesql** relies on just a couple of things:
-- foreign key constraints on the database tables (lets **pysimplesql** know what the relationships are, though manual relationship mapping is also available)
+- foreign key constraints on the database tables (lets **pysimplesql** know what the relationships are, though manual 
+relationship mapping is also available)
 - a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
 changed
 - PySimpleGUI™ control keys need to be named {table}.{column} for automatic mapping.  Of course, manual mapping is 
-supported as well. @Database.record() is a convenience function/"custom element" to make adding records quick and easy!
+supported as well. @Form.record() is a convenience function/"custom element" to make adding records quick and easy!
 - The field 'name', (or the 2nd column of the database in the absence of a 'name' column) is what will display in 
 comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
 **pysimplesql** is in having everything happen automatically!
 
 Here is another example sqlite table that shows the above rules at work.  Don't let this scare you, there are plenty of
 tools to create your database without resorting to raw SQL commands. These commands here are just shown for completeness
-(Creating the sqlite database is only done once anyways) 
+(Creating the sqlite database is only done once anyway) 
 ```sql
 CREATE TABLE "Book"(
     "pkBook" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -221,26 +224,26 @@ backwards and unravel things to explain what is available to you for more contro
 Referencing the example above, look at the following:
 ```python
 # convience function for rapid front-end development
-ss.record('Restaurant', 'name') # Query name, field name parameters
+ss.record('Restaurant.name') # Query name, column name parameters
 
 # could have been written like this:
 [sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1), metadata={'type': TYPE_RECORD})]
 ```
-As you can see, the @Database.record() convenience function simplifies making record controls that adhere to the
-**pysimplesql** naming convention of Table.column. Also notice that **pysimplesql** temporarily makes use of the PySimpleGUI metadata keyword argument - but don't worry, this is only during initial setup and the element's metadata
-will still be available to you in your own program.
-There is even more you can do with this. The @Database.record() 
-method can take a PySimpleGUI™ control element as a parameter as well, overriding the defaul Input() element.
+As you can see, the @pysimplesql.record() convenience function simplifies making record controls that adhere to the
+**pysimplesql** naming convention of Table.column. Also notice that **pysimplesql**  makes use of the PySimpleGUI 
+metadata keyword argument - but don't worry, the element's metadata is still be available to you in your own program by
+adding your own keys in the Python list contained within.
+There is even more you can do with this. The @pysimplesql.record() method can take a PySimpleGUI™ control element as a 
+parameter as well, overriding the default Input() element.
 See this code which creates a combobox instead:
 ```python
-ss.record('Restaurant.fkType', sg.Combo)]
+ss.record('Restaurant.fkType', sg.Combo)
 ```
-Furthering that, the functions @Database.set_text_size() and @Database.set_control_size() can be used before calls to 
-@Database.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter of 
-@Database.record() will override the default control size, for plenty of flexibility.
+Furthering that, the functions @pysimplesql.set_text_size() and @pysimplesql.set_control_size() can be used before calls 
+to @pysimplesql.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter 
+of @pysimplesql.record() will override the default control size, for plenty of flexibility.
 
 Place those two functions just above the layout definition shown in the example above and then run the code again
-
 ```python
 # set the sizing for the Restaurant section
 ss.set_label_size(10, 1)
@@ -263,9 +266,9 @@ layout += [ss.actions('actions2','Restaurant')]
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91287363-a71ea680-e75d-11ea-8b2f-d240c1ec2acf.png)
 You will see that now, the controls were resized using the new sizing rules.  Notice however that the 'Description'
-field isn't as wide as the others.  That is because we overridden the control size for just that single control (see code above).
+field isn't as wide as the others.  That is because the control size was overridden for just that single control (see code above).
 
-Lets see one more example.  This time we will fix the oddly sized 'Description' field, as well as make the 'Restaurant' 
+Let's see one more example.  This time we will fix the oddly sized 'Description' field, as well as make the 'Restaurant' 
 and 'Items' sections with their own sizing
 
 ```python
