@@ -1,6 +1,6 @@
 # **pysimplesql** Version Information
 
-## <develop>
+## <v2.0>
 ### Released <release_date>
 - Big change, moving from a Database/Table topology to a Form/Query topology.  Aliases for Database/Table will be available to avoid breaking code as much as possible.
 I had to kick this around quite a bit, and in the end the new topology makes more sense, especially when you get into using multiple Forms and Queries against the same tables.
