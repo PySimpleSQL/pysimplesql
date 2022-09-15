@@ -1950,15 +1950,6 @@ def bind(win:sg.Window) -> None:
     for i in Form.instances:
         i.bind(win)
 
-#def selector(key, table, element=sg.LBox, size=None, columns=None, **kwargs):
-#    for i in Form.instances:
-#        layout=i.selector(key,table,element,size,columns,**kwargs)
-#    return layout
-# Aliases
-# Earlier versions of pysimplesql did not use the Form/Query topology
-Database=Form
-Table=Query
-
 # TODO: clean up.  just slapping this together for testing
 def form_relationship(child, fk, parent, pk) -> None:
     Form.relationships.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
@@ -2151,3 +2142,9 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
 
     return layout
+
+# ======================================================================================================================
+# ALIASES
+# ======================================================================================================================
+Database=Form
+Table=Query
