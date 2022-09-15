@@ -1032,7 +1032,7 @@ class Query:
             event, values = quick_win.read()
 
             if quick_frm.process_events(event, values):
-                logger.info(f'PySimpleDB event handler handled the event {event}!')
+                logger.info(f'PySimpleSQL event handler handled the event {event}!')
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             else:
@@ -2046,7 +2046,7 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout[-1].append(sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta))
-    return sg.Col(layout=layout,pad=0)
+    return sg.Col(layout=layout)
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
@@ -2114,7 +2114,7 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         layout+=[sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)]
 
-    return sg.Col(layout=[layout],pad=0)
+    return sg.Col(layout=[layout])
 
 
 
@@ -2150,5 +2150,4 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
 
-    print(f'layout: {type(layout)} {layout}')
     return layout

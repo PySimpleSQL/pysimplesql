@@ -17,20 +17,26 @@ def disable(db,win):
 
 # Define our layout. We will use the ss.record convenience function to create the controls
 layout = [
-    ss.record('Restaurant.name'),
-    ss.record('Restaurant.location'),
-    ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
-sub_layout = [
-    ss.selector('selector1','Item',size=(35,10))+
-    [sg.Col([ss.record('Item.name'),
-         ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False),
-         ss.record('Item.price'),
-         ss.record('Item.description', sg.MLine, size=(30, 7))
-    ])],
-    ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)
+    [ss.record('Restaurant.name')],
+    [ss.record('Restaurant.location')],
+    [ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
 ]
-layout += [[sg.Frame('Items', sub_layout)]]
-layout += [ss.actions('act_restaurant','Restaurant')]
+sub_layout = [
+    [ss.selector('selector1','Item',size=(35,10))],
+    [
+        sg.Col(
+            layout=[
+                [ss.record('Item.name')],
+                [ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False)],
+                [ss.record('Item.price')],
+                [ss.record('Item.description', sg.MLine, size=(30, 7))]
+            ]
+        )
+    ],
+    #[ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
+]
+layout.append([sg.Frame('Items', sub_layout)])
+layout.append([ss.actions('act_restaurant','Restaurant')])
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)

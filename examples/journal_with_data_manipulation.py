@@ -36,12 +36,12 @@ INSERT INTO Journal (id,mood_id,title,entry)VALUES (1,1,"My first entry!","I am 
 headings=['id','Date:              ','Mood:      ','Title:                                 ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
-    ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    ss.actions('act_journal','Journal'),
-    ss.record('Journal.entry_date'),
-    ss.record('Journal.mood_id', sg.Combo, size=(30,10), auto_size_text=False),
-    ss.record('Journal.title'),
-    ss.record('Journal.entry', sg.MLine, size=(71,20))
+    [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
+    [ss.actions('act_journal','Journal')],
+    [ss.record('Journal.entry_date')],
+    [ss.record('Journal.mood_id', sg.Combo, size=(30,10), auto_size_text=False)],
+    [ss.record('Journal.title')],
+    [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]
 win=sg.Window('Journal example', layout, finalize=True)
 frm=ss.Form(':memory:', sql_commands=sql, bind=win) #<=== Here is the magic!
@@ -53,7 +53,7 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 # ------------------------------------------------------
 # SET UP CALLBACKS FOR ENCODING/DECODING UNIX TIMESTAMPS
 # ------------------------------------------------------
-# Decode from unix epoch to readable date
+# Decode from unix epoch to readable date when pulled from the database
 def cb_date_decode():
     # Decode the timestamp to a readable date
     logger.info(f'In callback, decoding date...')
@@ -62,7 +62,7 @@ def cb_date_decode():
     else:
         win['Journal.entry_date'].update('')
 
-# Encode readable date to unix epoch
+# Encode readable date to unix epoch when written to the database
 def cb_date_encode():
     logger.info(f'In callback, encoding date...')
     win['Journal.entry_date'].update(

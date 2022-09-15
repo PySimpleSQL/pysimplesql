@@ -12,12 +12,12 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 headings=['id','Date:              ','Mood:      ','Title:                                 ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
-    ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible),
-    ss.actions('act_journal','Journal'),
-    ss.record('Journal.entry_date'),
-    ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False),
-    ss.record('Journal.title'),
-    ss.record('Journal.entry', sg.MLine, size=(71,20))
+    [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
+    [ss.actions('act_journal','Journal')],
+    [ss.record('Journal.entry_date')],
+    [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
+    [ss.record('Journal.title')],
+    [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]
 win=sg.Window('Journal (external)  example', layout, finalize=True)
 frm=ss.Form('journal.db', sql_script='journal.sql', bind=win)   #<=== Here is the magic!
