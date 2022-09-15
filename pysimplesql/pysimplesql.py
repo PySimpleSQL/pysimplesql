@@ -23,6 +23,9 @@ import functools
 import os.path
 import random
 import logging
+
+import pysimplesql
+
 logger = logging.getLogger(__name__)
 
 
@@ -1005,14 +1008,14 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
-        layout.append(actions("act_quick_edit2",query_name,edit_protect=False))
+            [pysimplesql.selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible)])
+        layout.append([pysimplesql.actions("act_quick_edit2",query_name,edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_names:
             column=f'{query_name}.{col}'
             if col!=self.pk_column:
-                layout.append([record(column)])
+                layout.append([pysimplesql.record(column)])
 
         quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True)
         quick_frm = Form(sqlite3_database=self.frm.con, bind=quick_win)
@@ -1947,10 +1950,10 @@ def bind(win:sg.Window) -> None:
     for i in Form.instances:
         i.bind(win)
 
-def selector(key, table, element=sg.LBox, size=None, columns=None, **kwargs):
-    for i in Form.instances:
-        layout=i.selector(key,table,element,size,columns,**kwargs)
-    return layout
+#def selector(key, table, element=sg.LBox, size=None, columns=None, **kwargs):
+#    for i in Form.instances:
+#        layout=i.selector(key,table,element,size,columns,**kwargs)
+#    return layout
 # Aliases
 # Earlier versions of pysimplesql did not use the Form/Query topology
 Database=Form
@@ -2022,34 +2025,28 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
         query_info, where_info = table.split('?')
         label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     else:
-        query_info = table;
+        query_info = table
         where_info = None
         label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     query, column = query_info.split('.')
 
     key=table if key is None else key
-    #print(key)
+
     key=keygen(key)
-    layout_element = [
-        element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
-    ]
-    layout_label = [
-        sg.T(label_text if label == '' else label, size=_default_label_size)
-    ]
+    layout_element = element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+    layout_label = sg.T(label_text if label == '' else label, size=_default_label_size)
     if no_label:
-        layout = layout_element
+        layout = [[layout_element]]
     elif label_above:
-        layout = [
-            sg.Col(layout=[layout_label, layout_element])
-        ]
+        layout = [[layout_label], [layout_element]]
     else:
-        layout = layout_label + layout_element
+        layout = [[layout_label , layout_element]]
 
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
-    return layout
+        layout[-1].append(sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta))
+    return sg.Col(layout=layout,pad=0)
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
@@ -2087,49 +2084,37 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
     # Form-level events
     if edit_protect:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
-        layout += [sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
+        layout.append(sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
                         image_data=edit_16,
-                        metadata=meta)]
+                        metadata=meta))
     if save:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
-        layout += [
-            sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
-                 metadata=meta)]
+        layout.append(sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
+                 metadata=meta))
 
     # Query-level events
     if navigation:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta)
-        ]
+        layout.append(sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta))
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta)
-        ]
+        layout.append(sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta))
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta)
-        ]
+        layout.append(sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta))
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta),
-        ]
+        layout.append(sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta))
     if insert:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
-                        image_data=add_16, metadata=meta)]
+        layout.append(sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
+                        image_data=add_16, metadata=meta))
     if delete:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
-                        image_data=delete_16, metadata=meta)]
+        layout.append(sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
+                        image_data=delete_16, metadata=meta))
     if search:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None, 'filter': filter}
-        layout += [
-            sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),
-            sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)
-        ]
+        layout+=[sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)]
 
-    return layout
+    return sg.Col(layout=[layout],pad=0)
 
 
 
@@ -2137,17 +2122,16 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
     key=keygen(key)
     meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
-        layout = [
-            element(values=(), size=size or _default_element_size, key=key,
+        layout = element(values=(), size=size or _default_element_size, key=key,
                     select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
-                    enable_events=True, metadata=meta)]
+                    enable_events=True, metadata=meta)
     elif element == sg.Slider:
-        layout = [element(enable_events=True, size=size or _default_element_size, orientation='h',
-                          disable_number_display=True, key=key, metadata=meta)]
+        layout = element(enable_events=True, size=size or _default_element_size, orientation='h',
+                          disable_number_display=True, key=key, metadata=meta)
     elif element == sg.Combo:
         w = _default_element_size[0]
-        layout = [element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
-                          auto_size_text=False, metadata=meta)]
+        layout = element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
+                          auto_size_text=False, metadata=meta)
     elif element == sg.Table:
         required_kwargs = ['headings', 'visible_column_map', 'num_rows']
         for kwarg in required_kwargs:
@@ -2158,13 +2142,13 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
         vals = []
         vals.append([''] * len(kwargs['headings']))
         meta['columns'] = columns
-        layout = [
-            element(
+        layout = element(
                 values=vals, headings=kwargs['headings'], visible_column_map=kwargs['visible_column_map'],
                 num_rows=kwargs['num_rows'], enable_events=True, key=key, select_mode=sg.TABLE_SELECT_MODE_BROWSE,
                 justification='left', metadata=meta
             )
-        ]
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
+
+    print(f'layout: {type(layout)} {layout}')
     return layout
