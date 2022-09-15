@@ -60,23 +60,24 @@ columns=['pkAddresses','firstName','lastName','city','fkState']
 headings=['pk','First name:    ','Last name:     ','City:        ','State']
 visible=[0,1,1,1,1] # Hide the primary key column
 layout=[
-    ss.selector("sel","Addresses",sg.Table, headings=headings,visible_column_map=visible, columns=columns,num_rows=10),
-    ss.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10)),
-    ss.record("Addresses.firstName", label="First name:"),
-    ss.record("Addresses.lastName", label="Last name:"),
-    ss.record("Addresses.address1", label="Address 1:"),
-    ss.record("Addresses.address2", label="Address 2:"),
-    ss.record("Addresses.city", label="City/State:", size=(23,1)) + ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10)),
-    [sg.Text("Zip:"+" "*63)] + ss.record("Addresses.zip", no_label=True,size=(6,1)),
-    ss.actions("browser","Addresses",edit_protect=False)
+    [ss.selector("sel","Addresses",sg.Table, headings=headings,visible_column_map=visible, columns=columns,num_rows=10)],
+    [ss.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10))],
+    [ss.record("Addresses.firstName", label="First name:")],
+    [ss.record("Addresses.lastName", label="Last name:")],
+    [ss.record("Addresses.address1", label="Address 1:")],
+    [ss.record("Addresses.address2", label="Address 2:")],
+    [ss.record("Addresses.city", label="City/State:", size=(23,1)) ,ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10))],
+    [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", no_label=True,size=(6,1))],
+    [ss.actions("browser","Addresses",edit_protect=False)]
 ]
+
 win=sg.Window('Journal example', layout, finalize=True)
-db=ss.Database(':memory:', win,  sql_commands=sql) #<=== Here is the magic!
-# Note:  sql_commands in only run if journal.db does not exist!  This has the effect of creating a new blank
-# database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
+# Create our frm
+frm=ss.Form(':memory:', sql_commands=sql, bind=win)
+
 
 # Use a callback to validate the zip code
-db['Addresses'].set_callback('before_save',validate_zip)
+frm['Addresses'].set_callback('before_save',validate_zip)
 
 # ---------
 # MAIN LOOP
@@ -84,10 +85,10 @@ db['Addresses'].set_callback('before_save',validate_zip)
 while True:
     event, values = win.read()
 
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
@@ -100,11 +101,11 @@ Without comments and embedded SQL script, this could have been done in well unde
 usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
-- Using Table.set_search_order() to set the search order of the table for search operations.
+- Using Query.set_search_order() to set the search order of the table for search operations.
 - embedding sql commands in code for table creation
-- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Database()
+- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
 - using ss.record() and ss.selector() functions for easy GUI element creation
 - using the label keyword argument to ss.record() to define a custom label
 - using Tables as ss.selector() element types
-- changing the sort order of database tables
+- changing the sort order of database queries
 """

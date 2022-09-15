@@ -1,10 +1,31 @@
+"""
+# **pysimplesql** User's Manual
+
+## DISCLAIMER:
+While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
+
+## Rapidly build and deploy database applications in Python
+**pysimplesql** binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
+replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the
+power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
+line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
+"""
 #!/usr/bin/python3
+
+# TODO: Make a list of controls to enable/disable along with edit_protect.  This would be a pretty cool feature
+
+# The first two imports are for docstrings
+from __future__ import annotations
+from typing import List, Union, Optional, Tuple, Callable
 import PySimpleGUI as sg
 import sqlite3
 import functools
 import os.path
 import random
 import logging
+
+import pysimplesql
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +41,7 @@ TYPE_EVENT=3
 # -----------
 # Cutsom events (requires 'function' dictionary key)
 EVENT_FUNCTION=0
-# Table-level events (requires 'table' dictionary key)
+# Query-level events (requires 'table' dictionary key)
 EVENT_FIRST=1
 EVENT_PREVIOUS=2
 EVENT_NEXT=3
@@ -30,7 +51,7 @@ EVENT_INSERT=6
 EVENT_DELETE=7
 EVENT_SAVE=8
 EVENT_QUICK_EDIT=9
-# Database-level events
+# Form-level events
 EVENT_SEARCH_DB=10
 EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
@@ -42,37 +63,51 @@ SAVE_FAIL=0     # Save failed due to callback
 SAVE_SUCCESS=1  # Save was successful
 SAVE_NONE=2     # There was nothing to save
 
-# Hack for fixing false table events that are generated when the
-# table.update() method is called.  Call this after each call to update()!
-def eat_events(win):
+def strip(string:str) -> str:
+    """
+    Strips :x from string
+    """
+    return string.split(':')[0]
+
+def eat_events(win:sg.Window) -> None:
+    """
+    Eat extra events emitted by PySimpleGUI.Query.update().
+
+    Call this function directly after update() is run on a Query element. The reason is that updating the selection or values
+    will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
+
+    :param win: A PySimpleGUI Window instance
+    :type win: PySimpleGUI.Window
+    :returns: None
+    :rtype: None
+    """
     while True:
         event,values=win.read(timeout=0)
         if event=='__TIMEOUT__':
             break
     return
 
-def escape(query_string):
+def escape(query_string:str) -> str:
     """
     Safely escape characters in strings needed for queries
 
-    Parameters:
-    query_string (str):
+     .. note:: This is not yet implemented and is here in the case that it is needed in the future.
 
-    Returns:
-    str: escaped (safe) version of the query_string
+     :param query_string: The query to escape
+     :type query_string: str
+     :returns: An escaped string
+     :rtype: str
     """
-    # I'm not sure we will need this, but it's here in the case that we do
     query_string = str(query_string)
     return query_string
 
 class Row:
     """
-    @Row class. This is a convenience class used by listboxes and comboboxes to display values
-    while keeping them linked to a primary key.
-    You may have to cast this to a str() to get the value.  Of course, there are methods to get the
-    value or primary key either way.
-    """
+    This is a convenience class used by listboxes and comboboxes to display values while keeping them linked to a primary key.
 
+    You may have to cast this to a str() to get the value.  Of course, there are methods to get the value or primary key either way.
+    .. note:: This class is not typically used by the end user.
+    """
     def __init__(self, pk, val):
         self.pk = pk
         self.val = val
@@ -99,13 +134,29 @@ class Row:
 
 class Relationship:
     """
-    @Relationship class is used to track primary/foreign key relationships in the database. See the following
-    for more information: @Database.add_relationship and @Database.auto_add_relationships
-    Note that this class offers little to the end user, and the above Database functions are all that is needed
-    by the user.
+    This class is used to track primary/foreign key relationships in the database.
+
+    See the following for more information: @Form.add_relationship and @Form.auto_add_relationships
+    .. note:: This class is not typically used the end user,
     """
 
-    def __init__(self, join, child, fk, parent, pk, requery_table):
+    def __init__(self, join:str, child:str, fk:Union[str,int], parent:str, pk:Union[str,int], requery_table:bool) -> Relationship:
+        """
+        Initialize a new Relationship instance
+
+        :param join: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
+        :type: str
+        :param child: The table name of the child table
+        :type child: str
+        :param fk: The child table's foreign key column
+        :type fk: Union[str,int]
+        :param parent: The table name of the parent table
+        :type parent: str
+        :param pk: The parent table's primary key column
+        :type pk: Union[str,int]
+        :returns: A Relationship instance
+        :rtype: Relationship
+        """
         self.join = join
         self.child = child
         self.fk = fk
@@ -114,27 +165,44 @@ class Relationship:
         self.requery_table = requery_table
 
     def __str__(self):
+        """
+        Return a join clause when cast to a string
+        """
         return f'{self.join} {self.parent} ON {self.child}.{self.fk}={self.parent}.{self.pk}'
 
 
-class Table:
+class Query:
     """
-    @Table class is used for an internal representation of database tables. These are added by the following:
-    @Database.add_table @Database.auto_add_tables
+    This class is used for an internal representation of database queries/tables. These are added by the following:
+    Form.add_table Form.auto_add_tables
     """
+    instances=[] # Track our instances
 
-    def __init__(self, db_reference, con, table, pk_column, description_column, query='', order=''):
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', prompt_save=False) -> Query:
         """
+        Initialize a new Table instance
 
-        :param db_reference: This is a reference to the @ Database object, for convenience
-        :param con:  This is a reference to the sqlie connection, also for convience
-        :param table: Name (string) of the table
+        :param name: The name you are assigning to this query (I.e. 'qry_people')
+        :type name: str
+        :param frm_reference: This is a reference to the @ Form object, for convenience
+        :type frm_reference: Form
+        :param table: Name of the table
+        :type table: str
         :param pk_column: The name of the column containing the primary key for this table
+        :type pk_column: str
         :param description_column: The name of the column used for display to users (normally in a combobox or listbox)
-        :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {table}"
-        :param order: The sort order of the returned query
+        :type description_column: str
+        :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {query}"
+        :type query: str
+        :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} COLLATE NOCASE ASC"
+        :type order: str
+        :param prompt_save: Prompt to save changes when dirty records are present
+        :type prompt_save: bool
+        :returns: A Table instance
+        :rtype: Query
         """
         # todo finish the order processing!
+        Query.instances.append(self)
 
         # No query was passed in, so we will generate a generic one
         if query == '':
@@ -143,7 +211,8 @@ class Table:
         if order == '':
             order = f' ORDER BY {description_column} COLLATE NOCASE ASC'
 
-        self.db = db_reference  # type: Database
+        self.name=name
+        self.frm = frm_reference  # type: Form
         self._current_index = 0
         self.table = table  # type: str
         self.pk_column = pk_column
@@ -152,13 +221,14 @@ class Table:
         self.order = order
         self.join = ''
         self.where = ''  # In addition to generated where!
-        self.con = con
+        self.con = frm_reference.con
         self.dependents = []
         self.column_names = []
         self.rows = []
         self.search_order = []
         self.selector = []
         self.callbacks = {}
+        self._prompt_save=prompt_save
         # self.requery(True)
 
     # Override the [] operator to retrieve columns by key
@@ -179,18 +249,23 @@ class Table:
         else:
             self._current_index = val
 
-    def set_search_order(self, order):
+    def set_search_order(self, order:list) -> None:
         """
         Set the search order when using the search box.
-        This is a list of columns to be searched, in order.
+
+        This is a list of columns to be searched, in order
+
         :param order: A list of column names to search
-        :return: None
+        :type order: list
+        :returns: None
+        :rtype: None
         """
         self.search_order = order
 
-    def set_callback(self, callback, fctn):
+    def set_callback(self, callback:str, fctn:Callable[[Form, sg.Window], bool]) -> None:
         """
         Set table callbacks. A runtime error will be thrown if the callback is not supported.
+
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the record will rollback if the callback returns false.
             after_save    called after a record is saved. The save will commit to the database if the callback returns true, else it will rollback the transaction
@@ -200,16 +275,20 @@ class Table:
             after_delete  called after a record is deleted. The delete will commit to the database if the callback returns true, else it will rollback the transaction
             before_search called before searching.  The search will continue if the callback returns True
             after_search  called after a search has been performed.  The record change will undo if the callback returns False
-        :param callback: The name of the callback, from the list above
+            record_changed called after a record has changed (previous,next, etc) TODO: What about selectors?
 
-        :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance, and return True or False
-        :return: None
+        :param callback: The name of the callback, from the list above
+        :type callback: str
+        :param fctn: The function to call.  Note, the function must take in two parameters, a @Form instance, and a @PySimpleGUI.Window instance, and return True or False
+        :type fctn: Callable[[Form, sg.Window], bool]
+        :returns: None
+        :rtype: None
         """
         logger.info(f'Callback {callback} being set on table {self.table}')
         supported = [
             'before_save', 'after_save', 'before_delete', 'after_delete',
             'before_update', 'after_update',  # Aliases for before/after_save
-            'before_search', 'after_search'
+            'before_search', 'after_search', 'record_changed'
         ]
         if callback in supported:
             # handle our convenience aliases
@@ -219,71 +298,140 @@ class Table:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
-    def set_query(self, q):
+    def set_query(self, query:str) -> None:
         """
-        Set the tables query string.  This is more for advanced users.  It defautls to "SELECT * FROM {Table};
-        :param q: The query string you would like to associate with the table
-        :return: None
-        """
-        logger.info(f'Setting {self.table} query to {q}')
-        self.query = q
+        Set the queries query string.
 
-    def set_join_clause(self, clause):
+        This is more for advanced users.  It defaults to "SELECT * FROM {Query}; You can override the default with this method
+
+        :param query: The query string you would like to associate with the table
+        :type query: str
+        :returns: None
+        :rtype: None
         """
-        Set the table's join string.  This is more for advanced users, as it will automatically generate from the
-        Relationships that have been set otherwise.
+        logger.info(f'Setting {self.table} query to {query}')
+        self.query = query
+
+
+
+    def set_join_clause(self, clause:str) -> None:
+        """
+        Set the table's join string.
+
+        This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
+
         :param clause: The join clause, such as "LEFT JOIN That on This.pk=That.fk"
-        :return: None
+        :type clause: str
+        :returns: None
+        :rtype: None
         """
         logger.info(f'Setting {self.table} join clause to {clause}')
         self.join = clause
 
-    def set_where_clause(self, clause):
+    def set_where_clause(self, clause:str) -> None:
         """
-        Set the table's where clause.  This is added to the auto-generated where clause from Relationship data!
+        Set the table's where clause.
+
+        This is ADDED TO the auto-generated where clause from Relationship data
+
         :param clause: The where clause, such as "WHERE pkThis=100"
-        :return: None
+        :type clause: str
+        :returns: None
+        :rtype: None
         """
         logger.info(f'Setting {self.table} where clause to {clause}')
         self.where = clause
 
-    def set_order_clause(self, clause):
+    def set_order_clause(self, clause:str) -> None:
         """
-        Set the table's order string. This is more for advanced users, as it will automatically generate from the
-        Relationships that have been set otherwise.
+        Set the table's order clause.
+
+        This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
+
         :param clause: The order clause, such as "Order by name ASC"
-        :return: None
+        :type clause: str
+        :returns: None
+        :rtype: None
         """
         logger.info(f'Setting {self.table} order clause to {clause}')
         self.order = clause
 
-    def set_description_column(self, column):
+    def update_column_names(self,names=None) -> None:
         """
-        Set the table's description column. This is the column that will display in Listboxes, Comboboxes, etc.
-        Normally, this is either the 'name' column, or the 2nd column of the table.  This allows you to specify something
-        different
+        Generate column names for the query.  This may need done, for eample, when a manual query using joins
+        is used.
+
+        This is more for advanced users.
+        :param names: a list of names (optional)
+        """
+        # Now we need to set  new column names, as the query could have changed
+        if names!=None:
+            self.column_names=names
+            print('returning.....')
+            return
+
+        cur = self.con.execute(self.generate_query())
+        records = cur.fetchall()  # TODO: new version of this w/o cur
+        for t in records:
+            # Now lets get the pk
+            # TODO: should we capture on_update, on_delete and match from PRAGMA?
+            q2 = f'PRAGMA table_info({t["name"]})'
+            cur2 = self.con.execute(q2)
+            records2 = cur2.fetchall()
+            names = []  # column names
+
+            # auto generate description column.  Default it to the 2nd column,
+            # but can be overwritten below
+            description_column = records2[1]['name']
+
+            pk_column = None
+            for t2 in records2:
+                names.append(t2['name'])
+                if t2['pk']:
+                    pk_column = t2['name']
+                if t2['name'] == 'name':
+                    description_column = t2['name']
+
+            query_name = t['name']
+            logger.debug(
+                f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
+            self.frm.add_query(query_name, t['name'], pk_column, description_column)
+            self.column_names = names
+
+    def set_description_column(self, column:str) -> None:
+        """
+        Set the table's description column.
+
+        This is the column that will display in Listboxes, Comboboxes, etc.
+        By default,this is initialized to either the 'name' column, or the 2nd column of the table.  This method allows you to specify
+        something different
+
         :param column: The the column to use
-        :return: None
+        :type column: str
+        :returns: None
+        :rtype: None
         """
         self.description_column=column
 
-    def prompt_save(self):
+    def prompt_save(self) -> bool:
         """
-        Prompts the user if they want to save when saving a record that has been changed.
-        :return: True or False on whether the user intends to save the record
+        Prompts the user if they want to save when changes are detected and the current record is about to change
+
+        :returns: True or False on whether the user intends to save the record
+        :rtype: bool
         """
         # TODO: children too?
-        if self.current_index is None or self.rows == []: return
+        if self.current_index is None or self.rows == [] or self._prompt_save is False: return
         #return  # hack this in for now
         # handle dependents first
-        for rel in self.db.relationships:
+        for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
-                self.db[rel.child].prompt_save()
+                self.frm[rel.child].prompt_save()
 
         dirty = False
-        for c in self.db.element_map:
+        for c in self.frm.element_map:
             # Compare the DB version to the GUI version
-            if c['table'].table == self.table:
+            if c['query'].table == self.table:
                 element_val = c['element'].Get()
                 table_val = self[c['column']]
 
@@ -294,6 +442,11 @@ class Table:
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
+                # Cast to similar types
+                if type(element_val) != type(table_val):
+                    element_val=str(element_val)
+                    table_val=str(table_val)
+
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val=table_val.rstrip()
                 if type(element_val) is str: element_val = element_val.rstrip()
@@ -303,37 +456,45 @@ class Table:
                     sym='!='
                 else:
                     sym='='
-
-                #print(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
+                logger.debug(f'element type: {type(element_val)} column_type: {type(table_val)}')
+                logger.debug(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
 
         if dirty:
             save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
                 print('Saving changes!')
-                self.save_record(False,False) # TODO
-                #self.requery(False)
+                self.save_record(False,False)
 
-    def generate_join_clause(self):
+
+    def generate_join_clause(self) -> str:
         """
         Automatically generates a join clause from the Relationships that have been set
-        :return: A join string to be used in a sqlite3 query
+
+        This typically isn't used by end users
+
+        :returns: A join string to be used in a sqlite3 query
+        :rtype: str
         """
         join = ''
-        for r in self.db.relationships:
+        for r in self.frm.relationships:
             if self.table == r.child:
                 join += f' {r.join} {r.parent} ON {r.child}.{r.fk} = {r.parent}.{r.pk}'
         return join if self.join == '' else self.join
 
-    def generate_where_clause(self):
+    def generate_where_clause(self) -> str:
         """
-        Generates a where clause from the Relationships that have been set, as well as the Table's where clause
-        :return: A where clause string to be used in a sqlite3 query
+        Generates a where clause from the Relationships that have been set, as well as the Query's where clause
+
+        This is not typically used by end users
+
+        :returns: A where clause string to be used in a sqlite3 query
+        :rtype: str
         """
         where = ''
-        for r in self.db.relationships:
+        for r in self.frm.relationships:
             if self.table == r.child:
                 if r.requery_table:
-                    clause=f' WHERE {self.table}.{r.fk}={str(self.db[r.parent].get_current(r.pk, 0))}'
+                    clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, 0))}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
 
@@ -343,15 +504,21 @@ class Table:
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
             where = where + ' ' + self.where.replace('WHERE', 'AND')
+
         return where
 
-    def generate_query(self, join=True, where=True, order=True):
+    def generate_query(self, join:bool=True, where:bool=True, order:bool=True) -> str:
         """
         Generate a query string using the relationships that have been set
+
         :param join: True if you want the join clause auto-generated, False if not
+        :type join: bool
         :param where: True if you want the where clause auto-generated, False if not
+        :type where: bool
         :param order: True if you want the order by clause auto-generated, False if not
-        :return: a query string for use with sqlite3
+        :type order: bool
+        :returns: a query string for use with sqlite3
+        :rtype: str
         """
         q = self.query
         q += f' {self.join if join else ""}'
@@ -362,8 +529,8 @@ class Table:
     def requery(self, select_first=True, filtered=True, update=True):
         """
         Requeries the table
-        The @Table object maintains an internal representation of the actual database table.
-        The requery method will requery the actual database  and sync the @Table objects to it
+        The @Query object maintains an internal representation of the actual database table.
+        The requery method will requery the actual database  and sync the @Query objects to it
         :param select_first: If true, the first record will be selected after the requery
         :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
         :return: None
@@ -382,62 +549,71 @@ class Table:
 
     def requery_dependents(self,update=True):
         """
-        Requery parent tables as defined by the relationships of the table
+        Requery parent queries as defined by the relationships of the table
 
         :return: None
         """
-        for rel in self.db.relationships:
+        for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
-                logger.info(f"Requerying dependent table {self.db[rel.child].table}")
-                self.db[rel.child].requery(update=update)
+                logger.info(f"Requerying dependent table {self.frm[rel.child].table}")
+                self.frm[rel.child].requery(update=update)
 
     def first(self,update=True, dependents=True):
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
-        @Table.set_by_pk
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk
         :return: None
         """
         logger.info(f'Moving to the first record of table {self.table}')
         self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
-        if update: self.db.update_elements()
+        if update: self.frm.update_elements()
+        # callback
+        if 'record_changed' in self.callbacks.keys():
+            self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def last(self, update=True, dependents=True):
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
-        @Table.set_by_pk
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk
         :return: None
         """
         self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
-        if update: self.db.update_elements()
+        if update: self.frm.update_elements()
+        # callback
+        if 'record_changed' in self.callbacks.keys():
+            self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def next(self, update=True, dependents=True):
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
-        @Table.set_by_pk
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk
         :return: None
         """
         self.prompt_save()
         if self.current_index < len(self.rows) - 1:
             self.current_index += 1
             if dependents: self.requery_dependents()
-            if update: self.db.update_elements()
+            if update: self.frm.update_elements()
+            # callback
+            if 'record_changed' in self.callbacks.keys():
+                self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def previous(self, update=True,dependents=True):
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
-        @Table.set_by_pk
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk
 
         :return: None
         """
@@ -445,17 +621,20 @@ class Table:
         if self.current_index > 0:
             self.current_index -= 1
             if dependents: self.requery_dependents()
-            if update: self.db.update_elements()
+            if update: self.frm.update_elements()
+            # callback
+            if 'record_changed' in self.callbacks.keys():
+                self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def search(self, string, update=True, dependents=True):
         """
         Move to the next record in the search table that contains @string.
         Successive calls will search from the current position, and wrap around back to the beginning.
-        The search order from @Table.set_search_order() will be used.  If the search order is not set by the user,
+        The search order from @Query.set_search_order() will be used.  If the search order is not set by the user,
         it will default to the 'name' column, or the 2nd column of the table.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
-        @Table.set_by_pk
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk
 
         :param string: The search string
         :return: None
@@ -463,12 +642,12 @@ class Table:
 
         # callback
         if 'before_search' in self.callbacks.keys():
-            if not self.callbacks['before_search'](self.db, self.db.window):
+            if not self.callbacks['before_search'](self.frm, self.frm.window):
                 return
 
         # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
-        if string in self.db.window.AllKeysDict.keys():
-            string = self.db.window[string].get()
+        if string in self.frm.window.AllKeysDict.keys():
+            string = self.frm.window[string].get()
         if string == '':
             return
 
@@ -480,19 +659,23 @@ class Table:
             for i in list(range(self.current_index + 1, len(self.rows))) + list(range(0, self.current_index)):
                 if o in self.rows[i].keys():
                     if self.rows[i][o]:
-                        if string.lower() in self.rows[i][o].lower():
+                        if string.lower() in str(self.rows[i][o]).lower():
+                            print(string.lower())
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
-                            if update: self.db.update_elements()
+                            if update: self.frm.update_elements()
 
                             # callback
                             if 'after_search' in self.callbacks.keys():
-                                if not self.callbacks['after_search'](self.db, self.db.window):
+                                if not self.callbacks['after_search'](self.frm, self.frm.window):
                                     self.current_index = old_index
                                     self.requery_dependents()
-                                    self.db.update_elements(self.table)
-                                    return
+                                    self.frm.update_elements(self.table)
+                            # callback
+                            if 'record_changed' in self.callbacks.keys():
+                                self.callbacks['record_changed'](self.frm, self.frm.window)
+                            return
         return False
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
@@ -501,7 +684,7 @@ class Table:
     def set_by_index(self, index, update=True, dependents=True):
         self.current_index = index
         if dependents: self.requery_dependents()
-        if update: self.db.update_elements()
+        if update: self.frm.update_elements()
 
     def set_by_pk(self, pk, update=True, dependents=True):
         """
@@ -509,8 +692,8 @@ class Table:
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
         and then the current record selection updated regardless of the new sort order.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Table.first, @Table.previous, @Table.next, @Table.last, @Table.search,
-        @Table.set_by_pk
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk
         :param pk: The primary key to move to
         :return: None
         """
@@ -524,13 +707,13 @@ class Table:
                 i += 1
 
         if dependents: self.requery_dependents(update=update)
-        if update: self.db.update_elements(self.table)
+        if update: self.frm.update_elements(self.table)
 
     def get_current(self, column, default=""):
         """
         Get the current value pointed to for @column
-        You can also use indexing of the @Database object to get the current value of a column
-        I.e. db["{Table}].[{column'}]
+        You can also use indexing of the @Form object to get the current value of a column
+        I.e. frm["{Query}].[{column'}]
 
         :param column: The column you want the value of
         :param default: A value to return if the record is blank
@@ -576,10 +759,10 @@ class Table:
         if self.rows:
             return self.rows[self.current_index]
 
-    def add_selector(self, element):  # _listBox,_pk,_column):
+    def add_selector(self, element, query:str=None, where_column:str=None, where_value:str=None):  # _listBox,_pk,_column):
         """
         Use a element such as a listbox as a selector item for this table.
-        This can be done via this method, or via auto_map_elements by naming the element key "selector.{Table}"
+        This can be done via this method, or via auto_map_elements by naming the element key "selector.{Query}"
 
         :param element: the @PySinpleGUI element used as a selector element
         :return: None
@@ -588,12 +771,13 @@ class Table:
             raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
         logger.info(f'Adding {element.Key} as a selector for the {self.table} table.')
-        self.selector.append(element)
+        d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
+        self.selector.append(d)
 
     def insert_record(self, column='', value=''):
         """
         Insert a new record. If column and value are passed, it will initially set that column to the value
-        (I.e. {Table}.name='New Record). If none are provided, the default values for the column are used, as set in the
+        (I.e. {Query}.name='New Record). If none are provided, the default values for the column are used, as set in the
         database.
         :param column: The column to set
         :param value: The value to set (I.e "New record")
@@ -610,11 +794,11 @@ class Table:
             values.append(value)
 
         # Make sure we take into account the foreign key relationships...
-        for r in self.db.relationships:
+        for r in self.frm.relationships:
             if self.table == r.child:
                 if r.requery_table:
                     columns.append(r.fk)
-                    values.append(self.db[r.parent].get_current_pk())
+                    values.append(self.frm[r.parent].get_current_pk())
 
         columns = ",".join([str(x) for x in columns])
         values = ",".join([str(x) for x in values])
@@ -637,8 +821,8 @@ class Table:
         self.set_by_pk(pk)
         self.requery_dependents()
 
-        self.db.update_elements()
-        self.db.window.refresh()
+        self.frm.update_elements()
+        self.frm.window.refresh()
 
     def save_record(self, display_message=True, update_elements=True):
         """
@@ -659,15 +843,15 @@ class Table:
         if 'before_save' in self.callbacks.keys():
             if self.callbacks['before_save']()==False:
                 logger.info("We are not saving!")
-                if update_elements: self.db.update_elements(self.table)
+                if update_elements: self.frm.update_elements(self.table)
                 if display_message: sg.popup('Updates not saved.', keep_on_top=True)
                 return SAVE_FAIL
 
         values = []
         # We are updating a record
         q = f'UPDATE {self.table} SET'
-        for v in self.db.element_map:
-            if v['table'] == self:
+        for v in self.frm.element_map:
+            if v['query'] == self:
                 if '?' in v['element'].Key and '=' in v['element'].Key:
                     val=v['element'].get()
                     table_info, where_info = v['element'].Key.split('?')
@@ -675,6 +859,9 @@ class Table:
                     self.con.execute(q_kv, tuple([val]))
                     saved=True
                 else:
+                    # TODO: what to do if there isn't a key split to do?
+                    if '.' not in v['element'].Key:
+                        continue
                     q += f' {v["element"].Key.split(".", 1)[1]}=?,'
 
                     if type(v['element'])==sg.Combo:
@@ -700,7 +887,7 @@ class Table:
         # callback
         if saved:
             if 'after_save' in self.callbacks.keys():
-                if not self.callbacks['after_save'](self.db, self.db.window):
+                if not self.callbacks['after_save'](self.frm, self.frm.window):
                     self.con.rollback()
                     return SAVE_FAIL
 
@@ -712,7 +899,7 @@ class Table:
             self.requery(update_elements)
             self.set_by_pk(pk,update_elements,False)
             #self.requery_dependents()
-            if update_elements:self.db.update_elements(self.table)
+            if update_elements:self.frm.update_elements(self.table)
             logger.info(f'Record Saved!')
             if display_message: sg.popup('Updates saved successfully!')
             return SAVE_SUCCESS
@@ -735,7 +922,7 @@ class Table:
 
         # callback
         if 'before_delete' in self.callbacks.keys():
-            if not self.callbacks['before_delete'](self.db, self.db.window):
+            if not self.callbacks['before_delete'](self.frm, self.frm.window):
                 return
 
         if cascade:
@@ -748,13 +935,13 @@ class Table:
 
         # Delete child records first!
         if cascade:
-            for qry in self.db.tables:
-                for r in self.db.relationships:
+            for qry in self.frm.queries:
+                for r in self.frm.relationships:
                     if r.parent == self.table:
                         q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
                         self.con.execute(q)
                         logger.info(f'Delete query executed: {q}')
-                        self.db[r.child].requery(False)
+                        self.frm[r.child].requery(False)
 
 
         q = f'DELETE FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)};'
@@ -762,7 +949,7 @@ class Table:
 
         # callback
         if 'after_delete' in self.callbacks.keys():
-            if not self.callbacks['after_delete'](self.db, self.db.window):
+            if not self.callbacks['after_delete'](self.frm, self.frm.window):
                 self.con.rollback()
             else:
                 self.con.commit()
@@ -775,7 +962,7 @@ class Table:
 
         logger.info(f'Delete query executed: {q}')
         self.requery(select_first=False)
-        self.db.update_elements()
+        self.frm.update_elements()
 
     def get_description_for_pk(self,pk):
         for row in self.rows:
@@ -789,12 +976,13 @@ class Table:
         column_names=self.column_names if columns == None else columns
         for row in self.rows:
             lst = []
-            rels = self.db.get_relationships_for_table(self)
+            rels = self.frm.get_relationships_for_table(self)
             for col in column_names:
                 found = False
                 for rel in rels:
                     if col == rel.fk:
-                        lst.append(self.db[rel.parent].get_description_for_pk(row[col]))
+                        #print(f'{col} {rel.fk} {row[col]}')
+                        lst.append(self.frm[rel.parent].get_description_for_pk(row[col]))
                         found = True
                         break
                 if not found: lst.append(row[col])
@@ -802,17 +990,16 @@ class Table:
         return values
 
     def get_related_table_for_column(self,col):
-        rels = self.db.get_relationships_for_table(self)
+        rels = self.frm.get_relationships_for_table(self)
         for rel in rels:
             if col == rel.fk:
                 return rel.parent
-        return self.table # None could be found, return ourself
+        return self.name # None could be found, return ourself
 
     def quick_editor(self, pk_update_funct=None,funct_param=None):
         # Reset the keygen to keep consistent naming
         keygen_reset_all()
-        db = self.db
-        table_name = self.table
+        query_name = self.name
         layout = []
         headings = self.column_names.copy()
         visible = [1] * len(headings); visible[0] = 0
@@ -821,55 +1008,64 @@ class Table:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            selector('quick_edit', table_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible))
-        layout.append(actions("act_quick_edit",table_name,edit_protect=False))
+            [pysimplesql.selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible)])
+        layout.append([pysimplesql.actions("act_quick_edit2",query_name,edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_names:
-            column=f'{table_name}.{col}'
+            column=f'{query_name}.{col}'
             if col!=self.pk_column:
-                layout.append([record(column)])
+                layout.append([pysimplesql.record(column)])
 
-        quick_win = sg.Window(f'Quick Edit - {table_name}', layout, keep_on_top=True, finalize=True)
-        quick_db=Database(sqlite3_database=self.db.con, win=quick_win)
+        quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True)
+        quick_frm = Form(sqlite3_database=self.frm.con, bind=quick_win)
+
 
         # Select the current entry to start with
         if pk_update_funct is not None:
             if funct_param is None:
-                quick_db[table_name].set_by_pk(pk_update_funct())
+                quick_frm[query_name].set_by_pk(pk_update_funct())
             else:
-                quick_db[table_name].set_by_pk(pk_update_funct(funct_param))
+                quick_frm[query_name].set_by_pk(pk_update_funct(funct_param))
 
         while True:
             event, values = quick_win.read()
 
-            if quick_db.process_events(event, values):
-                logger.info(f'PySimpleDB event handler handled the event {event}!')
+            if quick_frm.process_events(event, values):
+                logger.info(f'PySimpleSQL event handler handled the event {event}!')
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             else:
                 logger.info(f'This event ({event}) is not yet handled.')
-        self.requery()
         quick_win.close()
+        self.requery()
 
 
-class Database:
+
+class Form:
     """
-    @Database class
+    @orm class
     Maintains an internal version of the actual database
-    Tables can be accessed by key, I.e. db['Table_name"] to return a @Table instance
+    Queries can be accessed by key, I.e. frm['query_name"] to return a Query instance
     """
+    instances = []  # Track our instances
+    relationships = [] # Track our relationhips
 
-    def __init__(self, db_path=None, win=None, sql_script=None, sqlite3_database=None, sql_commands=None):
+    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
         """
-        Initialize a new @Database instance
+        Initialize a new @Form instance
 
         :param db_path: the name of the database file.  It will be created if it doesn't exist.
+        :param bind: (PySimpleSQL Window) Bind this window to the Form
         :param sqlite3_database: A sqlite3 database object
-        :param win: @PySimpleGUI window instance
         :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
         :param sql_script: (file) SQL commands to run if @sqlite3_database is not present
+        :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
+        :param parent: parent form to base queries off of
+        :param filter: (optional) Only import elements with the same filter
         """
+        Form.instances.append(self)
+
         if db_path is not None:
             logger.info(f'Importing database: {db_path}')
             new_database = not os.path.isfile(db_path)
@@ -881,10 +1077,12 @@ class Database:
             new_database = False
             self.imported_database=True
 
-        self.path = db_path  # type: str
+        self.filter = filter
+        self.parent = parent
+        self.db_path = db_path  # type: str
         self.window = None
         self._edit_protect=False
-        self.tables = {}
+        self.queries = {}
         self.element_map = []
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships = []
@@ -901,22 +1099,44 @@ class Database:
             # run SQL script from the file if the database does not yet exist
             self.execute_script(sql_script)
 
-        if win is not None:
-            self.auto_bind(win)
+        # Add our default queries and relationships
+        self.auto_add_queries(prefix_queries)
+        self.auto_add_relationships()
+        self.requery_all(False)
+        if bind!=None:
+            self.window=bind
+            self.bind(self.window)
 
     def __del__(self):
         # Only do cleanup if this is not an imported database
         if not self.imported_database:
             # optimize the database for long-term benefits
-            if self.path != ':memory:':
+            if self.db_path != ':memory:':
                 q = 'PRAGMA optimize;'
                 self.con.execute(q)
             # Close the connection
             self.con.close()
 
     # Override the [] operator to retrieve queries by key
-    def __getitem__(self, key:str) -> Table:
-        return self.tables[key]
+    def __getitem__(self, key:str) -> Query:
+        return self.queries[key]
+
+    def bind(self, win):
+        """
+        Bind the Window to the Form for the purpose of GUI element, event and relationship mapping
+        This can happen automatically on@Form creation with a parameter.
+        This function literally just groups all of the auto_* methods.  See" Form.auto_add_tables,
+        Form.auto_add_relationships, Form.auto_map_elements, @orm.auto_map_events
+        :param win: The PySimpleGUI window
+        :return:  None
+        """
+        logger.info('Bnding Window to Form...')
+        self.window = win
+        self.auto_map_elements(win)
+        self.auto_map_events(win)
+        self.update_elements()
+        logger.debug('Binding finished!')
+
 
     def execute_script(self,script):
         with open(script, 'r') as file:
@@ -940,9 +1160,9 @@ class Database:
 
     def set_callback(self, callback, fctn):
         """
-       Set @Database callbacks. A runtime error will be raised if the callback is not supported.
+       Set @orm callbacks. A runtime error will be raised if the callback is not supported.
        The following callbacks are supported:
-           update_elements Called after elements are updated via @Database.update_elements. This allows for other GUI manipulation on each update of the GUI
+           update_elements Called after elements are updated via @Form.update_elements. This allows for other GUI manipulation on each update of the GUI
            edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
            edit_disable Called after the editing mode is disabled
            {element_name} Called while updating MAPPED element.  This overrides the default element update implementation.
@@ -950,7 +1170,7 @@ class Database:
 
        :param callback: The name of the callback, from the list above
 
-       :param fctn: The function to call.  Note, the function must take in two parameters, a @Database instance, and a @PySimpleGUI.Window instance
+       :param fctn: The function to call.  Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
        :return: None
        """
         logger.info(f'Callback {callback} being set on database')
@@ -969,50 +1189,32 @@ class Database:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported. callback: {callback} supported: {supported}')
 
-    def auto_bind(self, win):
-        """
-        Auto-bind the window to the database, for the purpose of control, event and relationship mapping
-        This can happen automatically on @Database creation with a parameter.
-        This function literally just groups all of the auto_* methods.  See" @Database.auto_add_tables,
-        @Database.auto_add_relationships, @Database.auto_map_elements, @Database.auto_map_events
-        :param win: The @PySimpleGUI window
-        :return:  None
-        """
-        self.window = win  # TODO: provide another way to set this manually?
-        logger.info('Auto binding starting...')
-        self.auto_add_tables()
-        self.auto_add_relationships()
-        self.auto_map_elements(win)
-        self.auto_map_events(win)
-        self.requery_all(False)
-        self.update_elements()
-        logger.info('Auto binding finished!')
 
-    # Add a Table object
-    def add_table(self, table, pk_column, description_column, query='', order=''):
+    # Add a Query object
+    def add_query(self, name, table, pk_column, description_column, query='', order=''):
         """
-        Manually add a table to the @Database
+        Manually add a Query to the Form
         When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run
-        Note that @Database.auto_add_tables will do this automatically, which is also called from @Database.auto_bind
-        and even from the @Database.__init__ with a parameter
+        Note that Form.auto_add_queries will do this automatically, which is also called from Form.auto_bind
+        and even from the Form.__init__ with a parameter
 
         :param table: The name of the table (must match sqlite)
         :param pk_column: The primary key column
         :param description_column: The column to be used to display to users
-        :param query: The initial query for the table.  Set to "SELECT * FROM {Table}" if none is passed
+        :param query: The initial query for the table.  Set to "SELECT * FROM {table}" if none is passed
         :param order: The initial sort order for the query
         :return: None
         """
-        self.tables.update({table: Table(self, self.con, table, pk_column, description_column, query, order)})
-        self[table].set_search_order([description_column])  # set a default sort order
+        self.queries.update({name: Query(name,self, table, pk_column, description_column, query, order)})
+        self[name].set_search_order([description_column])  # set a default sort order
 
     def add_relationship(self, join, child, fk, parent, pk, requery_table):
         """
-        Add a foreign key relationship between two tables of the database
-        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until tables are
-        added via @Database.add_table, and the relationship of various tables is set with this function.
-        Note that @Database.auto_add_relationships will do this automatically from the schema of the sqlite database,
-        which also happens automatically with @Database.auto_bind and even from the @Database.__init__ with a parameter
+        Add a foreign key relationship between two queries of the database
+        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until queries are
+        added via @Form.add_table, and the relationship of various queries is set with this function.
+        Note that @Form.auto_add_relationships will do this automatically from the schema of the sqlite database,
+        which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
         :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
         :param child: The child table containing the foreign key
         :param fk: The foreign key column of the child table
@@ -1061,17 +1263,17 @@ class Database:
                 return r.parent
         return None
 
-    def auto_add_tables(self):
+    def auto_add_queries(self, prefix_queries=''):
         """
-        Automatically add @Table objects from an sqlite database by looping through the tables available.
-        When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
-        This is also called by @Database.auto_bind() or even from the @Database.__init__ with a parameter
-        Note that @Database.add_table can do this manually on a per-table basis.
+        Automatically add Query objects from a sqlite database by looping through the tables available and creating a query for each.
+        When you attach to a sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
+        This is also called by @Form.auto_bind() or even from the @Form.__init__ with a parameter
+        Note that @Form.add_table can do this manually on a per-table basis.
         :return: None
         """
-        logger.info('Automatically adding tables from the sqlite database...')
-        # Ensure we clear any current tables so that successive calls will not double the entries
-        self.tables = {}
+        logger.info('Automatically generating queries for each table in the sqlite database...')
+        # Ensure we clear any current queries so that successive calls will not double the entries
+        self.queries = {}
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.con.execute(q)
         records = cur.fetchall()  # TODO: new version of this w/o cur
@@ -1095,27 +1297,28 @@ class Database:
                 if t2['name'] == 'name':
                     description_column = t2['name']
 
+            query_name=prefix_queries+t['name']
             logger.debug(
-                f'Adding table {t["name"]} to schema with primary key {pk_column} and description of {description_column}')
-            self.add_table(t['name'], pk_column, description_column)
-            self.tables[t['name']].column_names = names
+                f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
+            self.add_query(query_name,t['name'], pk_column, description_column)
+            self.queries[query_name].column_names = names #TODO: use new add column names??
 
     # Make sure to send a list of table names to requery if you want
-    # dependent tables to requery automatically
+    # dependent queries to requery automatically
     # TODO: clear relationships first so that successive calls don't add multiple entries.
     def auto_add_relationships(self):
         """
-        Automatically add a foreign key relationship between tables of the database. This is done by foregn key constrains
+        Automatically add a foreign key relationship between queries of the database. This is done by foregn key constrains
         within the sqlite database.  Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql is set)
-        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until tables are
-        added and the relationship of various tables is set.
-        Note that @Database.add_relationship() can do this manually.
-        which also happens automatically with @Database.auto_bind and even from the @Database.__init__ with a parameter
+        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until queries are
+        added and the relationship of various queries is set.
+        Note that @Form.add_relationship() can do this manually.
+        which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
         :return: None
         """
-        # Ensure we clear any current tables so that successive calls will not double the entries
+        # Ensure we clear any current queries so that successive calls will not double the entries
         self.relationships = []
-        for table in self.tables:
+        for table in self.queries:
             rows = self.con.execute(f"PRAGMA foreign_key_list({table})")
             rows = rows.fetchall()
 
@@ -1130,15 +1333,19 @@ class Database:
                 logger.debug(f'Adding relationship {table}.{row["from"]} = {row["table"]}.{row["to"]}')
                 self.add_relationship('LEFT JOIN', table, row['from'], row['table'], row['to'], requery_table)
 
-    # Map an element.
+    # Map an element to a Query.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
-    def map_element(self, element, table, column, where_column=None, where_value=None):
+    def map_element(self, element, query, column, where_column=None, where_value=None):
         dic = {
             'element': element,
-            'table': table,
+            'query': query,
             'column': column,
             'where_column': where_column,
-            'where_value': where_value
+            'where_value': where_value,
+            # Element-level query clauses
+            'where_clause': None,
+            'order_clause': None,
+            'join_clause': None
         }
         logger.info(f'Mapping element {element.Key}')
         self.element_map.append(dic)
@@ -1149,8 +1356,21 @@ class Database:
         self.element_map = []
         for key in win.AllKeysDict.keys():
             element=win[key]
+
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
+                continue
+
+
+            # Process the filter to ensure this element should be mapped to this Form
+            if element.metadata['filter'] == self.filter:
+                element.metadata['Form'] = self
+
+            # Skip this element if it's an event
+            if element.metadata['type'] == TYPE_EVENT:
+                continue
+
+            if element.metadata['Form'] != self:
                 continue
             # If we passed in a cutsom list of elements
             if keys is not None:
@@ -1163,23 +1383,41 @@ class Database:
                     table_info, where_info = key.split('?')
                 else:
                     table_info = key; where_info = None
+
                 table, col = table_info.split('.')
                 if where_info is None:
                     where_column=where_value=None
                 else:
                     where_column,where_value=where_info.split('=')
 
-                if table in self.tables:
+                if table in self.queries:
                     if col in self[table].column_names:
                         # Map this element to table.column
                         self.map_element(element, self[table], col, where_column, where_value)
 
             # Map Selector Element
             if element.metadata['type']==TYPE_SELECTOR:
-                if element.metadata['table'] in self.tables:
-                    self[element.metadata['table']].add_selector(element)
+                k=element.metadata['table']
+                if k is None: continue
+                if element.metadata['Form'] != self: continue
+                if '?' in k:
+                    query_info, where_info = k.split('?')
+                    where_column,where_value=where_info.split('=')
+                else:
+                    query_info = k;
+                    where_info = where_column = where_value = None
+                query= query_info
+
+                if query in self.queries:
+                    self[query].add_selector(element,query,where_column,where_value)
                 else:
                     logger.info(f'Count not add selector {str(element)}')
+
+    def set_element_clause(self,element,where:str=None,order:str=None) -> None:
+        for e in self.element_map:
+            if e['element']==element:
+                e['where_clause']=where
+                e['order_clause']=order
 
     def map_event(self, event, fctn, table=None):
         dic = {
@@ -1208,28 +1446,30 @@ class Database:
             if type(element.metadata) is not dict:
                 logger.debug(f'Skipping mapping of {key}')
                 continue
+            if element.metadata['Form'] != self:
+                continue
             if element.metadata['type'] == TYPE_EVENT:
                 event_type=element.metadata['event_type']
-                table=element.metadata['table']
+                query=element.metadata['query']
                 function=element.metadata['function']
 
                 funct=None
 
-                event_table=table if table in self.tables else None
+                event_query=query if query in self.queries else None
                 if event_type==EVENT_FIRST:
-                    if table in self.tables: funct=self[table].first
+                    if query in self.queries: funct=self[query].first
                 elif event_type==EVENT_PREVIOUS:
-                    if table in self.tables: funct=self[table].previous
+                    if query in self.queries: funct=self[query].previous
                 elif event_type==EVENT_NEXT:
-                    if table in self.tables: funct=self[table].next
+                    if query in self.queries: funct=self[query].next
                 elif event_type==EVENT_LAST:
-                    if table in self.tables: funct=self[table].last
+                    if query in self.queries: funct=self[query].last
                 elif event_type==EVENT_SAVE:
-                    if table in self.tables: funct=self[table].save_record
+                    if query in self.queries: funct=self[query].save_record
                 elif event_type==EVENT_INSERT:
-                    if table in self.tables: funct=self[table].insert_record
+                    if query in self.queries: funct=self[query].insert_record
                 elif event_type==EVENT_DELETE:
-                    if table in self.tables: funct=self[table].delete_record
+                    if query in self.queries: funct=self[query].delete_record
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
@@ -1239,13 +1479,13 @@ class Database:
                     # Build the search box name
                     search_element,command=key.split('.')
                     search_box=f'{search_element}.input_search'
-                    if table in self.tables: funct=functools.partial(self[table].search, search_box)
+                    if query in self.queries: funct=functools.partial(self[query].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
-                    t,c,e=key.split('.')
-                    referring_table=table
-                    table=self[table].get_related_table_for_column(c)
-                    funct=functools.partial(self[table].quick_editor,self[referring_table].get_current,c)
+                    t,c,e=key.split('.') #table, column, event
+                    referring_table=query
+                    query=self[query].get_related_table_for_column(c)
+                    funct=functools.partial(self[query].quick_editor,self[referring_table].get_current,c)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
                 else:
@@ -1253,7 +1493,7 @@ class Database:
 
 
                 if funct is not None:
-                    self.map_event(key, funct, event_table)
+                    self.map_event(key, funct, event_query)
 
 
 
@@ -1272,14 +1512,16 @@ class Database:
         self._edit_protect = not self._edit_protect
         self.update_elements(edit_protect_only=True)
 
+    def get_edit_protect(self):
+        return self._edit_protect
 
     def save_records(self, cascade_only=False):
-        logger.info(f'Preparing to save records in all tables...')
+        logger.info(f'Preparing to save records in all queries...')
         msg = None
         #self.window.refresh()  # todo remove?
         i = 0
-        tables = self.get_cascaded_relationships() if cascade_only else self.tables
-        last_index = len(self.tables) - 1
+        tables = self.get_cascaded_relationships() if cascade_only else self.queries
+        last_index = len(self.queries) - 1
 
         successes=0
         failures=0
@@ -1306,30 +1548,32 @@ class Database:
         self.update_elements()
 
 
-    def update_elements(self, table='', edit_protect_only=False):  # table type: str
+    def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
+        """
+        Updated the GUI elements to reflect values from the database for this Form instance only
+
+        Not to be confused with pysimplesql.update_elements(), which updates GUI elements for all Form instances.
+
+
+        :param table_name: (optional) name of table to update elements for, otherwise updates elements for all queries
+        :type table_name: str
+        :param edit_protect_only: (default False) If true, only update items affected by edit_protect
+        :type edit_protect_only: bool
+        :returns: None
+        :rtype: None
+        """
         # TODO Fix bug where listbox first element is ghost selected
-        # TODO: Dosctring
-        logger.info('Updating PySimpleGUI elements...')
-        # Update the current values
-        # d= dictionary (the element map dictionary)
-
-        # Enable/Disable elements based on the edit protection button and presence of a record
-        # Note that we also must disable elements if there are no records!
-        # TODO FIXME!!!
+        logger.info('update_elements(): Updating PySimpleGUI elements...')
         win = self.window
-        for e in self.event_map:
-            if '.edit_protect' in e['event']:
-                self.disable_elements(table,self._edit_protect)
-
         # Disable/Enable action elements based on edit_protect or other situations
-        for t in self.tables:
+        for t in self.queries:
             for m in self.event_map:
                 # Disable delete and mapped elements for this table if there are no records in this table or edit protect mode
                 hide = len(self[t].rows) == 0 or self._edit_protect
                 if '.table_delete' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-                        self.disable_elements(t,hide)
+                        self.update_element_states(t, hide)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -1340,15 +1584,13 @@ class Database:
                 if '.table_insert' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
-                    pass
+
                 # Disable db_save when needed
-                # TODO: Disable when no changes to data?
                 hide = self._edit_protect
                 if '.db_save' in m['event']:
                     win[m['event']].update(disabled=hide)
 
                 # Disable table_save when needed
-                # TODO: Disable when no changes to data?
                 hide = self._edit_protect
                 if '.table_save' in m['event']:
                     win[m['event']].update(disabled=hide)
@@ -1358,32 +1600,31 @@ class Database:
                     win[m['event']].update(disabled=hide)
         if edit_protect_only: return
 
+        # d= dictionary (the element map dictionary)
         for d in self.element_map:
-            # If the optional table parameter was passed, we will only update elements bound to that table
-            if table != '':
-                if d['table'].table != table:
+            # If the optional query parameter was passed, we will only update elements bound to that table
+            if table_name is not None:
+                if d['query'].table != table_name:
                     continue
 
             updated_val = None
-
-
             # If there is a callback for this element, use it
             if d['element'].Key in self.callbacks:
-                logger.debug(f'{d["element"].Key} IS IN callbacks')
                 self.callbacks[d['element'].Key]()
 
             elif d['where_column'] is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
-                updated_val=d['table'].get_keyed_value(d['column'], d['where_column'], d['where_value'])
+                updated_val=d['query'].get_keyed_value(d['column'], d['where_column'], d['where_value'])
                 if type(d['element']) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
                     updated_val=int(updated_val)
+
             elif type(d['element']) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign queries first
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
                 target_table=None
-                rels = self.get_relationships_for_table(d['table'])
+                rels = self.get_relationships_for_table(d['query'])
                 for rel in rels:
                     if rel.fk == d['column']:
                         target_table = self[rel.parent]
@@ -1392,7 +1633,7 @@ class Database:
                         break
                 lst = []
                 if target_table==None:
-                    logger.warning(f"Error! Cound not find a related table for element {d['element'].Key} bound to table {d['table'].table}")
+                    logger.warning(f"Error! Cound not find a related query for element {d['element'].Key} bound to query {d['query'].table}")
                 # Populate the combobox entries
                 else:
                     for row in target_table.rows:
@@ -1401,19 +1642,18 @@ class Database:
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
-    
-                        if row[target_table.pk_column] == d['table'][rel.fk]:
+                        if row[target_table.pk_column] == d['query'][rel.fk]:
                             for entry in lst:
-                                if entry.get_pk() == d['table'][rel.fk]:
+                                if entry.get_pk() == d['query'][rel.fk]:
                                     updated_val = entry
                                     break
                             break
                 d['element'].update(values=lst)
             elif type(d['element']) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
-                values = d['table'].table_values()
+                values = d['query'].table_values()
                 # Select the current one
-                pk = d['table'].get_current_pk()
+                pk = d['query'].get_current_pk()
                 index = 0
                 found = False
                 for v in values:
@@ -1433,10 +1673,10 @@ class Database:
                 # Lets now update the element in the GUI
                 # For text objects, lets clear it first...
                 d['element'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
-                updated_val = d['table'][d['column']]
+                updated_val = d['query'][d['column']]
 
             elif type(d['element']) is sg.PySimpleGUI.Checkbox:
-                updated_val = d['table'][d['column']]
+                updated_val = d['query'][d['column']]
             else:
                 sg.popup(f'Unknown element type {type(d["element"])}')
 
@@ -1450,18 +1690,30 @@ class Database:
         # We can update the selector elements
         # We do it down here because it's not a mapped element...
         # Check for selector events
-        for k, table in self.tables.items():
+        for k, table in self.queries.items():
             if len(table.selector):
-                for element in table.selector:
+                for e in table.selector:
+                    logger.debug(f'update_elements: SELECTOR FOUND')
+                    element=e['element']
+                    logger.debug(f'{type(element)}')
                     pk = table.pk_column
                     column = table.description_column
                     if element.Key in self.callbacks:
                         self.callbacks[element.Key]()
 
-                    elif type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
+                    if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
+                        logger.debug(f'update_elements: List/Combo selector found...')
                         lst = []
                         for r in table.rows:
-                            lst.append(Row(r[pk], r[column]))
+                            if e['where_column'] is not None:
+                                if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
+                                    #print(f"{r[e['where_column']]} == {e['where_value']}")
+                                    lst.append(Row(r[pk], r[column]))
+                                else:
+                                    pass
+                                    #print(f"{r[e['where_column']]} != {e['where_value']}")
+                            else:
+                                lst.append(Row(r[pk], r[column]))
 
                         element.update(values=lst, set_to_index=table.current_index)
                     elif type(element) == sg.PySimpleGUI.Slider:
@@ -1470,6 +1722,7 @@ class Database:
                         element.update(value=table._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
+                        logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
                         values = table.table_values(element.metadata['columns'])
 
@@ -1487,11 +1740,9 @@ class Database:
                             index=[]
                         else:
                             index=[index]
+                        logger.debug(f'Selector:: index:{index} found:{found}')
                         element.update(values=values,select_rows=index)
                         eat_events(self.window)
-
-
-
 
         # Run callbacks
         if 'update_elements' in self.callbacks.keys():
@@ -1499,74 +1750,102 @@ class Database:
             logger.info('Running the update_elements callback...')
             self.callbacks['update_elements'](self, self.window)
 
-    def requery_all(self,update=True):
-        """
-        Requeries all tables in the database
-        :return: None
-        """
-        logger.info('Requerying all tables...')
-        for k in self.tables.keys():
-            self[k].requery(update)
 
-    def process_events(self, event, values):
+    def requery_all(self, update_elements=True) -> None:
         """
-        Process mapped events.  This should be called once per iteration.
-        Events handled are responsible for requerying and updating elements as needed
+        Requeries all queries in the database
+
+        This effectively re-loads the data from the actual sqlite3 queries into Query class objects
+
+        :param update_elements: True to update elements after this operation
+        :type update_elements: bool
+        :returns: None
+        :rtype: None
+        """
+        logger.info('Requerying all queries...')
+        for k in self.queries.keys():
+            self[k].requery(update_elements)
+
+    def process_events(self, event:str, values:list) -> bool:
+        """
+        Process mapped events for this specific Form instance.
+
+        Not to be confused with pysimplesql.process_events(), which processes events for ALL Form instances.
+        This should be called once per iteration in your event loop
+         .. note:: Events handled are responsible for requerying and updating elements as needed
+
         :param event: The event returned by PySimpleGUI.read()
+        :type event: str
         :param values: the values returned by PySimpleGUI.read()
-        :return: True if an event was handled, False otherwise
+        :type values: list
+        :returns: True if an event was handled, False otherwise
+        :rtype: bool
         """
-        if event:
+        if self.window is None:
+            print(f'***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***')
+            return False
+        elif event:
             for e in self.event_map:
                 if e['event'] == event:
                     logger.info(f"Executing event {event} via event mapping.")
                     e['function']()
-                    logger.info(f'Done processing event!')
+                    logger.debug(f'Done processing event!')
                     return True
 
             # Check for  selector events
-            for k, table in self.tables.items():
+            for k, table in self.queries.items():
                 if len(table.selector):
-                    for element in table.selector:
-                        pk = table.pk_column
-                        column = table.description_column
+                    for e in table.selector:
+                        element=e['element']
                         if element.Key in event and len(table.rows) > 0:
+                            changed=False # assume that a change will not take place
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
                                 table.set_by_pk(row.get_pk())
-                                return True
+                                changed=True
                             elif type(element) == sg.PySimpleGUI.Slider:
                                 table.set_by_index(int(values[event]) - 1)
-                                return True
+                                changed=True
                             elif type(element) == sg.PySimpleGUI.Combo:
                                 row = values[event]
                                 table.set_by_pk(row.get_pk())
-                                return True
+                                changed=True
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index][0]
                                 table.set_by_pk(pk, True)
+                                changed=True
+                            if changed:
+                                if 'record_changed' in table.callbacks.keys():
+                                    table.callbacks['record_changed'](self, self.window)
+                            return changed
         return False
 
-    def disable_elements(self, table_name, disable=None, visible=None):
+    def update_element_states(self, table_name:str, disable:bool=None, visible:bool=None) -> None:
         """
-        Disable all elements assocated with table.
-        :param disable: True/False to disable/enable element(s)
-        :param table: table name assocated with elements to disable/enable
-        :return: None
+        Disable/enable and/or show/hide all elements assocated with a query.
+
+        :param table_name: table name assocated with elements to disable/enable
+        :type table_name: str
+        :param disable: True/False to disable/enable element(s), None for no change
+        :type disable: bool
+        :param visible: True/False to make elements visible or not, None for no change
+        :returns: None
+        :rtype: None
         """
         for c in self.element_map:
-            if c['table'] .table!= table_name:
+            if c['query'].table != table_name:
                 continue
             element=c['element']
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.AllKeysDict.keys():
-                logger.info(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
+                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
                 if disable is not None:
                     element.update(disabled=disable)
                 if visible is not None:
                     element.update(visible=visible)
+
 
 
 # RECORD SELECTOR ICONS
@@ -1588,7 +1867,7 @@ edit_24 = b'iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAADqUlEQVR42qWUW2gUVxjH
 first_24 = b'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'
 
 _keygen={}
-def keygen(key,separator='.'):
+def keygen(key,separator=':'):
     global _keygen
     # Generate a unique key by attaching a sequential integer to the end
     if key not in _keygen:
@@ -1613,13 +1892,160 @@ def get_record_info(record):
     """
     return record.split('.')
 
-def actions(key, table, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None, search=None,
-            search_size=(30, 1), bind_return_key=True):
+
+
+
+
+
+
+
+
+def process_events(event:str, values:list) -> bool:
+    """
+        Process mapped events for ALL Form instances.
+
+        Not to be confused with pysimplesql.Form.process_events(), which processes events for individual Form instances.
+        This should be called once per iteration in your event loop
+         .. note:: Events handled are responsible for requerying and updating elements as needed
+
+        :param event: The event returned by PySimpleGUI.read()
+        :type event: str
+        :param values: the values returned by PySimpleGUI.read()
+        :type values: list
+        :returns: True if an event was handled, False otherwise
+        :rtype: bool
+        """
+    handled=False
+    for i in Form.instances:
+        if i.process_events(event, values): handled=True
+    return handled
+
+def update_elements(query:str = None, edit_protect_only:bool = False) -> None:
+    """
+    Updated the GUI elements to reflect values from the database for ALL Form instances
+
+    Not to be confused with pysimplesql.Form.update_elements(), which updates GUI elements for individual instances.
+
+
+    :param query: (optional) name of query to update elements for, otherwise updates elements for all queries
+    :type query: str
+    :param edit_protect_only: (default False) If true, only update items affected by edit_protect
+    :type edit_protect_only: bool
+    :returns: None
+    :rtype: None
+    """
+    for i in Form.instances:
+        i.update_elements(query, edit_protect_only)
+
+def bind(win:sg.Window) -> None:
+    """
+    Bind ALL forms to window
+
+    Not to be confused with pysimplesql.Form.bind(), which binds specific forms to the window.
+    :param win: The PySimpleGUI window to bind all forms to
+    :type win: PysimpleGUI.Window
+    :returns: None
+    :rtype: None
+    """
+    for i in Form.instances:
+        i.bind(win)
+
+# TODO: clean up.  just slapping this together for testing
+def form_relationship(child, fk, parent, pk) -> None:
+    Form.relationships.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
+    logger.info(f'***** Setting form relationship between {child} and {parent}')
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# CONVENIENCE FUNCTIONS
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: How to save Form in metadata?  Perhaps ive forms names and reference them that way??
+# For exapmle - give forms names!  and reference them by name string
+# They could even be converted later to a real form during form creation?
+
+# Global variables to set default sizes for the record function below
+_default_label_size = (15, 1)
+_default_element_size = (30, 1)
+
+def set_label_size(w, h):
+    """
+    Sets the default label (text) size when record() is used"
+    :param w: the width desired
+    :param h: the height desired
+    :return: None
+    """
+    _default_label_size = (w, h)
+
+def set_element_size(w, h):
+    """
+    Sets the defualt text (label) size when @record is used.  The size parameter of @record will override this
+    :param w: the width desiered
+    :param h: the height desired
+    :return: None
+    """
+    _default_element_size = (w, h)
+
+# Define a custom element for quickly adding database rows.
+# The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
+# todo should I enable elements here for dirty checking?
+def record(table, element=sg.I, key=None, size=None, label='', no_label=False, label_above=False, quick_editor=True, filter=None, **kwargs):
+    """
+    Convenience function for adding PySimpleGUI elements to the window
+    The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Query}.{name}
+    This convenience function will create a text label, along with a element with this naming convention.
+    See @set_label_size and @set_element_size for setting default sizes of these elements.
+
+    :param record: The table.column in the database this element will be mapped to #TODO Rename!
+    :param element: The element type desired (defaults to PySimpleGUI.Input)
+    :param size: Overrides the default element size that was set with @set_element_size, for this element element only
+    :param label: The text/label will automatically be generated from the @column name. If a different text/label is
+                 desired, it can be specified here.
+    :param no_label: Do not automatically generate a label for this element
+    :param label_above: Place the label above the element instead of to the left
+    :param quick_editor: For records that reference another table, place a quick edit button next to this element
+    :param key: ???????
+    :param filter: Can be used to reference different Forms in the same layout.  Use a matching filter when creating
+            the form
+    :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
+             will not need to be wrapped in [] in your layout code.
+    """
+    # TODO: See what the metadata does??
+
+    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+    if '?' in table:
+        query_info, where_info = table.split('?')
+        label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    else:
+        query_info = table
+        where_info = None
+        label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    query, column = query_info.split('.')
+
+    key=table if key is None else key
+
+    key=keygen(key)
+    layout_element = element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+    layout_label = sg.T(label_text if label == '' else label, size=_default_label_size)
+    if no_label:
+        layout = [[layout_element]]
+    elif label_above:
+        layout = [[layout_label], [layout_element]]
+    else:
+        layout = [[layout_label , layout_element]]
+
+    # Add the quick editor button where appropriate
+    if element == sg.Combo and quick_editor:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout[-1].append(sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta))
+    return sg.Col(layout=layout)
+
+def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
+            search=None, search_size=(30, 1), bind_return_key=True, filter=None):
     """
     Allows for easily adding record navigation and elements to the PySimpleGUI window
     The navigation elements are separated into different sections as detailed by the parameters.
     :param key: The key to give these controls
-    :param table: The table that this "element" will provide actions for
+    :param query: The table that this "element" will provide actions for
     :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
                     The individual keyword arguments will trump the default parameter
     :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that toggles
@@ -1636,169 +2062,89 @@ def actions(key, table, default=True, edit_protect=None, navigation=None, insert
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
              will not need to be wrapped in [] in your layout code.
     """
-    edit_protect=default if edit_protect is None else edit_protect
-    navigation=default if navigation is None else navigation
-    insert=default if insert is None else insert
-    delete=default if delete is None else delete
-    save=default if save is None else save
-    search=default if search is None else search
+    edit_protect = default if edit_protect is None else edit_protect
+    navigation = default if navigation is None else navigation
+    insert = default if insert is None else insert
+    delete = default if delete is None else delete
+    save = default if save is None else save
+    search = default if search is None else search
 
     layout = []
-    meta = {'type': TYPE_EVENT, 'event_type': None, 'table': None, 'function': None}
+    meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
 
-    # Database-level events
+    # Form-level events
     if edit_protect:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'table': None, 'function': None}
-        layout += [sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'), image_data=edit_16,
-                        metadata=meta)]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
+                        image_data=edit_16,
+                        metadata=meta))
     if save:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'table': None, 'function': None}
-        layout += [sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16, metadata=meta)]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=save_16,
+                 metadata=meta))
 
-    # Table-level events
+    # Query-level events
     if navigation:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table, 'function': None}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta)
-        ]
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table, 'function': None}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta)
-        ]
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table, 'function': None}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta)
-        ]
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table, 'function': None}
-        layout += [
-            sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta),
-        ]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=first_16, metadata=meta))
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=previous_16, metadata=meta))
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=next_16, metadata=meta))
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=last_16, metadata=meta))
     if insert:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table, 'function': None}
-        layout += [sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'), image_data=add_16, metadata=meta)]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
+                        image_data=add_16, metadata=meta))
     if delete:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table, 'function': None}
-        layout += [sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'), image_data=delete_16, metadata=meta)]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout.append(sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
+                        image_data=delete_16, metadata=meta))
     if search:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table, 'function': None}
-        layout += [
-            sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),
-            sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)
-        ]
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        layout+=[sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),sg.B('Search', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta)]
 
-    return layout
+    return sg.Col(layout=[layout])
 
 
-# Global variables to set default sizes for the record function below
-_default_text_size = (15, 1)
-_default_element_size = (30, 1)
 
-
-def set_text_size(w, h):
-    """
-    Sets the defualt text (label) size when @record is used"
-    :param w: the width desired
-    :param h: the height desired
-    :return: None
-    """
-    global _default_text_size
-    _default_text_size = (w, h)
-
-
-def set_element_size(w, h):
-    """
-    Sets the defualt text (label) size when @record is used.  The size parameter of @record will override this
-    :param w: the width desiered
-    :param h: the height desired
-    :return: None
-    """
-    global _default_element_size
-    _default_element_size = (w, h)
-
-
-# Define a custom element for quickly adding database rows.
-# The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
-# todo should I enable elements here for dirty checking?
-def record(key, element=sg.I, size=None, label='', no_label=False, label_above=False, quick_editor=True, **kwargs):
-    """
-    Convenience function for adding PySimpleGUI elements to the window
-    The automatic functionality of PySimpleSQL relies on PySimpleGUI elements to have the key {Table}.{name}
-    This convenience function will create a text label, along with a element with this naming convention.
-    See @set_text_size and @set_element_size for setting default sizes of these elements.
-
-    :param record: The table.column in the database this element will be mapped to
-    :param element: The element type desired (defaults to PySimpleGUI.Input)
-    :param size: Overrides the default element size that was set with @set_element_size, for this element element only
-    :param label: The text/label will automatically be generated from the @column name. If a different text/label is
-                 desired, it can be specified here.
-    :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
-             will not need to be wrapped in [] in your layout code.
-    """
-    global _default_text_size
-    global _default_element_size
-
-    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-    if '?' in key:
-        table_info, where_info=key.split('?')
-        label_text=where_info.split('=')[1].replace('fk','').replace('_',' ').capitalize() + ':'
-    else:
-        table_info=key; where_info=None
-        label_text=table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
-    table,column=table_info.split('.')
-
-    layout_element = [
-        element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD}, **kwargs)
-    ]
-    layout_label= [
-        sg.T(label_text if label == '' else label,size=_default_text_size)
-    ]
-    if no_label:
-        layout=layout_element
-    elif label_above:
-        layout=[
-            sg.Col(layout=[layout_label,layout_element])
-        ]
-    else:
-        layout=layout_label+layout_element
-
-    # Add the quick editor button where appropriate
-    if element==sg.Combo and quick_editor:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'function': None}
-        layout+=[sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=edit_16, metadata=meta)]
-    return layout
-
-
-def selector(key, table, element=sg.LBox, size=None, columns=None,**kwargs):
-    r = random.randint(0, 1000)
-    meta={'type': TYPE_SELECTOR, 'table': table}
+def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, **kwargs):
+    key=keygen(key)
+    meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
-        layout = [
-            element(values=(), size=size or _default_element_size, key=key, select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
-                    enable_events=True, metadata=meta)]
+        layout = element(values=(), size=size or _default_element_size, key=key,
+                    select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+                    enable_events=True, metadata=meta)
     elif element == sg.Slider:
-        layout = [element(enable_events=True, size=size or _default_element_size, orientation='h',
-                          disable_number_display=True, key=key, metadata=meta)]
+        layout = element(enable_events=True, size=size or _default_element_size, orientation='h',
+                          disable_number_display=True, key=key, metadata=meta)
     elif element == sg.Combo:
-        w=_default_element_size[0]
-        layout = [element(values=(), size=size or (w,10), readonly=True, enable_events=True, key=key,
-                          auto_size_text=False, metadata=meta)]
+        w = _default_element_size[0]
+        layout = element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
+                          auto_size_text=False, metadata=meta)
     elif element == sg.Table:
-        required_kwargs=['headings','visible_column_map','num_rows']
+        required_kwargs = ['headings', 'visible_column_map', 'num_rows']
         for kwarg in required_kwargs:
             if kwarg not in kwargs:
-                raise RuntimeError(f'Table selectors must use the {kwarg} keyword argument.')
+                raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
 
         # Make an empty list of values
-        vals=[]
-        vals.append(['']*len(kwargs['headings']))
-        meta['columns']=columns
-        layout = [
-            element(
+        vals = []
+        vals.append([''] * len(kwargs['headings']))
+        meta['columns'] = columns
+        layout = element(
                 values=vals, headings=kwargs['headings'], visible_column_map=kwargs['visible_column_map'],
                 num_rows=kwargs['num_rows'], enable_events=True, key=key, select_mode=sg.TABLE_SELECT_MODE_BROWSE,
-                justification='left',metadata=meta
+                justification='left', metadata=meta
             )
-        ]
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
+
     return layout
+
+# ======================================================================================================================
+# ALIASES
+# ======================================================================================================================
+Database=Form
+Table=Query

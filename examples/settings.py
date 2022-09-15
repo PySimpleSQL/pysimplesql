@@ -17,57 +17,58 @@ INSERT INTO SETTINGS VALUES (3,'antialiasing', True,'Would you like to render wi
 INSERT INTO SETTINGS VALUES (4, 'query_retries', 3,'Retry queries this many times before aborting.');
 """
 
-# When using ss.record() to create entries based on key/value pairs, it just uses an extended syntax.
-# Where ss.record('Settings.value') would return the value column from the Settings table FOR THE CURRENT RECORD,
-# the extended syntax of ss.record('Settings.value?key=first_name will return the value column from the Settings
+frm = ss.Form('Settigs.db', sql_commands=sql)      # <=== load the database
+# Note: we are not binding this Form to a window yet, as the window has not yet been created.
+# Creating the form now will help us get values for the tooltips during layout creation below!.
+
+# When using Form.record() to create entries based on key/value pairs, it just uses an extended syntax.
+# Where Form.record('Settings.value') would return the value column from the Settings table FOR THE CURRENT RECORD,
+# the extended syntax of Form.record('Settings.value?key=first_name') will return the value column from the Settings
 # table where the key column is equal to 'first_name'.  This is basically the equivalent in SQL as the statement
 # SELECT value FROM Settings WHERE key='first_name';
 layout=[
     [sg.Text('APPLICATION SETTINGS')],
     [sg.HorizontalSeparator()],
-    ss.record('Settings.value?key=company_name'),
+    [ss.record('Settings.value?key=company_name', tooltip = frm['Settings'].get_keyed_value('description', 'key', 'company_name'))],
+    # Notice how we can use get_keyed_value() to retrieve values from keys in the query.  We are using it to set tooltips.
     [sg.Text('')],
-    ss.record('Settings.value?key=debug_mode',sg.CBox),
+    [ss.record('Settings.value?key=debug_mode',sg.CBox, tooltip=frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))],
     [sg.Text('')],
-    ss.record('Settings.value?key=antialiasing', sg.CBox),
+    [ss.record('Settings.value?key=antialiasing', sg.CBox, tooltip=frm['Settings'].get_keyed_value('description', 'key', 'antialiasing'))],
     [sg.Text('')],
-    ss.record('Settings.value?key=query_retries'),
+    [ss.record('Settings.value?key=query_retries', tooltip=frm['Settings'].get_keyed_value('description', 'key', 'query_retries'))],
     # For the actions, we don't want to offer users to insert or delete records from the settings table,
     # and there is no use for navigation buttons due to the key,value nature of the data.  Therefore, we will
     # disable all actions (default=False) except for the Save action (save=True)
-    ss.actions('nav','Settings',default=False, save=True)
+    [ss.actions('nav','Settings',default=False, save=True)]
 ]
 
-# Initialize our window and database, then bind them together
+# Initialize our window then bind it to the Form
 win = sg.Window('Preferences: Application Settings', layout, finalize=True)
-db = ss.Database('Settigs.db', win, sql_commands=sql)      # <=== load the database and bind it to the window
+frm.bind(win)
 
-# Now that the database is loaded, lets set our tool tips using the description column.
-# The Table.get_keyed_value can return the value column where the key column equals a specific value as well.
-win['Settings.value?key=company_name'].set_tooltip(db['Settings'].get_keyed_value('description','key','company_name'))
-win['Settings.value?key=debug_mode'].set_tooltip(db['Settings'].get_keyed_value('description','key','debug_mode'))
-win['Settings.value?key=antialiasing'].set_tooltip(db['Settings'].get_keyed_value('description','key','antialiasing'))
-win['Settings.value?key=query_retries'].set_tooltip(db['Settings'].get_keyed_value('description','key','query_retries'))
+print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
 
 while True:
     event, values = win.read()
 
-    if db.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
        print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
+        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
         break
     else:
         print(f'This event ({event}) is not yet handled.')
 
 """
-This example showed how to easily access key,value information stored in tables.  A classic example of this is with
+This example showed how to easily access key,value information stored in queries.  A classic example of this is with
 storing settings for your own program
 
 Learnings from this example:
 - embedding sql commands in code for table creation
-- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Database()
+- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
+- Creating a form without binding to a window, then later binding the form to a window with a separate statement
 - using ss.record() and ss.actions() functions for easy GUI element creation
-- using the extended key naming syntax for keyed records (Table.value_column?key_column=key_value)
-- using the Table.get_keyed_value() method for keyed data retrieval
+- using the extended key naming syntax for keyed records (Query.value_column?key_column=key_value)
+- using the Query.get_keyed_value() method for keyed data retrieval
 """
