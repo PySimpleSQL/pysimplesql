@@ -1,5 +1,18 @@
 # **pysimplesql** Version Information
 
+
+## <v2.1>
+### Released ?
+- ss.record() using Comboboxes can now take in a list of values.  This is especially useful in situations where there is no
+primary key <-> foreign key relationship on the field, but you would still like to limit the values that can be stored.  Setting
+the readonly=True keyword parameter will limit options to the passed-in list.
+- Added some internal changes, mostly revolving around the keygen (which is responsible for ensuring that the same key is not
+used multiple times).  There is now a Form.close() method that safely closes out the form by resetting the keygen for elements
+associated with the form, and Query instances that are assocated with the form. This makes it much easier to re-use window layouts
+as the keygen will reset, and we won't be keeping old Query objects laying around hiding from the garbage collector.
+- 
+
+
 ## <v2.0>
 ### Released <9/15/2022>
 - Big change, moving from a Database/Table topology to a Form/Query topology.  Aliases for Database/Table will be available to avoid breaking code as much as possible.
