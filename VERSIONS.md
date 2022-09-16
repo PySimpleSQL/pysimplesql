@@ -9,7 +9,7 @@ the readonly=True keyword parameter will limit options to the passed-in list.
 - Added some internal changes, mostly revolving around the keygen (which is responsible for ensuring that the same key is not
 used multiple times).  There is now a Form.close() method that safely closes out the form by resetting the keygen for elements
 associated with the form, and Query instances that are assocated with the form. This makes it much easier to re-use window layouts
-as the keygen will reset, and we won't be keeping old Query objects laying around hiding from the garbage collector.
+as the keygen will reset, and we won't be keeping old Query objects lying around hiding from the garbage collector.
 - 
 
 
