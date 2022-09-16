@@ -249,6 +249,36 @@ class Query:
         else:
             self._current_index = val
 
+    @classmethod
+    def purge_form(cls,frm:Form,reset_keygen) -> None:
+        """
+        Purge the tracked instances related to frm
+
+        :param frm: the form to purge query instances from
+        :return: None
+        """
+        new_instances=[]
+        selector_keys=[]
+
+        for i in Query.instances:
+            if i.frm!=frm:
+                new_instances.append(i)
+            else:
+                logger.debug(f'Removing Query {i.name} related to {frm.db_path}')
+                # we need to get a list of elements to purge from the keygen
+                for s in i.selector:
+                    selector_keys.append(s['element'].key)
+
+
+        # Reset the keygen for selectors and elements from this Form
+        # This is probably a little hack-ish, perhaps I should reloacate the keygen?
+        if reset_keygen:
+            for k in selector_keys:
+                keygen_reset(k)
+            keygen_reset_from_form(frm)
+        # Update the internally tracked instances
+        Query.instances=new_instances
+
     def set_search_order(self, order:list) -> None:
         """
         Set the search order when using the search box.
@@ -1121,6 +1151,11 @@ class Form:
     def __getitem__(self, key:str) -> Query:
         return self.queries[key]
 
+    def close(self,reset_keygen=True):
+        # Safely close out the form
+        # First, delete the queries associated
+        Query.purge_form(self,reset_keygen)
+
     def bind(self, win):
         """
         Bind the Window to the Form for the purpose of GUI element, event and relationship mapping
@@ -1895,7 +1930,12 @@ def keygen(key,separator=':'):
     return k
 def keygen_reset(key):
     global _keygen
-    _keygen[key]=0
+    del _keygen[key]
+def keygen_reset_from_form(frm:Form):
+    # reset keys related to form
+    for e in frm.element_map:
+        keygen_reset(e['element'].key)
+
 def keygen_reset_all():
     global _keygen
     _keygen={}
