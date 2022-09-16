@@ -1,7 +1,7 @@
 # **pysimplesql** Version Information
 
 
-## <v2.1>
+## <v2.01>
 ### Released ?
 - ss.record() using Comboboxes can now take in a list of values.  This is especially useful in situations where there is no
 primary key <-> foreign key relationship on the field, but you would still like to limit the values that can be stored.  Setting
