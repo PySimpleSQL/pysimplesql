@@ -1677,6 +1677,18 @@ class Form:
 
             elif type(d['element']) is sg.PySimpleGUI.Checkbox:
                 updated_val = d['query'][d['column']]
+            elif type(d['element']) is sg.PySimpleGUI.Image:
+                val = d['query'][d['column']]
+
+                try:
+                    val=eval(val)
+                except:
+                    # treat it as a filename
+                    d['element'].update(val)
+                else:
+                    # update the bytes data
+                    d['element'].update(data=val)
+                updated_val=None # Prevent the update from triggering below, since we are doing it here
             else:
                 sg.popup(f'Unknown element type {type(d["element"])}')
 
