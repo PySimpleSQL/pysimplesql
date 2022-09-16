@@ -1631,11 +1631,15 @@ class Form:
                         pk = target_table.pk_column
                         description = target_table.description_column
                         break
-                lst = []
+
                 if target_table==None:
                     logger.warning(f"Error! Cound not find a related query for element {d['element'].Key} bound to query {d['query'].table}")
+                    # we don't want to update the list in this case, as it was most likely supplied and not tied to a query
+                    updated_val=d['query'][d['column']]
+
                 # Populate the combobox entries
                 else:
+                    lst = []
                     for row in target_table.rows:
                         lst.append(Row(row[pk], row[description]))
 
@@ -1648,7 +1652,7 @@ class Form:
                                     updated_val = entry
                                     break
                             break
-                d['element'].update(values=lst)
+                    d['element'].update(values=lst)
             elif type(d['element']) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
                 values = d['query'].table_values()
@@ -2036,7 +2040,14 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     key=table if key is None else key
 
     key=keygen(key)
-    layout_element = element('', key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+
+    if 'values' in kwargs:
+        first_param=kwargs['values']
+        del kwargs['values']  # make sure we don't put it in twice
+    else:
+        first_param=''
+
+    layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
     layout_label = sg.T(label_text if label == '' else label, size=_default_label_size)
     if no_label:
         layout = [[layout_element]]
