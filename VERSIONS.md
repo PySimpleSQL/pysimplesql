@@ -2,7 +2,13 @@
 
 
 ## <v2.01>
-### Released ?
+### Released 9/16/2022
+Some minor improvements when it comes to the keygen and garbage collecting.  ss.record() now supports Comboboxes that are not
+bound to a foreign key field.  ss.record() now also supports sg.Image() as well.
+-ss.record() using images can work in two ways.  If pointed to a field that is a string value, it treats the string like a 
+filepath and loads the image at the specified path.  If pointed to a field that is binary data, then the binary data is passed
+in for image display.  Added a small example of how this may work in your own application along with a nifty function to limit
+image size for either storage or display purposes (see examples/image_store.py)
 - ss.record() using Comboboxes can now take in a list of values.  This is especially useful in situations where there is no
 primary key <-> foreign key relationship on the field, but you would still like to limit the values that can be stored.  Setting
 the readonly=True keyword parameter will limit options to the passed-in list.
@@ -10,7 +16,6 @@ the readonly=True keyword parameter will limit options to the passed-in list.
 used multiple times).  There is now a Form.close() method that safely closes out the form by resetting the keygen for elements
 associated with the form, and Query instances that are assocated with the form. This makes it much easier to re-use window layouts
 as the keygen will reset, and we won't be keeping old Query objects lying around hiding from the garbage collector.
-- 
 
 
 ## <v2.0>
