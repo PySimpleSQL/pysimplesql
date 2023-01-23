@@ -2022,6 +2022,7 @@ def form_relationship(child, fk, parent, pk) -> None:
 # Global variables to set default sizes for the record function below
 _default_label_size = (15, 1)
 _default_element_size = (30, 1)
+_default_Mline_size = (30, 7)
 
 def set_label_size(w, h):
     """
@@ -2040,6 +2041,15 @@ def set_element_size(w, h):
     :return: None
     """
     _default_element_size = (w, h)
+
+def set_Mline_size(w, h):
+    """
+    Sets the default multi-line text size when @record is used.  The size parameter of @record will override this
+    :param w: the width desired
+    :param h: the height desired
+    :return: None
+    """
+    _default_Mline_size = (w, h)
 
 # Define a custom element for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
@@ -2087,7 +2097,10 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     else:
         first_param=''
 
-    layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+    if element.__name__ == 'Multiline':
+        layout_element = element(first_param, key=key, size=size or _default_Mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+    else:
+        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
     layout_label = sg.T(label_text if label == '' else label, size=_default_label_size)
     if no_label:
         layout = [[layout_element]]
