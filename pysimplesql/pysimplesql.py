@@ -2053,17 +2053,25 @@ def load_iconpack(pack):
     """
     Appends user-defined iconpack to internal _iconpack dict.
     PySimpleSql comes with 'ss.small' and 'ss.large'
+  	
+  	For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder
+  	Remember to us b'' around the string.
+  	
+  	For Text buttons, yan can even add Emoji's. 
+  	https://carpedm20.github.io/emoji/ and copy-paste the 'Python Unicode name:' (less the variable)
+  	Format like f'\N{WASTEBASKET} Delete',
+  	
     Example structure:
         'example' : {
-            'edit_protect' : 'either base64 image, or string'
-            'quick_edit' : 'either base64 image, or string'
-            'save' : 'either base64 image, or string'
-            'first' : 'either base64 image, or string'
-            'previous' : 'either base64 image, or string'
-            'next' : 'either base64 image, or string'            
-            'insert' : 'either base64 image, or string'        
-            'search' : 'either base64 image, or string'        
-            'duplicate' : 'either base64 image, or string'        
+            'edit_protect' : either base64 image (eg b''), or string eg '', f''
+            'quick_edit' : either base64 image (eg b''), or string eg '', f''
+            'save' : either base64 image (eg b''), or string eg '', f''
+            'first' : either base64 image (eg b''), or string eg '', f''
+            'previous' : either base64 image (eg b''), or string eg '', f''
+            'next' : either base64 image (eg b''), or string eg '', f''
+            'insert' : either base64 image (eg b''), or string eg '', f''
+            'search' : either base64 image (eg b''), or string eg '', f''
+            'duplicate' : either base64 image (eg b''), or string eg '', f''
         }
     :param pack: iconpack. Key name of iconpack
     :return: None
