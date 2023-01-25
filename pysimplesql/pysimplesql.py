@@ -38,7 +38,7 @@ TYPE_EVENT=3
 # -----------
 # Event types
 # -----------
-# Cutsom events (requires 'function' dictionary key)
+# Custom events (requires 'function' dictionary key)
 EVENT_FUNCTION=0
 # Query-level events (requires 'table' dictionary key)
 EVENT_FIRST=1
@@ -48,6 +48,7 @@ EVENT_LAST=4
 EVENT_SEARCH=5
 EVENT_INSERT=6
 EVENT_DELETE=7
+EVENT_DUPLICATE=13
 EVENT_SAVE=8
 EVENT_QUICK_EDIT=9
 # Form-level events
@@ -302,6 +303,8 @@ class Query:
             after_update  Alias for after_save
             before_delete called before a record is deleted.  The delete will move forward if the callback returns true, else the transaction will rollback
             after_delete  called after a record is deleted. The delete will commit to the database if the callback returns true, else it will rollback the transaction
+            before_duplicate called before a record is duplicate.  The duplicate will move forward if the callback returns true, else the transaction will rollback
+            after_duplicate  called after a record is duplicate. The duplicate will commit to the database if the callback returns true, else it will rollback the transaction
             before_search called before searching.  The search will continue if the callback returns True
             after_search  called after a search has been performed.  The record change will undo if the callback returns False
             record_changed called after a record has changed (previous,next, etc) TODO: What about selectors?
@@ -315,7 +318,7 @@ class Query:
         """
         logger.info(f'Callback {callback} being set on table {self.table}')
         supported = [
-            'before_save', 'after_save', 'before_delete', 'after_delete',
+            'before_save', 'after_save', 'before_delete', 'after_delete', 'before_delete', 'after_delete',
             'before_update', 'after_update',  # Aliases for before/after_save
             'before_search', 'after_search', 'record_changed'
         ]
@@ -992,6 +995,96 @@ class Query:
         logger.info(f'Delete query executed: {q}')
         self.requery(select_first=False)
         self.frm.update_elements()
+        
+    def duplicate_record(self, cascade=True):
+        """
+        Duplicate the currently selected record
+        The before_duplicate and after_duplicate callbacks are run during this process to give some control over the process
+
+        :param cascade: Duplicate child records (as defined by @Relationship that were set up) before duplicating this record
+        :return: None
+        """
+        # Ensure that there is actually something to duplicate
+        if not len(self.rows):
+            return
+
+        # callback
+        if 'before_duplicate' in self.callbacks.keys():
+            if not self.callbacks['before_duplicate'](self.frm, self.frm.window):
+                return
+
+        if cascade:
+            msg = 'Are you sure you want to duplicate this record? Keep in mind that all children will be duplicated as well!'
+        else:
+            msg = 'Are you sure you want to duplicate this record?'
+        answer = sg.popup_yes_no(msg, keep_on_top=True)
+        if answer == 'No':
+            return True
+
+        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
+        ## This can be done using * syntax without having to know the schema of the table
+        ## (other than the name of the primary key). The trick is to create a temporary table
+        ## using the "CREATE TABLE AS" syntax.
+        q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)}'
+        self.con.execute(q)
+        logger.info(q)
+        q = f'UPDATE tmp SET {self.pk_column} = NULL'
+        self.con.execute(q)
+        logger.info(q)
+        q = f'INSERT INTO {self.table} SELECT * FROM tmp'
+        cur = self.con.execute(q)
+        logger.info(q)
+        q = f'DROP TABLE tmp;'
+        self.con.execute(q)
+        logger.info(q)
+        
+        # Now we save the new pk
+        pk = cur.lastrowid
+        
+        # create list of which children we have duplicated
+        child_duplicated = []             
+        # Next, duplicate the child records!
+        if cascade:
+            for qry in self.frm.queries:
+                for r in self.frm.relationships:
+                    if r.parent == self.table and r.requery_table and (r.child not in child_duplicated):
+                        child_pk = self.frm.get_child_pk(r.parent,r.child)
+                        q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
+                        self.con.execute(q)
+                        logger.info(q)
+                        q = f'UPDATE tmp SET {child_pk} = NULL'
+                        self.con.execute(q)
+                        logger.info(q)
+                        q = f'UPDATE tmp SET {r.fk} = {pk}'
+                        self.con.execute(q)
+                        logger.info(q)
+                        q = f'INSERT INTO {r.child} SELECT * FROM tmp'
+                        self.con.execute(q)
+                        logger.info(q)
+                        q = f'DROP TABLE tmp;'
+                        self.con.execute(q)
+                        logger.info(q)
+                        child_duplicated.append(r.child)
+                        print(child_duplicated)                        
+                        
+        # callback
+        if 'after_duplicate' in self.callbacks.keys():
+            if not self.callbacks['after_duplicate'](self.frm, self.frm.window):
+                self.con.rollback()
+            else:
+                self.con.commit()
+        else:
+            self.con.commit()
+        self.con.commit()
+        
+        # move to new pk
+        self.frm[r.child].requery(False)
+        self.requery()
+        self.set_by_pk(pk)
+        self.requery_dependents()
+
+        self.frm.update_elements()
+        self.frm.window.refresh()
 
     def get_description_for_pk(self,pk):
         for row in self.rows:
@@ -1296,6 +1389,31 @@ class Form:
             if r.child == table and r.requery_table:
                 return r.parent
         return None
+    
+    def get_child_pk(self, parent, child):
+        """
+        Return the child primary key name for the passed-in table
+        :param parent: The parent table (str)
+        :param child: The child table (str) to get pk of
+        :return: The pk column name of the child table, or '' if there is none
+        """
+        q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
+        cur = self.con.execute(q)
+        records = [dict(row) for row in cur.fetchall()]
+        
+        for r in self.relationships:
+            if r.parent == parent and r.child == child and r.requery_table:
+                for t in records:
+                    if t["name"] == r.child:
+                        q2 = f'PRAGMA table_info({t["name"]})'
+                        cur2 = self.con.execute(q2)
+                        records2 = cur2.fetchall()
+                        pk_column = None
+                        for t2 in records2:
+                            if t2['pk']:
+                                pk_column = t2['name']
+                        return(pk_column)
+        return None
 
     def auto_add_queries(self, prefix_queries=''):
         """
@@ -1504,6 +1622,8 @@ class Form:
                     if query in self.queries: funct=self[query].insert_record
                 elif event_type==EVENT_DELETE:
                     if query in self.queries: funct=self[query].delete_record
+                elif event_type==EVENT_DUPLICATE:
+                    if query in self.queries: funct=self[query].duplicate_record
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
@@ -1602,9 +1722,9 @@ class Form:
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
             for m in self.event_map:
-                # Disable delete and mapped elements for this table if there are no records in this table or edit protect mode
+                # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 hide = len(self[t].rows) == 0 or self._edit_protect
-                if '.table_delete' in m['event']:
+                if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
                     if m['table'] == t:
                         win[m['event']].update(disabled=hide)
                         self.update_element_states(t, hide)
@@ -2168,7 +2288,7 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
             layout[-1].append(sg.B(icon.quick_edit, key=keygen(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
     return sg.Col(layout=layout)
 
-def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, save=None,
+def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
     """
     Allows for easily adding record navigation and elements to the PySimpleGUI window
@@ -2183,6 +2303,7 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
     :param navigation: The standard << < > >> (First, previous, next, last) buttons for navigation
     :param insert: Button to insert new records
     :param delete: Button to delete current record
+    :param duplicate: Button to duplicate current record
     :param save: Button to save record.  Note that the save button feature saves changes made to any table, therefore only one
                  save button is needed per window. This parameter only works if the @actions parameter is set.
     :param search: A search Input element. Size can be specified with the @search_size parameter
@@ -2195,6 +2316,7 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
     navigation = default if navigation is None else navigation
     insert = default if insert is None else insert
     delete = default if delete is None else delete
+    duplicate = default if duplicate is None else duplicate
     save = default if save is None else save
     search = default if search is None else search
 
@@ -2257,6 +2379,13 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
                             image_data=icon.delete, metadata=meta))
         else:
             layout.append(sg.B(icon.delete, key=keygen(f'{key}.table_delete'), metadata=meta, use_ttk_buttons = True))
+    if duplicate:
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        if type(icon.duplicate) is bytes:
+            layout.append(sg.B('', key=keygen(f'{key}.table_duplicate'), size=(1, 1), button_color=('white', 'white'),
+                               image_data=icon.duplicate, metadata=meta))
+        else:
+            layout.append(sg.B(icon.duplicate, key=keygen(f'{key}.table_duplicate'), metadata=meta, use_ttk_buttons = True))
     if search:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.search) is bytes:
