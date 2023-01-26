@@ -25,6 +25,8 @@ import random
 import logging
 from types import SimpleNamespace ## for iconpacks
 
+import pysimplesql ## Needed for quick_edit pop-ups
+
 logger = logging.getLogger(__name__)
 
 
