@@ -2064,7 +2064,7 @@ _iconpack = {
         'delete' : b'iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAEe0lEQVR42rWV21MTVxzHf5sLWQJjEyBAIgkhQHBEHNAXL0/MtC9KbRWofUz+AP8gn3bfnKojrZfptF4Yp30oF2VRp6ZAS7jkTshuuAUDpN9zyIbUALUPzczOZnd2P5/fOb/vOSvQ//wTyi9+aGqyWez2UdHh6NVmZoJfJRLyp0BGnM6A49w5KRsOK9urq/3XYzG1QsDgYmPjaM+tW71GUaQ/79+n5Ph48Ot4XP43uHdgQHJeukRr8/P0x507yof19f4bRYnwMVwQBIo+fUqmEydIC4dp9d27IyUPAAdYart6lZIvXtCHbJbIYqGYoij5jY3+G9GoygU/9fRM6fClx49pBw8aqqpIdLn2JaFQEMOWP4Y3X7wo+YrwtVCI37c4nUSYgdj0tPLl7GwfF4wNDRW8167R4sgI5VWMrFCgwt4eGcxmEk+eJG1hgTLoiS554HIFmi9ckHxXrlAK8GwRzt5j71g7Oig1M0OfT04K+hQFGlGNaLNRbnGR9nZ2iHZ38fz+C9UtLaQuLVFmbi7Ini/Bnz+ntffvDxJjMJDY2kobmkYJjHowGpVLTf6+uTng6OuTrA0NtIWKuQSjYAebLite1FIpMtfUEJuW1LNnfFoEFMHhRiOJHg+tMzhGOxiJyBUxZZKGs2cla309lxQg4QAmQfNq2tvJgbSkX76k7Nu3VMjnOYDBq71e2tjcpDhGqcMrBKVMnzkjWe12LiE2Ekh2WUJwNppMlItEiAXCwA5cWzs7aQOyVCIRHCqDHyrQJQ2nT0vW2lrSXr+mnXR6v4GYYwYVimfWnxo0lMET8XgF/EiBnpTP6uslC4a/NTfHp4pDGZwdDI7K1xk8FgsOLS8fulaOFdT5/ZLn8mUK375NlMsdwHGwZrOpiSeTpKpqcPi/CHR4O6KYffWK4k+ecKixCDdiVOy/CZJqTFE0FqPVTOZQiXAsfHKSYoDrYBPiygV4zgCJSZcgXQvRKK2k08FvlpaObjJb/jpcQ+UxbBt65Qxe4/fz/3lsH0zCR8JEkIg+H/2FxZhMpf4hKQlYcmyAdwCussqLcF45GloL+CZWN7u2W620gwgziQkx5RLcq2pro1nsqHEmWVw8WGgMbgecLX91YoKijx6VKjeicgbfAhxRlNm6dbvdgQZEeA8VG5Esc1FihMSMFf87UhfFmrgJCRf8fP584dTwMGVQeeThw4NmFivPAZ5MJmVEke9F99xuqa21NeDAlk7Ly7wXJUl1NQluN41PT9MXb97sb3Y/dndPdQwM9M7LMu1mMgfwri4OX2HwSCRY3q+7kHT6fAEnVryAlW0GnEtwna+ro1/GxpSBUKhPnyKbyWIZteFTuY2K9rAtMPg29qB0KlUBL5ec8vsDLQAaEdUqnKmpiX6dmFAQ2/6bCwuqUJYgm1kUR+2QCKh6G3tQZmVFHjwCXpJ4PFJ3V1fAAzBh1L9NTSlpwL8FvDKmLpcNiRnF9PTmNjdl7OfHwvXfd5B40XhtbU1Z1bQS/KiFZsPJi++p8inwMkkvTmEkRy2//zcpYDQ3Hbr/xQAAAABJRU5ErkJggg==',
         'search' : 'Search',
         'duplicate' : 'Duplicate',
-        }
+        },
     }
 
 ## Use SimpleNamespace instead of passing dict['key'] via f-string. Can't pass b' (bytes) via f-string.
@@ -2073,7 +2073,7 @@ icon = SimpleNamespace(**_iconpack['ss_small'])
 def load_iconpack(pack):
     """
     Appends user-defined iconpack to internal _iconpack dict.
-    PySimpleSql comes with 'ss.small' and 'ss.large'
+    PySimpleSql comes with 'ss_small' and 'ss_large'
   	
   	For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder
   	Remember to us b'' around the string.
