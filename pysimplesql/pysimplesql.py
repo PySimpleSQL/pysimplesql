@@ -1714,9 +1714,9 @@ class Form:
 
         if failures==0:
             if successes==0:
-                sg.popup('There was nothing to update.', keep_on_top=True)
+                sg.popup_quick_message('There was nothing to update.', keep_on_top=True)
             else:
-                sg.popup('Updates saved successfully!',keep_on_top=True)
+                sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
         else:
             sg.popup('There was a problem saving some updates.', keep_on_top=True)
 
