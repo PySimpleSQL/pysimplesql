@@ -959,11 +959,19 @@ class Query:
             if not self.callbacks['before_delete'](self.frm, self.frm.window):
                 return
 
+        children = []
         if cascade:
-            msg = 'Are you sure you want to delete this record? Keep in mind that all children will be deleted as well!'
+            for qry in self.frm.queries:
+                for r in self.frm.relationships:
+                    if r.parent == self.table and r.requery_table:
+                        children.append(r.child)
+        
+        children = list(set(children))
+        if len(children):
+            msg = f'Are you sure you want to delete this record? Keep in mind that children records in - {children} - will be deleted as well!'
         else:
             msg = 'Are you sure you want to delete this record?'
-        answer = sg.popup_yes_no(msg, keep_on_top=True)
+        answer = sg.popup_yes_no(msg, title='Confirm Delete',  keep_on_top=True)
         if answer == 'No':
             return True
 
@@ -1014,12 +1022,20 @@ class Query:
         if 'before_duplicate' in self.callbacks.keys():
             if not self.callbacks['before_duplicate'](self.frm, self.frm.window):
                 return
-
+            
+        children = []
         if cascade:
-            msg = 'Are you sure you want to duplicate this record? Keep in mind that all children will be duplicated as well!'
+            for qry in self.frm.queries:
+                for r in self.frm.relationships:
+                    if r.parent == self.table and r.requery_table:
+                        children.append(r.child)
+        
+        children = list(set(children))
+        if len(children):
+            msg = f'Are you sure you want to duplicate this record? Keep in mind that children records in - {children} - will be duplicated as well!'
         else:
             msg = 'Are you sure you want to duplicate this record?'
-        answer = sg.popup_yes_no(msg, keep_on_top=True)
+        answer = sg.popup_yes_no(msg, title='Confirm Duplicate', keep_on_top=True)
         if answer == 'No':
             return True
 
@@ -1031,6 +1047,9 @@ class Query:
         self.con.execute(q)
         logger.info(q)
         q = f'UPDATE tmp SET {self.pk_column} = NULL'
+        self.con.execute(q)
+        logger.info(q)
+        q = f'UPDATE tmp SET {self.description_column} = "Copy of " || {self.description_column}'
         self.con.execute(q)
         logger.info(q)
         q = f'INSERT INTO {self.table} SELECT * FROM tmp'
