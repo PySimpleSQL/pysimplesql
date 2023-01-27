@@ -1160,7 +1160,7 @@ class Query:
             if col!=self.pk_column:
                 layout.append([pysimplesql.record(column)])
 
-        quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True)
+        quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True, ttk_theme=pysimplesql.get_ttk_theme()) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
         quick_frm = Form(sqlite3_database=self.frm.con, bind=quick_win)
 
 
@@ -2219,6 +2219,7 @@ def form_relationship(child, fk, parent, pk) -> None:
 _default_label_size = (15, 1)
 _default_element_size = (30, 1)
 _default_mline_size = (30, 7)
+_default_ttk_theme = 'default'
 
 def set_label_size(w, h):
     """
@@ -2249,6 +2250,23 @@ def set_mline_size(w, h):
     """
     global _default_mline_size
     _default_mline_size = (w, h)
+    
+def set_ttk_theme(name):
+    """
+    Advise users to set their ttk theme here, so we can use in quick_edit popup. Otherwise it changes all the buttons.
+    Available: 'winnative' 'clam' 'alt' 'default' 'classic' 'vista' 'xpnative'
+    :param name: name of ttk_theme.
+    :return: None
+    """
+    global _default_ttk_theme
+    _default_ttk_theme = name
+    
+def get_ttk_theme():
+    """
+    Advise users to query this to fix window changing theme when you go to use quick_edit.
+    :return: _default_ttk_theme
+    """
+    return _default_ttk_theme
 
 # Define a custom element for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
