@@ -466,7 +466,7 @@ class Query:
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
             if c['query'].table == self.table:
-                element_val = c['element'].Get()
+                element_val = c['element'].get()
                 table_val = self[c['column']]
 
                 # For elements where the value is a Row type, we need to compare primary keys
@@ -731,6 +731,7 @@ class Query:
         :param pk: The primary key to move to
         :return: None
         """
+        self.prompt_save()
         logger.info(f'Setting table {self.table} record by primary key {pk}')
         i = 0
         for r in self.rows:
