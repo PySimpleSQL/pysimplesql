@@ -515,7 +515,7 @@ class Query:
                     # save relationships
                     for rel in self.frm.relationships:
                         if rel.parent == self.table and rel.requery_table:
-                            self.frm[rel.child].save_record(False,False)
+                            self.frm[rel.child].save_record(True,False)
                     # save this record
                     self.save_record(False,False)
                     return dirty
@@ -901,7 +901,7 @@ class Query:
 
         # Ensure that there is actually something to save
         if not len(self.rows):
-            if display_message: sg.popup('There were no updates to save.',keep_on_top=True)
+            if display_message: sg.popup_quick_message('There were no updates to save.',keep_on_top=True)
             return SAVE_NONE
 
         # callback
@@ -966,11 +966,11 @@ class Query:
             #self.requery_dependents()
             if update_elements:self.frm.update_elements(self.table)
             logger.info(f'Record Saved!')
-            if display_message: sg.popup('Updates saved successfully!')
+            if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
             return SAVE_SUCCESS
         else:
             logger.info('Nothing to save.')
-            if display_message: sg.popup('There were no updates to save!')
+            if display_message: sg.popup_quick_message('There were no updates to save!', keep_on_top=True)
             return SAVE_NONE
 
     def delete_record(self, cascade=True):
