@@ -602,7 +602,7 @@ class Query:
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
         if select_first:
-            self.first(update)
+            self.first(update,prompt_save=False) # We don't want to prompt save in this situation, since there was a requery of the data
 
     def requery_dependents(self,update=True):
         """
@@ -615,7 +615,7 @@ class Query:
                 logger.info(f"Requerying dependent table {self.frm[rel.child].table}")
                 self.frm[rel.child].requery(update=update)
 
-    def first(self,update=True, dependents=True):
+    def first(self,update=True, dependents=True, prompt_save=True):
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -624,7 +624,7 @@ class Query:
         :return: None
         """
         logger.info(f'Moving to the first record of table {self.table}')
-        self.prompt_save()
+        if prompt_save: self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
@@ -632,7 +632,7 @@ class Query:
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def last(self, update=True, dependents=True):
+    def last(self, update=True, dependents=True, prompt_save=True):
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -640,7 +640,8 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        self.prompt_save()
+        logger.info(f'Moving to the last record of table {self.table}')
+        if prompt_save: self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
@@ -648,7 +649,7 @@ class Query:
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def next(self, update=True, dependents=True):
+    def next(self, update=True, dependents=True, prompt_save=True):
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -656,7 +657,8 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        self.prompt_save()
+        logger.info(f'Moving to the next record of table {self.table}')
+        if prompt_save: self.prompt_save()
         if self.current_index < len(self.rows) - 1:
             self.current_index += 1
             if dependents: self.requery_dependents()
@@ -665,7 +667,7 @@ class Query:
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def previous(self, update=True,dependents=True):
+    def previous(self, update=True,dependents=True, prompt_save=True):
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -674,7 +676,8 @@ class Query:
 
         :return: None
         """
-        self.prompt_save()
+        logger.info(f'Moving to the previous record of table {self.table}')
+        if prompt_save: self.prompt_save()
         if self.current_index > 0:
             self.current_index -= 1
             if dependents: self.requery_dependents()
@@ -683,7 +686,7 @@ class Query:
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def search(self, string, update=True, dependents=True):
+    def search(self, string, update=True, dependents=True, prompt_save=True):
         """
         Move to the next record in the search table that contains @string.
         Successive calls will search from the current position, and wrap around back to the beginning.
@@ -696,7 +699,7 @@ class Query:
         :param string: The search string
         :return: None
         """
-
+        logger.info(f'Searching for a record of table {self.table} with search term "{string}"')
         # callback
         if 'before_search' in self.callbacks.keys():
             if not self.callbacks['before_search'](self.frm, self.frm.window):
@@ -708,7 +711,7 @@ class Query:
         if string == '':
             return
 
-        self.prompt_save()
+        if prompt_save: self.prompt_save()
         # First lets make a search order.. TODO: remove this hard coded garbage
 
         for o in self.search_order:
@@ -738,12 +741,15 @@ class Query:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index, update=True, dependents=True):
+    def set_by_index(self, index, update=True, dependents=True, prompt_save=True):
+        logger.info(f'Moving to the record at index {index} on {self.table}')
+        if prompt_save: self.prompt_save()
+
         self.current_index = index
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
 
-    def set_by_pk(self, pk, update=True, dependents=True):
+    def set_by_pk(self, pk, update=True, dependents=True, prompt_save=True):
         """
         Move to the record with this primary key
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
@@ -754,8 +760,9 @@ class Query:
         :param pk: The primary key to move to
         :return: None
         """
-        self.prompt_save()
         logger.info(f'Setting table {self.table} record by primary key {pk}')
+        if prompt_save: self.prompt_save()
+
         i = 0
         for r in self.rows:
             if r[self.pk_column] == pk:
