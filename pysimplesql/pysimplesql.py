@@ -320,7 +320,7 @@ class Query:
         """
         logger.info(f'Callback {callback} being set on table {self.table}')
         supported = [
-            'before_save', 'after_save', 'before_delete', 'after_delete', 'before_delete', 'after_delete',
+            'before_save', 'after_save', 'before_delete', 'after_delete', 'before_duplicate', 'after_duplicate',
             'before_update', 'after_update',  # Aliases for before/after_save
             'before_search', 'after_search', 'record_changed'
         ]
