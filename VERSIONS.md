@@ -1,6 +1,19 @@
 # **pysimplesql** Version Information
 
 
+## <v2.3.0>
+### Released 01/30/23
+renames set_Mline_size to set_mline_size
+adds user defined icon packs
+adds duplicate to available record actions
+adds set_ttk_theme and get_ttk_theme
+moved some informational popups to quick messages
+Big thanks to ssweber for these great contributions!
+
+## <v2.02>
+### Released 01/23/23
+Add set_Mline_size to set default Multiline size via pull request
+
 ## <v2.01>
 ### Released 9/16/2022
 Some minor improvements when it comes to the keygen and garbage collecting.  ss.record() now supports Comboboxes that are not

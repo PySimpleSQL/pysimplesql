@@ -180,7 +180,7 @@ class Query:
     """
     instances=[] # Track our instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', prompt_save=False) -> Query:
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', prompt_save=True) -> Query:
         """
         Initialize a new Table instance
 
@@ -280,6 +280,16 @@ class Query:
             keygen_reset_from_form(frm)
         # Update the internally tracked instances
         Query.instances=new_instances
+
+    def set_prompt_save(self,value:bool) -> None:
+        """
+        Set the prompt to save action when navigating records
+
+        :param value: a boolean value, True to prompt to save, False for no prompt to save
+        :type value: bool
+        :return: None
+        """
+        self._prompt_save=value
 
     def set_search_order(self, order:list) -> None:
         """
@@ -447,22 +457,27 @@ class Query:
         """
         self.description_column=column
 
-    def prompt_save(self) -> bool:
+    def prompt_save(self,parent=True) -> bool:
         """
-        Prompts the user if they want to save when changes are detected and the current record is about to change
+        Prompts the user if they want to save when changes are detected and the current record is about to change.  The
+        optional parent parameter is a flag so that recursive calls to database relationships don't continue to prompt
 
-        :returns: True or False on whether the user intends to save the record
+        :param parent: Is this a parent record?
+        :type parent: bool
+        :returns: True or False on whether dirty records were found
         :rtype: bool
         """
+        dirty = False  # we will start by assuming that there are no changes
+
         # TODO: children too?
         if self.current_index is None or self.rows == [] or self._prompt_save is False: return
-        #return  # hack this in for now
-        # handle dependents first
+
+        # handle chicking if dependents are dirty first
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
-                self.frm[rel.child].prompt_save()
+                dirty = self.frm[rel.child].prompt_save(parent=False)
 
-        dirty = False
+        # Next check this record to see if it's dirty
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
             if c['query'].table == self.table:
@@ -492,12 +507,20 @@ class Query:
                     sym='='
                 logger.debug(f'element type: {type(element_val)} column_type: {type(table_val)}')
                 logger.debug(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
-
-        if dirty:
-            save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-            if save_changes == 'Yes':
-                print('Saving changes!')
-                self.save_record(False,False)
+        if parent:
+            if dirty:
+                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+                if save_changes == 'Yes':
+                    logger.info('Dirty records found... Saving changes!')
+                    # save relationships
+                    for rel in self.frm.relationships:
+                        if rel.parent == self.table and rel.requery_table:
+                            self.frm[rel.child].save_record(False,False)
+                    # save this record
+                    self.save_record(False,False)
+                    return dirty
+        else:
+            return dirty
 
 
     def generate_join_clause(self) -> str:
@@ -1723,6 +1746,16 @@ class Form:
 
         self.update_elements()
 
+    def set_prompt_save(self, value: bool) -> None:
+        """
+        Set the prompt to save action when navigating records for all queries associated with this form
+
+        :param value: a boolean value, True to prompt to save, False for no prompt to save
+        :type value: bool
+        :return: None
+        """
+        for q in self.queries:
+            q.set_prompt_save(value)
 
     def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
         """
