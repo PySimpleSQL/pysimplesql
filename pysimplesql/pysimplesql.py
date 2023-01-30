@@ -1297,7 +1297,7 @@ class Form:
 
     def close(self,reset_keygen=True):
         # Safely close out the form
-        # First, delete the queries associated
+        # First delete the queries associated
         Query.purge_form(self,reset_keygen)
 
     def bind(self, win):
