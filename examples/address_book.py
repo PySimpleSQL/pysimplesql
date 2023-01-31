@@ -89,10 +89,13 @@ while True:
         # Use a timeout (As set in win.read() above) to check for changes and enable/disable the save button on the fly.
         # This could also be done by enabling events in the input controls, but this is much simpler (but less optimized)
         dirty = frm['Addresses'].records_changed()
+        win['browser.db_save'].update(disabled=dirty)
         if dirty:
             win['browser.db_save'].update(disabled=False)
         else:
             win['browser.db_save'].update(disabled=True)
+        # The above could have been written as below, but it's less verbose. Your choice!
+        # win['browser.db_save'].update(disabled=not dirty)
     elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
