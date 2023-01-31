@@ -457,27 +457,17 @@ class Query:
         """
         self.description_column=column
 
-    def prompt_save(self,parent=True) -> bool:
+    def records_changed(self) -> bool:
         """
-        Prompts the user if they want to save when changes are detected and the current record is about to change.  The
-        optional parent parameter is a flag so that recursive calls to database relationships don't continue to prompt
-
-        :param parent: Is this a parent record?
-        :type parent: bool
-        :returns: True or False on whether dirty records were found
+        Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values.
+        :returns: True or False on whether changed records were found
         :rtype: bool
         """
+        logger.debug(f'Checking if records have changed in table "{self.table}"...')
         dirty = False  # we will start by assuming that there are no changes
 
-        # TODO: children too?
-        if self.current_index is None or self.rows == [] or self._prompt_save is False: return
 
-        # handle chicking if dependents are dirty first
-        for rel in self.frm.relationships:
-            if rel.parent == self.table and rel.requery_table:
-                dirty = self.frm[rel.child].prompt_save(parent=False)
-
-        # Next check this record to see if it's dirty
+        # First check the current record to see if it's dirty
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
             if c['query'].table == self.table:
@@ -486,41 +476,59 @@ class Query:
 
                 # For elements where the value is a Row type, we need to compare primary keys
                 if type(element_val) is Row:
-                    element_val=element_val.get_pk()
+                    element_val = element_val.get_pk()
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
                 # Cast to similar types
                 if type(element_val) != type(table_val):
-                    element_val=str(element_val)
-                    table_val=str(table_val)
+                    element_val = str(element_val)
+                    table_val = str(table_val)
 
                 # Strip trailing whitespace from strings
-                if type(table_val) is str: table_val=table_val.rstrip()
+                if type(table_val) is str: table_val = table_val.rstrip()
                 if type(element_val) is str: element_val = element_val.rstrip()
 
                 if element_val != table_val:
                     dirty = True
-                    sym='!='
-                else:
-                    sym='='
-                logger.debug(f'element type: {type(element_val)} column_type: {type(table_val)}')
-                logger.debug(f'{c["element"].Key}:{element_val} {sym} {c["column"]}:{table_val}')
-        if parent:
-            if dirty:
-                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-                if save_changes == 'Yes':
-                    logger.info('Dirty records found... Saving changes!')
-                    # save relationships
-                    for rel in self.frm.relationships:
-                        if rel.parent == self.table and rel.requery_table:
-                            self.frm[rel.child].save_record(True,False)
-                    # save this record
-                    self.save_record(False,False)
-                    return dirty
-        else:
-            return dirty
+                    logger.debug(f'CHANGED RECORD FOUND!')
+                    logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
+                    logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
+
+        # handle checking if dependents are dirty next
+        for rel in self.frm.relationships:
+            if rel.parent == self.table and rel.requery_table:
+                if self.frm[rel.child].records_changed():
+                    dirty = True
+        return dirty
+
+
+
+    def prompt_save(self) -> bool:
+        """
+        Prompts the user if they want to save when changes are detected and the current record is about to change.
+        :returns: True or False on whether changed records were found
+        :rtype: bool
+        """
+        # Return False if there is nothing to check or _prompt_save is False
+        # TODO: children too?
+        if self.current_index is None or self.rows == [] or self._prompt_save is False:
+            return False
+
+        # Check if any records have changed
+        changed = self.records_changed()
+        if changed:
+            save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+            if save_changes == 'Yes':
+                # save relationships
+                for rel in self.frm.relationships:
+                    if rel.parent == self.table and rel.requery_table:
+                        self.frm[rel.child].save_record(True,False)
+                # save this record
+                self.save_record(True,False)
+
+        return changed
 
 
     def generate_join_clause(self) -> str:
@@ -602,7 +610,7 @@ class Query:
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
         if select_first:
-            self.first(update,prompt_save=False) # We don't want to prompt save in this situation, since there was a requery of the data
+            self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
 
     def requery_dependents(self,update=True):
         """
@@ -615,7 +623,7 @@ class Query:
                 logger.info(f"Requerying dependent table {self.frm[rel.child].table}")
                 self.frm[rel.child].requery(update=update)
 
-    def first(self,update=True, dependents=True, prompt_save=True):
+    def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -624,7 +632,7 @@ class Query:
         :return: None
         """
         logger.info(f'Moving to the first record of table {self.table}')
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
@@ -632,7 +640,7 @@ class Query:
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def last(self, update=True, dependents=True, prompt_save=True):
+    def last(self, update=True, dependents=True, skip_prompt_save=False):
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -641,7 +649,7 @@ class Query:
         :return: None
         """
         logger.info(f'Moving to the last record of table {self.table}')
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
@@ -649,7 +657,7 @@ class Query:
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def next(self, update=True, dependents=True, prompt_save=True):
+    def next(self, update=True, dependents=True, skip_prompt_save=False):
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -658,7 +666,7 @@ class Query:
         :return: None
         """
         logger.info(f'Moving to the next record of table {self.table}')
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save()
         if self.current_index < len(self.rows) - 1:
             self.current_index += 1
             if dependents: self.requery_dependents()
@@ -667,7 +675,7 @@ class Query:
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def previous(self, update=True,dependents=True, prompt_save=True):
+    def previous(self, update=True,dependents=True, skip_prompt_save=False):
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -677,7 +685,7 @@ class Query:
         :return: None
         """
         logger.info(f'Moving to the previous record of table {self.table}')
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save()
         if self.current_index > 0:
             self.current_index -= 1
             if dependents: self.requery_dependents()
@@ -686,7 +694,7 @@ class Query:
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def search(self, string, update=True, dependents=True, prompt_save=True):
+    def search(self, string, update=True, dependents=True, skip_prompt_save=False):
         """
         Move to the next record in the search table that contains @string.
         Successive calls will search from the current position, and wrap around back to the beginning.
@@ -711,7 +719,7 @@ class Query:
         if string == '':
             return
 
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save() # TODO: Should this be before the before_search callback?
         # First lets make a search order.. TODO: remove this hard coded garbage
 
         for o in self.search_order:
@@ -741,15 +749,15 @@ class Query:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index, update=True, dependents=True, prompt_save=True):
+    def set_by_index(self, index, update=True, dependents=True, skip_prompt_save=False):
         logger.info(f'Moving to the record at index {index} on {self.table}')
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save()
 
         self.current_index = index
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements()
 
-    def set_by_pk(self, pk, update=True, dependents=True, prompt_save=True):
+    def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False):
         """
         Move to the record with this primary key
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
@@ -761,7 +769,7 @@ class Query:
         :return: None
         """
         logger.info(f'Setting table {self.table} record by primary key {pk}')
-        if prompt_save: self.prompt_save()
+        if skip_prompt_save is False: self.prompt_save()
 
         i = 0
         for r in self.rows:
@@ -962,7 +970,7 @@ class Query:
             # Lets refresh our data
             pk = self.get_current_pk()
             self.requery(update_elements)
-            self.set_by_pk(pk,update_elements,False)
+            self.set_by_pk(pk,update_elements,False,skip_prompt_save=True)
             #self.requery_dependents()
             if update_elements:self.frm.update_elements(self.table)
             logger.info(f'Record Saved!')
