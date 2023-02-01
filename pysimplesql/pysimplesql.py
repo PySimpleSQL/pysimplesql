@@ -57,6 +57,7 @@ EVENT_QUICK_EDIT=9
 EVENT_SEARCH_DB=10
 EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
+EVENT_PROMPT_SAVE_TABGROUP_DB=14
 
 # ------------------------
 # RECORD SAVE RETURN TYPES
@@ -231,7 +232,7 @@ class Query:
         self.selector = []
         self.callbacks = {}
         self._prompt_save = prompt_save
-
+        self._prompt_save_tabgroup = prompt_save
         # self.requery(True)
 
     # Override the [] operator to retrieve columns by key
@@ -1695,6 +1696,8 @@ class Form:
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
+                elif event_type==EVENT_PROMPT_SAVE_TABGROUP_DB:
+                    funct=self.prompt_save_tabgroup
                 elif event_type==EVENT_SAVE_DB:
                     funct=self.save_records
                 elif event_type==EVENT_SEARCH:
@@ -1717,7 +1720,63 @@ class Form:
                 if funct is not None:
                     self.map_event(key, funct, event_query)
 
+    def prompt_save_tabgroup(self):
+        """
+        Prompts the user if they want to save when changes when catching a supported ss.tabgroup event.
+        :returns: None
+        :rtype: bool
+        """
+        logger.info('Tab changed. Checking if there are any records unsaved')
+        unsaved_changes = {}
+        tables = {}
+        for q in self.queries:
+            unsaved_changes[q] = self[q].records_changed()
+            
+        if sum(unsaved_changes.values()):
+            if self._prompt_save_tabgroup:
+                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+            if not self._prompt_save_tabgroup or save_changes == 'Yes':
 
+                for q, changed in unsaved_changes.items():
+                    if changed:
+                        parent = self.get_parent(q)
+                        if not parent:
+                            tables[q] = {}
+                            tables[q]['children'] = {}
+                            tables[q]['pk'] = self[q].get_current_pk()
+                            
+                for q, changed in unsaved_changes.items():
+                    if changed and q not in tables.keys():
+                        parent = self.get_parent(q)
+                        try:
+                            tables[parent]['children'][q] = self[q].get_current_pk()
+                        except:
+                            tables[parent] = {}
+                            tables[parent]['pk'] = self[parent].get_current_pk()
+                            tables[parent]['children'] = {}
+                            tables[parent]['children'][q] = self[q].get_current_pk()
+                
+                for parent, parent_dict in tables.items():
+                    if len(parent_dict['children']):
+                        for child, child_pk in parent_dict['children'].items():
+                            print(f'{child=},{child_pk=}')
+                            self[child].save_record(False,False)
+                    print(f'{parent=}, {parent_dict["pk"]=}')
+                    self[parent].save_record(False,False)
+                    
+            for parent, parent_dict in tables.items():
+                print(f'{parent=}, {parent_dict["pk"]=}')
+                self[parent].requery()
+                self[parent].set_by_pk(parent_dict["pk"])
+                
+            for parent, parent_dict in tables.items():
+                if len(parent_dict['children']):
+                    for child, child_pk in parent_dict['children'].items():
+                        self[child].requery()
+                        self[child].set_by_pk(child_pk)
+            self.update_elements()
+            self.window.refresh()
+            
 
     def edit_protect(self,event=None, values=None):
         logger.info('Toggling edit protect mode.')
@@ -1777,6 +1836,7 @@ class Form:
         :type value: bool
         :return: None
         """
+        self._prompt_save_tabgroup = value
         for q in self.queries:
             self[q].set_prompt_save(value)
 
@@ -2391,6 +2451,14 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
         else:
             layout[-1].append(sg.B(icon.quick_edit, key=keygen(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
     return sg.Col(layout=layout)
+
+def tabgroup(key, tabgroup_layout, filter=None, **kwargs):
+    layout = []
+    if 'enable_events' in kwargs:
+        del kwargs['enable_events']  # make sure we don't put it in twice
+    meta = {'type': TYPE_EVENT, 'event_type': EVENT_PROMPT_SAVE_TABGROUP_DB, 'form':None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+    layout.append(sg.TabGroup( tabgroup_layout, key=keygen(f'{key}.prompt_save_tabgroup'), enable_events=True, metadata=meta, **kwargs))
+    return layout
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
