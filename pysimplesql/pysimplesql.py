@@ -944,6 +944,7 @@ class Query:
                             val=v['element'].get().get_pk()
                     else:
                         val=v['element'].get()
+                        val = val.rstrip('\r\n')  # hack to get rid of trailing newline character - PySimpleGUI bug #6199
 
                     values.append(val)
         if values:
@@ -1897,7 +1898,7 @@ class Form:
                 continue
 
             elif type(d['element']) is sg.PySimpleGUI.InputText or type(d['element']) is sg.PySimpleGUI.Multiline:
-                # Lets now update the element in the GUI
+                # Update the element in the GUI
                 # For text objects, lets clear it first...
                 d['element'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
                 updated_val = d['query'][d['column']]
