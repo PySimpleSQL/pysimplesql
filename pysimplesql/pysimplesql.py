@@ -2459,15 +2459,14 @@ def TabGroup(tabgroup_layout, filter=None, key='sstabgroup', **kwargs):
     :param key: The unique key name of this TabGroup. If one is not provided, it will be 'sstabgroup', ':1' and following.
     :return: The TabGroup to be used in your window.
     """
-    layout = []
     if 'enable_events' in kwargs:
         del kwargs['enable_events']  # make sure we don't put it in twice
     if 'key' in kwargs:
         key=kwargs['key']
         del kwargs['key']     # make sure we don't put it in twice
     meta = {'type': TYPE_EVENT, 'event_type': EVENT_PROMPT_SAVE_TABGROUP_DB, 'form':None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
-    layout.append(sg.TabGroup( tabgroup_layout, key=keygen(f'{key}.prompt_save_tabgroup'), enable_events=True, metadata=meta, **kwargs))
-    return layout
+    tabgroup = sg.TabGroup( tabgroup_layout, key=keygen(f'{key}.prompt_save_tabgroup'), enable_events=True, metadata=meta, **kwargs)
+    return tabgroup
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
