@@ -70,8 +70,7 @@ layout=[
     [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", no_label=True,size=(6,1))],
     [ss.actions("browser","Addresses",edit_protect=False, duplicate=True)]
 ]
-
-win=sg.Window('Journal example', layout, finalize=True)
+win=sg.Window('Journal example', layout, finalize=True, ttk_theme=ss.get_ttk_theme())
 # Create our frm
 frm=ss.Form(':memory:', sql_commands=sql, bind=win)
 
