@@ -10,7 +10,8 @@ adds set_ttk_theme and get_ttk_theme
 moved some informational popups to quick messages
 Big thanks to ssweber for these great contributions!
 
-First changes to fix the prompt_save functionality
+Changes to fix the prompt_save functionality, including a records_changed() method to easily check if records have changed.
+Improved address book example to use this new method to selectively enable or disable the save button.
 
 ## <v2.02>
 ### Released 01/23/23
