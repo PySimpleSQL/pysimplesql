@@ -230,7 +230,8 @@ class Query:
         self.search_order = []
         self.selector = []
         self.callbacks = {}
-        self._prompt_save=prompt_save
+        self._prompt_save = prompt_save
+
         # self.requery(True)
 
     # Override the [] operator to retrieve columns by key
@@ -485,6 +486,12 @@ class Query:
                 if type(element_val) != type(table_val):
                     element_val = str(element_val)
                     table_val = str(table_val)
+                    
+                # Fix 'False' != '0' 'True' != '1'
+                if element_val == 'False' and table_val == '0':
+                    element_val='0'
+                if element_val == 'True' and table_val == '1':
+                    element_val='1'
 
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val = table_val.rstrip()
@@ -496,11 +503,6 @@ class Query:
                     logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
                     logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
 
-        # handle checking if dependents are dirty next
-        for rel in self.frm.relationships:
-            if rel.parent == self.table and rel.requery_table:
-                if self.frm[rel.child].records_changed():
-                    dirty = True
         return dirty
 
 
@@ -511,16 +513,22 @@ class Query:
         :returns: True or False on whether changed records were found
         :rtype: bool
         """
-        # Return False if there is nothing to check or _prompt_save is False
+        # Return False if there is nothing to check
         # TODO: children too?
-        if self.current_index is None or self.rows == [] or self._prompt_save is False:
+        if self.current_index is None or self.rows == []:
             return False
 
         # Check if any records have changed
         changed = self.records_changed()
+        for rel in self.frm.relationships:
+            if rel.parent == self.table and rel.requery_table:
+                if self.frm[rel.child].records_changed():
+                    dirty = True
+
         if changed:
-            save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-            if save_changes == 'Yes':
+            if self._prompt_save:
+                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+            if not self._prompt_save or save_changes == 'Yes':
                 # save relationships
                 for rel in self.frm.relationships:
                     if rel.parent == self.table and rel.requery_table:
@@ -714,7 +722,7 @@ class Query:
                 return
 
         # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
-        if string in self.frm.window.AllKeysDict.keys():
+        if string in self.frm.window.key_dict.keys():
             string = self.frm.window[string].get()
         if string == '':
             return
@@ -1368,7 +1376,7 @@ class Form:
             supported.append(element['element'].Key)
 
         # Add in other window elements
-        for element in self.window.AllKeysDict:
+        for element in self.window.key_dict:
             supported.append(element)
 
         if callback in supported:
@@ -1566,7 +1574,7 @@ class Form:
         logger.info('Automapping elements...')
         # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
         self.element_map = []
-        for key in win.AllKeysDict.keys():
+        for key in win.key_dict.keys():
             element=win[key]
 
             # Skip this element if there is no metadata present
@@ -1651,7 +1659,7 @@ class Form:
         # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
 
-        for key in win.AllKeysDict.keys():
+        for key in win.key_dict.keys():
             #key = str(key)  # sometimes I end up with an integer element 0? TODO: Research
             element = win[key]
             # Skip this element if there is no metadata present
@@ -1770,7 +1778,7 @@ class Form:
         :return: None
         """
         for q in self.queries:
-            q.set_prompt_save(value)
+            self[q].set_prompt_save(value)
 
     def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
         """
