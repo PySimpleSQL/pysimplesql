@@ -68,7 +68,7 @@ layout=[
     [ss.record("Addresses.address2", label="Address 2:")],
     [ss.record("Addresses.city", label="City/State:", size=(23,1)) ,ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10))],
     [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", no_label=True,size=(6,1))],
-    [ss.actions("browser","Addresses",edit_protect=False)]
+    [ss.actions("browser","Addresses",edit_protect=False, duplicate=True)]
 ]
 
 win=sg.Window('Journal example', layout, finalize=True)
