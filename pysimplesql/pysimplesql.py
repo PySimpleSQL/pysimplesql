@@ -2452,6 +2452,13 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     return sg.Col(layout=layout)
 
 def TabGroup(tabgroup_layout, filter=None, key='sstabgroup', **kwargs):
+    """
+    Allows PySimpleSql to track tab changes under this TabGroup.
+    Rename your pg.TabGroup to ss.TabGroup
+    Prompt Save for tabs will go by whatever is set under set_prompt_save. True to prompt, False to save without a prompt.
+    :param key: The unique key name of this TabGroup. If one is not provided, it will be 'sstabgroup', ':1' and following.
+    :return: The TabGroup to be used in your window.
+    """
     layout = []
     if 'enable_events' in kwargs:
         del kwargs['enable_events']  # make sure we don't put it in twice
