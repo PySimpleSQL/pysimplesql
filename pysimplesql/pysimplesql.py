@@ -2451,10 +2451,13 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
             layout[-1].append(sg.B(icon.quick_edit, key=keygen(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
     return sg.Col(layout=layout)
 
-def tabgroup(key, tabgroup_layout, filter=None, **kwargs):
+def TabGroup(tabgroup_layout, filter=None, key='sstabgroup', **kwargs):
     layout = []
     if 'enable_events' in kwargs:
         del kwargs['enable_events']  # make sure we don't put it in twice
+    if 'key' in kwargs:
+        key=kwargs['key']
+        del kwargs['key']     # make sure we don't put it in twice
     meta = {'type': TYPE_EVENT, 'event_type': EVENT_PROMPT_SAVE_TABGROUP_DB, 'form':None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
     layout.append(sg.TabGroup( tabgroup_layout, key=keygen(f'{key}.prompt_save_tabgroup'), enable_events=True, metadata=meta, **kwargs))
     return layout
