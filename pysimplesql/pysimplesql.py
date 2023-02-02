@@ -1760,7 +1760,7 @@ class Form:
             else:
                 logger.info('Changes discarded')
 
-				# only need to requery on discard of changes.
+                # only need to requery on discard of changes.
                 # requery parent, move to previous pk
                 logger.info('Requerying tables and refreshing window to same records')
                 for parent, parent_dict in nested_changed.items():
