@@ -529,7 +529,7 @@ class Query:
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 if self.frm[rel.child].records_changed():
-                    dirty = True
+                    changed = True
 
         if changed:
             if self._prompt_save:
@@ -1754,25 +1754,27 @@ class Form:
                             # print(f'{child=},{child_pk=}')
                             self[child].save_record(False,False)
                     # print(f'{parent=}, {parent_dict["pk"]=}')
-                    self[parent].save_record(False,False)
+                    if changed[parent]:
+                        self[parent].save_record(False,False)
                 result = PROMPT_PROCEED
             else:
                 logger.info('Changes discarded')
-                result = PROMPT_DISCARDED
 
-            # requery parent, move to previous pk
-            logger.info('Requerying tables and refreshing window to same records')
-            for parent, parent_dict in nested_changed.items():
-                #print(f'{parent=}, {parent_dict["pk"]=}')
-                self[parent].requery()
-                self[parent].set_by_pk(parent_dict["pk"])
-            
-            # requery children, move to pk
-            for parent, parent_dict in nested_changed.items():
-                if len(parent_dict['children']):
-                    for child, child_pk in parent_dict['children'].items():
-                        self[child].requery()
-                        self[child].set_by_pk(child_pk)
+				# only need to requery on discard of changes.
+                # requery parent, move to previous pk
+                logger.info('Requerying tables and refreshing window to same records')
+                for parent, parent_dict in nested_changed.items():
+                    #print(f'{parent=}, {parent_dict["pk"]=}')
+                    self[parent].requery()
+                    self[parent].set_by_pk(parent_dict["pk"])
+                
+                # requery children, move to pk
+                for parent, parent_dict in nested_changed.items():
+                    if len(parent_dict['children']):
+                        for child, child_pk in parent_dict['children'].items():
+                            self[child].requery()
+                            self[child].set_by_pk(child_pk)
+                result = PROMPT_DISCARDED
             # update window
             self.update_elements()
             self.window.refresh()
