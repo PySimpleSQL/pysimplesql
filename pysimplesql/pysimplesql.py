@@ -1800,7 +1800,7 @@ class Form:
             for m in self.event_map:
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 hide = len(self[t].rows) == 0 or self._edit_protect
-                if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']) or m['table'] == t:
+                if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
                     win[m['event']].update(disabled=hide)
                     self.update_element_states(t, hide)
 
