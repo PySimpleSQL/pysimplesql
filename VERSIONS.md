@@ -8,7 +8,9 @@ adds user defined icon packs
 adds duplicate to available record actions
 adds set_ttk_theme and get_ttk_theme
 moved some informational popups to quick messages
-Big thanks to ssweber for these great contributions!
+New prompt_save() feature at both the Query and Form level
+Big thanks to ssweber for many of these great ideas and contributions!
+
 
 Changes to fix the prompt_save functionality, including a records_changed() method to easily check if records have changed.
 Improved address book example to use this new method to selectively enable or disable the save button.
