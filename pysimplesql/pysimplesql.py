@@ -1116,11 +1116,10 @@ class Query:
             for qry in self.frm.queries:
                 for r in self.frm.relationships:
                     if r.parent == self.table and r.requery_table and (r.child not in child_duplicated):
-                        child_pk = self.frm.get_child_pk(r.parent,r.child)
                         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
                         self.con.execute(q)
                         logger.info(q)
-                        q = f'UPDATE tmp SET {child_pk} = NULL'
+                        q = f'UPDATE tmp SET {self.frm[r.child].pk_column} = NULL'
                         self.con.execute(q)
                         logger.info(q)
                         q = f'UPDATE tmp SET {r.fk} = {pk}'
@@ -1133,7 +1132,6 @@ class Query:
                         self.con.execute(q)
                         logger.info(q)
                         child_duplicated.append(r.child)
-                        print(child_duplicated)                        
                         
         # callback
         if 'after_duplicate' in self.callbacks.keys():
@@ -1457,31 +1455,6 @@ class Form:
         for r in self.relationships:
             if r.child == table and r.requery_table:
                 return r.parent
-        return None
-    
-    def get_child_pk(self, parent, child):
-        """
-        Return the child primary key name for the passed-in table
-        :param parent: The parent table (str)
-        :param child: The child table (str) to get pk of
-        :return: The pk column name of the child table, or '' if there is none
-        """
-        q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
-        cur = self.con.execute(q)
-        records = [dict(row) for row in cur.fetchall()]
-        
-        for r in self.relationships:
-            if r.parent == parent and r.child == child and r.requery_table:
-                for t in records:
-                    if t["name"] == r.child:
-                        q2 = f'PRAGMA table_info({t["name"]})'
-                        cur2 = self.con.execute(q2)
-                        records2 = cur2.fetchall()
-                        pk_column = None
-                        for t2 in records2:
-                            if t2['pk']:
-                                pk_column = t2['name']
-                        return(pk_column)
         return None
 
     def auto_add_queries(self, prefix_queries=''):
