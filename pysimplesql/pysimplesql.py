@@ -1712,14 +1712,20 @@ class Form:
         Prompt to save if any GUI changes are found the affect any table on this form
         :return: True if changes were found, false otherwise
         """
+        user_prompted = False # Has the user been prompted yet?
         for q in self.queries:
             if self[q].records_changed():
-                # As soon as we find a single change, we can prompt.  No need to continue looping
-                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-                if save_changes == 'Yes':
-                    self.save_records()
-                    return True
-        return False
+                # we will only show the popup once, regardless of how many queries have changed
+                if not user_prompted:
+                    user_prompted = True
+                    save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+                    if save_changes != 'Yes':
+                        # requery the form to erase any GUI changes
+                        self.requery_all()
+                        return True # We did have a change, regardless if the user chose not to save
+                self[q].save_record()
+        return True if user_prompted else False
+
 
 
 
