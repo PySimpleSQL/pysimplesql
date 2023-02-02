@@ -2094,16 +2094,16 @@ class Form:
 # RECORD SELECTOR ICONS
 _iconpack = {
     'ss_text' : {
-        'edit_protect' : 'Protect',
-        'quick_edit' : 'edit',
-        'save' : 'Save',
-        'first' : '<<',
-        'previous' : '<',
-        'next' : '>',
-        'last' : '>>',
-        'insert' : '+',
-        'delete' : 'X',
-        'duplicate' : '*+',
+        'edit_protect' : '\U0001F512',
+        'quick_edit' : '\u270E',
+        'save' : '\U0001f4be',
+        'first' : '\u2770',
+        'previous' : '\u276C',
+        'next' : '\u276D',
+        'last' : '\u2771',
+        'insert' : '\u271A',
+        'delete' : '\u274E',
+        'duplicate' : '\u274F',
         'search' : 'Search',
     },
     'ss_small' : {
