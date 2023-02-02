@@ -1684,7 +1684,6 @@ class Form:
                 else:
                     logger.debug(f'Unsupported event_type: {event_type}')
 
-
                 if funct is not None:
                     self.map_event(key, funct, event_query)
 
@@ -1707,6 +1706,22 @@ class Form:
 
     def get_edit_protect(self):
         return self._edit_protect
+
+    def prompt_save(self) -> bool:
+        """
+        Prompt to save if any GUI changes are found the affect any table on this form
+        :return: True if changes were found, false otherwise
+        """
+        for q in self.queries:
+            if self[q].records_changed():
+                # As soon as we find a single change, we can prompt.  No need to continue looping
+                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+                if save_changes == 'Yes':
+                    self.save_records()
+                    return True
+        return False
+
+
 
     def save_records(self, cascade_only=False):
         logger.info(f'Preparing to save records in all queries...')
