@@ -58,6 +58,12 @@ EVENT_SEARCH_DB=10
 EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
 
+# --------------------
+# PROMPT_SAVE Returns
+# --------------------
+PROMPT_DISCARDED = 0
+PROMPT_PROCEED = 1
+PROMPT_NONE = 2
 # ------------------------
 # RECORD SAVE RETURN TYPES
 # ------------------------
@@ -520,7 +526,7 @@ class Query:
         # Return False if there is nothing to check or _prompt_save is False
         # TODO: children too?
         if self.current_index is None or self.rows == [] or self._prompt_save is False:
-            return False
+            return PROMPT_NONE
 
         # Check if any records have changed
         changed = self.records_changed()
@@ -533,8 +539,11 @@ class Query:
                         self.frm[rel.child].save_record(True,False)
                 # save this record
                 self.save_record(True,False)
-
-        return changed
+                return PROMPT_PROCEED
+            else:
+                return PROMPT_DISCARDED
+        else:
+            return PROMPT_NONE
 
 
     def generate_join_clause(self) -> str:
@@ -1722,9 +1731,9 @@ class Form:
                     if save_changes != 'Yes':
                         # requery the form to erase any GUI changes
                         self.requery_all()
-                        return True # We did have a change, regardless if the user chose not to save
+                        return PROMPT_PROCEED # We did have a change, regardless if the user chose not to save
                 self[q].save_record()
-        return True if user_prompted else False
+        return PROMPT_DISCARDED if user_prompted else PROMPT_NONE
 
 
 
