@@ -486,6 +486,12 @@ class Query:
                     element_val = str(element_val)
                     table_val = str(table_val)
 
+                # Fix 'False' != '0' 'True' != '1'
+                if element_val == 'False' and table_val == '0':
+                    element_val = '0'
+                if element_val == 'True' and table_val == '1':
+                    element_val = '1'
+
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val = table_val.rstrip()
                 if type(element_val) is str: element_val = element_val.rstrip()
