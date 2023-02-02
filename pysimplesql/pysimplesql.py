@@ -59,12 +59,18 @@ EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
 EVENT_FORM_PROMPT_SAVE_DB=14
 
+## PROMPT_SAVE Returns
+PROMPT_DISCARDED = 0
+PROMPT_PROCEED = 1
+PROMPT_NONE = 2
+
 # ------------------------
 # RECORD SAVE RETURN TYPES
 # ------------------------
 SAVE_FAIL=0     # Save failed due to callback
 SAVE_SUCCESS=1  # Save was successful
 SAVE_NONE=2     # There was nothing to save
+
 
 def strip(string:str) -> str:
     """
@@ -516,7 +522,7 @@ class Query:
         # Return False if there is nothing to check
         # TODO: children too?
         if self.current_index is None or self.rows == []:
-            return False
+            return PROMPT_NONE
 
         # Check if any records have changed
         changed = self.records_changed()
@@ -535,8 +541,12 @@ class Query:
                         self.frm[rel.child].save_record(True,False)
                 # save this record
                 self.save_record(True,False)
+                return PROMPT_PROCEED
+            else:
+                return PROMPT_DISCARDED
+        else:
+            return PROMPT_NONE
 
-        return changed
 
 
     def generate_join_clause(self) -> str:
@@ -1745,8 +1755,11 @@ class Form:
                             self[child].save_record(False,False)
                     # print(f'{parent=}, {parent_dict["pk"]=}')
                     self[parent].save_record(False,False)
+                result = PROMPT_PROCEED
             else:
                 logger.info('Changes discarded')
+                result = PROMPT_DISCARDED
+
             # requery parent, move to previous pk
             logger.info('Requerying tables and refreshing window to same records')
             for parent, parent_dict in nested_changed.items():
@@ -1763,6 +1776,8 @@ class Form:
             # update window
             self.update_elements()
             self.window.refresh()
+            return result
+        return PROMPT_NONE
             
 
     def edit_protect(self,event=None, values=None):
