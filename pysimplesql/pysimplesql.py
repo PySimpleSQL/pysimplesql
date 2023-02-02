@@ -57,7 +57,7 @@ EVENT_QUICK_EDIT=9
 EVENT_SEARCH_DB=10
 EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
-EVENT_PROMPT_SAVE_TABGROUP_DB=14
+EVENT_FORM_PROMPT_SAVE_DB=14
 
 # ------------------------
 # RECORD SAVE RETURN TYPES
@@ -232,7 +232,6 @@ class Query:
         self.selector = []
         self.callbacks = {}
         self._prompt_save = prompt_save
-        self._prompt_save_tabgroup = prompt_save
         # self.requery(True)
 
     # Override the [] operator to retrieve columns by key
@@ -1242,7 +1241,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationhips
 
-    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
+    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None, prompt_save=True):
         """
         Initialize a new @Form instance
 
@@ -1279,6 +1278,7 @@ class Form:
         self.relationships = []
         self.callbacks = {}
         self.con = con
+        self._prompt_save = prompt_save
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
@@ -1696,8 +1696,8 @@ class Form:
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
-                elif event_type==EVENT_PROMPT_SAVE_TABGROUP_DB:
-                    funct=self.prompt_save_tabgroup
+                elif event_type==EVENT_FORM_PROMPT_SAVE_DB:
+                    funct=self.prompt_save
                 elif event_type==EVENT_SAVE_DB:
                     funct=self.save_records
                 elif event_type==EVENT_SEARCH:
@@ -1720,60 +1720,74 @@ class Form:
                 if funct is not None:
                     self.map_event(key, funct, event_query)
 
-    def prompt_save_tabgroup(self):
+    def prompt_save(self):
         """
-        Prompts the user if they want to save when changes when catching a supported ss.tabgroup event.
+        Form-level prompt_save. Checks all queries for any changes.
+        If no, refreshes the window discarding the changes.
+        If Prompt is set to False, saves silently.
+        TabGroup calls this event.
         :returns: None
-        :rtype: bool
         """
-        logger.info('Tab changed. Checking if there are any records unsaved')
-        unsaved_changes = {}
-        tables = {}
-        for q in self.queries:
-            unsaved_changes[q] = self[q].records_changed()
-            
-        if sum(unsaved_changes.values()):
-            if self._prompt_save_tabgroup:
-                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-            if not self._prompt_save_tabgroup or save_changes == 'Yes':
+        logger.info('Checking all queries if there are any records unsaved')
+        changed = {} # {query : True/False}
+        nested_changed = {} # {query : {'pk' : pk, 'children' : {query : pk}}}
 
-                for q, changed in unsaved_changes.items():
-                    if changed:
+        
+        # get all changed records
+        for q in self.queries:
+            changed[q] = self[q].records_changed()
+    
+        # if any are True
+        if sum(changed.values()):
+            if self._prompt_save:
+                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+            if not self._prompt_save or save_changes == 'Yes':
+                # if no parent, add
+                for q, c in changed.items():
+                    if c:
                         parent = self.get_parent(q)
                         if not parent:
-                            tables[q] = {}
-                            tables[q]['children'] = {}
-                            tables[q]['pk'] = self[q].get_current_pk()
-                            
-                for q, changed in unsaved_changes.items():
-                    if changed and q not in tables.keys():
+                            nested_changed[q] = {}
+                            nested_changed[q]['children'] = {}
+                            nested_changed[q]['pk'] = self[q].get_current_pk()
+
+                # for queries that had parents, nest
+                for q, c in changed.items():
+                    if c and q not in nested_changed.keys():
                         parent = self.get_parent(q)
                         try:
-                            tables[parent]['children'][q] = self[q].get_current_pk()
+                            nested_changed[parent]['children'][q] = self[q].get_current_pk()
+                        # if parent table didn't have any changes
                         except:
-                            tables[parent] = {}
-                            tables[parent]['pk'] = self[parent].get_current_pk()
-                            tables[parent]['children'] = {}
-                            tables[parent]['children'][q] = self[q].get_current_pk()
-                
-                for parent, parent_dict in tables.items():
+                            nested_changed[parent] = {}
+                            nested_changed[parent]['pk'] = self[parent].get_current_pk()
+                            nested_changed[parent]['children'] = {}
+                            nested_changed[parent]['children'][q] = self[q].get_current_pk()
+                            
+                # save children, then parent
+                for parent, parent_dict in nested_changed.items():
                     if len(parent_dict['children']):
                         for child, child_pk in parent_dict['children'].items():
-                            print(f'{child=},{child_pk=}')
+                            # print(f'{child=},{child_pk=}')
                             self[child].save_record(False,False)
-                    print(f'{parent=}, {parent_dict["pk"]=}')
+                    # print(f'{parent=}, {parent_dict["pk"]=}')
                     self[parent].save_record(False,False)
-                    
-            for parent, parent_dict in tables.items():
-                print(f'{parent=}, {parent_dict["pk"]=}')
+            else:
+                logger.info('Changes discarded')
+            # requery parent, move to previous pk
+            logger.info('Requerying tables and refreshing window to same records')
+            for parent, parent_dict in nested_changed.items():
+                #print(f'{parent=}, {parent_dict["pk"]=}')
                 self[parent].requery()
                 self[parent].set_by_pk(parent_dict["pk"])
-                
-            for parent, parent_dict in tables.items():
+            
+            # requery children, move to pk
+            for parent, parent_dict in nested_changed.items():
                 if len(parent_dict['children']):
                     for child, child_pk in parent_dict['children'].items():
                         self[child].requery()
                         self[child].set_by_pk(child_pk)
+            # update window
             self.update_elements()
             self.window.refresh()
             
@@ -1836,7 +1850,7 @@ class Form:
         :type value: bool
         :return: None
         """
-        self._prompt_save_tabgroup = value
+        self._prompt_save = value
         for q in self.queries:
             self[q].set_prompt_save(value)
 
@@ -2451,21 +2465,21 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
             layout[-1].append(sg.B(icon.quick_edit, key=keygen(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
     return sg.Col(layout=layout)
 
-def TabGroup(tabgroup_layout, filter=None, key='sstabgroup', **kwargs):
+def TabGroup(tabgroup_layout, filter=None, key='', **kwargs):
     """
-    Allows PySimpleSql to track tab changes under this TabGroup.
-    Rename your pg.TabGroup to ss.TabGroup
-    Prompt Save for tabs will go by whatever is set under set_prompt_save. True to prompt, False to save without a prompt.
-    :param key: The unique key name of this TabGroup. If one is not provided, it will be 'sstabgroup', ':1' and following.
-    :return: The TabGroup to be used in your window.
+    Track unsaved changes when switching tabs. Rename your sg.TabGroup to ss.TabGroup.
+    Set behavior using frm.set_prompt_save(). True to prompt, False to save without a prompt.
+    Adds this TabGroup to event_map. Calls form-level prompt_save when a tab in this tabgroup is changed.
+    :param key: The unique key name of this TabGroup. It will be 'key'.sstabgroup. If none provided, ':1', ':2', will be added after the first.
+    :return: The TabGroup to be used in your window layout.
     """
     if 'enable_events' in kwargs:
         del kwargs['enable_events']  # make sure we don't put it in twice
     if 'key' in kwargs:
         key=kwargs['key']
         del kwargs['key']     # make sure we don't put it in twice
-    meta = {'type': TYPE_EVENT, 'event_type': EVENT_PROMPT_SAVE_TABGROUP_DB, 'form':None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
-    tabgroup = sg.TabGroup( tabgroup_layout, key=keygen(f'{key}.prompt_save_tabgroup'), enable_events=True, metadata=meta, **kwargs)
+    meta = {'type': TYPE_EVENT, 'event_type': EVENT_FORM_PROMPT_SAVE_DB, 'form':None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+    tabgroup = sg.TabGroup( tabgroup_layout, key=keygen(f'{key}.sstabgroup'), enable_events=True, metadata=meta, **kwargs)
     return tabgroup
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
