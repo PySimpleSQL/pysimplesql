@@ -1107,19 +1107,19 @@ class Query:
         ## using the "CREATE TABLE AS" syntax.
         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)}'
         self.con.execute(q)
-        logger.info(q)
+        logger.debug(q)
         q = f'UPDATE tmp SET {self.pk_column} = NULL'
         self.con.execute(q)
-        logger.info(q)
+        logger.debug(q)
         q = f'UPDATE tmp SET {self.description_column} = "Copy of " || {self.description_column}'
         self.con.execute(q)
-        logger.info(q)
+        logger.debug(q)
         q = f'INSERT INTO {self.table} SELECT * FROM tmp'
         cur = self.con.execute(q)
-        logger.info(q)
+        logger.debug(q)
         q = f'DROP TABLE tmp;'
         self.con.execute(q)
-        logger.info(q)
+        logger.debug(q)
         
         # Now we save the new pk
         pk = cur.lastrowid
@@ -1133,19 +1133,19 @@ class Query:
                     if r.parent == self.table and r.requery_table and (r.child not in child_duplicated):
                         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
                         self.con.execute(q)
-                        logger.info(q)
+                        logger.debug(q)
                         q = f'UPDATE tmp SET {self.frm[r.child].pk_column} = NULL'
                         self.con.execute(q)
-                        logger.info(q)
+                        logger.debug(q)
                         q = f'UPDATE tmp SET {r.fk} = {pk}'
                         self.con.execute(q)
-                        logger.info(q)
+                        logger.debug(q)
                         q = f'INSERT INTO {r.child} SELECT * FROM tmp'
                         self.con.execute(q)
-                        logger.info(q)
+                        logger.debug(q)
                         q = f'DROP TABLE tmp;'
                         self.con.execute(q)
-                        logger.info(q)
+                        logger.debug(q)
                         child_duplicated.append(r.child)
                         
         # callback
@@ -1201,6 +1201,7 @@ class Query:
 
     def quick_editor(self, pk_update_funct=None,funct_param=None):
         # Reset the keygen to keep consistent naming
+        logger.info('Creating Quick Editor window')
         keygen_reset_all()
         query_name = self.name
         layout = []
@@ -1235,11 +1236,11 @@ class Query:
             event, values = quick_win.read()
 
             if quick_frm.process_events(event, values):
-                logger.info(f'PySimpleSQL event handler handled the event {event}!')
+                logger.debug(f'PySimpleSQL Quick Editor event handler handled the event {event}!')
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             else:
-                logger.info(f'This event ({event}) is not yet handled.')
+                logger.debug(f'This event ({event}) is not yet handled.')
         quick_win.close()
         self.requery()
 
@@ -1270,7 +1271,7 @@ class Form:
         Form.instances.append(self)
 
         if db_path is not None:
-            logger.info(f'Importing database: {db_path}')
+            logger.info(f'Opening database: {db_path}')
             new_database = not os.path.isfile(db_path)
             con = sqlite3.connect(db_path)  # Open our database
 
@@ -1294,12 +1295,13 @@ class Form:
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands')
+            logger.info(f'Executing sql commands passed in')
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
         if sql_script is not None and new_database:
             # run SQL script from the file if the database does not yet exist
+            logger.info('Executing sql script from file passed in')
             self.execute_script(sql_script)
 
         # Add our default queries and relationships
@@ -1338,7 +1340,7 @@ class Form:
         :param win: The PySimpleGUI window
         :return:  None
         """
-        logger.info('Bnding Window to Form...')
+        logger.info('Binding Window to Form')
         self.window = win
         self.auto_map_elements(win)
         self.auto_map_events(win)
@@ -1479,7 +1481,7 @@ class Form:
         Note that @Form.add_table can do this manually on a per-table basis.
         :return: None
         """
-        logger.info('Automatically generating queries for each table in the sqlite database...')
+        logger.info('Automatically generating queries for each table in the sqlite database')
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.queries = {}
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
@@ -1524,7 +1526,7 @@ class Form:
         which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
         :return: None
         """
-        logger.info(f'Automatically adding foreign key relationships...')
+        logger.info(f'Automatically adding foreign key relationships')
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.relationships = []
         for table in self.queries:
@@ -1560,7 +1562,7 @@ class Form:
         self.element_map.append(dic)
 
     def auto_map_elements(self, win, keys=None):
-        logger.info('Automapping elements...')
+        logger.info('Automapping elements')
         # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
         self.element_map = []
         for key in win.AllKeysDict.keys():
@@ -1644,7 +1646,7 @@ class Form:
                 e['table'] = table if table is not None else e['table']
 
     def auto_map_events(self, win):
-        logger.info(f'Auto mapping events...')
+        logger.info(f'Automapping events')
         # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
 
@@ -2031,7 +2033,7 @@ class Form:
         :returns: None
         :rtype: None
         """
-        logger.info('Requerying all queries...')
+        logger.info('Requerying all queries')
         for k in self.queries.keys():
             self[k].requery(update_elements)
 
