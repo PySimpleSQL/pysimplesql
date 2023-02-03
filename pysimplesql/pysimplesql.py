@@ -736,7 +736,7 @@ class Query:
                 return
 
         # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
-        if string in self.frm.window.AllKeysDict.keys():
+        if string in self.frm.window.key_dict.keys():
             string = self.frm.window[string].get()
         if string == '':
             return
@@ -1390,7 +1390,7 @@ class Form:
             supported.append(element['element'].Key)
 
         # Add in other window elements
-        for element in self.window.AllKeysDict:
+        for element in self.window.key_dict:
             supported.append(element)
 
         if callback in supported:
@@ -1564,7 +1564,7 @@ class Form:
         logger.info('Automapping elements')
         # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
         self.element_map = []
-        for key in win.AllKeysDict.keys():
+        for key in win.key_dict.keys():
             element=win[key]
 
             # Skip this element if there is no metadata present
@@ -1649,7 +1649,7 @@ class Form:
         # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
 
-        for key in win.AllKeysDict.keys():
+        for key in win.key_dict.keys():
             #key = str(key)  # sometimes I end up with an integer element 0? TODO: Research
             element = win[key]
             # Skip this element if there is no metadata present
@@ -2107,7 +2107,7 @@ class Form:
             element=c['element']
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
-                #if element.Key in self.window.AllKeysDict.keys():
+                #if element.Key in self.window.key_dict.keys():
                 logger.debug(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
                 if disable is not None:
                     element.update(disabled=disable)
