@@ -642,6 +642,27 @@ Whether you want to use the **pysimplesql**.actions() convenience function, writ
 ## Event Mapping
  TODO
 
+## SIMPLE BUT ROBUST PROMPT SAVE SYSTEM
+Nothing is worse than a program that doesn't catch when you forget to save changes - especially if those programs deal with data entry. **pysimplesql** has a simple but robust prompt save system in place.  This is enabled by default, but can be turned off if needed. Prompt saves can be thought of as having 3 levels - a Form level which affects all queries of the Form, a Query level which affects only specific queries, and a manual level where you can command the system to prompt to save changes (such as when switching tabs in a tab group, at specified intervals, or when shutting down your program). The system is smart enough to only prompt if an actual change is found.
+###Form-level prompt save###
+Simply call ```python frm.set_promt_save(True) # or False to disable``` to enable automatic promt saves any time the user navigates away from a record that has changed.  This happens for any and all Queries attached to this Form.
+###Query-level prompt save###
+A call to ```python frm['table_name'].set_prompt_save(True) # or False to disable for this Query``` can enable/disable automatic prompting for individual Queries
+###Manual prompting###
+To manually prompt for a save, just do a direct call to ```python frm.prompt_save().  There is an optional autosave=True/False parameter to enable an autosave feature which will make these saves happen automatically without bothering the user for their input.  Its also a great thing to put in your main loop exit conditions to ensure changes are saved before shutting down.  There are a couple of caveats to using the prompt_save() call on the main loop exit condition - please see example below:
+```python
+# For using the prompt save system on exit, you have to add the enable_close_attempted_event=True parameter during PySimpleGUI window creation
+window=sg.Window('My Program', layout, enable_close_attempted_event=True)
+
+While True:
+	events,values=window.read()
+	
+	if event in (sg.WINDOW_CLOSE_ATTEMPTED_EVENT, sg.WIN_CLOSED, 'Exit', '-ESCAPE-'):
+        	frm.prompt_save(autosave=False) # set autosave to True to have this automatically happen, or leave to False to have the user prompted
+		window.close()
+		frm=None
+		break
+```
 
 ## PLEASE BE PATIENT
 There is a lot of documentation left to do, and more examples to make.  In subsequent releases, I'll try to pick away at 
