@@ -1730,7 +1730,7 @@ class Form:
                     save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
                     if save_changes != 'Yes':
                         # requery the form to erase any GUI changes
-                        self.requery_all()
+                        self.update_elements()
                         return PROMPT_PROCEED # We did have a change, regardless if the user chose not to save
                 self[q].save_record()
         return PROMPT_DISCARDED if user_prompted else PROMPT_NONE
