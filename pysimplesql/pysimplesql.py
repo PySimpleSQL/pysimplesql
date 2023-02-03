@@ -21,14 +21,11 @@ import PySimpleGUI as sg
 import sqlite3
 import functools
 import os.path
-import random
 import logging
 from types import SimpleNamespace ## for iconpacks
-
 import pysimplesql ## Needed for quick_edit pop-ups
 
 logger = logging.getLogger(__name__)
-
 
 # ---------------------------
 # Types for automatic mapping
@@ -64,6 +61,7 @@ EVENT_EDIT_PROTECT_DB=12
 PROMPT_DISCARDED = 0
 PROMPT_PROCEED = 1
 PROMPT_NONE = 2
+
 # ------------------------
 # RECORD SAVE RETURN TYPES
 # ------------------------
@@ -279,7 +277,7 @@ class Query:
 
 
         # Reset the keygen for selectors and elements from this Form
-        # This is probably a little hack-ish, perhaps I should reloacate the keygen?
+        # This is probably a little hack-ish, perhaps I should relocate the keygen?
         if reset_keygen:
             for k in selector_keys:
                 keygen_reset(k)
@@ -312,7 +310,7 @@ class Query:
 
     def set_callback(self, callback:str, fctn:Callable[[Form, sg.Window], bool]) -> None:
         """
-        Set table callbacks. A runtime error will be thrown if the callback is not supported.
+        Set Query callbacks. A runtime error will be thrown if the callback is not supported.
 
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the record will rollback if the callback returns false.
@@ -359,7 +357,7 @@ class Query:
         :returns: None
         :rtype: None
         """
-        logger.info(f'Setting {self.table} query to {query}')
+        logger.debug(f'Setting {self.table} query to {query}')
         self.query = query
 
 
@@ -417,7 +415,6 @@ class Query:
         # Now we need to set  new column names, as the query could have changed
         if names!=None:
             self.column_names=names
-            print('returning.....')
             return
 
         cur = self.con.execute(self.generate_query())
@@ -622,6 +619,7 @@ class Query:
         The requery method will requery the actual database  and sync the @Query objects to it
         :param select_first: If true, the first record will be selected after the requery
         :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
+        :param update: passed to Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
         :return: None
         """
         if filtered:
@@ -672,7 +670,7 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        logger.info(f'Moving to the last record of table {self.table}')
+        logger.debug(f'Moving to the last record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
@@ -825,6 +823,9 @@ class Query:
             return default
 
     def get_keyed_value(self,value_column, key_column, key_value):
+        """
+        Return value_column where key_column=key_value.  Useful for datastores with key/value pairs
+        """
         for r in self.rows:
             if r[key_column] == key_value:
                 return r[value_column]
@@ -838,8 +839,8 @@ class Query:
 
     def get_max_pk(self):
         """
-        The the highest primary key for this table.
-        This can give some insight on what the next inserted primary key will be
+        Returns the highest primary key for this table.
+        This can give some insight on what the next inserted primary key may be
         :return: The maximum primary key value currently in the table
         """
         # TODO: Maybe get this right from the table object instead of running a query?
@@ -871,7 +872,7 @@ class Query:
         d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
-    def insert_record(self, column='', value=''):
+    def insert_record(self, column:str='', value:str='') -> None:
         """
         Insert a new record. If column and value are passed, it will initially set that column to the value
         (I.e. {Query}.name='New Record). If none are provided, the default values for the column are used, as set in the
@@ -900,7 +901,6 @@ class Query:
         columns = ",".join([str(x) for x in columns])
         values = ",".join([str(x) for x in values])
         # We will make a blank record and insert it
-        # q = f'INSERT INTO {self.table} ({columns}) VALUES ({q_marks});'
         q = f'INSERT INTO {self.table} '
         if columns != '':
             q += f'({columns}) VALUES ({values});'
@@ -1184,7 +1184,6 @@ class Query:
                 found = False
                 for rel in rels:
                     if col == rel.fk:
-                        #print(f'{col} {rel.fk} {row[col]}')
                         lst.append(self.frm[rel.parent].get_description_for_pk(row[col]))
                         found = True
                         break
@@ -1253,7 +1252,7 @@ class Form:
     Queries can be accessed by key, I.e. frm['query_name"] to return a Query instance
     """
     instances = []  # Track our instances
-    relationships = [] # Track our relationhips
+    relationships = [] # Track our relationships
 
     def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
         """
@@ -1383,7 +1382,7 @@ class Form:
        :param fctn: The function to call.  Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
        :return: None
        """
-        logger.info(f'Callback {callback} being set on database')
+        logger.info(f'Callback {callback} being set on Form')
         supported = ['update_elements', 'edit_enable', 'edit_disable']
 
         # Add in mapped elements
@@ -1622,7 +1621,7 @@ class Form:
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
                 else:
-                    logger.info(f'Can not add selector {str(element)}')
+                    logger.debug(f'Can not add selector {str(element)}')
 
     def set_element_clause(self,element,where:str=None,order:str=None) -> None:
         for e in self.element_map:
@@ -1727,13 +1726,13 @@ class Form:
     def get_edit_protect(self):
         return self._edit_protect
 
-    def prompt_save(self, autosave=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
+    def prompt_save(self, autosave=False) -> int:
         """
         Prompt to save if any GUI changes are found the affect any table on this form
         :param autosave: True to autosave when changes are found without prompting the user
         :type autosave: bool
         :return: Prompt return value
-        :rtype: Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]
+        :rtype: int, one of Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]
         """
         user_prompted = False # Has the user been prompted yet?
         for q in self.queries:
@@ -1763,7 +1762,6 @@ class Form:
     def save_records(self, cascade_only=False):
         logger.debug(f'Saving records in all queries...')
         msg = None
-        #self.window.refresh()  # todo remove?
         i = 0
         tables = self.get_cascaded_relationships() if cascade_only else self.queries
         last_index = len(self.queries) - 1
@@ -1817,7 +1815,6 @@ class Form:
         :returns: None
         :rtype: None
         """
-        # TODO Fix bug where listbox first element is ghost selected
         msg='edit protect' if edit_protect_only else 'PySimpleGUI'
         logger.debug(f'update_elements(): Updating {msg} elements')
         win = self.window
@@ -2053,7 +2050,7 @@ class Form:
         :rtype: bool
         """
         if self.window is None:
-            print(f'***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***')
+            logger.info(f'***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***')
             return False
         elif event:
             for e in self.event_map:
@@ -2198,7 +2195,7 @@ def load_iconpack(pack):
 def set_iconpack(name):
     """
     Sets which iconpack to use in gui
-    PySimpleSql comes with 'ss.small' and 'ss.large'
+    PySimpleSql comes with 'ss.small' (default) 'ss.large' and 'ss_text'
     :param name: name of iconpack to set as active
     :return: None
     """
@@ -2303,7 +2300,7 @@ def form_relationship(child, fk, parent, pk) -> None:
 # ----------------------------------------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
 # ----------------------------------------------------------------------------------------------------------------------
-# TODO: How to save Form in metadata?  Perhaps ive forms names and reference them that way??
+# TODO: How to save Form in metadata?  Perhaps give forms names and reference them that way??
 # For exapmle - give forms names!  and reference them by name string
 # They could even be converted later to a real form during form creation?
 
@@ -2362,7 +2359,6 @@ def get_ttk_theme():
 
 # Define a custom element for quickly adding database rows.
 # The automatic functions of PySimpleSQL require the elements to have a properly setup metadata
-# todo should I enable elements here for dirty checking?
 def record(table, element=sg.I, key=None, size=None, label='', no_label=False, label_above=False, quick_editor=True, filter=None, **kwargs):
     """
     Convenience function for adding PySimpleGUI elements to the window
@@ -2384,7 +2380,7 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
              will not need to be wrapped in [] in your layout code.
     """
-    # TODO: See what the metadata does??
+    # TODO: See what the metadata does after initial setu is complete
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
     if '?' in table:
