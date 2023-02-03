@@ -375,7 +375,7 @@ class Query:
         :returns: None
         :rtype: None
         """
-        logger.info(f'Setting {self.table} join clause to {clause}')
+        logger.debug(f'Setting {self.table} join clause to {clause}')
         self.join = clause
 
     def set_where_clause(self, clause:str) -> None:
@@ -389,7 +389,7 @@ class Query:
         :returns: None
         :rtype: None
         """
-        logger.info(f'Setting {self.table} where clause to {clause}')
+        logger.debug(f'Setting {self.table} where clause to {clause}')
         self.where = clause
 
     def set_order_clause(self, clause:str) -> None:
@@ -403,7 +403,7 @@ class Query:
         :returns: None
         :rtype: None
         """
-        logger.info(f'Setting {self.table} order clause to {clause}')
+        logger.debug(f'Setting {self.table} order clause to {clause}')
         self.order = clause
 
     def update_column_names(self,names=None) -> None:
@@ -629,7 +629,7 @@ class Query:
             where = self.generate_where_clause()
 
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
-        logger.info('Running query: ' + query)
+        logger.debug('Running query: ' + query)
 
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
@@ -644,7 +644,7 @@ class Query:
         """
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
-                logger.info(f"Requerying dependent table {self.frm[rel.child].table}")
+                logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
                 self.frm[rel.child].requery(update=update)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
@@ -655,7 +655,7 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        logger.info(f'Moving to the first record of table {self.table}')
+        logger.debug(f'Moving to the first record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
@@ -689,7 +689,7 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        logger.info(f'Moving to the next record of table {self.table}')
+        logger.debug(f'Moving to the next record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         if self.current_index < len(self.rows) - 1:
             self.current_index += 1
@@ -708,7 +708,7 @@ class Query:
 
         :return: None
         """
-        logger.info(f'Moving to the previous record of table {self.table}')
+        logger.debug(f'Moving to the previous record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         if self.current_index > 0:
             self.current_index -= 1
@@ -731,7 +731,7 @@ class Query:
         :param string: The search string
         :return: None
         """
-        logger.info(f'Searching for a record of table {self.table} with search term "{string}"')
+        logger.debug(f'Searching for a record of table {self.table} with search term "{string}"')
         # callback
         if 'before_search' in self.callbacks.keys():
             if not self.callbacks['before_search'](self.frm, self.frm.window):
@@ -774,7 +774,7 @@ class Query:
         # TODO: Play sound?
 
     def set_by_index(self, index, update=True, dependents=True, skip_prompt_save=False):
-        logger.info(f'Moving to the record at index {index} on {self.table}')
+        logger.debug(f'Moving to the record at index {index} on {self.table}')
         if skip_prompt_save is False: self.prompt_save()
 
         self.current_index = index
@@ -792,7 +792,7 @@ class Query:
         :param pk: The primary key to move to
         :return: None
         """
-        logger.info(f'Setting table {self.table} record by primary key {pk}')
+        logger.debug(f'Setting table {self.table} record by primary key {pk}')
         if skip_prompt_save is False: self.prompt_save()
 
         i = 0
@@ -867,7 +867,7 @@ class Query:
         if type(element) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
             raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
-        logger.info(f'Adding {element.Key} as a selector for the {self.table} table.')
+        logger.debug(f'Adding {element.Key} as a selector for the {self.table} table.')
         d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
@@ -906,7 +906,7 @@ class Query:
             q += f'({columns}) VALUES ({values});'
         else:
             q += 'DEFAULT VALUES'
-        logger.info(q)
+        logger.debug(q)
         cur = self.con.execute(q)
         self.con.commit()
 
@@ -939,7 +939,7 @@ class Query:
         # callback
         if 'before_save' in self.callbacks.keys():
             if self.callbacks['before_save']()==False:
-                logger.info("We are not saving!")
+                logger.debug("We are not saving!")
                 if update_elements: self.frm.update_elements(self.table)
                 if display_message: sg.popup('Updates not saved.', keep_on_top=True)
                 return SAVE_FAIL
@@ -977,7 +977,7 @@ class Query:
 
             # Add the where clause
             q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
-            logger.info(f'Performing query: {q} {str(values)}')
+            logger.debug(f'Performing query: {q} {str(values)}')
             self.con.execute(q, tuple(values))
             saved=True
 
@@ -997,11 +997,11 @@ class Query:
             self.set_by_pk(pk,update_elements,False,skip_prompt_save=True)
             #self.requery_dependents()
             if update_elements:self.frm.update_elements(self.table)
-            logger.info(f'Record Saved!')
+            logger.debug(f'Record Saved!')
             if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
             return SAVE_SUCCESS
         else:
-            logger.info('Nothing to save.')
+            logger.debug('Nothing to save.')
             if display_message: sg.popup_quick_message('There were no updates to save!', keep_on_top=True)
             return SAVE_NONE
 
@@ -1045,7 +1045,7 @@ class Query:
                     if r.parent == self.table:
                         q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
                         self.con.execute(q)
-                        logger.info(f'Delete query executed: {q}')
+                        logger.debug(f'Delete query executed: {q}')
                         self.frm[r.child].requery(False)
 
 
@@ -1065,7 +1065,6 @@ class Query:
         self.current_index = self.current_index  # force the current_index to be in bounds! todo should this be done in requery?
         self.requery_dependents()
 
-        logger.info(f'Delete query executed: {q}')
         self.requery(select_first=False)
         self.frm.update_elements()
         
@@ -1525,6 +1524,7 @@ class Form:
         which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
         :return: None
         """
+        logger.info(f'Automatically adding foreign key relationships...')
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.relationships = []
         for table in self.queries:
@@ -1534,7 +1534,7 @@ class Form:
             for row in rows:
                 # Add the relationship if it's in the requery list
                 if row['on_update'] == 'CASCADE':
-                    logger.info(f'Setting table {table} to auto requery with table {row["table"]}')
+                    logger.debug(f'Setting table {table} to auto requery with table {row["table"]}')
                     requery_table = True
                 else:
                     requery_table = False
@@ -1556,7 +1556,7 @@ class Form:
             'order_clause': None,
             'join_clause': None
         }
-        logger.info(f'Mapping element {element.Key}')
+        logger.debug(f'Mapping element {element.Key}')
         self.element_map.append(dic)
 
     def auto_map_elements(self, win, keys=None):
@@ -1620,7 +1620,7 @@ class Form:
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
                 else:
-                    logger.info(f'Count not add selector {str(element)}')
+                    logger.info(f'Can not add selector {str(element)}')
 
     def set_element_clause(self,element,where:str=None,order:str=None) -> None:
         for e in self.element_map:
@@ -1634,7 +1634,7 @@ class Form:
             'function': fctn,
             'table': table
         }
-        logger.info(f'Mapping event {event} to function {fctn}')
+        logger.debug(f'Mapping event {event} to function {fctn}')
         self.event_map.append(dic)
 
     def replace_event(self,event,function,table=None):
@@ -1708,7 +1708,7 @@ class Form:
 
 
     def edit_protect(self,event=None, values=None):
-        logger.info('Toggling edit protect mode.')
+        logger.debug('Toggling edit protect mode.')
         # Callbacks
         if self._edit_protect:
             if 'edit_enable' in self.callbacks.keys():
@@ -1759,7 +1759,7 @@ class Form:
 
 
     def save_records(self, cascade_only=False):
-        logger.info(f'Preparing to save records in all queries...')
+        logger.debug(f'Saving records in all queries...')
         msg = None
         #self.window.refresh()  # todo remove?
         i = 0
@@ -1770,7 +1770,7 @@ class Form:
         failures=0
         no_actions=0
         for t in tables:
-            logger.info(f'Saving records for table {t}...')
+            logger.debug(f'Saving records for table {t}...')
             result=self[t].save_record(False,update_elements=False)
             if result==SAVE_FAIL:
                 failures+=1
@@ -1816,7 +1816,8 @@ class Form:
         :rtype: None
         """
         # TODO Fix bug where listbox first element is ghost selected
-        logger.info('update_elements(): Updating PySimpleGUI elements...')
+        msg='edit protect' if edit_protect_only else 'PySimpleGUI'
+        logger.debug(f'update_elements(): Updating {msg} elements')
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
@@ -2055,7 +2056,7 @@ class Form:
         elif event:
             for e in self.event_map:
                 if e['event'] == event:
-                    logger.info(f"Executing event {event} via event mapping.")
+                    logger.debug(f"Executing event {event} via event mapping.")
                     e['function']()
                     logger.debug(f'Done processing event!')
                     return True
