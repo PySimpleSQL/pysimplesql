@@ -1732,7 +1732,8 @@ class Form:
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         self.update_elements()
                         return PROMPT_DISCARDED # We did have a change, regardless if the user chose not to save
-                self[q].save_record()
+                self[q].save_record(update_elements=False) # Don't update elements yet, as there may be more saving to do yet
+        self.update_elements() # Now we are safe to update elements
         return PROMPT_PROCEED if user_prompted else PROMPT_NONE
 
 
