@@ -1731,9 +1731,9 @@ class Form:
                     if save_changes != 'Yes':
                         # requery the form to erase any GUI changes
                         self.update_elements()
-                        return PROMPT_PROCEED # We did have a change, regardless if the user chose not to save
+                        return PROMPT_DISCARDED # We did have a change, regardless if the user chose not to save
                 self[q].save_record()
-        return PROMPT_DISCARDED if user_prompted else PROMPT_NONE
+        return PROMPT_PROCEED if user_prompted else PROMPT_NONE
 
 
 
