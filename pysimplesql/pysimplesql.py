@@ -1779,7 +1779,7 @@ class Form:
         :return: None
         """
         for q in self.queries:
-            q.set_prompt_save(value)
+            self[q].set_prompt_save(value)
 
     def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
         """
