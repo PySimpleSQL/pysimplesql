@@ -463,9 +463,11 @@ class Query:
         """
         self.description_column=column
 
-    def records_changed(self) -> bool:
+    def records_changed(self, recursive=True) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values.
+        :param recursive: True to check related Queries
+        :type recursive: bool
         :returns: True or False on whether changed records were found
         :rtype: bool
         """
@@ -508,11 +510,12 @@ class Query:
                     logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
                     logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
 
-        # handle checking if dependents are dirty next
-        for rel in self.frm.relationships:
-            if rel.parent == self.table and rel.requery_table:
-                if self.frm[rel.child].records_changed():
-                    dirty = True
+        # handle recursive checking next
+        if recursive:
+            for rel in self.frm.relationships:
+                if rel.parent == self.table and rel.requery_table:
+                    if self.frm[rel.child].records_changed():
+                        dirty = True
         return dirty
 
 
