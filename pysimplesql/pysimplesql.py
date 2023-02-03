@@ -1735,6 +1735,9 @@ class Form:
         """
         user_prompted = False # Has the user been prompted yet?
         for q in self.queries:
+            if self[q]._prompt_save is False:
+                continue
+
             if self[q].records_changed():
                 # we will only show the popup once, regardless of how many queries have changed
                 if not user_prompted:
