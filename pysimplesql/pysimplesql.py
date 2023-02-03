@@ -1739,7 +1739,7 @@ class Form:
             if self[q]._prompt_save is False:
                 continue
 
-            if self[q].records_changed():
+            if self[q].records_changed(recursive=False): # don't check children
                 # we will only show the popup once, regardless of how many queries have changed
                 if not user_prompted:
                     user_prompted = True
