@@ -520,11 +520,13 @@ class Query:
 
 
 
-    def prompt_save(self) -> bool:
+    def prompt_save(self, autosave=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
-        :returns: True or False on whether changed records were found
-        :rtype: bool
+        :param autosave: True to autosave when changes are found without prompting the user
+        :type autosave: bool
+        :returns: Prompt return value
+        :rtype: Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]
         """
         # Return False if there is nothing to check or _prompt_save is False
         # TODO: children too?
@@ -534,7 +536,11 @@ class Query:
         # Check if any records have changed
         changed = self.records_changed()
         if changed:
-            save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+            if autosave:
+                save_changes = 'Yes'
+            else:
+                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+
             if save_changes == 'Yes':
                 # save relationships
                 for rel in self.frm.relationships:
@@ -1719,10 +1725,13 @@ class Form:
     def get_edit_protect(self):
         return self._edit_protect
 
-    def prompt_save(self) -> bool:
+    def prompt_save(self, autosave=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
         """
         Prompt to save if any GUI changes are found the affect any table on this form
-        :return: True if changes were found, false otherwise
+        :param autosave: True to autosave when changes are found without prompting the user
+        :type autosave: bool
+        :return: Prompt return value
+        :rtype: Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]
         """
         user_prompted = False # Has the user been prompted yet?
         for q in self.queries:
@@ -1730,7 +1739,11 @@ class Form:
                 # we will only show the popup once, regardless of how many queries have changed
                 if not user_prompted:
                     user_prompted = True
-                    save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+                    if autosave:
+                        save_changes = 'Yes'
+                    else:
+                        save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         self.update_elements()
