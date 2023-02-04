@@ -2,7 +2,7 @@
 
 
 ## <v2.3.0>
-### Released 01/30/23
+### Released 02/03/23
 renames set_Mline_size to set_mline_size
 adds user defined icon packs
 adds duplicate to available record actions
