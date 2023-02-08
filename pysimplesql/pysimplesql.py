@@ -658,7 +658,7 @@ class Query:
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements()
+        if update: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -675,7 +675,7 @@ class Query:
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements()
+        if update: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -693,7 +693,7 @@ class Query:
         if self.current_index < len(self.rows) - 1:
             self.current_index += 1
             if dependents: self.requery_dependents()
-            if update: self.frm.update_elements()
+            if update: self.frm.update_elements(self.table)
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -712,7 +712,7 @@ class Query:
         if self.current_index > 0:
             self.current_index -= 1
             if dependents: self.requery_dependents()
-            if update: self.frm.update_elements()
+            if update: self.frm.update_elements(self.table)
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -755,7 +755,7 @@ class Query:
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
-                            if update: self.frm.update_elements()
+                            if update: self.frm.update_elements(self.table)
 
                             # callback
                             if 'after_search' in self.callbacks.keys():
@@ -778,7 +778,7 @@ class Query:
 
         self.current_index = index
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements()
+        if update: self.frm.update_elements(self.table)
 
     def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False):
         """
@@ -917,10 +917,8 @@ class Query:
 
         # and move to it
         self.requery(select_first=False)  # Don't move to the first record
-        self.set_by_pk(pk, skip_prompt_save=True) # already saved
-        self.requery_dependents()
-
-        self.frm.update_elements()
+        self.set_by_pk(pk, update=True, dependents=True, skip_prompt_save=True) # already saved
+        self.frm.update_elements(self.table)
         self.frm.window.refresh()
 
     def save_record(self, display_message=True, update_elements=True):
