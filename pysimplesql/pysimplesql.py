@@ -995,7 +995,7 @@ class Query:
 
             # Lets refresh our data
             pk = self.get_current_pk()
-            self.requery(update_elements)
+            self.requery(select_first=False) # don't move or update any elements
             self.set_by_pk(pk,update_elements,False,skip_prompt_save=True)
             #self.requery_dependents()
             if update_elements:self.frm.update_elements(self.table)
