@@ -483,6 +483,13 @@ class Query:
                 if type(element_val) is Row:
                     element_val = element_val.get_pk()
 
+                # For checkboxes
+                if type(element_val) is bool:
+                    if table_val is None: ## if there is no record, it will be '' instead of False
+                        table_val = False
+                    else:
+                        table_val = bool(table_val)
+
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
@@ -490,12 +497,6 @@ class Query:
                 if type(element_val) != type(table_val):
                     element_val = str(element_val)
                     table_val = str(table_val)
-
-                # Fix 'False' != '0' 'True' != '1'
-                if element_val == 'False' and table_val == '0':
-                    element_val = '0'
-                if element_val == 'True' and table_val == '1':
-                    element_val = '1'
 
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val = table_val.rstrip()
