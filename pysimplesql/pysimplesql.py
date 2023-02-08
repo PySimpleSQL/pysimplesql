@@ -872,7 +872,7 @@ class Query:
         d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
-    def insert_record(self, column:str='', value:str='') -> None:
+    def insert_record(self, column:str='', value:str='', skip_prompt_save=False) -> None:
         """
         Insert a new record. If column and value are passed, it will initially set that column to the value
         (I.e. {Query}.name='New Record). If none are provided, the default values for the column are used, as set in the
@@ -884,6 +884,7 @@ class Query:
         # todo: you don't add a record if there isn't a parent!!!
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
+        if skip_prompt_save is False: self.prompt_save()
 
         columns = []
         values = []
@@ -914,8 +915,8 @@ class Query:
         pk = cur.lastrowid
 
         # and move to it
-        self.requery()  # Don't move to the first record
-        self.set_by_pk(pk)
+        self.requery(select_first=False)  # Don't move to the first record
+        self.set_by_pk(pk, skip_prompt_save=True) # already saved
         self.requery_dependents()
 
         self.frm.update_elements()
