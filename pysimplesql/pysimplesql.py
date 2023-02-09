@@ -682,9 +682,9 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        logger.debug(f'Moving to the next record of table {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
         if self.current_index < len(self.rows) - 1:
+            logger.debug(f'Moving to the next record of table {self.table}')
+            if skip_prompt_save is False: self.prompt_save()
             self.current_index += 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements(self.table)
@@ -701,9 +701,9 @@ class Query:
 
         :return: None
         """
-        logger.debug(f'Moving to the previous record of table {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
         if self.current_index > 0:
+            logger.debug(f'Moving to the previous record of table {self.table}')
+            if skip_prompt_save is False: self.prompt_save()
             self.current_index -= 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements(self.table)
