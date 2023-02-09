@@ -993,7 +993,10 @@ class Query:
             self.con.commit()
 
             # Lets refresh our data
-            self.requery(select_first=False) # don't move or update any elements
+            pk = self.get_current_pk()
+            self.requery(update_elements)
+            self.set_by_pk(pk,update_elements,False,skip_prompt_save=True)
+            #self.requery_dependents()
             if update_elements:self.frm.update_elements(self.table)
             logger.debug(f'Record Saved!')
             if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
