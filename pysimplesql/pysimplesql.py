@@ -1820,7 +1820,7 @@ class Form:
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
-            for m in self.event_map:
+            for m in (m for m in self.event_map if m['table'] == t):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 hide = len(self[t].rows) == 0 or self._edit_protect
                 if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
