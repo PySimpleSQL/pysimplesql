@@ -471,6 +471,12 @@ class Query:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
         dirty = False  # we will start by assuming that there are no changes
 
+        # handle recursive checking next
+        if recursive:
+            for rel in self.frm.relationships:
+                if rel.parent == self.table and rel.requery_table:
+                    dirty = self.frm[rel.child].records_changed()
+                    if dirty: break
 
         # First check the current record to see if it's dirty
         for c in self.frm.element_map:
@@ -508,15 +514,7 @@ class Query:
                     logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
                     logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
 
-        # handle recursive checking next
-        if recursive:
-            for rel in self.frm.relationships:
-                if rel.parent == self.table and rel.requery_table:
-                    if self.frm[rel.child].records_changed():
-                        dirty = True
         return dirty
-
-
 
     def prompt_save(self, autosave=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
         """
@@ -538,14 +536,9 @@ class Query:
                 save_changes = 'Yes'
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-
             if save_changes == 'Yes':
-                # save relationships
-                for rel in self.frm.relationships:
-                    if rel.parent == self.table and rel.requery_table:
-                        self.frm[rel.child].save_record(True,False)
                 # save this record
-                self.save_record(True,False)
+                self.save_record_recursive()
                 return PROMPT_PROCEED
             else:
                 return PROMPT_DISCARDED
@@ -1001,6 +994,13 @@ class Query:
             logger.debug('Nothing to save.')
             if display_message: sg.popup_quick_message('There were no updates to save!', keep_on_top=True)
             return SAVE_NONE
+
+    def save_record_recursive(self):
+        # save relationships
+        for rel in self.frm.relationships:
+            if rel.parent == self.table and rel.requery_table:
+                self.frm[rel.child].save_record_recursive()
+        self.save_record(True,False)
 
     def delete_record(self, cascade=True):
         """
