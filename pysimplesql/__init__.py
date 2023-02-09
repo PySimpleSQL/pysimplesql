@@ -1,4 +1,4 @@
-"""Sqlite3 binding for PySimpleGUI"""
+"Sqlite3 binding for PySimpleGUI"
 
 from .pysimplesql import *
 from update_checker import UpdateChecker # pip install update-checker
@@ -13,7 +13,7 @@ __platforms__ = "ALL"
 __classifiers__ = [
         "Programming Language :: Python",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-        "Topic :: Form :: Front-Ends",
+        "Topic :: Database :: Front-Ends",
         "Operating System :: OS Independent",
 ]
 __requires__ =  ['PySimpleGUI','update_checker']

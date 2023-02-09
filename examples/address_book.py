@@ -68,10 +68,9 @@ layout=[
     [ss.record("Addresses.address2", label="Address 2:")],
     [ss.record("Addresses.city", label="City/State:", size=(23,1)) ,ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10))],
     [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", no_label=True,size=(6,1))],
-    [ss.actions("browser","Addresses",edit_protect=False)]
+    [ss.actions("browser","Addresses",edit_protect=False, duplicate=True)]
 ]
-
-win=sg.Window('Journal example', layout, finalize=True)
+win=sg.Window('Journal example', layout, finalize=True, ttk_theme=ss.get_ttk_theme())
 # Create our frm
 frm=ss.Form(':memory:', sql_commands=sql, bind=win)
 
@@ -83,9 +82,20 @@ frm['Addresses'].set_callback('before_save',validate_zip)
 # MAIN LOOP
 # ---------
 while True:
-    event, values = win.read()
+    event, values = win.read(timeout=100)
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if event == "__TIMEOUT__":
+        # Use a timeout (As set in win.read() above) to check for changes and enable/disable the save button on the fly.
+        # This could also be done by enabling events in the input controls, but this is much simpler (but less optimized)
+        dirty = frm['Addresses'].records_changed()
+        win['browser.db_save'].update(disabled=dirty)
+        if dirty:
+            win['browser.db_save'].update(disabled=False)
+        else:
+            win['browser.db_save'].update(disabled=True)
+        # The above could have been written as below, but it's less verbose. Your choice!
+        # win['browser.db_save'].update(disabled=not dirty)
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
         frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization
