@@ -628,16 +628,17 @@ class Query:
         if select_first:
             self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
 
-    def requery_dependents(self,update=True):
+    def requery_dependents(self,update=True,child=False):
         """
         Requery parent queries as defined by the relationships of the table
 
         :return: None
         """
+        if child: self.requery(update=update)
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
-                self.frm[rel.child].requery(update=update)
+                self.frm[rel.child].requery_dependents(update=update, child=True,)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
