@@ -658,7 +658,7 @@ class Query:
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table)
+        if update: self.frm.update_elements()
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -675,7 +675,7 @@ class Query:
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table)
+        if update: self.frm.update_elements()
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -693,7 +693,7 @@ class Query:
         if self.current_index < len(self.rows) - 1:
             self.current_index += 1
             if dependents: self.requery_dependents()
-            if update: self.frm.update_elements(self.table)
+            if update: self.frm.update_elements()
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -712,7 +712,7 @@ class Query:
         if self.current_index > 0:
             self.current_index -= 1
             if dependents: self.requery_dependents()
-            if update: self.frm.update_elements(self.table)
+            if update: self.frm.update_elements()
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -755,7 +755,7 @@ class Query:
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
-                            if update: self.frm.update_elements(self.table)
+                            if update: self.frm.update_elements()
 
                             # callback
                             if 'after_search' in self.callbacks.keys():
@@ -778,7 +778,7 @@ class Query:
 
         self.current_index = index
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table)
+        if update: self.frm.update_elements()
 
     def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False):
         """
@@ -873,7 +873,7 @@ class Query:
         d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
-    def insert_record(self, column:str='', value:str='', skip_prompt_save=False) -> None:
+    def insert_record(self, column:str='', value:str='') -> None:
         """
         Insert a new record. If column and value are passed, it will initially set that column to the value
         (I.e. {Query}.name='New Record). If none are provided, the default values for the column are used, as set in the
@@ -885,7 +885,6 @@ class Query:
         # todo: you don't add a record if there isn't a parent!!!
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
-        if skip_prompt_save is False: self.prompt_save()
 
         columns = []
         values = []
@@ -916,9 +915,11 @@ class Query:
         pk = cur.lastrowid
 
         # and move to it
-        self.requery(select_first=False)  # Don't move to the first record
-        self.set_by_pk(pk, update=True, dependents=True, skip_prompt_save=True) # already saved
-        self.frm.update_elements(self.table)
+        self.requery()  # Don't move to the first record
+        self.set_by_pk(pk)
+        self.requery_dependents()
+
+        self.frm.update_elements()
         self.frm.window.refresh()
 
     def save_record(self, display_message=True, update_elements=True):
