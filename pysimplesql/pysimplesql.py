@@ -470,7 +470,7 @@ class Query:
         """
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
-
+        dirty = False
         # First check the current record to see if it's dirty
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
