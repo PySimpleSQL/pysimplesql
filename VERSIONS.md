@@ -1,5 +1,10 @@
 # **pysimplesql** Version Information
 
+## <V2.3.1>
+### Released ?/?/23
+Fixes for checkboxes not always working correctly when checking for changes for prompt_save
+various bug fixes in the prompt_Save system
+Various optimizations
 
 ## <v2.3.0>
 ### Released 02/03/23

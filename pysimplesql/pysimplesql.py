@@ -814,6 +814,7 @@ class Query:
         :param default: A value to return if the record is blank
         :return: The value of the column requested
         """
+        logger.debug(f'Getting current record for {self.table}.{column}')
         if self.rows:
             if self.get_current_row()[column] != '':
                 return self.get_current_row()[column]
