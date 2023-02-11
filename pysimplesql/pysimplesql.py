@@ -577,7 +577,8 @@ class Query:
         for r in self.frm.relationships:
             if self.table == r.child:
                 if r.requery_table:
-                    clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, 0))}'
+                    first_pk=self.get_min_pk()
+                    clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, first_pk))}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
 
@@ -847,6 +848,18 @@ class Query:
         cur = self.con.execute(q)
         records = cur.fetchone()
         return records['highest']
+
+    def get_min_pk(self):
+        """
+        Returns the lowest primary key for this table.
+        This can be useful for setting selecting the first record by default
+        :return: The minimum primary key value currently in the table
+        """
+        # TODO: Maybe get this right from the table object instead of running a query?
+        q = f'SELECT MIN({self.pk_column}) AS lowest FROM {self.table};'
+        cur = self.con.execute(q)
+        records = cur.fetchone()
+        return records['lowest']
 
     def get_current_row(self):
         """
