@@ -2066,7 +2066,7 @@ class Form:
                 if len(table.selector):
                     for e in table.selector:
                         element=e['element']
-                        if element.Key in event and len(table.rows) > 0:
+                        if element.key == event and len(table.rows) > 0:
                             changed=False # assume that a change will not take place
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
