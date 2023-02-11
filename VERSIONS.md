@@ -4,6 +4,8 @@
 ### Released ?/?/23
 Fixes for checkboxes not always working correctly when checking for changes for prompt_save
 various bug fixes in the prompt_Save system
+Bug fix for similar names used in multiple selectors
+Bug fix for primary keys that start at 1 vs at 0
 Various optimizations
 
 ## <v2.3.0>
