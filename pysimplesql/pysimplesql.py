@@ -469,9 +469,8 @@ class Query:
         :rtype: bool
         """
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
-        dirty = False  # we will start by assuming that there are no changes
 
-
+        dirty = False
         # First check the current record to see if it's dirty
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
@@ -483,6 +482,13 @@ class Query:
                 if type(element_val) is Row:
                     element_val = element_val.get_pk()
 
+                # For checkboxes
+                if type(element_val) is bool:
+                    if table_val is None: ## if there is no record, it will be '' instead of False
+                        table_val = False
+                    else:
+                        table_val = bool(table_val)
+
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
 
@@ -490,12 +496,6 @@ class Query:
                 if type(element_val) != type(table_val):
                     element_val = str(element_val)
                     table_val = str(table_val)
-
-                # Fix 'False' != '0' 'True' != '1'
-                if element_val == 'False' and table_val == '0':
-                    element_val = '0'
-                if element_val == 'True' and table_val == '1':
-                    element_val = '1'
 
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val = table_val.rstrip()
@@ -506,15 +506,17 @@ class Query:
                     logger.debug(f'CHANGED RECORD FOUND!')
                     logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
                     logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
+                    return dirty
+                else:
+                    dirty = False
 
         # handle recursive checking next
         if recursive:
             for rel in self.frm.relationships:
                 if rel.parent == self.table and rel.requery_table:
-                    if self.frm[rel.child].records_changed():
-                        dirty = True
+                    dirty = self.frm[rel.child].records_changed()
+                    if dirty: break
         return dirty
-
 
 
     def prompt_save(self, autosave=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
@@ -537,14 +539,9 @@ class Query:
                 save_changes = 'Yes'
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
-
             if save_changes == 'Yes':
-                # save relationships
-                for rel in self.frm.relationships:
-                    if rel.parent == self.table and rel.requery_table:
-                        self.frm[rel.child].save_record(True,False)
                 # save this record
-                self.save_record(True,False)
+                self.save_record_recursive()
                 return PROMPT_PROCEED
             else:
                 return PROMPT_DISCARDED
@@ -634,16 +631,17 @@ class Query:
         if select_first:
             self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
 
-    def requery_dependents(self,update=True):
+    def requery_dependents(self,update=True,child=False):
         """
         Requery parent queries as defined by the relationships of the table
 
         :return: None
         """
+        if child: self.requery(update=update)
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
-                self.frm[rel.child].requery(update=update)
+                self.frm[rel.child].requery_dependents(update=update, child=True,)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
@@ -657,7 +655,7 @@ class Query:
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements()
+        if update: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -674,7 +672,7 @@ class Query:
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = len(self.rows) - 1
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements()
+        if update: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -687,12 +685,12 @@ class Query:
         @Query.set_by_pk
         :return: None
         """
-        logger.debug(f'Moving to the next record of table {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
         if self.current_index < len(self.rows) - 1:
+            logger.debug(f'Moving to the next record of table {self.table}')
+            if skip_prompt_save is False: self.prompt_save()
             self.current_index += 1
             if dependents: self.requery_dependents()
-            if update: self.frm.update_elements()
+            if update: self.frm.update_elements(self.table)
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -706,12 +704,12 @@ class Query:
 
         :return: None
         """
-        logger.debug(f'Moving to the previous record of table {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
         if self.current_index > 0:
+            logger.debug(f'Moving to the previous record of table {self.table}')
+            if skip_prompt_save is False: self.prompt_save()
             self.current_index -= 1
             if dependents: self.requery_dependents()
-            if update: self.frm.update_elements()
+            if update: self.frm.update_elements(self.table)
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
@@ -754,7 +752,7 @@ class Query:
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
-                            if update: self.frm.update_elements()
+                            if update: self.frm.update_elements(self.table)
 
                             # callback
                             if 'after_search' in self.callbacks.keys():
@@ -777,7 +775,7 @@ class Query:
 
         self.current_index = index
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements()
+        if update: self.frm.update_elements(self.table)
 
     def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False):
         """
@@ -873,7 +871,7 @@ class Query:
         d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
-    def insert_record(self, column:str='', value:str='') -> None:
+    def insert_record(self, column:str='', value:str='', skip_prompt_save=False) -> None:
         """
         Insert a new record. If column and value are passed, it will initially set that column to the value
         (I.e. {Query}.name='New Record). If none are provided, the default values for the column are used, as set in the
@@ -885,6 +883,7 @@ class Query:
         # todo: you don't add a record if there isn't a parent!!!
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
+        if skip_prompt_save is False: self.prompt_save()
 
         columns = []
         values = []
@@ -915,11 +914,9 @@ class Query:
         pk = cur.lastrowid
 
         # and move to it
-        self.requery()  # Don't move to the first record
-        self.set_by_pk(pk)
-        self.requery_dependents()
-
-        self.frm.update_elements()
+        self.requery(select_first=False)  # Don't move to the first record
+        self.set_by_pk(pk, update=True, dependents=True, skip_prompt_save=True) # already saved
+        self.frm.update_elements(self.table)
         self.frm.window.refresh()
 
     def save_record(self, display_message=True, update_elements=True):
@@ -993,10 +990,7 @@ class Query:
             self.con.commit()
 
             # Lets refresh our data
-            pk = self.get_current_pk()
-            self.requery(update_elements)
-            self.set_by_pk(pk,update_elements,False,skip_prompt_save=True)
-            #self.requery_dependents()
+            self.requery(select_first=False) # don't move or update any elements
             if update_elements:self.frm.update_elements(self.table)
             logger.debug(f'Record Saved!')
             if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
@@ -1005,6 +999,13 @@ class Query:
             logger.debug('Nothing to save.')
             if display_message: sg.popup_quick_message('There were no updates to save!', keep_on_top=True)
             return SAVE_NONE
+
+    def save_record_recursive(self):
+        # save relationships
+        for rel in self.frm.relationships:
+            if rel.parent == self.table and rel.requery_table:
+                self.frm[rel.child].save_record_recursive()
+        self.save_record(True,False)
 
     def delete_record(self, cascade=True):
         """
@@ -1821,10 +1822,28 @@ class Form:
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
-            for m in self.event_map:
+            for m in (m for m in self.event_map if m['table'] == t):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 hide = len(self[t].rows) == 0 or self._edit_protect
                 if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
+                    win[m['event']].update(disabled=hide)
+                    self.update_element_states(t, hide)
+                    
+                # Disable navigations if there is 0 or 1 records in table
+                hide = len(self[t].rows) < 2
+                if ('.table_first' in m['event']) or ('.table_previous' in m['event']) or ('.table_next' in m['event']) or ('.table_last' in m['event']):
+                    win[m['event']].update(disabled=hide)
+                    self.update_element_states(t, hide)
+                    
+                # Disable next/last in last position
+                hide = self[t].current_index == len(self[t].rows) - 1
+                if ('.table_next' in m['event']) or ('.table_last' in m['event']):
+                    win[m['event']].update(disabled=hide)
+                    self.update_element_states(t, hide)
+                    
+                # Disable next/last in last position
+                hide = self[t].current_index == 0
+                if ('.table_first' in m['event']) or ('.table_previous' in m['event']):
                     win[m['event']].update(disabled=hide)
                     self.update_element_states(t, hide)
 
