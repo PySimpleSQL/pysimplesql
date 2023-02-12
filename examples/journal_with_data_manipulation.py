@@ -12,9 +12,9 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 sql="""
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
+    "title"         TEXT DEFAULT "New Entry",
     "entry_date"    INTEGER DEFAULT (strftime('%s', 'now')), --Store date information as a unix epoch timestamp
     "mood_id"       INTEGER,
-    "title"         TEXT DEFAULT "New Entry",
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES Mood(id)
 );
@@ -59,6 +59,7 @@ def tform_date(row,encode):
     col = 'entry_date'
     if col in row:
         msg = f'Transforming {col} from {row[col]}'
+        print(msg)
         if encode == ss.TFORM_DECODE:
             row[col] = datetime.utcfromtimestamp(row[col]).strftime('%m/%d/%y')
         else:
