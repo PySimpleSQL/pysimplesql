@@ -859,6 +859,7 @@ class Query:
         q = f'SELECT MIN({self.pk_column}) AS lowest FROM {self.table};'
         cur = self.con.execute(q)
         records = cur.fetchone()
+        if records['lowest'] is None: return 0 ## when there are no records.
         return records['lowest']
 
     def get_current_row(self):
@@ -930,7 +931,7 @@ class Query:
         self.requery(select_first=False)  # Don't move to the first record
         self.set_by_pk(pk, update=True, dependents=True, skip_prompt_save=True) # already saved
         self.frm.update_elements(self.table)
-        self.frm.window.refresh()
+#        self.frm.window.refresh()
 
     def save_record(self, display_message=True, update_elements=True):
         """
@@ -1943,18 +1944,19 @@ class Form:
                 values = d['query'].table_values()
                 # Select the current one
                 pk = d['query'].get_current_pk()
-                index = 0
                 found = False
-                for v in values:
-                    if v[0] == pk:
-                        found = True
-                        break
-                    index += 1
-                if not found:
+                # set index to pk
+                try:
+                    index = [[v[0] for v in values].index(pk)]
+                    pk_position = index[0] / len(values) # calculate pk percentage position
+                    found = True                         
+                except ValueError:
                     index = []
-                else:
-                    index = [index]
                 d['element'].update(values=values, select_rows=index)
+                
+                # set virtical scroll bar to follow selected element
+                if len(index): d['element'].set_vscroll_position(pk_position)
+                
                 eat_events(self.window)
                 continue
 
@@ -2030,19 +2032,20 @@ class Form:
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
                         pk = table.get_current_pk()
-                        index = 0
-                        found=False
-                        for v in values:
-                            if v[0] == pk:
-                                found=True
-                                break
-                            index += 1
-                        if not found:
-                            index=[]
-                        else:
-                            index=[index]
+                        found = False
+                        # set index to pk
+                        try:
+                            index = [[v[0] for v in values].index(pk)]
+                            pk_position = index[0] / len(values) # calculate pk percentage position
+                            found = True                         
+                        except ValueError:
+                            index = []
                         logger.debug(f'Selector:: index:{index} found:{found}')
                         element.update(values=values,select_rows=index)
+                        
+                        # set virtical scroll bar to follow selected element
+                        if len(index): element.set_vscroll_position(pk_position)
+                        
                         eat_events(self.window)
 
         # Run callbacks
