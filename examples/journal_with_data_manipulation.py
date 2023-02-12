@@ -26,7 +26,8 @@ INSERT INTO Mood VALUES (1,"Happy");
 INSERT INTO Mood VALUES (2,"Sad");
 INSERT INTO Mood VALUES (3,"Angry");
 INSERT INTO Mood VALUES (4,"Content");
-INSERT INTO Journal (id,mood_id,title,entry)VALUES (1,1,"My first entry!","I am excited to write my thoughts every day")
+INSERT INTO Journal (id,mood_id,title,entry)VALUES (1,1,"My first entry!","I am excited to write my thoughts every day");
+INSERT INTO Journal (id,mood_id,title,entry)VALUES (2,4,"My 2nd entry!","I feel like Doogie Howser ");
 """
 
 # -------------------------
@@ -56,8 +57,8 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 # Encode/Decode to/from unix epoch to readable date on database read/write
 def tform_date(row,encode):
     col = 'entry_date'
-    msg = f'Transforming {col} from {row[col]}'
     if col in row:
+        msg = f'Transforming {col} from {row[col]}'
         if encode == ss.TFORM_DECODE:
             row[col] = datetime.utcfromtimestamp(row[col]).strftime('%m/%d/%y')
         else:
