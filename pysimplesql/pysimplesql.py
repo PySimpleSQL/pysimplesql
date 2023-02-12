@@ -1033,9 +1033,6 @@ class Query:
         changed = {}
         for k,v in current_row.items():
             if current_row[k] != self.get_current(k):
-                print(f'Change detected:')
-                print(f'{current_row[k]}:current_row')
-                print(f'{self.get_current(k)}:self.get_current() ')
                 changed[k] = v
 
         if changed == {}:
