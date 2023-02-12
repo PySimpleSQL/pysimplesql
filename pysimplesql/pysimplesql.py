@@ -2084,6 +2084,11 @@ class Form:
                                 lst.append(Row(r[pk], r[column]))
 
                         element.update(values=lst, set_to_index=table.current_index)
+
+                        # set virtical scroll bar to follow selected element (for listboxes only)
+                        if type(element) == sg.PySimpleGUI.Listbox:
+                            element.set_vscroll_position(table.current_index/ len(lst))
+
                     elif type(element) == sg.PySimpleGUI.Slider:
                         # We need to re-range the element depending on the number of records
                         l = len(table.rows)
