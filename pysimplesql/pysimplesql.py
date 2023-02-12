@@ -655,10 +655,16 @@ class Query:
         # SQLite3 rows are not writeable.  Convert to a list of dicts, which can be written to by the Transform fn.
         self.rows = [dict(row) for row in self.rows]
 
-        if self.transform is not None:
-            for row in self.rows:
-                # perform transform one row at a time
+
+        for row in self.rows:
+            # perform transform one row at a time
+            if self.transform is not None:
                 self.transform(row, TFORM_DECODE)
+            # Strip trailing white space, as this is what sg[element].get() does, so we can have an equal comparison
+            # Not the prettiest solution..  Will look into this more on the  PySimpleGUI end and make a ticket to follow up
+            for k,v in row.items():
+                if type(v) is str: row[k] = v.rstrip()
+
 
         if select_first:
             self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
@@ -1027,6 +1033,9 @@ class Query:
         changed = {}
         for k,v in current_row.items():
             if current_row[k] != self.get_current(k):
+                print(f'Change detected:')
+                print(f'{current_row[k]}:current_row')
+                print(f'{self.get_current(k)}:self.get_current() ')
                 changed[k] = v
 
         if changed == {}:

@@ -87,14 +87,14 @@ while True:
 
 """
 I hope that you enjoyed this simple demo of a Journal database.  
-This example builds on the journal_internal.py example to show how callbacks can be used to manipulate date
-in between the GUI and the database (in this case, the database is storing dates as unix epoch; We use callbacks
+This example builds on the journal_internal.py example to show how transforms can be used to manipulate data
+in between the GUI and the database (in this case, the database is storing dates as unix epoch; We use a transform
 to convert the unix epoch to and from a human readable format!)
-Without comments and embedded SQL script, this could have been done in well under 70 lines of code, even with all of the
-callback additions from the original journal_internal.py!
+Without comments and embedded SQL script, this could have been done in well under 50 lines of code, even the transform 
+addition from the original journal_internal.py!
 
 Learnings from this example:
-- Using callbacks to manipulate data presented to the GUI, and to manipiulate GUI data going back to the database
+- Using transforms to manipulate data presented to the GUI, and to manipiulate GUI data going back to the database
 - Using Query.set_search_order() to set the search order of the table for search operations.
 - embedding sql commands in code for table creation
 - creating a default/empty database with sql commands
