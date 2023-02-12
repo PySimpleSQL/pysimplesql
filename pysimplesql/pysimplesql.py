@@ -2086,7 +2086,10 @@ class Form:
 
                         # set virtical scroll bar to follow selected element (for listboxes only)
                         if type(element) == sg.PySimpleGUI.Listbox:
-                            element.set_vscroll_position(table.current_index/ len(lst))
+                            try:
+                                element.set_vscroll_position(table.current_index / len(lst))
+                            except ZeroDivisionError:
+                                element.set_vscroll_position(0)
 
                     elif type(element) == sg.PySimpleGUI.Slider:
                         # We need to re-range the element depending on the number of records
