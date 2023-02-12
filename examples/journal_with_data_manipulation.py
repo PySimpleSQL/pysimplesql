@@ -55,17 +55,17 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 # ------------------------------------------------------
 # Encode/Decode to/from unix epoch to readable date on database read/write
 def tform_date(row,encode):
-    for k,v in row.items():
-        if k=='entry_date':
-            if encode == ss.TFORM_DECODE:
-                msg= f'Decoding from {row[k]} '
-                row[k] = datetime.utcfromtimestamp(v).strftime('%m/%d/%y')
-                msg += f'to {row[k]}'
-            else:
-                msg = f'Encoding from {row[k]} '
-                row[k] = datetime.strptime(v, '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp()
-                msg += f'to {row[k]}'
-            print(msg)
+    col = 'entry_date'
+    if col in row:
+        if encode == ss.TFORM_DECODE:
+            msg= f'Decoding from {row[col]} '
+            row[col] = datetime.utcfromtimestamp(row[col]).strftime('%m/%d/%y')
+            msg += f'to {row[col]}'
+        else:
+            msg = f'Encoding from {row[col]} '
+            row[col] = datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp()
+            msg += f'to {row[col]}'
+        print(msg)
 
 
 # Use our new transform!
