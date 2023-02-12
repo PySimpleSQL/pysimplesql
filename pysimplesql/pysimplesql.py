@@ -362,10 +362,10 @@ class Query:
         yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL
         actually reads from or writes to the database.
 
-        :param fn: A callable function to preform encode/decode. This function should take two arguments: rows (which will
-        be populated by the raw sqlite3 rows, and an encode parameter (1 to endode, 0 to decode - see constants TFORM_ENCODE
-        and TFORM_DECODE). This transform function should return the modified rows in the return statement. See the example
-        journal_with_data_manipulation.py for a usage example.
+        :param fn: A callable function to preform encode/decode. This function should take two arguments: row (which will
+        be populated by a dictionary of the row data), and an encode parameter (1 to endode, 0 to decode - see constants TFORM_ENCODE
+        and TFORM_DECODE). Note that this transform works on one row at a timem.
+        See the example journal_with_data_manipulation.py for a usage example.
         """
         self.transform = fn
 
@@ -652,11 +652,13 @@ class Query:
 
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
-        # SQLite3 rows are not writeable.  Convert to a list of dicts
+        # SQLite3 rows are not writeable.  Convert to a list of dicts, which can be written to by the Transform fn.
         self.rows = [dict(row) for row in self.rows]
 
         if self.transform is not None:
-            self.rows = self.transform(self.rows, TFORM_DECODE)
+            for row in self.rows:
+                # perform transform one row at a time
+                self.transform(row, TFORM_DECODE)
 
         if select_first:
             self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
@@ -987,11 +989,6 @@ class Query:
             if display_message: sg.popup_quick_message('There were no updates to save.',keep_on_top=True)
             return SAVE_NONE
 
-        # Work with a copy of the original rows and encode and transform it if needed
-        rows = self.rows.copy()
-        idx = self.current_index
-
-
         # callback
         if 'before_save' in self.callbacks.keys():
             if self.callbacks['before_save']() == False:
@@ -1000,16 +997,17 @@ class Query:
                 if display_message: sg.popup('Updates not saved.', keep_on_top=True)
                 return SAVE_FAIL
 
-        # We are updating a record
-        # Propagate GUI data back to the Query
+        # Work with a copy of the original row and transform it if needed
+        # Note that while saving, we are working with just the current row of data
+        current_row = self.get_current_row().copy()
 
-
+        # Propagate GUI data back to the stored current_row
         for v in self.frm.element_map:
             if v['query'] == self:
                 if '?' in v['element'].key and '=' in v['element'].key:
                     val = v['element'].get()
                     table_info, where_info = v['element'].Key.split('?')
-                    for row in rows:
+                    for row in self.rows:
                         if row[v['where_column']] == v['where_value']:
                             row[v['column']] = val
                 else:
@@ -1024,36 +1022,31 @@ class Query:
                     else:
                         val = v['element'].get()
 
-                    rows[idx][v['column']] = val
+                    current_row[v['column']] = val
 
-        changed=False
-        for k,v in rows[idx].items():
-            print(f'{rows[idx][k]}\t\t{self.rows[idx][k]}')
-            if rows[idx][k] != self.rows[idx][k]:
-                changed=True
-                break
+        changed = {}
+        for k,v in current_row.items():
+            if current_row[k] != self.get_current(k):
+                changed[k] = v
 
-        if changed == False:
-            print('Im OUT!')
+        if changed == {}:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE
 
         # Update the database from the stored rows
-        if self.transform is not None:
-            rows=self.transform(rows,TFORM_ENCODE)
+        if self.transform is not None: self.transform(changed, TFORM_ENCODE)
 
         values = []
         q = f'UPDATE {self.table} SET'
         #for k,v in self.get_current_row().items():
-        for k in self.column_names:
+        for k,v in changed.items():
             q += f" {k}=?,"
-            values.append(rows[idx][k])
+            values.append(v)
         # Remove the trailing comma
         q = q[:-1]
         q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
 
-        logger.debug(f'Performing query: {q} {str(values)}')
-        print(f'Performing query: {q} {str(values)}')
+        logger.info(f'Performing query: {q} {str(values)}')
         self.con.execute(q, tuple(values))
 
         # callback
@@ -1064,13 +1057,15 @@ class Query:
 
         # If we made it here, we can commit the changes
         self.con.commit()
-        if self.transform is not None:
-            self.rows = self.transform(rows,TFORM_DECODE)
+        # then update the current row.  Remember to transform it back first!
+        if self.transform is not None: self.transform(changed, TFORM_DECODE)
+        self.rows[self.current_index]=current_row
+
 
         # Lets refresh our data
-        # TODO: Do we still need this since we back propagated?
-        self.requery(select_first=False) # don't move or update any elements
-        if update_elements:self.frm.update_elements(self.table)
+        # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
+        #self.requery(select_first=False) # don't move or update any elements
+        #if update_elements:self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
         return SAVE_SUCCESS

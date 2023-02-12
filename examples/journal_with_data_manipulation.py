@@ -53,21 +53,19 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 # ------------------------------------------------------
 # SET UP TRANSFORM FOR ENCODING/DECODING UNIX TIMESTAMPS
 # ------------------------------------------------------
-# Decode from unix epoch to readable date when pulled from the database
-def tform_date(rows,encode):
-    for row in rows:
-        for k,v in row.items():
-            if k=='entry_date':
-                if encode == ss.TFORM_DECODE:
-                    msg= f'Decoding from {row[k]} '
-                    row[k] = datetime.utcfromtimestamp(v).strftime('%m/%d/%y')
-                    msg += f'to {row[k]}'
-                else:
-                    msg = f'Encoding from {row[k]} '
-                    row[k] = datetime.strptime(v, '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp()
-                    msg += f'to {row[k]}'
-                print(msg)
-    return rows
+# Encode/Decode to/from unix epoch to readable date on database read/write
+def tform_date(row,encode):
+    for k,v in row.items():
+        if k=='entry_date':
+            if encode == ss.TFORM_DECODE:
+                msg= f'Decoding from {row[k]} '
+                row[k] = datetime.utcfromtimestamp(v).strftime('%m/%d/%y')
+                msg += f'to {row[k]}'
+            else:
+                msg = f'Encoding from {row[k]} '
+                row[k] = datetime.strptime(v, '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp()
+                msg += f'to {row[k]}'
+            print(msg)
 
 
 # Use our new transform!
