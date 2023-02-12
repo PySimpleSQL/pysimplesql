@@ -1057,15 +1057,14 @@ class Query:
 
         # If we made it here, we can commit the changes
         self.con.commit()
-        # then update the current row.  Remember to transform it back first!
-        if self.transform is not None: self.transform(changed, TFORM_DECODE)
+refs        # then update the current row.
         self.rows[self.current_index]=current_row
 
 
         # Lets refresh our data
         # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
         #self.requery(select_first=False) # don't move or update any elements
-        #if update_elements:self.frm.update_elements(self.table)
+        if update_elements:self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
         return SAVE_SUCCESS
