@@ -34,6 +34,12 @@ TYPE_RECORD=1
 TYPE_SELECTOR=2
 TYPE_EVENT=3
 
+# -----------------
+# Transform actions
+# -----------------
+TFORM_ENCODE = 1
+TFORM_DECODE = 0
+
 # -----------
 # Event types
 # -----------
@@ -234,6 +240,7 @@ class Query:
         self.search_order = []
         self.selector = []
         self.callbacks = {}
+        self.transform = None
         self._prompt_save=prompt_save
         # self.requery(True)
 
@@ -346,6 +353,22 @@ class Query:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
+    def set_transform(self, fn:callable) -> None:
+        """
+        Set a transform on the data for this query.
+
+        Here you can set custom a custom transform to both decode data from the
+        database and encode data written to the database. This allows you to have dates stored as timestamps in the database,
+        yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL
+        actually reads from or writes to the database.
+
+        :param fn: A callable function to preform encode/decode. This function should take two arguments: rows (which will
+        be populated by the raw sqlite3 rows, and an encode parameter (1 to endode, 0 to decode - see constants TFORM_ENCODE
+        and TFORM_DECODE). This transform function should return the modified rows in the return statement. See the example
+        journal_with_data_manipulation.py for a usage example.
+        """
+        self.transform = fn
+
     def set_query(self, query:str) -> None:
         """
         Set the queries query string.
@@ -406,7 +429,7 @@ class Query:
 
     def update_column_names(self,names=None) -> None:
         """
-        Generate column names for the query.  This may need done, for eample, when a manual query using joins
+        Generate column names for the query.  This may need done, for example, when a manual query using joins
         is used.
 
         This is more for advanced users.
@@ -629,6 +652,12 @@ class Query:
 
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
+        # SQLite3 rows are not writeable.  Convert to a list of dicts
+        self.rows = [dict(row) for row in self.rows]
+
+        if self.transform is not None:
+            self.rows = self.transform(self.rows, TFORM_DECODE)
+
         if select_first:
             self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
 
@@ -822,6 +851,19 @@ class Query:
         else:
             return default
 
+    def set_current(self, column, value) -> None:
+        """
+       Set the current value pointed to for @column
+       You can also use indexing of the @Form object to set the current value of a column
+       I.e. frm["{Query}].[{column'}] = 'New value
+
+       :param column: The column you want to set the value of
+       :param value: A value to set the current record's column to
+       :return: None
+       """
+        logger.debug(f'Setting current record for {self.table}.{column} = {value}')
+        self.get_current_row()[column] = value
+
     def get_keyed_value(self,value_column, key_column, key_value):
         """
         Return value_column where key_column=key_value.  Useful for datastores with key/value pairs
@@ -941,78 +983,99 @@ class Query:
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
         :return: None
         """
-        saved=False
-
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message: sg.popup_quick_message('There were no updates to save.',keep_on_top=True)
             return SAVE_NONE
 
+        # Work with a copy of the original rows and encode and transform it if needed
+        rows = self.rows.copy()
+        idx = self.current_index
+
+
         # callback
         if 'before_save' in self.callbacks.keys():
-            if self.callbacks['before_save']()==False:
+            if self.callbacks['before_save']() == False:
                 logger.debug("We are not saving!")
                 if update_elements: self.frm.update_elements(self.table)
                 if display_message: sg.popup('Updates not saved.', keep_on_top=True)
                 return SAVE_FAIL
 
-        values = []
         # We are updating a record
-        q = f'UPDATE {self.table} SET'
+        # Propagate GUI data back to the Query
+
+
         for v in self.frm.element_map:
             if v['query'] == self:
-                if '?' in v['element'].Key and '=' in v['element'].Key:
-                    val=v['element'].get()
+                if '?' in v['element'].key and '=' in v['element'].key:
+                    val = v['element'].get()
                     table_info, where_info = v['element'].Key.split('?')
-                    q_kv = f'UPDATE {self.table} SET {v["column"]} = ? WHERE {v["where_column"]} = "{v["where_value"]}";'
-                    self.con.execute(q_kv, tuple([val]))
-                    saved=True
+                    for row in rows:
+                        if row[v['where_column']] == v['where_value']:
+                            row[v['column']] = val
                 else:
-                    # TODO: what to do if there isn't a key split to do?
-                    if '.' not in v['element'].Key:
+                    if '.' not in v['element'].key:
                         continue
-                    q += f' {v["element"].Key.split(".", 1)[1]}=?,'
 
-                    if type(v['element'])==sg.Combo:
-                        if type(v['element'].get())==str:
+                    if type(v['element']) == sg.Combo:
+                        if type(v['element'].get()) == str:
                             val = v['element'].get()
                         else:
-                            val=v['element'].get().get_pk()
+                            val = v['element'].get().get_pk()
                     else:
-                        val=v['element'].get()
+                        val = v['element'].get()
 
-                    values.append(val)
-        if values:
-            # there was something to update
-            # Remove the trailing comma
-            q = q[:-1]
+                    rows[idx][v['column']] = val
 
-            # Add the where clause
-            q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
-            logger.debug(f'Performing query: {q} {str(values)}')
-            self.con.execute(q, tuple(values))
-            saved=True
+        changed=False
+        for k,v in rows[idx].items():
+            print(f'{rows[idx][k]}\t\t{self.rows[idx][k]}')
+            if rows[idx][k] != self.rows[idx][k]:
+                changed=True
+                break
+
+        if changed == False:
+            print('Im OUT!')
+            if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
+            return SAVE_NONE
+
+        # Update the database from the stored rows
+        if self.transform is not None:
+            rows=self.transform(rows,TFORM_ENCODE)
+
+        values = []
+        q = f'UPDATE {self.table} SET'
+        #for k,v in self.get_current_row().items():
+        for k in self.column_names:
+            q += f" {k}=?,"
+            values.append(rows[idx][k])
+        # Remove the trailing comma
+        q = q[:-1]
+        q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
+
+        logger.debug(f'Performing query: {q} {str(values)}')
+        print(f'Performing query: {q} {str(values)}')
+        self.con.execute(q, tuple(values))
 
         # callback
-        if saved:
-            if 'after_save' in self.callbacks.keys():
-                if not self.callbacks['after_save'](self.frm, self.frm.window):
-                    self.con.rollback()
-                    return SAVE_FAIL
+        if 'after_save' in self.callbacks.keys():
+            if not self.callbacks['after_save'](self.frm, self.frm.window):
+                self.con.rollback()
+                return SAVE_FAIL
 
-            # If we ,ade it here, we can commit the changes
-            self.con.commit()
+        # If we made it here, we can commit the changes
+        self.con.commit()
+        if self.transform is not None:
+            self.rows = self.transform(rows,TFORM_DECODE)
 
-            # Lets refresh our data
-            self.requery(select_first=False) # don't move or update any elements
-            if update_elements:self.frm.update_elements(self.table)
-            logger.debug(f'Record Saved!')
-            if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
-            return SAVE_SUCCESS
-        else:
-            logger.debug('Nothing to save.')
-            if display_message: sg.popup_quick_message('There were no updates to save!', keep_on_top=True)
-            return SAVE_NONE
+        # Lets refresh our data
+        # TODO: Do we still need this since we back propagated?
+        self.requery(select_first=False) # don't move or update any elements
+        if update_elements:self.frm.update_elements(self.table)
+        logger.debug(f'Record Saved!')
+        if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
+        return SAVE_SUCCESS
+
 
     def save_record_recursive(self):
         # save relationships
