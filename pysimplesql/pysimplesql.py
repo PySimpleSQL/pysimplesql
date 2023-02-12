@@ -859,6 +859,7 @@ class Query:
         q = f'SELECT MIN({self.pk_column}) AS lowest FROM {self.table};'
         cur = self.con.execute(q)
         records = cur.fetchone()
+        if records['lowest'] is None: return '0' ## when there are no records.
         return records['lowest']
 
     def get_current_row(self):
