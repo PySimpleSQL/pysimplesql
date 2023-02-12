@@ -34,12 +34,6 @@ TYPE_RECORD=1
 TYPE_SELECTOR=2
 TYPE_EVENT=3
 
-# -----------------
-# Transform actions
-# -----------------
-TFORM_ENCODE = 1
-TFORM_DECODE = 0
-
 # -----------
 # Event types
 # -----------
@@ -240,7 +234,6 @@ class Query:
         self.search_order = []
         self.selector = []
         self.callbacks = {}
-        self.transform = None
         self._prompt_save=prompt_save
         # self.requery(True)
 
@@ -353,22 +346,6 @@ class Query:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
-    def set_transform(self, fn:callable) -> None:
-        """
-        Set a transform on the data for this query.
-
-        Here you can set custom a custom transform to both decode data from the
-        database and encode data written to the database. This allows you to have dates stored as timestamps in the database,
-        yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL
-        actually reads from or writes to the database.
-
-        :param fn: A callable function to preform encode/decode. This function should take two arguments: rows (which will
-        be populated by the raw sqlite3 rows, and an encode parameter (1 to endode, 0 to decode - see constants TFORM_ENCODE
-        and TFORM_DECODE). This transform function should return the modified rows in the return statement. See the example
-        journal_with_data_manipulation.py for a usage example.
-        """
-        self.transform = fn
-
     def set_query(self, query:str) -> None:
         """
         Set the queries query string.
@@ -429,7 +406,7 @@ class Query:
 
     def update_column_names(self,names=None) -> None:
         """
-        Generate column names for the query.  This may need done, for example, when a manual query using joins
+        Generate column names for the query.  This may need done, for eample, when a manual query using joins
         is used.
 
         This is more for advanced users.
@@ -652,9 +629,6 @@ class Query:
 
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
-        if self.transform:
-            self.rows = self.transform(self.rows,TFORM_DECODE)
-
         if select_first:
             self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
 
