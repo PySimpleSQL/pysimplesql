@@ -37,7 +37,7 @@ headings=['id','Date:              ','Mood:      ','Title:                      
 visible=[0,1,1,1] # Hide the id column
 layout=[
     [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
-    [ss.actions('act_journal','Journal',edit_protect=False)],
+    [ss.actions('act_journal','Journal')],
     [ss.record('Journal.entry_date')],
     [ss.record('Journal.mood_id', sg.Combo, size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],
@@ -51,29 +51,55 @@ frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
 frm['Journal'].set_search_order(['entry_date','title','entry'])
 
 # ------------------------------------------------------
-# SET UP TRANSFORM FOR ENCODING/DECODING UNIX TIMESTAMPS
+# SET UP CALLBACKS FOR ENCODING/DECODING UNIX TIMESTAMPS
 # ------------------------------------------------------
 # Decode from unix epoch to readable date when pulled from the database
-def tform_date(rows,encode):
-    for row in rows:
-        for k,v in row.items():
-            if k=='entry_date':
-                if encode == ss.TFORM_DECODE:
-                    msg= f'Decoding from {row[k]} '
-                    row[k] = datetime.utcfromtimestamp(v).strftime('%m/%d/%y')
-                    msg += f'to {row[k]}'
-                else:
-                    msg = f'Encoding from {row[k]} '
-                    row[k] = datetime.strptime(v, '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp()
-                    msg += f'to {row[k]}'
-                print(msg)
-    return rows
+def cb_date_decode():
+    # Decode the timestamp to a readable date
+    logger.info(f'In callback, decoding date...')
+    if frm['Journal']['entry_date']:
+        win['Journal.entry_date'].update(datetime.utcfromtimestamp(frm['Journal']['entry_date']).strftime('%m/%d/%y'))
+    else:
+        win['Journal.entry_date'].update('')
 
+# Encode readable date to unix epoch when written to the database
+def cb_date_encode():
+    logger.info(f'In callback, encoding date...')
+    win['Journal.entry_date'].update(
+        datetime.strptime(win['Journal.entry_date'].Get(), '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp())
+    return True # Return true, as this will be a callback to before_save
 
-# Use our new transform!
-frm['Journal'].set_transform(tform_date)
-frm['Journal'].requery()
-#frm.update_elements()                                        # Manually update the elements so the callbacks trigger on initial run
+# Override the default element update routines for the table
+def cb_table_update():
+    # Update the table element
+    logger.info(f"In callback, updating the table element")
+    if not frm['Journal']['entry_date']:
+        lst = [['', '', '', '']] # build an empty list
+        win['Journal.entry_date'].update(lst)
+        ss.eat_events(win) # This must be calld anytime the update method is used on a table
+        return
+    lst = []
+    # Make sure we have up-to-date results
+    for r in frm['Journal'].rows:
+        lst.append([r['id'], datetime.utcfromtimestamp(r['entry_date']).strftime('%m/%d/%y'), frm['Mood'].get_description_for_pk(r['mood_id']), r['title']])
+    # Get the primary key to select.  We have to use the list above instead of getting it directly
+    # from the table, as the data has yet to be updated
+    pk = frm['Journal']['id']
+    index = 0
+    for v in lst:
+        if v[0] == pk:
+            break
+        index += 1
+
+    win['sel_journal'].update(lst, select_rows=[index])
+    ss.eat_events(win) # This must be calld anytime the update method is used on a table
+
+# set our callbacks!
+frm.set_callback('Journal.entry_date',cb_date_decode)        # decode the date when this element updates...
+frm['Journal'].set_callback('before_save',cb_date_encode)    # encode the date before saving the record...
+#frm.set_callback('sel_journal',cb_table_update)          # Override the default element update for the table to display correct dates there too!
+                                                            # *******COMMENT/UNCOMMENT LINE ABOVE TO SEE THE TABLE CHANGE HOW IT DISPLAYS DATE INFO!!!*******
+frm.update_elements()                                        # Manually update the elements so the callbacks trigger on initial run
 
 # ---------
 # MAIN LOOP
