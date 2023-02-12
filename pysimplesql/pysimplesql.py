@@ -648,7 +648,7 @@ class Query:
             where = self.generate_where_clause()
 
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
-        logger.debug('Running query: ' + query)
+        logger.info('Running query: ' + query)
 
         cur = self.con.execute(query)
         self.rows = cur.fetchall()
@@ -1057,7 +1057,7 @@ class Query:
 
         # If we made it here, we can commit the changes
         self.con.commit()
-refs        # then update the current row.
+        # then update the current row.
         self.rows[self.current_index]=current_row
 
 

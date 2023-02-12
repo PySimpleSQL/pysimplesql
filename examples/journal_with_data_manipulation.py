@@ -71,7 +71,7 @@ def tform_date(row,encode):
 # Use our new transform!
 frm['Journal'].set_transform(tform_date)
 frm['Journal'].requery()
-#frm.update_elements()                                        # Manually update the elements so the callbacks trigger on initial run
+
 
 # ---------
 # MAIN LOOP
