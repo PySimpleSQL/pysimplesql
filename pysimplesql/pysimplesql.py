@@ -634,7 +634,7 @@ class Query:
         q += f' {self.order if order else ""}'
         return q
 
-    def requery(self, select_first=True, filtered=True, update=True):
+    def requery(self, select_first=True, filtered=True, update=True, dependents=True):
         """
         Requeries the table
         The @Query object maintains an internal representation of the actual database table.
@@ -642,6 +642,8 @@ class Query:
         :param select_first: If true, the first record will be selected after the requery
         :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
         :param update: passed to Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
+        :param dependents: passed to Query.first() to requery_dependents(). Note that the select_first parameter must = True to use this parameter.
+
         :return: None
         """
         if filtered:
@@ -668,19 +670,19 @@ class Query:
 
 
         if select_first:
-            self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
+            self.first(skip_prompt_save=True,update=update,dependents=dependents) # We don't want to prompt save in this situation, since there was a requery of the data
 
-    def requery_dependents(self,update=True,child=False):
+    def requery_dependents(self,child=False):
         """
         Requery parent queries as defined by the relationships of the table
-
+        :param child: If True, requerys self. Default False; used to skip requery when called by parent.
         :return: None
         """
-        if child: self.requery(update=update)
+        if child: self.requery(dependents=False) # dependents=False: we don't another recursive dependent requery
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
-                self.frm[rel.child].requery_dependents(update=update, child=True,)
+                self.frm[rel.child].requery_dependents(child=True)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
@@ -838,7 +840,7 @@ class Query:
             else:
                 i += 1
 
-        if dependents: self.requery_dependents(update=update)
+        if dependents: self.requery_dependents()
         if update: self.frm.update_elements(self.table)
 
     def get_current(self, column, default=""):
