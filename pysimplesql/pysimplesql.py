@@ -601,6 +601,7 @@ class Query:
             if self.table == r.child:
                 if r.requery_table:
                     first_pk=self.get_min_pk()
+                    if first_pk is None: first_pk = 0
                     clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, first_pk))}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
