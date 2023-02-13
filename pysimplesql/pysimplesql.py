@@ -190,7 +190,7 @@ class Query:
     """
     instances=[] # Track our instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', prompt_save=True) -> Query:
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', cascade_filter:bool=True, prompt_save:bool=True) -> Query:
         """
         Initialize a new Table instance
 
@@ -208,6 +208,8 @@ class Query:
         :type query: str
         :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} COLLATE NOCASE ASC"
         :type order: str
+        :param cascade_filter: True = only display children if they have a selected cascading parent. False will return show all children, regardless if they have a selected cascading parent. Advised to turn off prompt_save if using without filter.
+        :type cascade_filter: bool
         :param prompt_save: Prompt to save changes when dirty records are present
         :type prompt_save: bool
         :returns: A Table instance
@@ -242,6 +244,7 @@ class Query:
         self.callbacks = {}
         self.transform = None
         self._prompt_save=prompt_save
+        self.cascade_filter = cascade_filter
         # self.requery(True)
 
     # Override the [] operator to retrieve columns by key
@@ -600,8 +603,10 @@ class Query:
         for r in self.frm.relationships:
             if self.table == r.child:
                 if r.requery_table:
-                    first_pk=self.get_min_pk()
-                    if first_pk is None: first_pk = 0
+                    if self.frm._init_cascade_filter == False:
+                        first_pk = self.get_min_pk()
+                        if first_pk is None: first_pk = 0
+                    else: first_pk = -999 # Hack to display no rows after startup if there is no selected parent.
                     clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, first_pk))}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
@@ -634,17 +639,22 @@ class Query:
         q += f' {self.order if order else ""}'
         return q
 
-    def requery(self, select_first=True, filtered=True, update=True):
+    def requery(self, select_first=True, cascade_filter=True, update=True):
         """
         Requeries the table
         The @Query object maintains an internal representation of the actual database table.
         The requery method will requery the actual database  and sync the @Query objects to it
         :param select_first: If true, the first record will be selected after the requery
-        :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
+        :param cascade_filter: If true, the relationships will be considered and an appropriate WHERE clause will be generated.
         :param update: passed to Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
         :return: None
         """
-        if filtered:
+        join = ''
+        where = ''
+
+        if self.cascade_filter == False: cascade_filter = False
+        
+        if cascade_filter:
             join = self.generate_join_clause()
             where = self.generate_where_clause()
 
@@ -1385,7 +1395,13 @@ class Form:
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
         self.auto_add_relationships()
+
+        # Used in Query.generate_where_clause to populate child records on startup, even if they don't have a selected cascading parent.
+        self._init_cascade_filter = False
         self.requery_all(False)
+        # Set back to True so that additional requeries don't show child records if there isn't a selected cascading parent
+        self._init_cascade_filter = True 
+        
         if bind!=None:
             self.window=bind
             self.bind(self.window)
