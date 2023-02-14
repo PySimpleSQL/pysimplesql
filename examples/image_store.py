@@ -88,3 +88,5 @@ while True:
     if event==sg.WINDOW_CLOSED or event == 'Exit':
         break
     db.process_events(event,values)
+win.close()
+
