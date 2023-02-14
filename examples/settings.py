@@ -17,7 +17,7 @@ INSERT INTO SETTINGS VALUES (3,'antialiasing', True,'Would you like to render wi
 INSERT INTO SETTINGS VALUES (4, 'query_retries', 3,'Retry queries this many times before aborting.');
 """
 
-frm = ss.Form('Settigs.db', sql_commands=sql)      # <=== load the database
+frm = ss.Form('Settings.db', sql_commands=sql)      # <=== load the database
 # Note: we are not binding this Form to a window yet, as the window has not yet been created.
 # Creating the form now will help us get values for the tooltips during layout creation below!.
 
