@@ -486,7 +486,7 @@ class Query:
         """
         self.description_column=column
 
-    def records_changed(self, recursive=True) -> bool:
+    def records_changed(self, recursive=True, column_name:str=None) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values.
         :param recursive: True to check related Queries
@@ -501,6 +501,10 @@ class Query:
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
             if c['query'].table == self.table:
+                ## if passed custom column_name
+                if column_name is not None and c != column_name:
+                    continue
+
                 element_val = c['element'].get()
                 table_val = self[c['column']]
 
@@ -755,9 +759,11 @@ class Query:
         :return: None
         """
         if self.current_index > 0:
+            prevous_index = self.current_index
             logger.debug(f'Moving to the previous record of table {self.table}')
             if skip_prompt_save is False: self.prompt_save()
-            self.current_index -= 1
+            if self.current_index == prevous_index:
+                self.current_index -= 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements(self.table)
             # callback
@@ -1046,10 +1052,20 @@ class Query:
         for k,v in current_row.items():
             if current_row[k] != self.get_current(k):
                 changed[k] = v
+        
 
         if changed == {}:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE
+            
+        # check to see if cascading-fk has changed before we update database
+        fk_changed = False
+        fk_column = self.frm.get_parent_cascade_fk(self.table)
+        if fk_column:
+            # check if fk 
+            for v in self.frm.element_map:
+                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == fk_column:
+                    fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
@@ -1078,6 +1094,11 @@ class Query:
         # then update the current row.
         self.rows[self.current_index]=current_row
 
+        # If child changes parent, move index back and requery/requery_dependents
+        if fk_changed:
+            if self.current_index > 0: self.current_index -= 1
+            self.frm[self.table].requery(select_first=False) #keep spot in table
+            self.frm[self.table].requery_dependents()
 
         # Lets refresh our data
         # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
@@ -1561,6 +1582,18 @@ class Form:
         for r in self.relationships:
             if r.child == table and r.requery_table:
                 return r.parent
+        return None
+    
+    def get_parent_cascade_fk(self, table):
+        """
+        Return the parent fk that cascade-filters for the passed-in table
+        :param table: The table (str) of child
+        :return: The name of the cascade-fk, or None
+        """
+        for qry in self.queries:
+            for r in self.relationships:
+                if r.child == self[table].table:
+                    return r.fk
         return None
     
     def auto_add_queries(self, prefix_queries=''):
