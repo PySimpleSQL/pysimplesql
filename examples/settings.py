@@ -55,10 +55,11 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
        print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
+        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')
+win.close()
 
 """
 This example showed how to easily access key,value information stored in queries.  A classic example of this is with
