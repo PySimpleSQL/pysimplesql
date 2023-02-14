@@ -1391,6 +1391,9 @@ class Form:
             self.bind(self.window)
 
     def __del__(self):
+        self.close()
+
+    def db_close(self):
         # Only do cleanup if this is not an imported database
         if not self.imported_database:
             # optimize the database for long-term benefits
@@ -1408,6 +1411,7 @@ class Form:
         # Safely close out the form
         # First delete the queries associated
         Query.purge_form(self,reset_keygen)
+        self.db_close()
 
     def bind(self, win):
         """
