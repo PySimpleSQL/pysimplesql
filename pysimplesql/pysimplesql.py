@@ -190,7 +190,7 @@ class Query:
     """
     instances=[] # Track our instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', prompt_save=True) -> Query:
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', filtered:Bool=True, prompt_save:Bool=True) -> Query:
         """
         Initialize a new Table instance
 
@@ -208,6 +208,8 @@ class Query:
         :type query: str
         :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} COLLATE NOCASE ASC"
         :type order: str
+        :param filtered: If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
+        :type filtered: bool
         :param prompt_save: Prompt to save changes when dirty records are present
         :type prompt_save: bool
         :returns: A Table instance
@@ -241,6 +243,7 @@ class Query:
         self.selector = []
         self.callbacks = {}
         self.transform = None
+        self.filtered = filtered
         self._prompt_save=prompt_save
         # self.requery(True)
 
@@ -600,9 +603,9 @@ class Query:
         for r in self.frm.relationships:
             if self.table == r.child:
                 if r.requery_table:
-                    first_pk=self.get_min_pk()
-                    if first_pk is None: first_pk = 0
-                    clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, first_pk))}'
+                    parent_pk = self.frm[r.parent].get_current(r.pk)
+                    if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
+                    clause=f' WHERE {self.table}.{r.fk}={str(parent_pk)}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
 
@@ -639,13 +642,18 @@ class Query:
         Requeries the table
         The @Query object maintains an internal representation of the actual database table.
         The requery method will requery the actual database  and sync the @Query objects to it
-        :param select_first: If true, the first record will be selected after the requery
-        :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
+        :param select_first: If True, the first record will be selected after the requery
+        :param filtered: If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
         :param update: passed to Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
         :param dependents: passed to Query.first() to requery_dependents(). Note that the select_first parameter must = True to use this parameter.
 
         :return: None
         """
+        join = ''
+        where = ''
+        
+        if self.filtered == False: filtered=False
+
         if filtered:
             join = self.generate_join_clause()
             where = self.generate_where_clause()
@@ -672,17 +680,18 @@ class Query:
         if select_first:
             self.first(skip_prompt_save=True,update=update,dependents=dependents) # We don't want to prompt save in this situation, since there was a requery of the data
 
-    def requery_dependents(self,child=False):
+    def requery_dependents(self,child=False,update=True):
         """
         Requery parent queries as defined by the relationships of the table
         :param child: If True, requerys self. Default False; used to skip requery when called by parent.
+        :param update: passed to Query.requery() -> Query.first() to update_elements.
         :return: None
         """
-        if child: self.requery(dependents=False) # dependents=False: we don't another recursive dependent requery
+        if child: self.requery(update=update,dependents=False) # dependents=False: we don't another recursive dependent requery
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
-                self.frm[rel.child].requery_dependents(child=True)
+                self.frm[rel.child].requery_dependents(child=True,update=update)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
@@ -695,7 +704,7 @@ class Query:
         logger.debug(f'Moving to the first record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
-        if dependents: self.requery_dependents()
+        if dependents: self.requery_dependents(update=update)
         if update: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
@@ -1335,7 +1344,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
+    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
         """
         Initialize a new @Form instance
 
@@ -1347,6 +1356,7 @@ class Form:
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: parent form to base queries off of
         :param filter: (optional) Only import elements with the same filter
+        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well. 
         """
         Form.instances.append(self)
 
@@ -1387,7 +1397,7 @@ class Form:
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
         self.auto_add_relationships()
-        self.requery_all(False)
+        self.requery_all(select_first=select_first, update=False, dependents=True)
         if bind!=None:
             self.window=bind
             self.bind(self.window)
@@ -2128,20 +2138,24 @@ class Form:
             self.callbacks['update_elements'](self, self.window)
 
 
-    def requery_all(self, update_elements=True) -> None:
+    def requery_all(self, select_first=True, filtered=True, update=True, dependents=True) -> None:
         """
         Requeries all queries in the database
 
         This effectively re-loads the data from the actual sqlite3 queries into Query class objects
 
-        :param update_elements: True to update elements after this operation
-        :type update_elements: bool
+        :param select_first: passed to Query.requery() -> Query.first(). If True, the first record will be selected after the requery
+        :param filtered: passed to Query.requery(). If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
+        :param update: passed to Query.requery() -> Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
+        :param dependents: passed to Query.requery() -> Query.first() to requery_dependents(). Note that the select_first parameter must = True to use this parameter.
         :returns: None
         :rtype: None
         """
+        # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
         logger.info('Requerying all queries')
         for k in self.queries.keys():
-            self[k].requery(update_elements)
+            if self.get_parent(k) is None:
+                self[k].requery(select_first=select_first, filtered=filtered, update=update, dependents=dependents)
 
     def process_events(self, event:str, values:list) -> bool:
         """
