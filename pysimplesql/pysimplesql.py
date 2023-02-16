@@ -2953,12 +2953,68 @@ class Mysql(SQLDriver):
         return rows[0]['UPDATE_RULE']
 
 
-
-
     def execute_script(self,script):
         with open(script, 'r') as file:
             logger.info(f'Loading script {script} into database.')
             # TODO
+
+try:
+    import psycopg2
+except ModuleNotFoundError:
+    pass
+class Postgre(SQLDriver):
+    def __init__(self,host,user,password,database,sql_script=None, sql_commands=None):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.con = self.connect()
+
+        if sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info(f'Executing sql commands passed in')
+            logger.debug(sql_commands)
+            self.con.executescript(sql_commands)
+            self.con.commit()
+        if sql_script is not None:
+            # run SQL script from the file if the database does not yet exist
+            logger.info('Executing sql script from file passed in')
+            self.execute_script(sql_script)
+
+    def connect(self):
+        con = psycopg2.connect(
+            host = self.host,
+            user = self.user,
+            password = self.password,
+            database = self.database
+        )
+        return con
+
+    def execute(self, query, values=None):
+        cursor = self.con.cursor(dictionary=True)
+        if values:
+            cursor.execute(query, values)
+        else:
+            cursor.execute(query)
+
+        res=[]
+        for row in cursor:
+            res.append(row)
+
+        lastrowid=cursor.lastrowid if cursor.lastrowid else None
+        return ResultSet(res, lastrowid)
+        #return [dict(row) for row in cursor]
+
+    def commit(self):
+        self.con.commit()
+
+    def rollback(self):
+        self.con.rollback()
+
+    def close(self):
+        # Only do cleanup if this is not an imported database
+        self.con.close()
+
 
 
 # ======================================================================================================================
