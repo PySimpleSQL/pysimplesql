@@ -2706,6 +2706,21 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # ======================================================================================================================
 # DATABASE ABSTRACTION
 # ======================================================================================================================
+class ResultSet:
+    def __init__(self, rows,lastrowid=None):
+        self.rows = rows
+        self.lastrowid = lastrowid
+
+    def fetchone(self):
+        if len(self.rows):
+            return self.rows[0]
+        return []
+
+    def fetchall(self):
+        if len(self.rows):
+            return self.rows
+        return []
+
 class SQLDriver:
     def connect(self):
         raise NotImplementedError
@@ -2721,6 +2736,9 @@ class SQLDriver:
 
     def close(self):
         raise NotImplementedError
+
+
+
 
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
@@ -2761,7 +2779,8 @@ class Sqlite(SQLDriver):
             cursor.execute(query, values)
         else:
             cursor.execute(query)
-        return cursor
+        lastrowid=cursor.lastrowid if cursor.lastrowid else None
+        return ResultSet([dict(row) for row in cursor], lastrowid)
 
     def commit(self):
         self.con.commit()
