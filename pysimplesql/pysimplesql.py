@@ -2710,7 +2710,7 @@ class ResultSet:
         return []
 
 class SQLDriver:
-    def connect(self):
+    def connect(self, database):
         raise NotImplementedError
 
     def execute(self, query, values=None):
@@ -2739,18 +2739,18 @@ class SQLDriver:
 
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
+        new_database = False
         if db_path is not None:
             logger.info(f'Opening database: {db_path}')
             new_database = not os.path.isfile(db_path)
-            con = sqlite3.connect(db_path)  # Open our database
+            self.connect(db_path)  # Open our database
 
         self.imported_database = False
         if sqlite3_database is not None:
-            con = sqlite3_database
+            self.con = sqlite3_database
             new_database = False
             self.imported_database = True
 
-        self.con = con
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
@@ -2763,12 +2763,11 @@ class Sqlite(SQLDriver):
             logger.info('Executing sql script from file passed in')
             self.execute_script(sql_script)
 
-
         self.db_path = db_path
-        self.conn = None
 
-    def connect(self):
-        self.con = sqlite3.connect(self.database)
+
+    def connect(self, database):
+        self.con = sqlite3.connect(database)
 
     def execute(self, query, values=None):
         cursor = self.con.cursor()
@@ -2798,22 +2797,13 @@ class Sqlite(SQLDriver):
     def table_names(self):
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.execute(q)
-        records = cur.fetchall()
-        names=[]
-        for row in records:
-            names.append(row['name'])
-        return names
+        return [row['name'] for row in cur.fetchall()]
 
     def column_names(self,table):
         # Return a list of column names
         q = f'PRAGMA table_info({table})'
         cur = self.execute(q)
-        rows = cur.fetchall()
-        names = []  # column names
-
-        for row in rows:
-            names.append(row['name'])
-        return names
+        return [row['name'] for row in cur.fetchall()]
 
     def pk_column(self,table):
         q = f'PRAGMA table_info({table})'
@@ -2851,6 +2841,90 @@ class Sqlite(SQLDriver):
         with open(script, 'r') as file:
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
+
+class Mysql(SQLDriver):
+    #import mysql.connector
+
+    def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.con = self.connect()
+
+        if sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info(f'Executing sql commands passed in')
+            logger.debug(sql_commands)
+            self.con.executescript(sql_commands)
+            self.con.commit()
+        if sql_script is not None:
+            # run SQL script from the file if the database does not yet exist
+            logger.info('Executing sql script from file passed in')
+            self.execute_script(sql_script)
+
+
+    def connect(self):
+        con = mysql.connector.connect(
+            host = self.host,
+            user = self.user,
+            password = self.password,
+            database = self.database
+        )
+        return con
+
+    def execute(self, query, values=None):
+        cursor = self.con.cursor()
+        if values:
+            cursor.execute(query, values)
+        else:
+            cursor.execute(query)
+        lastrowid=cursor.lastrowid if cursor.lastrowid else None
+        return ResultSet([dict(row) for row in cursor], lastrowid)
+
+    def commit(self):
+        self.con.commit()
+
+    def rollback(self):
+        self.con.rollback()
+
+    def close(self):
+        # Only do cleanup if this is not an imported database
+        self.con.close()
+
+    def table_names(self):
+        query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
+        rows = self.execute(query, (self.con.database,))
+        return [row[0] for row in rows.fetchall()]
+
+
+    def column_names(self,table):
+        # Return a list of column names
+        query = "DESCRIBE {}".format(table)
+        cur = self.execute(query)
+        return [row[0] for row in cur.fetchall()]
+
+    def pk_column(self,table):
+        query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)
+        cur = self.execute(query)
+        row = cur.fetchone()
+        return row[4] if row else None
+
+    def relationships(self):
+        # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
+        tables=self.table_names()
+        for table_name in tables:
+            query = "SELECT column_name FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
+            cur=self.execute(query, (table_name,))
+        return [row[0] for row in cur.fetchall()]
+
+
+
+    def execute_script(self,script):
+        with open(script, 'r') as file:
+            logger.info(f'Loading script {script} into database.')
+            # TODO
+
 
 # ======================================================================================================================
 # ALIASES
