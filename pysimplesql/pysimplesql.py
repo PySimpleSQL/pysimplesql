@@ -244,7 +244,7 @@ class Query:
         self.order = order
         self.join = ''
         self.where = ''  # In addition to generated where!
-        self.con = frm_reference.con
+        self.db = frm_reference.db
         self.dependents = []
         self.column_names = []
         self.rows = []
@@ -289,7 +289,7 @@ class Query:
             if i.frm!=frm:
                 new_instances.append(i)
             else:
-                logger.debug(f'Removing Query {i.name} related to {frm.db_path}')
+                logger.debug(f'Removing Query {i.name} related to {frm.db.db_path}')
                 # we need to get a list of elements to purge from the keygen
                 for s in i.selector:
                     selector_keys.append(s['element'].key)
@@ -452,13 +452,13 @@ class Query:
             self.column_names=names
             return
 
-        cur = self.con.execute(self.generate_query())
+        cur = self.db.execute(self.generate_query())
         records = cur.fetchall()  # TODO: new version of this w/o cur
         for t in records:
             # Now lets get the pk
             # TODO: should we capture on_update, on_delete and match from PRAGMA?
             q2 = f'PRAGMA table_info({t["name"]})'
-            cur2 = self.con.execute(q2)
+            cur2 = self.db.execute(q2)
             records2 = cur2.fetchall()
             names = []  # column names
 
@@ -674,7 +674,7 @@ class Query:
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
         logger.info('Running query: ' + query)
 
-        cur = self.con.execute(query)
+        cur = self.db.execute(query)
         self.rows = cur.fetchall()
         # SQLite3 rows are not writeable.  Convert to a list of dicts, which can be written to by the Transform fn.
         self.rows = [dict(row) for row in self.rows]
@@ -924,7 +924,7 @@ class Query:
         """
         # TODO: Maybe get this right from the table object instead of running a query?
         q = f'SELECT MAX({self.pk_column}) AS highest FROM {self.table};'
-        cur = self.con.execute(q)
+        cur = self.db.execute(q)
         records = cur.fetchone()
         return records['highest']
 
@@ -936,7 +936,7 @@ class Query:
         """
         # TODO: Maybe get this right from the table object instead of running a query?
         q = f'SELECT MIN({self.pk_column}) AS lowest FROM {self.table};'
-        cur = self.con.execute(q)
+        cur = self.db.execute(q)
         records = cur.fetchone()
         return records['lowest']
 
@@ -999,8 +999,8 @@ class Query:
         else:
             q += 'DEFAULT VALUES'
         logger.debug(q)
-        cur = self.con.execute(q)
-        self.con.commit()
+        cur = self.db.execute(q)
+        self.db.commit()
 
         # Now we save the new pk
         pk = cur.lastrowid
@@ -1092,16 +1092,16 @@ class Query:
         q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
 
         logger.info(f'Performing query: {q} {str(values)}')
-        self.con.execute(q, tuple(values))
+        self.db.execute(q, tuple(values))
 
         # callback
         if 'after_save' in self.callbacks.keys():
             if not self.callbacks['after_save'](self.frm, self.frm.window):
-                self.con.rollback()
+                self.db.rollback()
                 return SAVE_FAIL
 
         # If we made it here, we can commit the changes
-        self.con.commit()
+        self.db.commit()
         # then update the current row.
         self.rows[self.current_index]=current_row
 
@@ -1166,22 +1166,22 @@ class Query:
                 for r in self.frm.relationships:
                     if r.parent == self.table:
                         q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
-                        self.con.execute(q)
+                        self.db.execute(q)
                         logger.debug(f'Delete query executed: {q}')
                         self.frm[r.child].requery(False)
 
 
         q = f'DELETE FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)};'
-        self.con.execute(q)
+        self.db.execute(q)
 
         # callback
         if 'after_delete' in self.callbacks.keys():
             if not self.callbacks['after_delete'](self.frm, self.frm.window):
-                self.con.rollback()
+                self.db.rollback()
             else:
-                self.con.commit()
+                self.db.commit()
         else:
-            self.con.commit()
+            self.db.commit()
 
         self.requery(False)  # Don't move to the first record
         self.current_index = self.current_index  # force the current_index to be in bounds! todo should this be done in requery?
@@ -1228,19 +1228,19 @@ class Query:
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)}'
-        self.con.execute(q)
+        self.db.execute(q)
         logger.debug(q)
         q = f'UPDATE tmp SET {self.pk_column} = NULL'
-        self.con.execute(q)
+        self.db.execute(q)
         logger.debug(q)
         q = f'UPDATE tmp SET {self.description_column} = "Copy of " || {self.description_column}'
-        self.con.execute(q)
+        self.db.execute(q)
         logger.debug(q)
         q = f'INSERT INTO {self.table} SELECT * FROM tmp'
-        cur = self.con.execute(q)
+        cur = self.db.execute(q)
         logger.debug(q)
         q = f'DROP TABLE tmp;'
-        self.con.execute(q)
+        self.db.execute(q)
         logger.debug(q)
         
         # Now we save the new pk
@@ -1254,31 +1254,31 @@ class Query:
                 for r in self.frm.relationships:
                     if r.parent == self.table and r.requery_table and (r.child not in child_duplicated):
                         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
-                        self.con.execute(q)
+                        self.db.execute(q)
                         logger.debug(q)
                         q = f'UPDATE tmp SET {self.frm[r.child].pk_column} = NULL'
-                        self.con.execute(q)
+                        self.db.execute(q)
                         logger.debug(q)
                         q = f'UPDATE tmp SET {r.fk} = {pk}'
-                        self.con.execute(q)
+                        self.db.execute(q)
                         logger.debug(q)
                         q = f'INSERT INTO {r.child} SELECT * FROM tmp'
-                        self.con.execute(q)
+                        self.db.execute(q)
                         logger.debug(q)
                         q = f'DROP TABLE tmp;'
-                        self.con.execute(q)
+                        self.db.execute(q)
                         logger.debug(q)
                         child_duplicated.append(r.child)
                         
         # callback
         if 'after_duplicate' in self.callbacks.keys():
             if not self.callbacks['after_duplicate'](self.frm, self.frm.window):
-                self.con.rollback()
+                self.db.rollback()
             else:
-                self.con.commit()
+                self.db.commit()
         else:
-            self.con.commit()
-        self.con.commit()
+            self.db.commit()
+        self.db.commit()
         
         # move to new pk
         self.frm[r.child].requery(False)
@@ -1376,7 +1376,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
+    def __init__(self, db, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
         """
         Initialize a new @Form instance
 
@@ -1392,20 +1392,9 @@ class Form:
         """
         Form.instances.append(self)
 
-        if db_path is not None:
-            logger.info(f'Opening database: {db_path}')
-            new_database = not os.path.isfile(db_path)
-            con = sqlite3.connect(db_path)  # Open our database
-
-        self.imported_database=False
-        if sqlite3_database is not None:
-            con = sqlite3_database
-            new_database = False
-            self.imported_database=True
-
+        self.db = db
         self.filter = filter
         self.parent = parent
-        self.db_path = db_path  # type: str
         self.window = None
         self._edit_protect=False
         self.queries = {}
@@ -1413,18 +1402,6 @@ class Form:
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships = []
         self.callbacks = {}
-        self.con = con
-        self.con.row_factory = sqlite3.Row
-        if sql_commands is not None and new_database:
-            # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
-            logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
-            self.con.commit()
-        if sql_script is not None and new_database:
-            # run SQL script from the file if the database does not yet exist
-            logger.info('Executing sql script from file passed in')
-            self.execute_script(sql_script)
 
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
@@ -1437,15 +1414,6 @@ class Form:
     def __del__(self):
         self.close()
 
-    def db_close(self):
-        # Only do cleanup if this is not an imported database
-        if not self.imported_database:
-            # optimize the database for long-term benefits
-            if self.db_path != ':memory:':
-                q = 'PRAGMA optimize;'
-                self.con.execute(q)
-            # Close the connection
-            self.con.close()
 
     # Override the [] operator to retrieve queries by key
     def __getitem__(self, key:str) -> Query:
@@ -1455,7 +1423,7 @@ class Form:
         # Safely close out the form
         # First delete the queries associated
         Query.purge_form(self,reset_keygen)
-        self.db_close()
+        self.db.close()
 
     def bind(self, win):
         """
@@ -1474,10 +1442,6 @@ class Form:
         logger.debug('Binding finished!')
 
 
-    def execute_script(self,script):
-        with open(script, 'r') as file:
-            logger.info(f'Loading script {script} into database.')
-            self.con.executescript(file.read())
 
     def execute(self, q):
         """
@@ -1485,14 +1449,14 @@ class Form:
         :param q: The query to execute
         :return: sqlite3.cursor
         """
-        return self.con.execute(q)
+        return self.db.execute(q)
 
     def commit(self):
         """
         Convience function to pass along to sqlite3.commit()
         :return: None
         """
-        self.con.commit()
+        self.db.commit()
 
     def set_callback(self, callback, fctn):
         """
@@ -1623,13 +1587,13 @@ class Form:
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.queries = {}
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
-        cur = self.con.execute(q)
+        cur = self.db.execute(q)
         records = cur.fetchall()  # TODO: new version of this w/o cur
         for t in records:
             # Now lets get the pk
             # TODO: should we capture on_update, on_delete and match from PRAGMA?
             q2 = f'PRAGMA table_info({t["name"]})'
-            cur2 = self.con.execute(q2)
+            cur2 = self.db.execute(q2)
             records2 = cur2.fetchall()
             names = []
 
@@ -1668,7 +1632,7 @@ class Form:
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.relationships = []
         for table in self.queries:
-            rows = self.con.execute(f"PRAGMA foreign_key_list({table})")
+            rows = self.db.execute(f"PRAGMA foreign_key_list({table})")
             rows = rows.fetchall()
 
             for row in rows:
@@ -2738,6 +2702,87 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
 
     return layout
+
+# ======================================================================================================================
+# DATABASE ABSTRACTION
+# ======================================================================================================================
+class SQLDriver:
+    def connect(self):
+        raise NotImplementedError
+
+    def execute(self, query, values=None):
+        raise NotImplementedError
+
+    def commit(self):
+        raise NotImplementedError
+
+    def rollback(self):
+        raise NotImplementedError
+
+    def close(self):
+        raise NotImplementedError
+
+class Sqlite(SQLDriver):
+    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
+        if db_path is not None:
+            logger.info(f'Opening database: {db_path}')
+            new_database = not os.path.isfile(db_path)
+            con = sqlite3.connect(db_path)  # Open our database
+
+        self.imported_database = False
+        if sqlite3_database is not None:
+            con = sqlite3_database
+            new_database = False
+            self.imported_database = True
+
+        self.con = con
+        self.con.row_factory = sqlite3.Row
+        if sql_commands is not None and new_database:
+            # run SQL script if the database does not yet exist
+            logger.info(f'Executing sql commands passed in')
+            logger.debug(sql_commands)
+            self.con.executescript(sql_commands)
+            self.con.commit()
+        if sql_script is not None and new_database:
+            # run SQL script from the file if the database does not yet exist
+            logger.info('Executing sql script from file passed in')
+            self.execute_script(sql_script)
+
+
+        self.db_path = db_path
+        self.conn = None
+
+    def connect(self):
+        self.con = sqlite3.connect(self.database)
+
+    def execute(self, query, values=None):
+        cursor = self.con.cursor()
+        if values:
+            cursor.execute(query, values)
+        else:
+            cursor.execute(query)
+        return cursor
+
+    def commit(self):
+        self.con.commit()
+
+    def rollback(self):
+        self.con.rollback()
+
+    def close(self):
+        # Only do cleanup if this is not an imported database
+        if not self.imported_database:
+            # optimize the database for long-term benefits
+            if self.db_path != ':memory:':
+                q = 'PRAGMA optimize;'
+                self.con.execute(q)
+            # Close the connection
+            self.con.close()
+
+    def execute_script(self,script):
+        with open(script, 'r') as file:
+            logger.info(f'Loading script {script} into database.')
+            self.con.executescript(file.read())
 
 # ======================================================================================================================
 # ALIASES
