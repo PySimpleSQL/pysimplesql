@@ -18,7 +18,6 @@ line of SQL needs written to use **pysimplesql**), but also allows for very low 
 from __future__ import annotations
 from typing import List, Union, Optional, Tuple, Callable
 import PySimpleGUI as sg
-import sqlite3
 import functools
 import os.path
 import logging
@@ -2699,6 +2698,9 @@ class ResultSet:
     def __str__(self):
         return str(self.rows)
 
+    def __getitem__(self,item):
+        return self.rows[item]
+
     def fetchone(self):
         if len(self.rows):
             return self.rows[0]
@@ -2737,6 +2739,10 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
+try:
+    import sqlite3
+except ModuleNotFoundError:
+    pass
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
         new_database = False
@@ -2842,9 +2848,11 @@ class Sqlite(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
 
+try:
+    import mysql.connector
+except ModuleNotFoundError:
+    pass
 class Mysql(SQLDriver):
-    #import mysql.connector
-
     def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
         self.host = host
         self.user = user
@@ -2874,13 +2882,19 @@ class Mysql(SQLDriver):
         return con
 
     def execute(self, query, values=None):
-        cursor = self.con.cursor()
+        cursor = self.con.cursor(dictionary=True)
         if values:
             cursor.execute(query, values)
         else:
             cursor.execute(query)
+
+        res=[]
+        for row in cursor:
+            res.append(row)
+
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
-        return ResultSet([dict(row) for row in cursor], lastrowid)
+        return ResultSet(res, lastrowid)
+        #return [dict(row) for row in cursor]
 
     def commit(self):
         self.con.commit()
@@ -2894,29 +2908,50 @@ class Mysql(SQLDriver):
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
-        rows = self.execute(query, (self.con.database,))
-        return [row[0] for row in rows.fetchall()]
+        rows = self.execute(query, [self.database])
+        return [row['table_name'] for row in rows]
 
 
     def column_names(self,table):
         # Return a list of column names
         query = "DESCRIBE {}".format(table)
-        cur = self.execute(query)
-        return [row[0] for row in cur.fetchall()]
+        rows = self.execute(query)
+        return [row['Field'] for row in rows]
 
     def pk_column(self,table):
         query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)
         cur = self.execute(query)
         row = cur.fetchone()
-        return row[4] if row else None
+        return row['Column_name'] if row else None
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables=self.table_names()
-        for table_name in tables:
-            query = "SELECT column_name FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
-            cur=self.execute(query, (table_name,))
-        return [row[0] for row in cur.fetchall()]
+        relationships = []
+        for from_table in tables:
+            query = "SELECT * FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
+            rows=self.execute(query, (from_table,))
+
+            for row in rows:
+                dic = {}
+                # Get the constraint information
+                constraint = self.constraint(row['CONSTRAINT_NAME'])
+                if constraint == 'CASCADE':
+                    dic['requery'] = True
+                else:
+                    dic['requery'] = False
+                dic['from_table'] = row['TABLE_NAME']
+                dic['to_table'] = row['REFERENCED_TABLE_NAME']
+                dic['from_column'] = row['COLUMN_NAME']
+                dic['to_column'] = row['REFERENCED_COLUMN_NAME']
+                relationships.append(dic)
+        return relationships
+
+    def constraint(self,constraint_name):
+        query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
+        rows = self.execute(query)
+        return rows[0]['UPDATE_RULE']
+
 
 
 
