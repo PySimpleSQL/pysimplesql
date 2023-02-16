@@ -1584,30 +1584,23 @@ class Form:
         self.queries = {}
         table_names = self.driver.table_names()
         for table_name in table_names:
-            # Now lets get the pk
-            # TODO: should we capture on_update, on_delete and match from PRAGMA?
-            q2 = f'PRAGMA table_info({table_name})'
-            cur2 = self.driver.execute(q2)
-            records2 = cur2.fetchall()
-            names = []
+            column_names = self.driver.column_names(table_name)
 
             # auto generate description column.  Default it to the 2nd column,
             # but can be overwritten below
-            description_column = records2[1]['name']
+            description_column = column_names[1]
+            for col in column_names:
+                if col == 'name':
+                    description_column = col
 
-            pk_column = None
-            for t2 in records2:
-                names.append(t2['name'])
-                if t2['pk']:
-                    pk_column = t2['name']
-                if t2['name'] == 'name':
-                    description_column = t2['name']
+            # Get our pk column
+            pk_column = self.driver.pk_column(table_name)
 
             query_name=prefix_queries+table_name
             logger.debug(
                 f'Adding query "{query_name}" on table {table_name} to Form with primary key {pk_column} and description of {description_column}')
             self.add_query(query_name,table_name, pk_column, description_column)
-            self.queries[query_name].column_names = names #TODO: use new add column names??
+            self.queries[query_name].column_names = column_names #TODO: use new add column names??
 
     # Make sure to send a list of table names to requery if you want
     # dependent queries to requery automatically
@@ -2734,10 +2727,11 @@ class SQLDriver:
     def table_names(self):
         raise notImplementedError
 
-    def column_names(self):
+    def column_names(self,table):
         raise NotImplementedError
 
-
+    def pk_column(self,table):
+        raise NotImplementedError
 
 
 class Sqlite(SQLDriver):
@@ -2807,21 +2801,26 @@ class Sqlite(SQLDriver):
             names.append(row['name'])
         return names
 
-    def column_names(self):
-        # Return a list of dicts with column_name, pk
-        # TODO: should we capture on_update, on_delete and match from PRAGMA?
-        q = f'PRAGMA table_info({t["name"]})'
+    def column_names(self,table):
+        # Return a list of column names
+        q = f'PRAGMA table_info({table})'
         cur = self.execute(q)
-        records = cur.fetchall()
+        rows = cur.fetchall()
         names = []  # column names
 
-        pk_column = None
-        dic={}
-        for t in records:
-            dic['name']=t['name']
-            dic['pk']=t['pk']
-            names.append(dic)
+        for row in rows:
+            names.append(row['name'])
         return names
+
+    def pk_column(self,table):
+        q = f'PRAGMA table_info({table})'
+        cur = self.execute(q)
+        rows = cur.fetchall()
+
+        for row in rows:
+            if row['pk']:
+                return row['name']
+        return None
 
     def execute_script(self,script):
         with open(script, 'r') as file:
