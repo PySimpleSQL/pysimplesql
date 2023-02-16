@@ -244,7 +244,7 @@ class Query:
         self.order = order
         self.join = ''
         self.where = ''  # In addition to generated where!
-        self.db = frm_reference.driver
+        self.driver = frm_reference.driver
         self.dependents = []
         self.column_names = []
         self.rows = []
@@ -440,6 +440,7 @@ class Query:
         self.order = clause
 
     def update_column_names(self,names=None) -> None:
+        # TODO: This is not currently used.  Evaluate if we need it or not.  This has been abstracted as well...
         """
         Generate column names for the query.  This may need done, for example, when a manual query using joins
         is used.
@@ -452,13 +453,13 @@ class Query:
             self.column_names=names
             return
 
-        cur = self.db.execute(self.generate_query())
-        records = cur.fetchall()  # TODO: new version of this w/o cur
+        cur = self.driver.execute(self.generate_query())
+        records = cur.fetchall()
         for t in records:
             # Now lets get the pk
             # TODO: should we capture on_update, on_delete and match from PRAGMA?
             q2 = f'PRAGMA table_info({t["name"]})'
-            cur2 = self.db.execute(q2)
+            cur2 = self.driver.execute(q2)
             records2 = cur2.fetchall()
             names = []  # column names
 
@@ -475,7 +476,7 @@ class Query:
                     description_column = t2['name']
 
             query_name = t['name']
-            logger.debug(
+            logger.info(
                 f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
             self.frm.add_query(query_name, t['name'], pk_column, description_column)
             self.column_names = names
@@ -674,11 +675,8 @@ class Query:
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
         logger.info('Running query: ' + query)
 
-        cur = self.db.execute(query)
+        cur = self.driver.execute(query)
         self.rows = cur.fetchall()
-        # SQLite3 rows are not writeable.  Convert to a list of dicts, which can be written to by the Transform fn.
-        self.rows = [dict(row) for row in self.rows]
-
 
         for row in self.rows:
             # perform transform one row at a time
@@ -924,7 +922,7 @@ class Query:
         """
         # TODO: Maybe get this right from the table object instead of running a query?
         q = f'SELECT MAX({self.pk_column}) AS highest FROM {self.table};'
-        cur = self.db.execute(q)
+        cur = self.driver.execute(q)
         records = cur.fetchone()
         return records['highest']
 
@@ -936,7 +934,7 @@ class Query:
         """
         # TODO: Maybe get this right from the table object instead of running a query?
         q = f'SELECT MIN({self.pk_column}) AS lowest FROM {self.table};'
-        cur = self.db.execute(q)
+        cur = self.driver.execute(q)
         records = cur.fetchone()
         return records['lowest']
 
@@ -999,8 +997,8 @@ class Query:
         else:
             q += 'DEFAULT VALUES'
         logger.debug(q)
-        cur = self.db.execute(q)
-        self.db.commit()
+        cur = self.driver.execute(q)
+        self.driver.commit()
 
         # Now we save the new pk
         pk = cur.lastrowid
@@ -1092,16 +1090,16 @@ class Query:
         q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
 
         logger.info(f'Performing query: {q} {str(values)}')
-        self.db.execute(q, tuple(values))
+        self.driver.execute(q, tuple(values))
 
         # callback
         if 'after_save' in self.callbacks.keys():
             if not self.callbacks['after_save'](self.frm, self.frm.window):
-                self.db.rollback()
+                self.driver.rollback()
                 return SAVE_FAIL
 
         # If we made it here, we can commit the changes
-        self.db.commit()
+        self.driver.commit()
         # then update the current row.
         self.rows[self.current_index]=current_row
 
@@ -1166,22 +1164,22 @@ class Query:
                 for r in self.frm.relationships:
                     if r.parent == self.table:
                         q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
-                        self.db.execute(q)
+                        self.driver.execute(q)
                         logger.debug(f'Delete query executed: {q}')
                         self.frm[r.child].requery(False)
 
 
         q = f'DELETE FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)};'
-        self.db.execute(q)
+        self.driver.execute(q)
 
         # callback
         if 'after_delete' in self.callbacks.keys():
             if not self.callbacks['after_delete'](self.frm, self.frm.window):
-                self.db.rollback()
+                self.driver.rollback()
             else:
-                self.db.commit()
+                self.driver.commit()
         else:
-            self.db.commit()
+            self.driver.commit()
 
         self.requery(False)  # Don't move to the first record
         self.current_index = self.current_index  # force the current_index to be in bounds! todo should this be done in requery?
@@ -1228,19 +1226,19 @@ class Query:
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)}'
-        self.db.execute(q)
+        self.driver.execute(q)
         logger.debug(q)
         q = f'UPDATE tmp SET {self.pk_column} = NULL'
-        self.db.execute(q)
+        self.driver.execute(q)
         logger.debug(q)
         q = f'UPDATE tmp SET {self.description_column} = "Copy of " || {self.description_column}'
-        self.db.execute(q)
+        self.driver.execute(q)
         logger.debug(q)
         q = f'INSERT INTO {self.table} SELECT * FROM tmp'
-        cur = self.db.execute(q)
+        cur = self.driver.execute(q)
         logger.debug(q)
         q = f'DROP TABLE tmp;'
-        self.db.execute(q)
+        self.driver.execute(q)
         logger.debug(q)
         
         # Now we save the new pk
@@ -1254,31 +1252,31 @@ class Query:
                 for r in self.frm.relationships:
                     if r.parent == self.table and r.requery_table and (r.child not in child_duplicated):
                         q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
-                        self.db.execute(q)
+                        self.driver.execute(q)
                         logger.debug(q)
                         q = f'UPDATE tmp SET {self.frm[r.child].pk_column} = NULL'
-                        self.db.execute(q)
+                        self.driver.execute(q)
                         logger.debug(q)
                         q = f'UPDATE tmp SET {r.fk} = {pk}'
-                        self.db.execute(q)
+                        self.driver.execute(q)
                         logger.debug(q)
                         q = f'INSERT INTO {r.child} SELECT * FROM tmp'
-                        self.db.execute(q)
+                        self.driver.execute(q)
                         logger.debug(q)
                         q = f'DROP TABLE tmp;'
-                        self.db.execute(q)
+                        self.driver.execute(q)
                         logger.debug(q)
                         child_duplicated.append(r.child)
                         
         # callback
         if 'after_duplicate' in self.callbacks.keys():
             if not self.callbacks['after_duplicate'](self.frm, self.frm.window):
-                self.db.rollback()
+                self.driver.rollback()
             else:
-                self.db.commit()
+                self.driver.commit()
         else:
-            self.db.commit()
-        self.db.commit()
+            self.driver.commit()
+        self.driver.commit()
         
         # move to new pk
         self.frm[r.child].requery(False)
@@ -1343,7 +1341,8 @@ class Query:
                 layout.append([pysimplesql.record(column)])
 
         quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True, ttk_theme=pysimplesql.get_ttk_theme()) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
-        quick_frm = Form(sqlite3_database=self.frm.con, bind=quick_win)
+        driver=Sqlite(sqlite3_database=self.frm.driver.con)
+        quick_frm = Form(driver, bind=quick_win)
 
 
         # Select the current entry to start with
@@ -1376,15 +1375,12 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, driver:SQLiteDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
+    def __init__(self, driver:SQLDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
         """
         Initialize a new @Form instance
 
-        :param db_path: the name of the database file.  It will be created if it doesn't exist.
+        :param driver: Supported SQLDriver.
         :param bind: (PySimpleSQL Window) Bind this window to the Form
-        :param sqlite3_database: A sqlite3 database object
-        :param sql_commands: (str) SQL commands to run if @sqlite3_database is not present
-        :param sql_script: (file) SQL commands to run if @sqlite3_database is not present
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: parent form to base queries off of
         :param filter: (optional) Only import elements with the same filter
@@ -1445,7 +1441,7 @@ class Form:
 
     def execute(self, q):
         """
-        Convenience function to pass along to sqlite3.execute()
+        Convenience function to pass along to SQLDriver.execute()
         :param q: The query to execute
         :return: sqlite3.cursor
         """
@@ -1453,7 +1449,7 @@ class Form:
 
     def commit(self):
         """
-        Convience function to pass along to sqlite3.commit()
+        Convience function to pass along to SQLDriver.commit()
         :return: None
         """
         self.driver.commit()
@@ -1586,13 +1582,11 @@ class Form:
         logger.info('Automatically generating queries for each table in the sqlite database')
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.queries = {}
-        q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
-        cur = self.driver.execute(q)
-        records = cur.fetchall()  # TODO: new version of this w/o cur
-        for t in records:
+        table_names = self.driver.table_names()
+        for table_name in table_names:
             # Now lets get the pk
             # TODO: should we capture on_update, on_delete and match from PRAGMA?
-            q2 = f'PRAGMA table_info({t["name"]})'
+            q2 = f'PRAGMA table_info({table_name})'
             cur2 = self.driver.execute(q2)
             records2 = cur2.fetchall()
             names = []
@@ -1609,10 +1603,10 @@ class Form:
                 if t2['name'] == 'name':
                     description_column = t2['name']
 
-            query_name=prefix_queries+t['name']
+            query_name=prefix_queries+table_name
             logger.debug(
-                f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
-            self.add_query(query_name,t['name'], pk_column, description_column)
+                f'Adding query "{query_name}" on table {table_name} to Form with primary key {pk_column} and description of {description_column}')
+            self.add_query(query_name,table_name, pk_column, description_column)
             self.queries[query_name].column_names = names #TODO: use new add column names??
 
     # Make sure to send a list of table names to requery if you want
@@ -2737,6 +2731,12 @@ class SQLDriver:
     def close(self):
         raise NotImplementedError
 
+    def table_names(self):
+        raise notImplementedError
+
+    def column_names(self):
+        raise NotImplementedError
+
 
 
 
@@ -2797,6 +2797,31 @@ class Sqlite(SQLDriver):
                 self.con.execute(q)
             # Close the connection
             self.con.close()
+
+    def table_names(self):
+        q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
+        cur = self.execute(q)
+        records = cur.fetchall()
+        names=[]
+        for row in records:
+            names.append(row['name'])
+        return names
+
+    def column_names(self):
+        # Return a list of dicts with column_name, pk
+        # TODO: should we capture on_update, on_delete and match from PRAGMA?
+        q = f'PRAGMA table_info({t["name"]})'
+        cur = self.execute(q)
+        records = cur.fetchall()
+        names = []  # column names
+
+        pk_column = None
+        dic={}
+        for t in records:
+            dic['name']=t['name']
+            dic['pk']=t['pk']
+            names.append(dic)
+        return names
 
     def execute_script(self,script):
         with open(script, 'r') as file:
