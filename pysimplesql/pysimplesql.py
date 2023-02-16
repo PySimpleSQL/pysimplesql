@@ -1065,14 +1065,14 @@ class Query:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE
             
-        # check to see if cascading-fk has changed before we update database
-        fk_changed = False
-        fk_column = self.frm.get_parent_cascade_fk(self.table)
-        if fk_column:
+        # check to see if cascade fk has changed before we update database
+        cascade_fk_changed = False
+        cascade_fk = self.frm.get_cascade_fk(self.table)
+        if cascade_fk:
             # check if fk 
             for v in self.frm.element_map:
-                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == fk_column:
-                    fk_changed = self.records_changed(recursive=False, column_name=v)
+                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == cascade_fk:
+                    cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
@@ -1101,8 +1101,8 @@ class Query:
         # then update the current row.
         self.rows[self.current_index]=current_row
 
-        # If child changes parent, move index back and requery/requery_dependents
-        if fk_changed:
+        # If child changes parent, requery/requery_dependents
+        if cascade_fk_changed:
             self.frm[self.table].requery(select_first=False) #keep spot in table
             self.frm[self.table].requery_dependents()
 
@@ -1556,15 +1556,15 @@ class Form:
                 return r.parent
         return None
     
-    def get_parent_cascade_fk(self, table):
+    def get_cascade_fk(self, table):
         """
-        Return the parent fk that cascade-filters for the passed-in table
+        Return the cascade fk that filters for the passed-in table
         :param table: The table (str) of child
         :return: The name of the cascade-fk, or None
         """
         for qry in self.queries:
             for r in self.relationships:
-                if r.child == self[table].table:
+                if r.child == self[table].table and r.requery_table:
                     return r.fk
         return None
     
