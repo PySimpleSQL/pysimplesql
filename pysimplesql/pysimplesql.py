@@ -1665,7 +1665,7 @@ class Form:
 
             if element.metadata['Form'] != self:
                 continue
-            # If we passed in a cutsom list of elements
+            # If we passed in a custom list of elements
             if keys is not None:
                 if key not in keys: continue
 
@@ -1689,7 +1689,7 @@ class Form:
                         self.map_element(element, self[table], col, where_column, where_value)
 
             # Map Selector Element
-            if element.metadata['type']==TYPE_SELECTOR:
+            elif element.metadata['type']==TYPE_SELECTOR:
                 k=element.metadata['table']
                 if k is None: continue
                 if element.metadata['Form'] != self: continue
@@ -1750,21 +1750,21 @@ class Form:
 
                 event_query=query if query in self.queries else None
                 if event_type==EVENT_FIRST:
-                    if query in self.queries: funct=self[query].first
+                    if event_query: funct=self[event_query].first
                 elif event_type==EVENT_PREVIOUS:
-                    if query in self.queries: funct=self[query].previous
+                    if event_query: funct=self[event_query].previous
                 elif event_type==EVENT_NEXT:
-                    if query in self.queries: funct=self[query].next
+                    if event_query: funct=self[event_query].next
                 elif event_type==EVENT_LAST:
-                    if query in self.queries: funct=self[query].last
+                    if event_query: funct=self[event_query].last
                 elif event_type==EVENT_SAVE:
-                    if query in self.queries: funct=self[query].save_record
+                    if event_query: funct=self[event_query].save_record
                 elif event_type==EVENT_INSERT:
-                    if query in self.queries: funct=self[query].insert_record
+                    if event_query: funct=self[event_query].insert_record
                 elif event_type==EVENT_DELETE:
-                    if query in self.queries: funct=self[query].delete_record
+                    if event_query: funct=self[event_query].delete_record
                 elif event_type==EVENT_DUPLICATE:
-                    if query in self.queries: funct=self[query].duplicate_record
+                    if event_query: funct=self[event_query].duplicate_record
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
@@ -1774,7 +1774,7 @@ class Form:
                     # Build the search box name
                     search_element,command=key.split('.')
                     search_box=f'{search_element}.input_search'
-                    if query in self.queries: funct=functools.partial(self[query].search, search_box)
+                    if event_query: funct=functools.partial(self[event_query].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     t,c,e=key.split('.') #table, column, event
