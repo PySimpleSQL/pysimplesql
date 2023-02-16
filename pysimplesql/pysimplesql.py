@@ -71,9 +71,18 @@ PROMPT_NONE = 2
 # ------------------------
 # RECORD SAVE RETURN TYPES
 # ------------------------
-SAVE_FAIL=0     # Save failed due to callback
-SAVE_SUCCESS=1  # Save was successful
-SAVE_NONE=2     # There was nothing to save
+SAVE_FAIL = 0     # Save failed due to callback
+SAVE_SUCCESS = 1  # Save was successful
+SAVE_NONE =2      # There was nothing to save
+
+# --------------------
+# SEARCH RETURN VALUES
+# --------------------
+SEARCH_FAILED = 0   # No result was found
+SEARCH_RETURNED = 1 # A result was found
+SEARCH_ABORTED = 2  # The search was aborted, likely during a callback
+SEARCH_ENDED = 3  # We have reached the end of the search
+
 
 def strip(string:str) -> str:
     """
@@ -764,30 +773,29 @@ class Query:
         @Query.set_by_pk
 
         :param string: The search string
-        :return: None
+        :return: One of the following search values: SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED
         """
-        logger.debug(f'Searching for a record of table {self.table} with search term "{string}"')
-        # callback
-        if 'before_search' in self.callbacks.keys():
-            if not self.callbacks['before_search'](self.frm, self.frm.window):
-                return
-
         # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
         if string in self.frm.window.key_dict.keys():
             string = self.frm.window[string].get()
         if string == '':
-            return
+            return SEARCH_ABORTED
+
+        logger.debug(f'Searching for a record of table {self.table} with search term "{string}"')
+        # callback
+        if 'before_search' in self.callbacks.keys():
+            if not self.callbacks['before_search'](self.frm, self.frm.window):
+                return SEARCH_ABORTED
 
         if skip_prompt_save is False: self.prompt_save() # TODO: Should this be before the before_search callback?
         # First lets make a search order.. TODO: remove this hard coded garbage
-
+        if len(self.rows): logger.info(f'DEBUG: {self.search_order} {self.rows[0].keys()}')
         for o in self.search_order:
-            # Perform a search for str, from the current position to the end and back
+            # Perform a search for str, from the current position to the end and back by creating a list of all indexes
             for i in list(range(self.current_index + 1, len(self.rows))) + list(range(0, self.current_index)):
                 if o in self.rows[i].keys():
                     if self.rows[i][o]:
                         if string.lower() in str(self.rows[i][o]).lower():
-                            print(string.lower())
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
@@ -799,11 +807,14 @@ class Query:
                                     self.current_index = old_index
                                     self.requery_dependents()
                                     self.frm.update_elements(self.table)
+                                    return SEARCH_ABORTED
+
                             # callback
                             if 'record_changed' in self.callbacks.keys():
                                 self.callbacks['record_changed'](self.frm, self.frm.window)
-                            return
-        return False
+
+                            return SEARCH_RETURNED
+        return SEARCH_FAILED
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
