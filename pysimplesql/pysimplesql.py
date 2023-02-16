@@ -1617,21 +1617,11 @@ class Form:
         """
         logger.info(f'Automatically adding foreign key relationships')
         # Ensure we clear any current queries so that successive calls will not double the entries
-        self.relationships = []
-        for table in self.queries:
-            rows = self.driver.execute(f"PRAGMA foreign_key_list({table})")
-            rows = rows.fetchall()
-
-            for row in rows:
-                # Add the relationship if it's in the requery list
-                if row['on_update'] == 'CASCADE':
-                    logger.debug(f'Setting table {table} to auto requery with table {row["table"]}')
-                    requery_table = True
-                else:
-                    requery_table = False
-
-                logger.debug(f'Adding relationship {table}.{row["from"]} = {row["table"]}.{row["to"]}')
-                self.add_relationship('LEFT JOIN', table, row['from'], row['table'], row['to'], requery_table)
+        self.relationships = [] # clear any relationships already stored
+        relationships = self.driver.relationships()
+        for r in relationships:
+            logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
+            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['requery'])
 
     # Map an element to a Query.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
@@ -2733,6 +2723,8 @@ class SQLDriver:
     def pk_column(self,table):
         raise NotImplementedError
 
+    def relationships(self):
+        raise NotImplementedError
 
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
@@ -2821,6 +2813,28 @@ class Sqlite(SQLDriver):
             if row['pk']:
                 return row['name']
         return None
+
+    def relationships(self):
+        # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
+        relationships = []
+        tables = self.table_names()
+        for from_table in tables:
+            rows = self.execute(f"PRAGMA foreign_key_list({from_table})")
+            rows = rows.fetchall()
+
+            for row in rows:
+                dic={}
+                # Add the relationship if it's in the requery list
+                if row['on_update'] == 'CASCADE':
+                    dic['requery'] = True
+                else:
+                    dic['requery'] = False
+                dic['from_table'] = from_table
+                dic['to_table'] = row['table']
+                dic['from_column'] = row['from']
+                dic['to_column'] = row ['to']
+                relationships.append(dic)
+        return relationships
 
     def execute_script(self,script):
         with open(script, 'r') as file:
