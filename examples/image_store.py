@@ -43,7 +43,8 @@ layout=[
 ]
 
 win=sg.Window('Image storage/retreival demo',layout=layout,finalize=True)
-db=ss.Database('Image.db',win,sql_commands=sql)
+driver=ss.Sqlite('Image.db', sql_commands=sql)
+db=ss.Database(driver,win)
 
 # ------------------
 # Callback functions

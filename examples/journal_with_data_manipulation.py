@@ -46,8 +46,8 @@ layout=[
 ]
 win=sg.Window('Journal example', layout, finalize=True)
 
-db = ss.Sqlite(':memory:',sql_commands=sql) # Create a new database connection
-frm=ss.Form(db, bind=win) #<=== Here is the magic!
+driver = ss.Sqlite(':memory:',sql_commands=sql) # Create a new database connection
+frm=ss.Form(driver, bind=win) #<=== Here is the magic!
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched

@@ -244,7 +244,7 @@ class Query:
         self.order = order
         self.join = ''
         self.where = ''  # In addition to generated where!
-        self.db = frm_reference.db
+        self.db = frm_reference.driver
         self.dependents = []
         self.column_names = []
         self.rows = []
@@ -289,7 +289,7 @@ class Query:
             if i.frm!=frm:
                 new_instances.append(i)
             else:
-                logger.debug(f'Removing Query {i.name} related to {frm.db.db_path}')
+                logger.debug(f'Removing Query {i.name} related to {frm.driver.db_path}')
                 # we need to get a list of elements to purge from the keygen
                 for s in i.selector:
                     selector_keys.append(s['element'].key)
@@ -1376,7 +1376,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, db, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
+    def __init__(self, driver:SQLiteDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
         """
         Initialize a new @Form instance
 
@@ -1392,7 +1392,7 @@ class Form:
         """
         Form.instances.append(self)
 
-        self.db = db
+        self.driver = driver
         self.filter = filter
         self.parent = parent
         self.window = None
@@ -1423,7 +1423,7 @@ class Form:
         # Safely close out the form
         # First delete the queries associated
         Query.purge_form(self,reset_keygen)
-        self.db.close()
+        self.driver.close()
 
     def bind(self, win):
         """
@@ -1449,14 +1449,14 @@ class Form:
         :param q: The query to execute
         :return: sqlite3.cursor
         """
-        return self.db.execute(q)
+        return self.driver.execute(q)
 
     def commit(self):
         """
         Convience function to pass along to sqlite3.commit()
         :return: None
         """
-        self.db.commit()
+        self.driver.commit()
 
     def set_callback(self, callback, fctn):
         """
@@ -1587,13 +1587,13 @@ class Form:
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.queries = {}
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
-        cur = self.db.execute(q)
+        cur = self.driver.execute(q)
         records = cur.fetchall()  # TODO: new version of this w/o cur
         for t in records:
             # Now lets get the pk
             # TODO: should we capture on_update, on_delete and match from PRAGMA?
             q2 = f'PRAGMA table_info({t["name"]})'
-            cur2 = self.db.execute(q2)
+            cur2 = self.driver.execute(q2)
             records2 = cur2.fetchall()
             names = []
 
@@ -1632,7 +1632,7 @@ class Form:
         # Ensure we clear any current queries so that successive calls will not double the entries
         self.relationships = []
         for table in self.queries:
-            rows = self.db.execute(f"PRAGMA foreign_key_list({table})")
+            rows = self.driver.execute(f"PRAGMA foreign_key_list({table})")
             rows = rows.fetchall()
 
             for row in rows:

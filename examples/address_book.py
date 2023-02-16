@@ -71,8 +71,10 @@ layout=[
     [ss.actions("browser","Addresses",edit_protect=False, duplicate=True)]
 ]
 win=sg.Window('Journal example', layout, finalize=True, ttk_theme=ss.get_ttk_theme())
+# Connnect to a database
+driver=ss.Sqlite(':memory:', sql_commands=sql)
 # Create our frm
-frm=ss.Form(':memory:', sql_commands=sql, bind=win)
+frm=ss.Form(driver, bind=win)
 
 
 # Use a callback to validate the zip code

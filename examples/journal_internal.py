@@ -42,7 +42,8 @@ layout=[
     [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]
 win=sg.Window('Journal (internal) example', layout, finalize=True)
-frm=ss.Form(':memory:', sql_commands=sql, bind=win) #<=== Here is the magic!
+driver=ss.Sqlite(':memory:', sql_commands=sql)
+frm=ss.Form(driver, bind=win) #<=== Here is the magic!
 # Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 

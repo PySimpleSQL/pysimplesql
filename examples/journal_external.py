@@ -20,7 +20,8 @@ layout=[
     [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]
 win=sg.Window('Journal (external)  example', layout, finalize=True)
-frm=ss.Form('journal.db', sql_script='journal.sql', bind=win)   #<=== Here is the magic!
+driver=ss.Sqlite('journal.db', sql_script='journal.sql')
+frm=ss.Form(driver, bind=win)   #<=== Here is the magic!
 # Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 

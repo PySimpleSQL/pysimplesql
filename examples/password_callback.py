@@ -40,7 +40,8 @@ layout.append([ss.actions('act_restaurant','Restaurant')])
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-frm = ss.Form(':memory:', sql_script='example.sql', bind=win)      # <=== load the database and bind it to the window
+driver = ss.Sqlite(':memory:', sql_script='example.sql')
+frm = ss.Form(driver, bind=win)      # <=== load the database and bind it to the window
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 # Set our callbacks

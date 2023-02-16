@@ -72,7 +72,8 @@ layout=[
 
 # Initialize our window and database, then bind them together
 win = sg.Window('Many-to-many table test', layout, finalize=True)
-frm = ss.Form(':memory:', sql_commands=sql, bind=win)      # <=== load the database into the Form
+driver=ss.Sqlite(':memory:', sql_commands=sql)
+frm = ss.Form(driver, bind=win)      # <=== load the database into the Form
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 
