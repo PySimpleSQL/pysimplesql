@@ -766,11 +766,8 @@ class Query:
         :return: None
         """
         if self.current_index > 0:
-            prevous_index = self.current_index
             logger.debug(f'Moving to the previous record of table {self.table}')
             if skip_prompt_save is False: self.prompt_save()
-            if self.current_index == prevous_index:
-                self.current_index -= 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements(self.table)
             # callback
@@ -944,6 +941,7 @@ class Query:
         :return: @sqlite3.row
         """
         if self.rows:
+            self.current_index = self.current_index # force the current_index to be in bounds! For child reparenting
             return self.rows[self.current_index]
 
     def add_selector(self, element, query:str=None, where_column:str=None, where_value:str=None):  # _listBox,_pk,_column):
@@ -1105,7 +1103,6 @@ class Query:
 
         # If child changes parent, move index back and requery/requery_dependents
         if fk_changed:
-            if self.current_index > 0: self.current_index -= 1
             self.frm[self.table].requery(select_first=False) #keep spot in table
             self.frm[self.table].requery_dependents()
 
