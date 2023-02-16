@@ -199,7 +199,7 @@ class Query:
     """
     instances=[] # Track our instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', prompt_save=True) -> Query:
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', filtered:Bool=True, prompt_save:Bool=True) -> Query:
         """
         Initialize a new Table instance
 
@@ -217,6 +217,8 @@ class Query:
         :type query: str
         :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} COLLATE NOCASE ASC"
         :type order: str
+        :param filtered: If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
+        :type filtered: bool
         :param prompt_save: Prompt to save changes when dirty records are present
         :type prompt_save: bool
         :returns: A Table instance
@@ -250,6 +252,7 @@ class Query:
         self.selector = []
         self.callbacks = {}
         self.transform = None
+        self.filtered = filtered
         self._prompt_save=prompt_save
         # self.requery(True)
 
@@ -492,7 +495,7 @@ class Query:
         """
         self.description_column=column
 
-    def records_changed(self, recursive=True) -> bool:
+    def records_changed(self, recursive=True, column_name:str=None) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values.
         :param recursive: True to check related Queries
@@ -507,6 +510,10 @@ class Query:
         for c in self.frm.element_map:
             # Compare the DB version to the GUI version
             if c['query'].table == self.table:
+                ## if passed custom column_name
+                if column_name is not None and c != column_name:
+                    continue
+
                 element_val = c['element'].get()
                 table_val = self[c['column']]
 
@@ -609,9 +616,9 @@ class Query:
         for r in self.frm.relationships:
             if self.table == r.child:
                 if r.requery_table:
-                    first_pk=self.get_min_pk()
-                    if first_pk is None: first_pk = 0
-                    clause=f' WHERE {self.table}.{r.fk}={str(self.frm[r.parent].get_current(r.pk, first_pk))}'
+                    parent_pk = self.frm[r.parent].get_current(r.pk)
+                    if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
+                    clause=f' WHERE {self.table}.{r.fk}={str(parent_pk)}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
 
@@ -643,16 +650,23 @@ class Query:
         q += f' {self.order if order else ""}'
         return q
 
-    def requery(self, select_first=True, filtered=True, update=True):
+    def requery(self, select_first=True, filtered=True, update=True, dependents=True):
         """
         Requeries the table
         The @Query object maintains an internal representation of the actual database table.
         The requery method will requery the actual database  and sync the @Query objects to it
-        :param select_first: If true, the first record will be selected after the requery
-        :param filtered: If true, the relationships will be considered and an appropriate WHERE clause will be generated
+        :param select_first: If True, the first record will be selected after the requery
+        :param filtered: If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
         :param update: passed to Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
+        :param dependents: passed to Query.first() to requery_dependents(). Note that the select_first parameter must = True to use this parameter.
+
         :return: None
         """
+        join = ''
+        where = ''
+        
+        if self.filtered == False: filtered=False
+
         if filtered:
             join = self.generate_join_clause()
             where = self.generate_where_clause()
@@ -677,19 +691,20 @@ class Query:
 
 
         if select_first:
-            self.first(update,skip_prompt_save=True) # We don't want to prompt save in this situation, since there was a requery of the data
+            self.first(skip_prompt_save=True,update=update,dependents=dependents) # We don't want to prompt save in this situation, since there was a requery of the data
 
-    def requery_dependents(self,update=True,child=False):
+    def requery_dependents(self,child=False,update=True):
         """
         Requery parent queries as defined by the relationships of the table
-
+        :param child: If True, requerys self. Default False; used to skip requery when called by parent.
+        :param update: passed to Query.requery() -> Query.first() to update_elements.
         :return: None
         """
-        if child: self.requery(update=update)
+        if child: self.requery(update=update,dependents=False) # dependents=False: we don't another recursive dependent requery
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
-                self.frm[rel.child].requery_dependents(update=update, child=True,)
+                self.frm[rel.child].requery_dependents(child=True,update=update)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
@@ -702,7 +717,7 @@ class Query:
         logger.debug(f'Moving to the first record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
-        if dependents: self.requery_dependents()
+        if dependents: self.requery_dependents(update=update)
         if update: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
@@ -753,9 +768,11 @@ class Query:
         :return: None
         """
         if self.current_index > 0:
+            prevous_index = self.current_index
             logger.debug(f'Moving to the previous record of table {self.table}')
             if skip_prompt_save is False: self.prompt_save()
-            self.current_index -= 1
+            if self.current_index == prevous_index:
+                self.current_index -= 1
             if dependents: self.requery_dependents()
             if update: self.frm.update_elements(self.table)
             # callback
@@ -849,7 +866,7 @@ class Query:
             else:
                 i += 1
 
-        if dependents: self.requery_dependents(update=update)
+        if dependents: self.requery_dependents()
         if update: self.frm.update_elements(self.table)
 
     def get_current(self, column, default=""):
@@ -1046,10 +1063,20 @@ class Query:
         for k,v in current_row.items():
             if current_row[k] != self.get_current(k):
                 changed[k] = v
+        
 
         if changed == {}:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE
+            
+        # check to see if cascading-fk has changed before we update database
+        fk_changed = False
+        fk_column = self.frm.get_parent_cascade_fk(self.table)
+        if fk_column:
+            # check if fk 
+            for v in self.frm.element_map:
+                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == fk_column:
+                    fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
@@ -1078,6 +1105,11 @@ class Query:
         # then update the current row.
         self.rows[self.current_index]=current_row
 
+        # If child changes parent, move index back and requery/requery_dependents
+        if fk_changed:
+            if self.current_index > 0: self.current_index -= 1
+            self.frm[self.table].requery(select_first=False) #keep spot in table
+            self.frm[self.table].requery_dependents()
 
         # Lets refresh our data
         # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
@@ -1344,7 +1376,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None):
+    def __init__(self, db_path=None, bind=None, sql_script=None, sqlite3_database=None, sql_commands=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
         """
         Initialize a new @Form instance
 
@@ -1356,6 +1388,7 @@ class Form:
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: parent form to base queries off of
         :param filter: (optional) Only import elements with the same filter
+        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well. 
         """
         Form.instances.append(self)
 
@@ -1396,7 +1429,7 @@ class Form:
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
         self.auto_add_relationships()
-        self.requery_all(False)
+        self.requery_all(select_first=select_first, update=False, dependents=True)
         if bind!=None:
             self.window=bind
             self.bind(self.window)
@@ -1564,6 +1597,18 @@ class Form:
         for r in self.relationships:
             if r.child == table and r.requery_table:
                 return r.parent
+        return None
+    
+    def get_parent_cascade_fk(self, table):
+        """
+        Return the parent fk that cascade-filters for the passed-in table
+        :param table: The table (str) of child
+        :return: The name of the cascade-fk, or None
+        """
+        for qry in self.queries:
+            for r in self.relationships:
+                if r.child == self[table].table:
+                    return r.fk
         return None
     
     def auto_add_queries(self, prefix_queries=''):
@@ -2141,20 +2186,24 @@ class Form:
             self.callbacks['update_elements'](self, self.window)
 
 
-    def requery_all(self, update_elements=True) -> None:
+    def requery_all(self, select_first=True, filtered=True, update=True, dependents=True) -> None:
         """
         Requeries all queries in the database
 
         This effectively re-loads the data from the actual sqlite3 queries into Query class objects
 
-        :param update_elements: True to update elements after this operation
-        :type update_elements: bool
+        :param select_first: passed to Query.requery() -> Query.first(). If True, the first record will be selected after the requery
+        :param filtered: passed to Query.requery(). If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
+        :param update: passed to Query.requery() -> Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
+        :param dependents: passed to Query.requery() -> Query.first() to requery_dependents(). Note that the select_first parameter must = True to use this parameter.
         :returns: None
         :rtype: None
         """
+        # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
         logger.info('Requerying all queries')
         for k in self.queries.keys():
-            self[k].requery(update_elements)
+            if self.get_parent(k) is None:
+                self[k].requery(select_first=select_first, filtered=filtered, update=update, dependents=dependents)
 
     def process_events(self, event:str, values:list) -> bool:
         """
