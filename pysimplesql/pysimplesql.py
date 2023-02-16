@@ -2687,6 +2687,20 @@ class ResultSet:
     def __init__(self, rows,lastrowid=None):
         self.rows = rows
         self.lastrowid = lastrowid
+        self._iter_index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._iter_index == len(self.rows):
+            raise StopIteration
+        else:
+            self._iter_index += 1
+            return self.rows[self._iter_index - 1]
+
+    def __str__(self):
+        return str(self.rows)
 
     def fetchone(self):
         if len(self.rows):
@@ -2715,7 +2729,7 @@ class SQLDriver:
         raise NotImplementedError
 
     def table_names(self):
-        raise notImplementedError
+        raise NotImplementedError
 
     def column_names(self,table):
         raise NotImplementedError
