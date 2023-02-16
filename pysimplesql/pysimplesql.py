@@ -2739,6 +2739,9 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
+# --------------
+# SQLITE3 DRIVER
+# --------------
 try:
     import sqlite3
 except ModuleNotFoundError:
@@ -2848,6 +2851,10 @@ class Sqlite(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
 
+
+# --------------
+# MYSQL DRIVER
+# --------------
 try:
     import mysql.connector
 except ModuleNotFoundError:
@@ -2958,6 +2965,9 @@ class Mysql(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             # TODO
 
+# --------------
+# POSTGRE DRIVER
+# --------------
 try:
     import psycopg2
 except ModuleNotFoundError:
