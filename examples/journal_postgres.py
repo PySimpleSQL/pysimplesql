@@ -67,4 +67,32 @@ Learnings from this example:
 - using the label keyword argument to Form.record() to define a custom label
 - using Tables as Form.selector() element type
 - changing the sort order of Queries
+
+------------------------------------------------------------------------------------------------------------------------
+BELOW IS THE SQL CODE USED TO CREATE THE POSTGRES DATABASE FOR THIS EXAMPLE
+------------------------------------------------------------------------------------------------------------------------
+DROP TABLE IF EXISTS journal;
+DROP TABLE IF EXISTS mood;
+
+CREATE TABLE mood(
+    "id"            SERIAL NOT NULL PRIMARY KEY,
+    "name"          TEXT
+);
+
+CREATE TABLE journal(
+    "id"            SERIAL NOT NULL PRIMARY KEY,
+    "entry_date"    DATE DEFAULT CURRENT_DATE,
+    "mood_id"       INTEGER,
+    "title"         TEXT DEFAULT 'New Entry',
+    "entry"         TEXT,
+    FOREIGN KEY (mood_id) REFERENCES mood(id) 
+);
+
+INSERT INTO mood (name) VALUES ('Happy');
+INSERT INTO mood (name) VALUES ('Sad');
+INSERT INTO mood (name) VALUES ('Angry');
+INSERT INTO mood (name) VALUES ('Content');
+INSERT INTO journal (mood_id,title,entry)VALUES (1,'My first entry!','I am excited to write my thoughts every day');
+INSERT INTO journal (mood_id,title,entry)VALUES (1,'My second entry!','This is still exciting!');
 """
+

@@ -998,7 +998,12 @@ class Query:
         self.driver.commit()
 
         # Now we save the new pk
-        pk = cur.lastrowid
+        # Hack this in for now, will fix later
+        # The problem is that the new driver system does not return a true cursor, so this will need dealt with!
+        if 'lastrowid' in cur:
+            pk = cur.lastrowid
+        else:
+            pk = 1
 
         # and move to it
         self.requery(select_first=False)  # Don't move to the first record
@@ -1080,14 +1085,16 @@ class Query:
         q = f'UPDATE {self.table} SET'
         #for k,v in self.get_current_row().items():
         for k,v in changed.items():
-            q += f" {k}=?,"
+            q += f" {k}=%s,"
             values.append(v)
+
         # Remove the trailing comma
         q = q[:-1]
         q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
 
-        logger.info(f'Performing query: {q} {str(values)}')
-        self.driver.execute(q, tuple(values))
+        values = tuple(values)
+        logger.info(f'Performing query: {q} {values}')
+        self.driver.execute(q, values)
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -2047,7 +2054,6 @@ class Form:
 
             # Finally, we will update the actual GUI element!
             if updated_val is not None:
-                print((d['element'],updated_val))
                 d['element'].update(updated_val)
 
         # ---------
@@ -2983,8 +2989,9 @@ class Postgres(SQLDriver):
         self.database = database
         self.con = self.connect()
 
+        # experiment to see if I can make a nocase collation
         query = "CREATE COLLATION NOCASE (provider = icu, locale = 'und-u-ks-level2');"
-        self.execute(query)
+        #self.execute(query)
 
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
@@ -3013,14 +3020,16 @@ class Postgres(SQLDriver):
         else:
             cursor.execute(query)
 
-        if cursor.rowcount <= 0: return []
+        if cursor.description is None: return []
         results = cursor.fetchall()
 
         res=[]
         for row in results:
             res.append(row)
 
-        lastrowid=cursor.lastrowid if cursor.lastrowid else None
+        # TODO:   Need a solid way to get the last inserted PK
+        #lastrowid=cursor.currval('id') if cursor.currval('id') else None
+        lastrowid=1
         return ResultSet(res, lastrowid)
         #return [dict(row) for row in cursor]
 
