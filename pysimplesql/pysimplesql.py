@@ -1221,13 +1221,16 @@ class Query:
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)}'
+        pk = self.get_current(self.pk_column)
+        description = self.get_description_for_pk(pk)
+        
+        q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={pk}'
         self.driver.execute(q)
         logger.debug(q)
         q = f'UPDATE tmp SET {self.pk_column} = NULL'
         self.driver.execute(q)
         logger.debug(q)
-        q = f'UPDATE tmp SET {self.description_column} = "Copy of " || {self.description_column}'
+        q = f'UPDATE tmp SET {self.description_column} = "Copy of {description}"'
         self.driver.execute(q)
         logger.debug(q)
         q = f'INSERT INTO {self.table} SELECT * FROM tmp'
