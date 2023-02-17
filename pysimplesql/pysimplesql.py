@@ -2970,15 +2970,20 @@ class Mysql(SQLDriver):
 # --------------
 try:
     import psycopg2
+    import psycopg2.extras
 except ModuleNotFoundError:
     pass
-class Postgre(SQLDriver):
+
+class Postgres(SQLDriver):
     def __init__(self,host,user,password,database,sql_script=None, sql_commands=None):
         self.host = host
         self.user = user
         self.password = password
         self.database = database
         self.con = self.connect()
+
+        query = "CREATE COLLATION nocase (provider = icu, locale = 'und-u-ks-level2');"
+        self.execute(query)
 
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
@@ -3001,14 +3006,16 @@ class Postgre(SQLDriver):
         return con
 
     def execute(self, query, values=None):
-        cursor = self.con.cursor(dictionary=True)
+        cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if values:
             cursor.execute(query, values)
         else:
             cursor.execute(query)
+        if len(cursor) == 0: return
+        results = cursor.fetchall()
 
         res=[]
-        for row in cursor:
+        for row in results:
             res.append(row)
 
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
@@ -3025,6 +3032,49 @@ class Postgre(SQLDriver):
         # Only do cleanup if this is not an imported database
         self.con.close()
 
+    def table_names(self):
+        query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+        #query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
+        rows = self.execute(query)
+        return [row['table_name'] for row in rows]
+
+    def column_names(self,table):
+        # Return a list of column names
+        query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
+        rows = self.execute(query)
+        return [row['column_name'] for row in rows]
+    def pk_column(self,table):
+        query = f"SELECT column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = '{table}' "
+        cur = self.execute(query)
+        row = cur.fetchone()
+        return row['column_name'] if row else None
+    def relationships(self):
+        # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
+        tables=self.table_names()
+        relationships = []
+        for from_table in tables:
+            query =  f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, "
+            query += f"a1.attname AS column_name, a2.attname AS referenced_column_name "
+            query += f"FROM pg_constraint "
+            query += f"JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
+            query += f"JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND a2.attnum = ANY(confkey) "
+            query += f"WHERE confrelid = '{from_table}'::regclass AND contype = 'f'"
+
+            rows=self.execute(query, (from_table,))
+            for row in rows:
+                dic = {}
+                # Get the constraint information
+                #constraint = self.constraint(row['conname'])
+                if row['conname'] == 'c':
+                    dic['requery'] = True
+                else:
+                    dic['requery'] = False
+                dic['from_table'] = row['confrelid']
+                dic['to_table'] = row['conrelid']
+                dic['from_column'] = row['referenced_column_name']
+                dic['to_column'] = row['column_name']
+                relationships.append(dic)
+        return relationships
 
 
 # ======================================================================================================================
