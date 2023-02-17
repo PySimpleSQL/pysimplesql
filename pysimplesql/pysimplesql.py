@@ -214,7 +214,7 @@ class Query:
         :type description_column: str
         :param query: You can optionally set an inital query here. If none is provided, it will default to "SELECT * FROM {query}"
         :type query: str
-        :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} COLLATE NOCASE ASC"
+        :param order: The sort order of the returned query. If none is provided it will default to "ORDER BY {description_column} ASC"
         :type order: str
         :param filtered: If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
         :type filtered: bool
@@ -231,7 +231,7 @@ class Query:
             query = f'SELECT * FROM {table}'
         # No order was passed in, so we will generate generic one
         if order == '':
-            order = f' ORDER BY {description_column} COLLATE NOCASE ASC'
+            order = f' ORDER BY {description_column} ASC'
 
         self.name=name
         self.frm = frm_reference  # type: Form
@@ -288,7 +288,7 @@ class Query:
             if i.frm!=frm:
                 new_instances.append(i)
             else:
-                logger.debug(f'Removing Query {i.name} related to {frm.driver.db_path}')
+                logger.debug(f'Removing Query {i.name} related to {frm.driver.__class__.__name__}')
                 # we need to get a list of elements to purge from the keygen
                 for s in i.selector:
                     selector_keys.append(s['element'].key)
@@ -1979,7 +1979,7 @@ class Form:
                         break
 
                 if target_table==None:
-                    logger.warning(f"Error! Cound not find a related query for element {d['element'].Key} bound to query {d['query'].table}")
+                    logger.warning(f"Error! Cound not find a related query for element {d['element'].key} bound to query {d['query'].table}, column: {d['column']}")
                     # we don't want to update the list in this case, as it was most likely supplied and not tied to a query
                     updated_val=d['query'][d['column']]
 
@@ -2047,6 +2047,7 @@ class Form:
 
             # Finally, we will update the actual GUI element!
             if updated_val is not None:
+                print((d['element'],updated_val))
                 d['element'].update(updated_val)
 
         # ---------
@@ -2982,7 +2983,7 @@ class Postgres(SQLDriver):
         self.database = database
         self.con = self.connect()
 
-        query = "CREATE COLLATION nocase (provider = icu, locale = 'und-u-ks-level2');"
+        query = "CREATE COLLATION NOCASE (provider = icu, locale = 'und-u-ks-level2');"
         self.execute(query)
 
         if sql_commands is not None:
@@ -3011,7 +3012,8 @@ class Postgres(SQLDriver):
             cursor.execute(query, values)
         else:
             cursor.execute(query)
-        if len(cursor) == 0: return
+
+        if cursor.rowcount <= 0: return []
         results = cursor.fetchall()
 
         res=[]
@@ -3061,6 +3063,7 @@ class Postgres(SQLDriver):
             query += f"WHERE confrelid = '{from_table}'::regclass AND contype = 'f'"
 
             rows=self.execute(query, (from_table,))
+
             for row in rows:
                 dic = {}
                 # Get the constraint information
