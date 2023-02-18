@@ -1075,6 +1075,11 @@ class Query:
             for v in self.frm.element_map:
                 if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == cascade_fk:
                     cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
+                    if cascade_fk_changed:
+                        # get current parent
+                        parent = self.frm.get_parent(self.table)
+                        parent_pk = self.frm[parent].get_current_pk()
+                        parent_description = self.frm[parent].get_description_for_pk(parent_pk)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
@@ -1103,10 +1108,31 @@ class Query:
         # then update the current row.
         self.rows[self.current_index]=current_row
 
-        # If child changes parent, requery/requery_dependents
+        # If child changes parent, prompt user to stay or move
         if cascade_fk_changed:
-            self.frm[self.table].requery(select_first=False) #keep spot in table
-            self.frm[self.table].requery_dependents()
+            # get new parent_pk
+            for v in self.frm.element_map:
+                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == cascade_fk:
+                    new_parent_pk = self[v['column']]
+            # get new parent description
+            new_parent_description = self.frm[parent].get_description_for_pk(new_parent_pk)
+            # get child pk and description
+            child_pk = self.get_current_pk()
+            child_description = self.get_description_for_pk(child_pk)
+            # create window and prompt user
+            answer = sg.Window('Child changed parent', [
+                [sg.T(f"{child_description} ({self.table.capitalize()}) has a new parent {new_parent_description} ({parent.capitalize()})")],
+                [sg.Button(button_text=f'Stay with selected parent {parent_description}', key='duplicate-stay')],
+                [sg.Button(button_text=f'Move with {child_description} and select {new_parent_description}', key='duplicate-move')],
+                ]).read(close=True)
+            if answer[0] == 'duplicate-stay':
+                # have current child disappear, stay on current parent
+                self.requery(select_first=False) #keep spot in table
+                self.requery_dependents()
+            else:
+                # move to new parent pk, and re-select child
+                self.frm[parent].set_by_pk(new_parent_pk)
+                self.set_by_pk(child_pk)
 
         # Lets refresh our data
         # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
