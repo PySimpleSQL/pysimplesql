@@ -2746,6 +2746,10 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
+    def next_pk(self, table_name:str, pk_column_name:str):
+        raise NotImplementedError
+
+
 # --------------
 # SQLITE3 DRIVER
 # --------------
@@ -2852,6 +2856,11 @@ class Sqlite(SQLDriver):
                 dic['to_column'] = row ['to']
                 relationships.append(dic)
         return relationships
+
+    def next_pk(self, table_name:str, pk_column_name:str) -> int:
+        result =self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
+        return result.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
+
 
     def execute_script(self,script):
         with open(script, 'r') as file:
@@ -2961,6 +2970,10 @@ class Mysql(SQLDriver):
                 relationships.append(dic)
         return relationships
 
+    def next_pk(self, table_name: str, pk_column_name: str) -> int:
+        result = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
+        return result.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
+
     def constraint(self,constraint_name):
         query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
         rows = self.execute(query)
@@ -2972,9 +2985,9 @@ class Mysql(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             # TODO
 
-# --------------
-# POSTGRE DRIVER
-# --------------
+# ---------------
+# POSTGRES DRIVER
+# ---------------
 try:
     import psycopg2
     import psycopg2.extras
@@ -3064,12 +3077,13 @@ class Postgres(SQLDriver):
         tables=self.table_names()
         relationships = []
         for from_table in tables:
-            query =  f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, "
+            query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, "
             query += f"a1.attname AS column_name, a2.attname AS referenced_column_name "
             query += f"FROM pg_constraint "
             query += f"JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
             query += f"JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND a2.attnum = ANY(confkey) "
-            query += f"WHERE confrelid = '{from_table}'::regclass AND contype = 'f'"
+            query += f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
+
 
             rows=self.execute(query, (from_table,))
 
@@ -3081,12 +3095,16 @@ class Postgres(SQLDriver):
                     dic['requery'] = True
                 else:
                     dic['requery'] = False
-                dic['from_table'] = row['confrelid']
-                dic['to_table'] = row['conrelid']
+                dic['from_table'] = row['confrelid'].strip('"')
+                dic['to_table'] = row['conrelid'].strip('"')
                 dic['from_column'] = row['referenced_column_name']
                 dic['to_column'] = row['column_name']
                 relationships.append(dic)
         return relationships
+
+    def next_pk(self, table_name: str, pk_column_name: str) -> int:
+        result = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS next_pk FROM "{table_name}";')
+        return result.fetchone()[f'next_pk'] + 1 if result else 1
 
 
 # ======================================================================================================================
