@@ -2740,8 +2740,8 @@ class Sqlite(SQLDriver):
         exception = None
         try:
             cursor.execute(query, values) if values else cursor.execute(query)
-        except mysql.connector.Error as e:
-            exception = e.msg
+        except sqlite3.Error as e:
+            exception = e
 
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
         return ResultSet([dict(row) for row in cursor], lastrowid, exception)
@@ -2984,22 +2984,21 @@ class Postgres(SQLDriver):
 
     def execute(self, query, values=None):
         cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if values:
-            cursor.execute(query, values)
+        exception = None
+        try:
+            cursor.execute(query, values) if values else cursor.execute(query)
+        except psycopg2.Error as e:
+            exception = e
+
+        if cursor.description is not None:
+            results = cursor.fetchall()
         else:
-            cursor.execute(query)
-
-        if cursor.description is None: return []
-        results = cursor.fetchall()
-
-        res=[]
-        for row in results:
-            res.append(row)
+            results = []
 
         # TODO:   Need a solid way to get the last inserted PK
         #lastrowid=cursor.currval('id') if cursor.currval('id') else None
         lastrowid=1
-        return ResultSet(res, lastrowid)
+        return ResultSet([dict(row) for row in results], lastrowid, exception)
         #return [dict(row) for row in cursor]
 
     def table_names(self):
@@ -3018,6 +3017,9 @@ class Postgres(SQLDriver):
         cur = self.execute(query)
         row = cur.fetchone()
         return row['column_name'] if row else None
+    def relationship_to_join_clause(selfSelf, r_obj:Relationship):
+        return f'{r_obj.join} "{r_obj.parent}" ON "{r_obj.child}".{r_obj.fk}="{r_obj.parent}".{r_obj.pk}'
+
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables=self.table_names()
@@ -3065,7 +3067,7 @@ class Postgres(SQLDriver):
         join = ''
         for r in q_obj.frm.relationships:
             if q_obj.table == r.child:
-                join += f' {r.relationship_to_join_clause} "{r.parent}" ON "{r.child}".{r.fk} = "{r.parent}".{r.pk}'
+                join += f' {self.relationship_to_join_clause(r)}'
         return join if q_obj.join == '' else q_obj.join
 
     def generate_where_clause(self, q_obj:Query) -> str:
@@ -3095,6 +3097,25 @@ class Postgres(SQLDriver):
             where = where + ' ' + q_obj.where.replace('WHERE', 'AND')
 
         return where
+
+    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+        # Make sure the changed dict includes the PK
+        changed[pk_column] = pk
+
+        # Generate an UPSERT query to either update the record or create a new one
+        query = (
+            f"INSERT INTO \"{table}\" ({', '.join(changed.keys())}) "
+            f"VALUES ({','.join('%s' for _ in range(len(changed)))}) "
+            f"ON CONFLICT ({pk_column}) "
+            f"DO UPDATE SET "
+            f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
+        )
+        logger.info(f'Performing query: {query} {tuple(changed.values())}')
+        result = self.execute(query, tuple(changed.values()))
+        if result.exception is not None:
+            sg.popup(f"Query Failed! {result.exception}")
+            return False
+        return True
 # ======================================================================================================================
 # ALIASES
 # ======================================================================================================================
