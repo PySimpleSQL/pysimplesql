@@ -1120,19 +1120,20 @@ class Query:
             child_pk = self.get_current_pk()
             child_description = self.get_description_for_pk(child_pk)
             # create window and prompt user
-            answer = sg.Window('Child changed parent', [
-                [sg.T(f"{child_description} ({self.table.capitalize()}) has a new parent {new_parent_description} ({parent.capitalize()})")],
-                [sg.Button(button_text=f'Stay with selected parent {parent_description}', key='duplicate-stay')],
-                [sg.Button(button_text=f'Move with {child_description} and select {new_parent_description}', key='duplicate-move')],
-                ]).read(close=True)
-            if answer[0] == 'duplicate-stay':
-                # have current child disappear, stay on current parent
-                self.requery(select_first=False) #keep spot in table
-                self.requery_dependents()
-            else:
+            answer = sg.Window(f'{self.table.capitalize()} changed {parent.capitalize()}', [
+                [sg.T(f"{child_description} has changed from {parent_description} to {new_parent_description}",)],
+                [sg.Button(button_text=f'Stay on {parent_description}', key='duplicate-stay')],
+                [sg.Button(button_text=f'Move to {new_parent_description}', key='duplicate-move')],
+                ], use_custom_titlebar=True).read(close=True)
+            if answer[0] == 'duplicate-move':
                 # move to new parent pk, and re-select child
                 self.frm[parent].set_by_pk(new_parent_pk)
                 self.set_by_pk(child_pk)
+            else:
+                # have current child disappear, stay on current parent
+                self.requery(select_first=False) #keep spot in table
+                self.requery_dependents()
+
 
         # Lets refresh our data
         # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
