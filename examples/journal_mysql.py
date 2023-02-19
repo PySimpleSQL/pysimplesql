@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 # -------------------------
 # Define the columns for the table selector
 headings=['id','Date:              ','Mood:      ','Title:                                 ']
-visible=[0,1,1,1] # Hide the id column
+visible=[1,1,1,1] # Hide the id column
 layout=[
     [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
     [ss.actions('act_journal','Journal')],
@@ -75,9 +75,9 @@ CREATE TABLE Mood(
 
 CREATE TABLE Journal(
     `id` INTEGER NOT NULL PRIMARY KEY,
+    `title` VARCHAR(255) DEFAULT 'New Entry',
     `entry_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
     `mood_id` INTEGER,
-    `title` VARCHAR(255) DEFAULT 'New Entry',
     `entry` TEXT,
     INDEX (`mood_id`),
     FOREIGN KEY (`mood_id`) REFERENCES `Mood`(`id`)
