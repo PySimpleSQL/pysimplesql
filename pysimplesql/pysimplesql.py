@@ -160,7 +160,7 @@ class Relationship:
     .. note:: This class is not typically used the end user,
     """
 
-    def __init__(self, join:str, child:str, fk:Union[str,int], parent:str, pk:Union[str,int], requery_table:bool) -> Relationship:
+    def __init__(self, join:str, child:str, fk:Union[str,int], parent:str, pk:Union[str,int], requery_table:bool, driver:SQLDriver) -> Relationship:
         """
         Initialize a new Relationship instance
 
@@ -174,6 +174,8 @@ class Relationship:
         :type parent: str
         :param pk: The parent table's primary key column
         :type pk: Union[str,int]
+        :param driver: The SQLDriver
+        :type driver: SQLDriver
         :returns: A Relationship instance
         :rtype: Relationship
         """
@@ -188,7 +190,7 @@ class Relationship:
         """
         Return a join clause when cast to a string
         """
-        return f'{self.join} {self.parent} ON {self.child}.{self.fk}={self.parent}.{self.pk}'
+        return self.driver.relationship_to_join_clause(self)
 
 
 class Query:
@@ -225,13 +227,13 @@ class Query:
         """
         # todo finish the order processing!
         Query.instances.append(self)
-
+        self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
         if query == '':
-            query = f'SELECT * FROM {table}'
+            query = self.driver.default_query(table)
         # No order was passed in, so we will generate generic one
         if order == '':
-            order = f' ORDER BY {description_column} ASC'
+            order = self.driver.default_order(description_column)
 
         self.name=name
         self.frm = frm_reference  # type: Form
@@ -243,7 +245,6 @@ class Query:
         self.order = order
         self.join = ''
         self.where = ''  # In addition to generated where!
-        self.driver = frm_reference.driver
         self.dependents = []
         self.column_names = []
         self.rows = []
@@ -439,7 +440,6 @@ class Query:
         self.order = clause
 
     def update_column_names(self,names=None) -> None:
-        # TODO: This is not currently used.  Evaluate if we need it or not.  This has been abstracted as well...
         """
         Generate column names for the query.  This may need done, for example, when a manual query using joins
         is used.
@@ -452,33 +452,7 @@ class Query:
             self.column_names=names
             return
 
-        cur = self.driver.execute(self.generate_query())
-        records = cur.fetchall()
-        for t in records:
-            # Now lets get the pk
-            # TODO: should we capture on_update, on_delete and match from PRAGMA?
-            q2 = f'PRAGMA table_info({t["name"]})'
-            cur2 = self.driver.execute(q2)
-            records2 = cur2.fetchall()
-            names = []  # column names
-
-            # auto generate description column.  Default it to the 2nd column,
-            # but can be overwritten below
-            description_column = records2[1]['name']
-
-            pk_column = None
-            for t2 in records2:
-                names.append(t2['name'])
-                if t2['pk']:
-                    pk_column = t2['name']
-                if t2['name'] == 'name':
-                    description_column = t2['name']
-
-            query_name = t['name']
-            logger.info(
-                f'Adding query "{query_name}" on table {t["name"]} to Form with primary key {pk_column} and description of {description_column}')
-            self.frm.add_query(query_name, t['name'], pk_column, description_column)
-            self.column_names = names
+        self.column_names = self.driver.column_names(self.table)
 
     def set_description_column(self, column:str) -> None:
         """
@@ -588,68 +562,6 @@ class Query:
             return PROMPT_NONE
 
 
-    def generate_join_clause(self) -> str:
-        """
-        Automatically generates a join clause from the Relationships that have been set
-
-        This typically isn't used by end users
-
-        :returns: A join string to be used in a sqlite3 query
-        :rtype: str
-        """
-        join = ''
-        for r in self.frm.relationships:
-            if self.table == r.child:
-                join += f' {r.join} {r.parent} ON {r.child}.{r.fk} = {r.parent}.{r.pk}'
-        return join if self.join == '' else self.join
-
-    def generate_where_clause(self) -> str:
-        """
-        Generates a where clause from the Relationships that have been set, as well as the Query's where clause
-
-        This is not typically used by end users
-
-        :returns: A where clause string to be used in a sqlite3 query
-        :rtype: str
-        """
-        where = ''
-        for r in self.frm.relationships:
-            if self.table == r.child:
-                if r.requery_table:
-                    parent_pk = self.frm[r.parent].get_current(r.pk)
-                    if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
-                    clause=f' WHERE {self.table}.{r.fk}={str(parent_pk)}'
-                    if where!='': clause=clause.replace('WHERE','AND')
-                    where += clause
-
-        if where == '':
-            # There was no where clause from Relationships..
-            where = self.where
-        else:
-            # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            where = where + ' ' + self.where.replace('WHERE', 'AND')
-
-        return where
-
-    def generate_query(self, join:bool=True, where:bool=True, order:bool=True) -> str:
-        """
-        Generate a query string using the relationships that have been set
-
-        :param join: True if you want the join clause auto-generated, False if not
-        :type join: bool
-        :param where: True if you want the where clause auto-generated, False if not
-        :type where: bool
-        :param order: True if you want the order by clause auto-generated, False if not
-        :type order: bool
-        :returns: a query string for use with sqlite3
-        :rtype: str
-        """
-        q = self.query
-        q += f' {self.join if join else ""}'
-        q += f' {self.where if where else ""}'
-        q += f' {self.order if order else ""}'
-        return q
-
     def requery(self, select_first=True, filtered=True, update=True, dependents=True):
         """
         Requeries the table
@@ -668,8 +580,8 @@ class Query:
         if self.filtered == False: filtered=False
 
         if filtered:
-            join = self.generate_join_clause()
-            where = self.generate_where_clause()
+            join = self.driver.generate_join_clause(self)
+            where = self.driver.generate_where_clause(self)
 
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
         logger.info('Running query: ' + query)
@@ -910,30 +822,6 @@ class Query:
         """
         return self.get_current(self.pk_column)
 
-    def get_max_pk(self):
-        """
-        Returns the highest primary key for this table.
-        This can give some insight on what the next inserted primary key may be
-        :return: The maximum primary key value currently in the table or None in the event there are no records
-        """
-        # TODO: Maybe get this right from the table object instead of running a query?
-        q = f'SELECT MAX({self.pk_column}) AS highest FROM {self.table};'
-        cur = self.driver.execute(q)
-        records = cur.fetchone()
-        return records['highest']
-
-    def get_min_pk(self):
-        """
-        Returns the lowest primary key for this table.
-        This can be useful for setting selecting the first record by default
-        :return: The minimum primary key value currently in the table, or None in the event there are no records
-        """
-        # TODO: Maybe get this right from the table object instead of running a query?
-        q = f'SELECT MIN({self.pk_column}) AS lowest FROM {self.table};'
-        cur = self.driver.execute(q)
-        records = cur.fetchone()
-        return records['lowest']
-
     def get_current_row(self):
         """
         Get the sqlite3 row for the currently selected record of this table
@@ -958,58 +846,41 @@ class Query:
         d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
-    def insert_record(self, column:str='', value:str='', skip_prompt_save=False) -> None:
+    def insert_record(self, values:dict=None, skip_prompt_save=False) -> None:
         """
-        Insert a new record. If column and value are passed, it will initially set that column to the value
-        (I.e. {Query}.name='New Record). If none are provided, the default values for the column are used, as set in the
-        database.
-        :param column: The column to set
-        :param value: The value to set (I.e "New record")
-        :return:
+        Insert a new record virtually in the Query object. If values are passed, it will initially set those columns to the values
+        (I.e. {'name': 'New Record', 'note': ''}).
+        :param values: column_name:value pairs
+        :return: None
         """
         # todo: you don't add a record if there isn't a parent!!!
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
         if skip_prompt_save is False: self.prompt_save()
 
-        columns = []
-        values = []
-        if column != '' and value != '':
-            columns.append(column)
-            values.append(value)
-
-        # Make sure we take into account the foreign key relationships...
-        for r in self.frm.relationships:
-            if self.table == r.child:
-                if r.requery_table:
-                    columns.append(r.fk)
-                    values.append(self.frm[r.parent].get_current_pk())
-
-        columns = ",".join([str(x) for x in columns])
-        values = ",".join([str(x) for x in values])
-        # We will make a blank record and insert it
-        q = f'INSERT INTO {self.table} '
-        if columns != '':
-            q += f'({columns}) VALUES ({values});'
+        # Create a dict of the column names, then load in passed-in values
+        new_values = {k:None for k in self.column_names}
+        if values is not None:
+            for k,v in values.items():
+                if v in self.column_names:
+                    new_values[k]=v
         else:
-            q += 'DEFAULT VALUES'
-        logger.debug(q)
-        cur = self.driver.execute(q)
-        self.driver.commit()
+            # At minimum, we should update the description column
+                new_values[self.description_column] = 'New Record'
 
-        # Now we save the new pk
-        # Hack this in for now, will fix later
-        # The problem is that the new driver system does not return a true cursor, so this will need dealt with!
-        if 'lastrowid' in cur:
-            pk = cur.lastrowid
-        else:
-            pk = 1
+        # Update the pk to match the expected pk the driver would generate on insert. This is a bit of a hack, and
+        # assumes that the sql sequence matches this expectation.  May look into this further in the future
+        new_values[self.pk_column] = max(self.rows, key=lambda x: x[self.pk_column])[self.pk_column]+1
 
-        # and move to it
-        self.requery(select_first=False)  # Don't move to the first record
-        self.set_by_pk(pk, update=True, dependents=True, skip_prompt_save=True) # already saved
+        print(self.rows)
+        # insert the new row virtually
+        self.rows.append(new_values)
+        print(self.rows)
+
+        # and move to the new record
+        self.set_by_pk(new_values[self.pk_column], update=True, dependents=True, skip_prompt_save=True) # already saved
         self.frm.update_elements(self.table)
-        #self.frm.window.refresh()
+
 
     def save_record(self, display_message=True, update_elements=True):
         """
@@ -1081,20 +952,7 @@ class Query:
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
 
-        values = []
-        q = f'UPDATE {self.table} SET'
-        #for k,v in self.get_current_row().items():
-        for k,v in changed.items():
-            q += f" {k}=%s,"
-            values.append(v)
-
-        # Remove the trailing comma
-        q = q[:-1]
-        q += f' WHERE {self.pk_column}={self.get_current(self.pk_column)};'
-
-        values = tuple(values)
-        logger.info(f'Performing query: {q} {values}')
-        self.driver.execute(q, values)
+        self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed)
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1523,7 +1381,7 @@ class Form:
 
         :return: None
         """
-        self.relationships.append(Relationship(join, child, fk, parent, pk, requery_table))
+        self.relationships.append(Relationship(join, child, fk, parent, pk, requery_table, self.driver))
 
     def get_relationships_for_table(self, table):
         """
@@ -2407,8 +2265,8 @@ def bind(win:sg.Window) -> None:
         i.bind(win)
 
 # TODO: clean up.  just slapping this together for testing
-def form_relationship(child, fk, parent, pk) -> None:
-    Form.relationships.append(Relationship('LEFT JOIN', child, fk, parent, pk, True))
+def form_relationship(child, fk, parent, pk, driver) -> None:
+    Form.relationships.append(Relationship('LEFT JOIN', child, fk, parent, pk, True, driver))
     logger.info(f'***** Setting form relationship between {child} and {parent}')
 
 
@@ -2718,20 +2576,18 @@ class ResultSet:
             return self.rows
         return []
 
+
+# TODO min_pk, max_pk
 class SQLDriver:
+    # REQUIRED IMPLEMENTATIONS
+    # DERIVED CLASSES MUST IMPLEMENT THE FOLLOWING
+    def __init__(self):
+        con = None
+
     def connect(self, database):
         raise NotImplementedError
 
     def execute(self, query, values=None):
-        raise NotImplementedError
-
-    def commit(self):
-        raise NotImplementedError
-
-    def rollback(self):
-        raise NotImplementedError
-
-    def close(self):
         raise NotImplementedError
 
     def table_names(self):
@@ -2746,8 +2602,96 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
-    def next_pk(self, table_name:str, pk_column_name:str):
+    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
         raise NotImplementedError
+
+
+    # DEFAULT IMPLEMENTATIONS
+    # OVERRIDE ANY OF THE FOLLOWING IN DERIVED CLASSES IF NEEDED
+    def commit(self):
+        self.con.commit()
+
+    def rollback(self):
+        self.con.rollback()
+
+    def close(self):
+        self.con.close()
+
+    def default_query(self, table):
+        return f'SELECT * FROM {table}'
+
+    def default_order(self, description_column):
+        return f' ORDER BY {description_column} COLLATE NOCASE ASC'
+
+    def next_pk(self, table_name: str, pk_column_name: str) -> int:
+        result = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
+        return result.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
+
+    def relationship_to_join_clause(selfSelf, r_obj:Relationship):
+        return f'{r_obj.join} {r_obj.parent} ON {r_obj.child}.{r_obj.fk}={r_obj.parent}.{r_obj.pk}'
+
+    def generate_join_clause(self, q_obj:Query) -> str:
+        """
+        Automatically generates a join clause from the Relationships that have been set
+
+        This typically isn't used by end users
+
+        :returns: A join string to be used in a sqlite3 query
+        :rtype: str
+        """
+        join = ''
+        for r in q_obj.frm.relationships:
+            if q_obj.table == r.child:
+                join += f' {self.relationship_to_join_clause(r)}'
+        return join if q_obj.join == '' else q_obj.join
+
+
+    def generate_where_clause(self, q_obj:Query) -> str:
+        """
+        Generates a where clause from the Relationships that have been set, as well as the Query's where clause
+
+        This is not typically used by end users
+
+        :returns: A where clause string to be used in a sqlite3 query
+        :rtype: str
+        """
+        where = ''
+        for r in q_obj.frm.relationships:
+            if q_obj.table == r.child:
+                if r.requery_table:
+                    parent_pk = q_obj.frm[r.parent].get_current(r.pk)
+                    if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
+                    clause=f' WHERE {q_obj.table}.{r.fk}={str(parent_pk)}'
+                    if where!='': clause=clause.replace('WHERE','AND')
+                    where += clause
+
+        if where == '':
+            # There was no where clause from Relationships..
+            where = q_obj.where
+        else:
+            # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
+            where = where + ' ' + q_obj.where.replace('WHERE', 'AND')
+
+        return where
+
+    def generate_query(self, q_obj:Query, join:bool=True, where:bool=True, order:bool=True) -> str:
+        """
+        Generate a query string using the relationships that have been set
+
+        :param join: True if you want the join clause auto-generated, False if not
+        :type join: bool
+        :param where: True if you want the where clause auto-generated, False if not
+        :type where: bool
+        :param order: True if you want the order by clause auto-generated, False if not
+        :type order: bool
+        :returns: a query string for use with sqlite3
+        :rtype: str
+        """
+        q = q_obj.query
+        q += f' {q_obj.join if join else ""}'
+        q += f' {q_obj.where if where else ""}'
+        q += f' {q_obj.order if order else ""}'
+        return q
 
 
 # --------------
@@ -2798,11 +2742,6 @@ class Sqlite(SQLDriver):
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
         return ResultSet([dict(row) for row in cursor], lastrowid)
 
-    def commit(self):
-        self.con.commit()
-
-    def rollback(self):
-        self.con.rollback()
 
     def close(self):
         # Only do cleanup if this is not an imported database
@@ -2857,16 +2796,25 @@ class Sqlite(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def next_pk(self, table_name:str, pk_column_name:str) -> int:
-        result =self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
-        return result.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
-
-
     def execute_script(self,script):
         with open(script, 'r') as file:
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
 
+    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+        # Make sure the changed dict includes the PK
+        changed[pk_column] = pk
+
+        # Generate an UPSERT query to either update the record or create a new one
+        query = (
+            f"INSERT INTO {table} ({', '.join(changed.keys())}) "
+            f"VALUES ({','.join('?' for _ in range(len(changed)))}) "
+            f"ON CONFLICT ({pk_column}) "
+            f"DO UPDATE SET "
+            f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
+        )
+        logger.info(f'Performing query: {query} {tuple(changed.values())}')
+        self.execute(query, tuple(changed.values()))
 
 # --------------
 # MYSQL DRIVER
@@ -2919,16 +2867,6 @@ class Mysql(SQLDriver):
         return ResultSet(res, lastrowid)
         #return [dict(row) for row in cursor]
 
-    def commit(self):
-        self.con.commit()
-
-    def rollback(self):
-        self.con.rollback()
-
-    def close(self):
-        # Only do cleanup if this is not an imported database
-        self.con.close()
-
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
         rows = self.execute(query, [self.database])
@@ -2970,15 +2908,10 @@ class Mysql(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        result = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
-        return result.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
-
     def constraint(self,constraint_name):
         query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
         rows = self.execute(query)
         return rows[0]['UPDATE_RULE']
-
 
     def execute_script(self,script):
         with open(script, 'r') as file:
@@ -3046,16 +2979,6 @@ class Postgres(SQLDriver):
         return ResultSet(res, lastrowid)
         #return [dict(row) for row in cursor]
 
-    def commit(self):
-        self.con.commit()
-
-    def rollback(self):
-        self.con.rollback()
-
-    def close(self):
-        # Only do cleanup if this is not an imported database
-        self.con.close()
-
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
         #query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
@@ -3105,8 +3028,50 @@ class Postgres(SQLDriver):
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
         result = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS next_pk FROM "{table_name}";')
         return result.fetchone()[f'next_pk'] + 1 if result else 1
+    def default_query(self, table):
+        return f'SELECT * FROM "{table}"'
+    def generate_join_clause(self, q_obj:Query) -> str:
+        """
+        Automatically generates a join clause from the Relationships that have been set
 
+        This typically isn't used by end users
 
+        :returns: A join string to be used in a sqlite3 query
+        :rtype: str
+        """
+        join = ''
+        for r in q_obj.frm.relationships:
+            if q_obj.table == r.child:
+                join += f' {r.relationship_to_join_clause} "{r.parent}" ON "{r.child}".{r.fk} = "{r.parent}".{r.pk}'
+        return join if q_obj.join == '' else q_obj.join
+
+    def generate_where_clause(self, q_obj:Query) -> str:
+        """
+        Generates a where clause from the Relationships that have been set, as well as the Query's where clause
+
+        This is not typically used by end users
+
+        :returns: A where clause string to be used in a sqlite3 query
+        :rtype: str
+        """
+        where = ''
+        for r in q_obj.frm.relationships:
+            if q_obj.table == r.child:
+                if r.requery_table:
+                    parent_pk = q_obj.frm[r.parent].get_current(r.pk)
+                    if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
+                    clause=f' WHERE "{q_obj.table}".{r.fk}={str(parent_pk)}'
+                    if where!='': clause=clause.replace('WHERE','AND')
+                    where += clause
+
+        if where == '':
+            # There was no where clause from Relationships..
+            where = q_obj.where
+        else:
+            # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
+            where = where + ' ' + q_obj.where.replace('WHERE', 'AND')
+
+        return where
 # ======================================================================================================================
 # ALIASES
 # ======================================================================================================================
