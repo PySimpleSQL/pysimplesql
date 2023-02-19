@@ -872,10 +872,8 @@ class Query:
         # assumes that the sql sequence matches this expectation.  May look into this further in the future
         new_values[self.pk_column] = max(self.rows, key=lambda x: x[self.pk_column])[self.pk_column]+1
 
-        print(self.rows)
         # insert the new row virtually
         self.rows.append(new_values)
-        print(self.rows)
 
         # and move to the new record
         self.set_by_pk(new_values[self.pk_column], update=True, dependents=True, skip_prompt_save=True) # already saved
@@ -1159,6 +1157,7 @@ class Query:
         # Populate entries
         values = []
         column_names=self.column_names if columns == None else columns
+
         for row in self.rows:
             lst = []
             rels = self.frm.get_relationships_for_table(self)
@@ -1171,6 +1170,7 @@ class Query:
                         break
                 if not found: lst.append(row[col])
             values.append(lst)
+
         return values
 
     def get_related_table_for_column(self,col):
@@ -2869,8 +2869,11 @@ class Mysql(SQLDriver):
             exception = e.msg
 
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
+
         return ResultSet([dict(row) for row in cursor], lastrowid, exception)
-        #return [dict(row) for row in cursor]
+
+    def default_query(self, table):
+        return f'SELECT {table}.* FROM {table}'
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
