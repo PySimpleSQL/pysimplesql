@@ -3056,8 +3056,10 @@ class Postgres(SQLDriver):
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
         result = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS next_pk FROM "{table_name}";')
         return result.fetchone()[f'next_pk'] + 1 if result else 1
+
     def default_query(self, table):
-        return f'SELECT * FROM "{table}"'
+        return f'SELECT "{table}".* FROM "{table}"'
+
     def generate_join_clause(self, q_obj:Query) -> str:
         """
         Automatically generates a join clause from the Relationships that have been set

@@ -11,13 +11,13 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-headings=['id','Date:              ','Mood:      ','Title:                                 ']
+headings=['id','Title:                                 ','Date:      ','Mood:                ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
     [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
     [ss.actions('act_journal','Journal')],
     [ss.record('Journal.entry_date')],
-    #[ss.record('journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
+    #[ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],
     [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]
@@ -36,9 +36,11 @@ frm=ss.Form(driver, bind=win)   #<=== Here is the magic!
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
-frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
+frm['Journal'].set_order_clause('ORDER BY entry_date ASC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched
 frm['Journal'].set_search_order(['entry_date','title','entry'])
+# Requery the data since we made changes to the sort order
+frm['Journal'].requery()
 
 # ---------
 # MAIN LOOP
@@ -81,9 +83,9 @@ CREATE TABLE "Mood"(
 
 CREATE TABLE "Journal"(
     "id"            SERIAL NOT NULL PRIMARY KEY,
+    "title"         TEXT DEFAULT 'New Entry',
     "entry_date"    DATE DEFAULT CURRENT_DATE,
     "mood_id"       INTEGER,
-    "title"         TEXT DEFAULT 'New Entry',
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES "Mood"(id) 
 );
