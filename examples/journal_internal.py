@@ -43,7 +43,7 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-headings=['id','Date:              ','Mood:      ','Title:                                 ']
+headings=['id','Title:                                 ','Date:      ','Mood:                ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
     [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
