@@ -952,7 +952,8 @@ class Query:
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
 
-        self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed)
+        if not self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed):
+            return SAVE_FAIL
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -2545,10 +2546,11 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # DATABASE ABSTRACTION
 # ======================================================================================================================
 class ResultSet:
-    def __init__(self, rows,lastrowid=None):
+    def __init__(self, rows,lastrowid=None,exception=None):
         self.rows = rows
         self.lastrowid = lastrowid
         self._iter_index = 0
+        self.exception = exception
 
     def __iter__(self):
         return self
@@ -2621,7 +2623,7 @@ class SQLDriver:
         return f'SELECT * FROM {table}'
 
     def default_order(self, description_column):
-        return f' ORDER BY {description_column} COLLATE NOCASE ASC'
+        return f' ORDER BY {description_column} ASC'
 
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
         result = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
@@ -2735,12 +2737,14 @@ class Sqlite(SQLDriver):
 
     def execute(self, query, values=None):
         cursor = self.con.cursor()
-        if values:
-            cursor.execute(query, values)
-        else:
-            cursor.execute(query)
+        exception = None
+        try:
+            cursor.execute(query, values) if values else cursor.execute(query)
+        except mysql.connector.Error as e:
+            exception = e.msg
+
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
-        return ResultSet([dict(row) for row in cursor], lastrowid)
+        return ResultSet([dict(row) for row in cursor], lastrowid, exception)
 
 
     def close(self):
@@ -2814,7 +2818,11 @@ class Sqlite(SQLDriver):
             f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
         )
         logger.info(f'Performing query: {query} {tuple(changed.values())}')
-        self.execute(query, tuple(changed.values()))
+        result = self.execute(query, tuple(changed.values()))
+        if result.exception is not None:
+            sg.popup(f"Query Failed! {result.exception}")
+            return False
+        return True
 
 # --------------
 # MYSQL DRIVER
@@ -2854,17 +2862,14 @@ class Mysql(SQLDriver):
 
     def execute(self, query, values=None):
         cursor = self.con.cursor(dictionary=True)
-        if values:
-            cursor.execute(query, values)
-        else:
-            cursor.execute(query)
-
-        res=[]
-        for row in cursor:
-            res.append(row)
+        exception = None
+        try:
+            cursor.execute(query, values) if values else cursor.execute(query)
+        except mysql.connector.Error as e:
+            exception = e.msg
 
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
-        return ResultSet(res, lastrowid)
+        return ResultSet([dict(row) for row in cursor], lastrowid, exception)
         #return [dict(row) for row in cursor]
 
     def table_names(self):
@@ -2918,6 +2923,24 @@ class Mysql(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             # TODO
 
+    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+        # Make sure the changed dict includes the PK
+        changed[pk_column] = pk
+
+        # Generate an UPSERT query to either update the record or create a new one
+        query = (
+            f"INSERT INTO {table} ({', '.join(changed.keys())}) "
+            f"VALUES ({','.join('%s' for _ in range(len(changed)))}) "
+            f"ON DUPLICATE KEY "
+            f"UPDATE "
+            f"{', '.join(f'{c}=VALUES({c})' for c in changed.keys())};"
+        )
+        logger.info(f'Performing query: {query} {tuple(changed.values())}')
+        result = self.execute(query, tuple(changed.values()))
+        if result.exception is not None:
+            sg.popup(f"Query Failed! {result.exception}")
+            return False
+        return True
 # ---------------
 # POSTGRES DRIVER
 # ---------------
