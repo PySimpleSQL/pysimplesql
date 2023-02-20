@@ -587,7 +587,7 @@ class Query:
         logger.info('Running query: ' + query)
 
         cur = self.driver.execute(query)
-        self.rows = cur.fetchall()
+        self.rows = cur#.fetchall()
 
         for row in self.rows:
             # perform transform one row at a time
@@ -870,10 +870,10 @@ class Query:
 
         # Update the pk to match the expected pk the driver would generate on insert. This is a bit of a hack, and
         # assumes that the sql sequence matches this expectation.  May look into this further in the future
-        new_values[self.pk_column] = max(self.rows, key=lambda x: x[self.pk_column])[self.pk_column]+1
+        new_values[self.pk_column] = max(self.rows.rows, key=lambda row: row[self.pk_column])[self.pk_column]+1
 
-        # insert the new row virtually
-        self.rows.append(new_values)
+        # Insert the new values using RecordSet.insert(). This will mark the new row as virtual!
+        self.rows.insert(new_values)
 
         # and move to the new record
         self.set_by_pk(new_values[self.pk_column], update=True, dependents=True, skip_prompt_save=True) # already saved
@@ -1845,7 +1845,7 @@ class Form:
                         break
 
                 if target_table==None:
-                    logger.warning(f"Error! Cound not find a related query for element {d['element'].key} bound to query {d['query'].table}, column: {d['column']}")
+                    logger.info(f"Error! Cound not find a related query for element {d['element'].key} bound to query {d['query'].table}, column: {d['column']}")
                     # we don't want to update the list in this case, as it was most likely supplied and not tied to a query
                     updated_val=d['query'][d['column']]
 
@@ -1854,7 +1854,6 @@ class Form:
                     lst = []
                     for row in target_table.rows:
                         lst.append(Row(row[pk], row[description]))
-
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
@@ -1938,11 +1937,9 @@ class Form:
                         for r in table.rows:
                             if e['where_column'] is not None:
                                 if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
-                                    #print(f"{r[e['where_column']]} == {e['where_value']}")
                                     lst.append(Row(r[pk], r[column]))
                                 else:
                                     pass
-                                    #print(f"{r[e['where_column']]} != {e['where_value']}")
                             else:
                                 lst.append(Row(r[pk], r[column]))
 
@@ -2545,15 +2542,36 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # ======================================================================================================================
 # DATABASE ABSTRACTION
 # ======================================================================================================================
+class ResultRow:
+    def __init__(self, row:dict, virtual=False):
+        self.row = row
+        self.virtual=virtual
+
+    def __str__(self):
+        return str(self.row)
+
+    def __getitem__(self,item):
+        return self.row[item]
+
+    def __setitem__(self, key, value):
+        self.row[key] = value
+
+
+    def __lt__(self, other, key):
+        return self.row[key] < other.row[key]
+
+    def items(self):
+        return self.row.items()
+
 class ResultSet:
-    def __init__(self, rows,lastrowid=None,exception=None):
-        self.rows = rows
+    def __init__(self, rows:list,lastrowid=None,exception=None):
+        self.rows = [ResultRow(r) for r in rows]
         self.lastrowid = lastrowid
         self._iter_index = 0
         self.exception = exception
 
     def __iter__(self):
-        return self
+        return (row for row in self.rows)
 
     def __next__(self):
         if self._iter_index == len(self.rows):
@@ -2563,10 +2581,14 @@ class ResultSet:
             return self.rows[self._iter_index - 1]
 
     def __str__(self):
-        return str(self.rows)
+        return str([row.row for row in self.rows])
 
     def __getitem__(self,item):
         return self.rows[item]
+
+    def __len__(self):
+        return len(self.rows)
+
 
     def fetchone(self):
         if len(self.rows):
@@ -2578,6 +2600,8 @@ class ResultSet:
             return self.rows
         return []
 
+    def insert(self, row:dict, idx:int = None):
+        self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
 
 # TODO min_pk, max_pk
 class SQLDriver:
@@ -2620,7 +2644,7 @@ class SQLDriver:
         self.con.close()
 
     def default_query(self, table):
-        return f'SELECT * FROM {table}'
+        return f'SELECT {table}.* FROM {table}'
 
     def default_order(self, description_column):
         return f' ORDER BY {description_column} ASC'
@@ -2872,8 +2896,6 @@ class Mysql(SQLDriver):
 
         return ResultSet([dict(row) for row in cursor], lastrowid, exception)
 
-    def default_query(self, table):
-        return f'SELECT {table}.* FROM {table}'
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
