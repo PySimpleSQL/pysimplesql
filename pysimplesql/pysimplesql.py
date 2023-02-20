@@ -519,9 +519,9 @@ class Query:
 
                 if element_val != table_val:
                     dirty = True
-                    logger.debug(f'CHANGED RECORD FOUND!')
-                    logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
-                    logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
+                    logger.info(f'CHANGED RECORD FOUND!')
+                    logger.info(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
+                    logger.info(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
                     return dirty
                 else:
                     dirty = False
@@ -871,11 +871,12 @@ class Query:
                     new_values[k]=v
         else:
             # At minimum, we should update the description column
-                new_values[self.description_column] = 'New Record'
+            new_values[self.description_column] = 'New Record'
 
         # Update the pk to match the expected pk the driver would generate on insert. This is a bit of a hack, and
         # assumes that the sql sequence matches this expectation.  May look into this further in the future
         new_values[self.pk_column] = max(self.rows.rows, key=lambda row: row[self.pk_column])[self.pk_column]+1
+
 
         # Insert the new values using RecordSet.insert(). This will mark the new row as virtual!
         self.rows.insert(new_values)
@@ -930,14 +931,15 @@ class Query:
                     else:
                         val = v['element'].get()
 
+                    if val =='':
+                        val = None
+                        
                     current_row[v['column']] = val
 
-        changed = {}
-        for k,v in current_row.items():
-            if current_row[k] != self.get_current(k) or current_row.virtual:
-                changed[k] = v
+        print(f"Changed: {self.records_changed()}")
+        changed = {k:v for k,v in current_row.items()}
 
-        if changed == {}:
+        if not self.records_changed():
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE
             
@@ -967,17 +969,18 @@ class Query:
         # then update the current row.
         self.rows[self.current_index] = current_row
 
+        # Store the pk can we can move to it later
+        pk = self.get_current_pk()
 
         # If child changes parent, move index back and requery/requery_dependents
-        if fk_changed:
+        if fk_changed: # TODO: Research why fk_changed is triggering at timems it does not need to
             self.frm[self.table].requery(select_first=False) #keep spot in table
             self.frm[self.table].requery_dependents()
 
         # Lets refresh our data
         if current_row.virtual:
-            pk = self.get_current_pk()
-            self.requery(select_first=False, update=False) # Requery so that the row honors the order clause
-            self.set_by_pk(pk,skip_prompt_save=True)  # Then move to the record
+            self.requery(select_first=False, update=False) # Requery so that the new  row honors the order clause
+            self.set_by_pk(pk,skip_prompt_save=True)       # Then move to the record
 
         if update_elements:self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
@@ -1714,7 +1717,7 @@ class Form:
 
 
     def save_records(self, cascade_only=False):
-        logger.info(f'Saving records in all queries...')
+        logger.debug(f'Saving records in all queries...')
         msg = None
         i = 0
         tables = self.get_cascaded_relationships() if cascade_only else self.queries
@@ -1724,7 +1727,7 @@ class Form:
         failures=0
         no_actions=0
         for t in tables:
-            logger.info(f'Saving records for table {t}...')
+            logger.debug(f'Saving records for table {t}...')
             result=self[t].save_record(False,update_elements=False)
             if result==SAVE_FAIL:
                 failures+=1
@@ -1732,17 +1735,18 @@ class Form:
                 successes+=1
             elif result==SAVE_NONE:
                 no_actions+=1
-        logger.info(f'Successes: {successes}, Failures: {failures}, No Actions: {no_actions}')
+        logger.debug(f'Successes: {successes}, Failures: {failures}, No Actions: {no_actions}')
 
         if failures==0:
             if successes==0:
                 sg.popup_quick_message('There was nothing to update.', keep_on_top=True)
             else:
                 sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
+                self.update_elements()
         else:
             sg.popup('There was a problem saving some updates.', keep_on_top=True)
 
-        self.update_elements()
+
 
     def set_prompt_save(self, value: bool) -> None:
         """
@@ -1833,8 +1837,8 @@ class Form:
 
             updated_val = None
             # If there is a callback for this element, use it
-            if d['element'].Key in self.callbacks:
-                self.callbacks[d['element'].Key]()
+            if d['element'].key in self.callbacks:
+                self.callbacks[d['element'].key]()
 
             elif d['where_column'] is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
@@ -2860,10 +2864,10 @@ class Sqlite(SQLDriver):
             f"DO UPDATE SET "
             f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
         )
-        logger.info(f'Performing query: {query} {tuple(changed.values())}')
+        logger.info(f'Running query: {query} {tuple(changed.values())}')
         result = self.execute(query, tuple(changed.values()))
         if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}")
+            sg.popup(f"Query Failed! {result.exception}",keep_on_top=True)
             return False
         return True
 
@@ -2979,10 +2983,10 @@ class Mysql(SQLDriver):
             f"UPDATE "
             f"{', '.join(f'{c}=VALUES({c})' for c in changed.keys())};"
         )
-        logger.info(f'Performing query: {query} {tuple(changed.values())}')
+        logger.info(f'Running query: {query} {tuple(changed.values())}')
         result = self.execute(query, tuple(changed.values()))
         if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}")
+            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
             return False
         return True
 # ---------------
@@ -3156,10 +3160,10 @@ class Postgres(SQLDriver):
             f"DO UPDATE SET "
             f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
         )
-        logger.info(f'Performing query: {query} {tuple(changed.values())}')
+        logger.info(f'Running query: {query} {tuple(changed.values())}')
         result = self.execute(query, tuple(changed.values()))
         if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}")
+            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
             return False
         return True
 # ======================================================================================================================

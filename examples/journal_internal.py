@@ -11,8 +11,8 @@ sql="""
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "title"         TEXT DEFAULT "New Entry",
-    "entry_date"    INTEGER DEFAULT (date('now')), 
-    "mood_id"       INTEGER,
+    "entry_date"    INTEGER NOT NULL DEFAULT (date('now')), 
+    "mood_id"       INTEGER NOT NULL,
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES Mood(id) --This line is important to the automatic functionality of PySimpleSQL~
 );
