@@ -884,7 +884,6 @@ class Query:
         self.set_by_pk(new_values[self.pk_column], update=True, dependents=True, skip_prompt_save=True) # already saved
         self.frm.update_elements(self.table)
 
-
     def save_record(self, display_message=True, update_elements=True):
         """
         Save the currently selected record
@@ -966,7 +965,8 @@ class Query:
         # If we made it here, we can commit the changes
         self.driver.commit()
         # then update the current row.
-        self.rows[self.current_index]=current_row
+        self.rows[self.current_index] = current_row
+
 
         # If child changes parent, move index back and requery/requery_dependents
         if fk_changed:
@@ -974,11 +974,15 @@ class Query:
             self.frm[self.table].requery_dependents()
 
         # Lets refresh our data
-        # TODO: Do we still need this since we back propagated? (comment out for now, early tests are promising!)
-        #self.requery(select_first=False) # don't move or update any elements
+        if current_row.virtual:
+            pk = self.get_current_pk()
+            self.requery(select_first=False, update=False) # Requery so that the row honors the order clause
+            self.set_by_pk(pk,skip_prompt_save=True)  # Then move to the record
+
         if update_elements:self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
+
         return SAVE_SUCCESS
 
 
@@ -1710,7 +1714,7 @@ class Form:
 
 
     def save_records(self, cascade_only=False):
-        logger.debug(f'Saving records in all queries...')
+        logger.info(f'Saving records in all queries...')
         msg = None
         i = 0
         tables = self.get_cascaded_relationships() if cascade_only else self.queries
@@ -1720,7 +1724,7 @@ class Form:
         failures=0
         no_actions=0
         for t in tables:
-            logger.debug(f'Saving records for table {t}...')
+            logger.info(f'Saving records for table {t}...')
             result=self[t].save_record(False,update_elements=False)
             if result==SAVE_FAIL:
                 failures+=1
@@ -1728,7 +1732,7 @@ class Form:
                 successes+=1
             elif result==SAVE_NONE:
                 no_actions+=1
-        logger.debug(f'Successes: {successes}, Failures: {failures}, No Actions: {no_actions}')
+        logger.info(f'Successes: {successes}, Failures: {failures}, No Actions: {no_actions}')
 
         if failures==0:
             if successes==0:
@@ -2578,7 +2582,7 @@ class ResultRow:
         return self.row.items()
 
     def copy(self):
-        return ResultRow(self.row.copy())
+        return ResultRow(self.row.copy(), virtual=self.virtual)
 
 class ResultSet:
     def __init__(self, rows:list,lastrowid=None,exception=None):
