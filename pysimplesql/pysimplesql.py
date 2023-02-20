@@ -936,7 +936,6 @@ class Query:
                         
                     current_row[v['column']] = val
 
-        print(f"Changed: {self.records_changed()}")
         changed = {k:v for k,v in current_row.items()}
 
         if not self.records_changed():
