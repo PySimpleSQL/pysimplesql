@@ -556,7 +556,8 @@ class Query:
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
-                # save this record                self.save_record_recursive()
+                # save this record
+                self.save_record_recursive()
                 return PROMPT_PROCEED
             else:
                 self.rows.purge_virtual()
@@ -936,7 +937,6 @@ class Query:
         for k,v in current_row.items():
             if current_row[k] != self.get_current(k) or current_row.virtual:
                 changed[k] = v
-        
 
         if changed == {}:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
@@ -1157,13 +1157,17 @@ class Query:
                 return row[self.description_column]
         return None
 
-    def table_values(self,columns=None):
-        # Populate entries
+    def table_values(self, columns=None, mark_virtual=False):
+        # Populate values to display in Table GUI elements
         values = []
         column_names=self.column_names if columns == None else columns
 
         for row in self.rows:
-            lst = []
+            if mark_virtual:
+                lst = ['\u2731'] if row.virtual else [' ']
+            else:
+                lst = []
+
             rels = self.frm.get_relationships_for_table(self)
             for col in column_names:
                 found = False
@@ -1964,7 +1968,7 @@ class Form:
                     elif type(element) is sg.PySimpleGUI.Table:
                         logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
-                        values = table.table_values(element.metadata['columns'])
+                        values = table.table_values(element.metadata['columns'], mark_virtual=True)
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
@@ -1972,7 +1976,7 @@ class Form:
                         found = False
                         # set index to pk
                         try:
-                            index = [[v[0] for v in values].index(pk)]
+                            index = [[v[1] for v in values].index(pk)]
                             pk_position = index[0] / len(values)  # calculate pk percentage position
                             found = True
                         except ValueError:
@@ -2055,7 +2059,9 @@ class Form:
                                 changed=True
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
-                                pk = self.window[event].Values[index][0]
+                                # Since this is a selector, we have to check the 2nd column for the pk since we
+                                # added a narrow column to mark virtual rows
+                                pk = self.window[event].Values[index][1]
                                 table.set_by_pk(pk, True)
                                 changed=True
                             if changed:
@@ -2528,6 +2534,10 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
         for kwarg in required_kwargs:
             if kwarg not in kwargs:
                 raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
+
+        # Create a narrow column for displaying a * character for virtual rows. This will have to be the 2nd column right after the pk
+        kwargs['headings'].insert(0,'  ')
+        kwargs['visible_column_map'].insert(0,1)
 
         # Make an empty list of values
         vals = []
