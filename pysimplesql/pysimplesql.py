@@ -2441,7 +2441,7 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
         else:
             layout.append(sg.B(icon.edit_protect, key=keygen(f'{key}.edit_protect'), metadata=meta, use_ttk_buttons = True))
     if save:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.save) is bytes:
             layout.append(sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=icon.save,
                                metadata=meta))
