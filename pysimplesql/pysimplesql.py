@@ -3046,10 +3046,10 @@ class Postgres(SQLDriver):
                     dic['requery'] = True
                 else:
                     dic['requery'] = False
-                dic['from_table'] = row['confrelid'].strip('"')
-                dic['to_table'] = row['conrelid'].strip('"')
-                dic['from_column'] = row['referenced_column_name']
-                dic['to_column'] = row['column_name']
+                dic['from_table'] = row['conrelid'].strip('"')
+                dic['to_table'] = row['confrelid'].strip('"')
+                dic['from_column'] = row['column_name']
+                dic['to_column'] = row['referenced_column_name']
                 relationships.append(dic)
         return relationships
 
