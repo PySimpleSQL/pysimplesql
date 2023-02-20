@@ -479,6 +479,9 @@ class Query:
         """
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
+        # Virtual rows wills always be considered dirty
+        if self.get_current_row().virtual: return True
+
         dirty = False
         # First check the current record to see if it's dirty
         for c in self.frm.element_map:
@@ -553,10 +556,10 @@ class Query:
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
-                # save this record
-                self.save_record_recursive()
+                # save this record                self.save_record_recursive()
                 return PROMPT_PROCEED
             else:
+                self.rows.purge_virtual()
                 return PROMPT_DISCARDED
         else:
             return PROMPT_NONE
@@ -586,8 +589,8 @@ class Query:
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
         logger.info('Running query: ' + query)
 
-        cur = self.driver.execute(query)
-        self.rows = cur#.fetchall()
+        rows = self.driver.execute(query)
+        self.rows = rows
 
         for row in self.rows:
             # perform transform one row at a time
@@ -930,7 +933,7 @@ class Query:
 
         changed = {}
         for k,v in current_row.items():
-            if current_row[k] != self.get_current(k):
+            if current_row[k] != self.get_current(k) or current_row.virtual:
                 changed[k] = v
         
 
@@ -2563,6 +2566,9 @@ class ResultRow:
     def items(self):
         return self.row.items()
 
+    def copy(self):
+        return ResultRow(self.row.copy())
+
 class ResultSet:
     def __init__(self, rows:list,lastrowid=None,exception=None):
         self.rows = [ResultRow(r) for r in rows]
@@ -2586,22 +2592,21 @@ class ResultSet:
     def __getitem__(self,item):
         return self.rows[item]
 
+    def __setitem__(self, idx:int, new_row:ResultRow):
+        self.rows[idx]=new_row
+
     def __len__(self):
         return len(self.rows)
 
-
     def fetchone(self):
-        if len(self.rows):
-            return self.rows[0]
-        return []
-
-    def fetchall(self):
-        if len(self.rows):
-            return self.rows
-        return []
+        return self.rows[0] if len(Self.rows) else []
 
     def insert(self, row:dict, idx:int = None):
         self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
+
+    def purge_virtual(self):
+        # Purge virtual rows from the list
+        self.rows = [row for row in self.rows if not row.virtual]
 
 # TODO min_pk, max_pk
 class SQLDriver:
@@ -2650,8 +2655,8 @@ class SQLDriver:
         return f' ORDER BY {description_column} ASC'
 
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        result = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
-        return result.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
+        rows = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
+        return rows.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
 
     def relationship_to_join_clause(selfSelf, r_obj:Relationship):
         return f'{r_obj.join} {r_obj.parent} ON {r_obj.child}.{r_obj.fk}={r_obj.parent}.{r_obj.pk}'
@@ -2784,18 +2789,18 @@ class Sqlite(SQLDriver):
     def table_names(self):
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.execute(q)
-        return [row['name'] for row in cur.fetchall()]
+        return [row['name'] for row in cur]
 
     def column_names(self,table):
         # Return a list of column names
         q = f'PRAGMA table_info({table})'
         cur = self.execute(q)
-        return [row['name'] for row in cur.fetchall()]
+        return [row['name'] for row in cur]
 
     def pk_column(self,table):
         q = f'PRAGMA table_info({table})'
         cur = self.execute(q)
-        rows = cur.fetchall()
+        rows = cur
 
         for row in rows:
             if row['pk']:
@@ -2808,7 +2813,6 @@ class Sqlite(SQLDriver):
         tables = self.table_names()
         for from_table in tables:
             rows = self.execute(f"PRAGMA foreign_key_list({from_table})")
-            rows = rows.fetchall()
 
             for row in rows:
                 dic={}
@@ -3016,7 +3020,7 @@ class Postgres(SQLDriver):
             exception = e
 
         if cursor.description is not None:
-            results = cursor.fetchall()
+            results = cursor
         else:
             results = []
 
