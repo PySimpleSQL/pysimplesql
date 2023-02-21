@@ -2741,7 +2741,7 @@ class SQLDriver:
                         query.append(f'UPDATE tmp SET {q_obj.frm[r.child].pk_column} = NULL')
                         query.append(f'UPDATE tmp SET {r.fk} = {pk}')
                         query.append(f'INSERT INTO {r.child} SELECT * FROM tmp')
-                        query.append(f'DROP TABLE tmp;')
+                        query.append('DROP TABLE IF EXISTS tmp;')
                         for q in query:
                             res = self.execute(q)
                             if res.exception: return res
