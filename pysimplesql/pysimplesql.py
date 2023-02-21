@@ -946,6 +946,10 @@ class Query:
 
                     if val =='':
                         val = None
+                    
+                    # Fix for Checkboxes switching from 0 to False, and from 1 to True
+                    if type(val) is bool and type(self[v['column']]) is int:
+                        val = int(val)
                         
                     current_row[v['column']] = val
 
