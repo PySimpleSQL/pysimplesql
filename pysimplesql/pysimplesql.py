@@ -5,7 +5,7 @@
 While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
-**pysimplesql** binds PySimpleGUI to sqlite3 databases for rapid, effortless database application development. Makes a great
+**pysimplesql** binds PySimpleGUI to various databases for rapid, effortless database application development. Makes a great
 replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the
 power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
 line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
@@ -110,11 +110,6 @@ SEARCH_ABORTED  = 4 # The search was aborted, likely during a callback
 SEARCH_ENDED    = 8 # We have reached the end of the search
 
 
-def strip(string:str) -> str:
-    """
-    Strips :x from string
-    """
-    return string.split(':')[0]
 
 def eat_events(win:sg.Window) -> None:
     """
@@ -122,6 +117,7 @@ def eat_events(win:sg.Window) -> None:
 
     Call this function directly after update() is run on a Query element. The reason is that updating the selection or values
     will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
+    TODO: Determine if this is fixed yet in PySimpleSQL
 
     :param win: A PySimpleGUI Window instance
     :type win: PySimpleGUI.Window
@@ -134,19 +130,6 @@ def eat_events(win:sg.Window) -> None:
             break
     return
 
-def escape(query_string:str) -> str:
-    """
-    Safely escape characters in strings needed for queries
-
-     .. note:: This is not yet implemented and is here in the case that it is needed in the future.
-
-     :param query_string: The query to escape
-     :type query_string: str
-     :returns: An escaped string
-     :rtype: str
-    """
-    query_string = str(query_string)
-    return query_string
 
 class ElementRow:
     """
@@ -187,7 +170,7 @@ class Relationship:
     .. note:: This class is not typically used the end user,
     """
 
-    def __init__(self, join:str, child_table:str, fk_column:Union[str,int], parent_table:str, pk_column:Union[str,int], update_cascade:bool, driver:SQLDriver) -> Relationship:
+    def __init__(self, join:str, child_table:str, fk_column:Union[str,int], parent_table:str, pk_column:Union[str,int], update_cascade:bool) -> Relationship:
         """
         Initialize a new Relationship instance
 
@@ -472,7 +455,8 @@ class Query:
         is used.
 
         This is more for advanced users.
-        :param names: a list of names (optional)
+        :param names: a list of column names (optional).  Defaults to Query.column_names
+        :type names: list[str]
         """
         # Now we need to set  new column names, as the query could have changed
         if names!=None:
@@ -486,10 +470,10 @@ class Query:
         Set the table's description column.
 
         This is the column that will display in Listboxes, Comboboxes, etc.
-        By default,this is initialized to either the 'name' column, or the 2nd column of the table.  This method allows you to specify
-        something different
+        By default,this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the table.
+        This method allows you to specify a different column to use as the description for the record.
 
-        :param column: The the column to use
+        :param column: The column to use
         :type column: str
         :returns: None
         :rtype: None
@@ -499,6 +483,7 @@ class Query:
     def records_changed(self, recursive=True, column_name:str=None) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values.
+
         :param recursive: True to check related Queries
         :type recursive: bool
         :returns: True or False on whether changed records were found
@@ -565,6 +550,7 @@ class Query:
     def prompt_save(self, autosave=False) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
+
         :param autosave: True to autosave when changes are found without prompting the user
         :type autosave: bool
         :returns: Prompt return value
@@ -599,6 +585,7 @@ class Query:
         Requeries the table
         The @Query object maintains an internal representation of the actual database table.
         The requery method will requery the actual database  and sync the @Query objects to it
+
         :param select_first: If True, the first record will be selected after the requery
         :param filtered: If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
         :param update: passed to Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
@@ -637,8 +624,11 @@ class Query:
     def requery_dependents(self,child=False,update=True):
         """
         Requery parent queries as defined by the relationships of the table
-        :param child: If True, requerys self. Default False; used to skip requery when called by parent.
+
+        :param child: If True, will requery self. Default False; used to skip requery when called by parent.
+        :type child: bool
         :param update: passed to Query.requery() -> Query.first() to update_elements.
+        :type: update: bool
         :return: None
         """
         if child: self.requery(update=update,dependents=False) # dependents=False: we don't another recursive dependent requery
@@ -653,6 +643,13 @@ class Query:
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
         @Query.set_by_pk
+
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
         :return: None
         """
         logger.debug(f'Moving to the first record of table {self.table}')
@@ -670,6 +667,13 @@ class Query:
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
         @Query.set_by_pk
+
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
         :return: None
         """
         logger.debug(f'Moving to the last record of table {self.table}')
@@ -687,6 +691,13 @@ class Query:
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
         @Query.set_by_pk
+
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
         :return: None
         """
         if self.current_index < len(self.rows) - 1:
@@ -706,6 +717,12 @@ class Query:
         which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
         @Query.set_by_pk
 
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
         :return: None
         """
         if self.current_index > 0:
@@ -729,6 +746,13 @@ class Query:
         @Query.set_by_pk
 
         :param string: The search string
+        :type string: str
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
         :return: One of the following search values: SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED
         """
         # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
@@ -775,7 +799,23 @@ class Query:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index, update=True, dependents=True, skip_prompt_save=False):
+    def set_by_index(self, index:int, update=True, dependents=True, skip_prompt_save=False):
+        """
+        Move to the record of the table located at the specified index in Query.
+        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
+        @Query.set_by_pk.
+
+        :param index: The index of the record to move to.
+        :type index: int
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
+        :return: None
+        """
         logger.debug(f'Moving to the record at index {index} on {self.table}')
         if skip_prompt_save is False: self.prompt_save()
 
@@ -790,8 +830,16 @@ class Query:
         and then the current record selection updated regardless of the new sort order.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
-        @Query.set_by_pk
+        @Query.set_by_index
+
         :param pk: The primary key to move to
+        :type pk: int
+        :param update: Update the GUI elements after switching records
+        :type update: bool
+        :param dependents: Requery dependents after switching records?
+        :type dependents: bool
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
         :return: None
         """
         logger.debug(f'Setting table {self.table} record by primary key {pk}')
@@ -808,7 +856,7 @@ class Query:
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements(self.table)
 
-    def get_current(self, column, default=""):
+    def get_current(self, column:str, default=""):
         """
         Get the current value pointed to for @column
         You can also use indexing of the @Form object to get the current value of a column
@@ -827,11 +875,11 @@ class Query:
         else:
             return default
 
-    def set_current(self, column, value) -> None:
+    def set_current(self, column:str, value) -> None:
         """
        Set the current value pointed to for @column
        You can also use indexing of the @Form object to set the current value of a column
-       I.e. frm["{Query}].[{column'}] = 'New value
+       I.e. frm["{Query}].[{column'}] = 'New value'
 
        :param column: The column you want to set the value of
        :param value: A value to set the current record's column to
@@ -840,9 +888,15 @@ class Query:
         logger.debug(f'Setting current record for {self.table}.{column} = {value}')
         self.get_current_row()[column] = value
 
-    def get_keyed_value(self,value_column, key_column, key_value):
+    def get_keyed_value(self,value_column:str, key_column:str, key_value):
         """
         Return value_column where key_column=key_value.  Useful for datastores with key/value pairs
+
+        :param value_column: The column to fetch the value from
+        :type value_column: str
+        :param key_column: The column in which to search for the value
+        :type key_column: str
+        :param key_value: The value to search for
         """
         for r in self.rows:
             if r[key_column] == key_value:
@@ -851,39 +905,47 @@ class Query:
     def get_current_pk(self):
         """
         Get the primary key of the currently selected record
+
         :return: the primary key
         """
         return self.get_current(self.pk_column)
 
     def get_current_row(self):
         """
-        Get the sqlite3 row for the currently selected record of this table
-        :return: @sqlite3.row
+        Get the row for the currently selected record of this table
+
+        :return: ResultRow() instance
         """
         if self.rows:
             self.current_index = self.current_index # force the current_index to be in bounds! For child reparenting
             return self.rows[self.current_index]
 
-    def add_selector(self, element, query:str=None, where_column:str=None, where_value:str=None):  # _listBox,_pk,_column):
+    def add_selector(self, element, query_name:str=None, where_column:str=None, where_value:str=None):  # _listBox,_pk,_column):
         """
         Use a element such as a listbox as a selector item for this table.
-        This can be done via this method, or via auto_map_elements by naming the element key "selector.{Query}"
+        This can be done via this method, or ss.Selector() convenience function
 
         :param element: the @PySinpleGUI element used as a selector element
+        :param query_name: the Query name this selector will operate on
+        :type query_name: str
         :return: None
         """
         if type(element) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
             raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
         logger.debug(f'Adding {element.Key} as a selector for the {self.table} table.')
-        d={'element': element, 'query': query, 'where_column': where_column, 'where_value': where_value}
+        d={'element': element, 'query': query_name, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
     def insert_record(self, values:dict=None, skip_prompt_save=False) -> None:
         """
-        Insert a new record virtually in the Query object. If values are passed, it will initially set those columns to the values
-        (I.e. {'name': 'New Record', 'note': ''}).
+        Insert a new record virtually in the Query object. If values are passed, it will initially set those columns to
+        the values (I.e. {'name': 'New Record', 'note': ''}).
+
         :param values: column_name:value pairs
+        type values: dict
+        :param skip_prompt_save: Skip prompting the user to save dirty records
+        :type skip_prompt_save: bool
         :return: None
         """
         # todo: you don't add a record if there isn't a parent!!!
@@ -913,12 +975,16 @@ class Query:
         self.set_by_pk(new_values[self.pk_column], update=True, dependents=True, skip_prompt_save=True) # already saved
         self.frm.update_elements(self.table)
 
-    def save_record(self, display_message=True, update_elements=True):
+    def save_record(self, display_message=True, update_elements=True) -> None:
         """
         Save the currently selected record
         Saves any changes made via the GUI back to the database.  The before_save and after_save @callbacks will call
         your own functions for error checking if needed!
+
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
+        :type display_messsage: bool
+        :param update_elements: True to update the GUI elements after saving
+        :type update_elements: bool
         :return: None
         """
         # Ensure that there is actually something to save
@@ -1017,7 +1083,11 @@ class Query:
 
 
     def save_record_recursive(self):
-        # save relationships
+        """
+        Recursively save changes, akin into account the relationships of the tables
+
+        :return: None
+        """
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.update_cascade:
                 self.frm[rel.child_table].save_record_recursive()
@@ -1075,7 +1145,7 @@ class Query:
         self.requery(select_first=False)
         self.frm.update_elements()
         
-    def duplicate_record(self, cascade=True):
+    def duplicate_record(self, cascade=True) -> None:
         """
         Duplicate the currently selected record
         The before_duplicate and after_duplicate callbacks are run during this process to give some control over the process
