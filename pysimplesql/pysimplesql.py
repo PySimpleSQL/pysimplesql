@@ -1100,52 +1100,12 @@ class Query:
         if answer == 'No':
             return True
 
-        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
-        ## This can be done using * syntax without having to know the schema of the table
-        ## (other than the name of the primary key). The trick is to create a temporary table
-        ## using the "CREATE TABLE AS" syntax.
-        q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)}'
-        self.driver.execute(q)
-        logger.debug(q)
-        q = f'UPDATE tmp SET {self.pk_column} = NULL'
-        self.driver.execute(q)
-        logger.debug(q)
-        q = f'UPDATE tmp SET {self.description_column} = "Copy of " || {self.description_column}'
-        self.driver.execute(q)
-        logger.debug(q)
-        q = f'INSERT INTO {self.table} SELECT * FROM tmp'
-        cur = self.driver.execute(q)
-        logger.debug(q)
-        q = f'DROP TABLE tmp;'
-        self.driver.execute(q)
-        logger.debug(q)
-        
-        # Now we save the new pk
-        pk = cur.lastrowid
-        
-        # create list of which children we have duplicated
-        child_duplicated = []             
-        # Next, duplicate the child records!
-        if cascade:
-            for qry in self.frm.queries:
-                for r in self.frm.relationships:
-                    if r.parent == self.table and r.requery_table and (r.child not in child_duplicated):
-                        q = f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
-                        self.driver.execute(q)
-                        logger.debug(q)
-                        q = f'UPDATE tmp SET {self.frm[r.child].pk_column} = NULL'
-                        self.driver.execute(q)
-                        logger.debug(q)
-                        q = f'UPDATE tmp SET {r.fk} = {pk}'
-                        self.driver.execute(q)
-                        logger.debug(q)
-                        q = f'INSERT INTO {r.child} SELECT * FROM tmp'
-                        self.driver.execute(q)
-                        logger.debug(q)
-                        q = f'DROP TABLE tmp;'
-                        self.driver.execute(q)
-                        logger.debug(q)
-                        child_duplicated.append(r.child)
+        res = self.driver.duplicate_record(self,cascade)
+        if res.exception:
+            self.driver.rollback()
+            sg.popup(res.exception, keep_on_top=True)
+        else:
+            pk = res.lastrowid
                         
         # callback
         if 'after_duplicate' in self.callbacks.keys():
@@ -2595,7 +2555,7 @@ class ResultRow:
         return ResultRow(self.row.copy(), virtual=self.virtual)
 
 class ResultSet:
-    def __init__(self, rows:list,lastrowid=None,exception=None):
+    def __init__(self, rows:list=[], lastrowid=None, exception=None):
         self.rows = [ResultRow(r) for r in rows]
         self.lastrowid = lastrowid
         self._iter_index = 0
@@ -2749,7 +2709,45 @@ class SQLDriver:
         q += f' {q_obj.order if order else ""}'
         return q
 
+    def duplicate_record(self, q_obj:Query, cascade:bool) -> ResultSet:
+        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
+        ## This can be done using * syntax without having to know the schema of the table
+        ## (other than the name of the primary key). The trick is to create a temporary table
+        ## using the "CREATE TABLE AS" syntax.
+        description = q_obj.get_description_for_pk(q_obj.get_current_pk())
+        query= []
+        query.append('DROP TABLE IF EXISTS tmp;')
+        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {q_obj.table} WHERE {q_obj.pk_column}={q_obj.get_current(q_obj.pk_column)}')
+        query.append(f'UPDATE tmp SET {q_obj.pk_column} = NULL')
+        query.append(f'UPDATE tmp SET {q_obj.description_column} = "Copy of {description}"')
+        query.append(f'INSERT INTO {q_obj.table} SELECT * FROM tmp')
+        for q in query:
+            res = self.execute(q)
+            if res.exception: return res
+            
+        # Now we save the new pk
+        pk = res.lastrowid
 
+        # create list of which children we have duplicated
+        child_duplicated = []
+        # Next, duplicate the child records!
+        if cascade:
+            for qry in q_obj.frm.queries:
+                for r in q_obj.frm.relationships:
+                    if r.parent == q_obj.table and r.requery_table and (r.child not in child_duplicated):
+                        query = []
+                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={q_obj.get_current(q_obj.pk_column)}')
+                        query.append(f'UPDATE tmp SET {q_obj.frm[r.child].pk_column} = NULL')
+                        query.append(f'UPDATE tmp SET {r.fk} = {pk}')
+                        query.append(f'INSERT INTO {r.child} SELECT * FROM tmp')
+                        query.append(f'DROP TABLE tmp;')
+                        for q in query:
+                            res = self.execute(q)
+                            if res.exception: return res
+                            
+                        child_duplicated.append(r.child)
+        # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
+        return ResultSet(lastrowid=pk)
 # --------------
 # SQLITE3 DRIVER
 # --------------
