@@ -882,6 +882,11 @@ class Query:
         else:
             # At minimum, we should update the description column
             new_values[self.description_column] = 'New Record'
+            # Make sure we take into account the foreign key relationships...
+            for r in self.frm.relationships:
+                if self.table == r.child:
+                    if r.requery_table:
+                        new_values[r.fk] = self.frm[r.parent].get_current_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert. This is a bit of a hack, and
         # assumes that the sql sequence matches this expectation.  May look into this further in the future
