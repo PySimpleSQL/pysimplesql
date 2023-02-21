@@ -563,7 +563,8 @@ class Query:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
                 # save this record
-                self.save_record_recursive()
+                if self.save_record_recursive() == SAVE_FAIL:
+                    return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
                 self.rows.purge_virtual()
@@ -867,7 +868,9 @@ class Query:
         # todo: you don't add a record if there isn't a parent!!!
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
-        if skip_prompt_save is False: self.prompt_save()
+        if skip_prompt_save is False:
+            if self.prompt_save() == PROMPT_SAVE_DISCARDED:
+                return
 
         # Create a dict of the column names, then load in passed-in values
         new_values = {k:None for k in self.column_names}
@@ -999,7 +1002,7 @@ class Query:
         for rel in self.frm.relationships:
             if rel.parent == self.table and rel.requery_table:
                 self.frm[rel.child].save_record_recursive()
-        self.save_record(True,False)
+        return self.save_record(True,False)
 
     def delete_record(self, cascade=True):
         """
