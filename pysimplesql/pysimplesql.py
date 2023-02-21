@@ -492,7 +492,8 @@ class Query:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.get_current_row().virtual: return True
+        if self.rows:
+            if self.get_current_row().virtual: return True
 
         dirty = False
         # First check the current record to see if it's dirty
@@ -964,6 +965,10 @@ class Query:
         else:
             # At minimum, we should update the description column
             new_values[self.description_column] = 'New Record'
+            # Make sure we take into account the foreign key relationships...
+            for r in self.frm.relationships:
+                if self.table == r.child_table and r.update_cascade:
+                    new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
@@ -1027,6 +1032,10 @@ class Query:
 
                     if val =='':
                         val = None
+                    
+                    # Fix for Checkboxes switching from 0 to False, and from 1 to True
+                    if type(val) is bool and type(self[v['column']]) is int:
+                        val = int(val)
                         
                     current_row[v['column']] = val
 
@@ -1037,13 +1046,13 @@ class Query:
             return SAVE_NONE + SHOW_MESSAGE
             
         # check to see if cascading-fk has changed before we update database
-        fk_changed = False
-        fk_column = self.frm.get_parent_cascade_fk(self.table)
-        if fk_column:
+        cascade_fk_changed = False
+        cascade_fk_column = self.frm.get_cascade_fk_column(self.table)
+        if cascade_fk_column:
             # check if fk 
             for v in self.frm.element_map:
-                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == fk_column:
-                    fk_changed = self.records_changed(recursive=False, column_name=v)
+                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == cascade_fk_column:
+                    cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
@@ -1066,7 +1075,7 @@ class Query:
         pk = self.get_current_pk()
 
         # If child changes parent, move index back and requery/requery_dependents
-        if fk_changed: # TODO: Research why fk_changed is triggering at timems it does not need to
+        if cascade_fk_changed and not current_row.virtual: # Virtual rows already requery, and don't have any dependents.
             self.frm[self.table].requery(select_first=False) #keep spot in table
             self.frm[self.table].requery_dependents()
 
@@ -1485,15 +1494,15 @@ class Form:
                 return r.parent_table
         return None
     
-    def get_parent_cascade_fk(self, table):
+    def get_cascade_fk_column(self, table):
         """
-        Return the parent fk that cascade-filters for the passed-in table
+        Return the cascade fk that filters for the passed-in table
         :param table: The table (str) of child
         :return: The name of the cascade-fk, or None
         """
         for qry in self.queries:
             for r in self.relationships:
-                if r.child_table == self[table].table:
+                if r.child_table == self[table].table and r.update_cascade:
                     return r.fk_column
         return None
     
