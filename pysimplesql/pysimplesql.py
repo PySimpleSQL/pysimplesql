@@ -1430,7 +1430,7 @@ class Form:
         self.queries.update({name: Query(name,self, table, pk_column, description_column, query, order)})
         self[name].set_search_order([description_column])  # set a default sort order
 
-    def add_relationship(self, join, child, fk, parent, pk, requery_table):
+    def add_relationship(self, join, child_table, fk_column, parent_table, pk_column, update_cascade):
         """
         Add a foreign key relationship between two queries of the database
         When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until queries are
@@ -1438,15 +1438,15 @@ class Form:
         Note that @Form.auto_add_relationships will do this automatically from the schema of the sqlite database,
         which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
         :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
-        :param child: The child table containing the foreign key
-        :param fk: The foreign key column of the child table
-        :param parent: The parent table containing the primary key
-        :param pk: The primary key column of the parent table
-        :param requery_table: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql)
+        :param child_table: The child table containing the foreign key
+        :param fk_column: The foreign key column of the child table
+        :param parent_Table: The parent table containing the primary key
+        :param pk_column: The primary key column of the parent table
+        :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql)
 
         :return: None
         """
-        self.relationships.append(Relationship(join, child, fk, parent, pk, requery_table, self.driver))
+        self.relationships.append(Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade))
 
     def get_relationships_for_table(self, table):
         """
@@ -1547,7 +1547,7 @@ class Form:
         relationships = self.driver.relationships()
         for r in relationships:
             logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
-            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['requery'])
+            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['update_cascade'])
 
     # Map an element to a Query.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
@@ -3017,9 +3017,9 @@ class Sqlite(SQLDriver):
                 dic={}
                 # Add the relationship if it's in the requery list
                 if row['on_update'] == 'CASCADE':
-                    dic['requery'] = True
+                    dic['update_cascade'] = True
                 else:
-                    dic['requery'] = False
+                    dic['update_cascade'] = False
                 dic['from_table'] = from_table
                 dic['to_table'] = row['table']
                 dic['from_column'] = row['from']
@@ -3128,9 +3128,9 @@ class Mysql(SQLDriver):
                 # Get the constraint information
                 constraint = self.constraint(row['CONSTRAINT_NAME'])
                 if constraint == 'CASCADE':
-                    dic['requery'] = True
+                    dic['update_cascade'] = True
                 else:
-                    dic['requery'] = False
+                    dic['update_cascade'] = False
                 dic['from_table'] = row['TABLE_NAME']
                 dic['to_table'] = row['REFERENCED_TABLE_NAME']
                 dic['from_column'] = row['COLUMN_NAME']
@@ -3263,9 +3263,9 @@ class Postgres(SQLDriver):
                 # Get the constraint information
                 #constraint = self.constraint(row['conname'])
                 if row['conname'] == 'c':
-                    dic['requery'] = True
+                    dic['update_cascade'] = True
                 else:
-                    dic['requery'] = False
+                    dic['update_cascade'] = False
                 dic['from_table'] = row['conrelid'].strip('"')
                 dic['to_table'] = row['confrelid'].strip('"')
                 dic['from_column'] = row['column_name']
