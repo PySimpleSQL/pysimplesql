@@ -1726,25 +1726,30 @@ class Form:
 
         result = 0
         show_message = True
+        failed_tables = []
         tables = self.get_cascaded_relationships() if cascade_only else self.queries
         for t in tables:
             logger.debug(f'Saving records for table {t}...')
             res = self[t].save_record(False,update_elements=False)
             if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
+            if res & SAVE_FAIL: failed_tables.append(t)
             result |= res
 
         logger.debug(f'Success: {result & SAVE_SUCCESS}, Failure: {result & SAVE_FAIL}, No Action: {result & SAVE_NONE}')
 
+        # Build a descriptive message, since the save spans many tables potentially
+        msg = ''
+        tables = ', '.join(tables)
         if result & SAVE_FAIL:
-            if show_message: sg.popup('There was a problem saving some updates.', keep_on_top=True)
+            if result & SAVE_SUCCESS:
+                msg = f"Some updates saved successfully; "
+            msg += f"There was a problem saving updates to the following tables: {tables}"
+        elif result & SAVE_SUCCESS:
+            msg = 'Updates saved successfully.'
+            self.update_elements()
         else:
-            if result & SAVE_NONE:
-                if show_message: sg.popup_quick_message('There was nothing to update.', keep_on_top=True)
-            else:
-                if show_message: sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
-                self.update_elements()
-
-
+            msg = 'There was nothing to update.'
+        if show_message: sg.popup_quick_message(msg, keep_on_top=True)
 
     def set_prompt_save(self, value: bool) -> None:
         """
