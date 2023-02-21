@@ -888,10 +888,8 @@ class Query:
                     if r.requery_table:
                         new_values[r.fk] = self.frm[r.parent].get_current_pk()
 
-        # Update the pk to match the expected pk the driver would generate on insert. This is a bit of a hack, and
-        # assumes that the sql sequence matches this expectation.  May look into this further in the future
-        new_values[self.pk_column] = max(self.rows.rows, key=lambda row: row[self.pk_column])[self.pk_column]+1
-
+        # Update the pk to match the expected pk the driver would generate on insert.
+        new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
         # Insert the new values using RecordSet.insert(). This will mark the new row as virtual!
         self.rows.insert(new_values)
@@ -2686,8 +2684,11 @@ class SQLDriver:
         return f' ORDER BY {description_column} ASC'
 
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        rows = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
-        return rows.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
+        rows = self.con.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
+        result = rows.fetchone()[f'MAX({pk_column_name})']
+        if result:
+            return result + 1
+        else: return 1
 
     def relationship_to_join_clause(selfSelf, r_obj:Relationship):
         return f'{r_obj.join} {r_obj.parent} ON {r_obj.child}.{r_obj.fk}={r_obj.parent}.{r_obj.pk}'
