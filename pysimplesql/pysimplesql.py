@@ -1444,15 +1444,15 @@ class Form:
                 return r.parent
         return None
     
-    def get_parent_cascade_fk(self, table):
+    def get_cascade_fk(self, table):
         """
-        Return the parent fk that cascade-filters for the passed-in table
+        Return the cascade fk that filters for the passed-in table
         :param table: The table (str) of child
         :return: The name of the cascade-fk, or None
         """
         for qry in self.queries:
             for r in self.relationships:
-                if r.child == self[table].table:
+                if r.child == self[table].table and r.requery_table:
                     return r.fk
         return None
     
