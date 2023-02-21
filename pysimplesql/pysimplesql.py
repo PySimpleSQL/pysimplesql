@@ -486,7 +486,8 @@ class Query:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.get_current_row().virtual: return True
+        if self.rows:
+            if self.get_current_row().virtual: return True
 
         dirty = False
         # First check the current record to see if it's dirty
