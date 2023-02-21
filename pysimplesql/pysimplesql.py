@@ -987,7 +987,7 @@ class Query:
         pk = self.get_current_pk()
 
         # If child changes parent, move index back and requery/requery_dependents
-        if cascade_fk_changed: # TODO: Research why cascade_fk_changed is triggering at timems it does not need to
+        if cascade_fk_changed and not current_row.virtual: # Virtual rows already requery, and don't have any dependents.
             self.frm[self.table].requery(select_first=False) #keep spot in table
             self.frm[self.table].requery_dependents()
 
