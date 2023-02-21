@@ -2890,7 +2890,6 @@ class SQLDriver:
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
         description = self.quote_value(f"Copy of {q_obj.get_description_for_pk(q_obj.get_current_pk())}")
-        print(description)
         table = self.quote_table(q_obj.table)
         pk_column = self.quote_column(q_obj.pk_column)
         description_column = self.quote_column(q_obj.description_column)
