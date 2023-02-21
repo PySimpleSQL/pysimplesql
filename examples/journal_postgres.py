@@ -17,7 +17,7 @@ layout=[
     [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
     [ss.actions('act_journal','Journal')],
     [ss.record('Journal.entry_date')],
-    #[ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
+    [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],
     [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]

@@ -23,6 +23,27 @@ import os.path
 import logging
 from types import SimpleNamespace ## for iconpacks
 import pysimplesql ## Needed for quick_edit pop-ups
+# Load database backends if present
+supported_databases = ['SQLite3','MySQL','PostgreSQL']
+failed_modules = 0
+try:
+    import sqlite3
+except ModuleNotFoundError:
+    failed_modules += 1
+try:
+    import mysql.connector
+except ModuleNotFoundError:
+    failed_modules += 1
+try:
+    import psycopg2
+    import psycopg2.extras
+except ModuleNotFoundError:
+    failed_modules += 1
+if failed_modules == len(supported_databases):
+    RuntimeError(f"You muse have at least one of the following databases installed to use PySimpleSQL:\n{', '.join(supported_databases)} ")
+
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -1038,18 +1059,7 @@ class Query:
             return True
 
         # Delete child records first!
-        if cascade:
-            for qry in self.frm.queries:
-                for r in self.frm.relationships:
-                    if r.parent == self.table:
-                        q = f'DELETE FROM {r.child} WHERE {r.fk}={self.get_current(self.pk_column)}'
-                        self.driver.execute(q)
-                        logger.debug(f'Delete query executed: {q}')
-                        self.frm[r.child].requery(False)
-
-
-        q = f'DELETE FROM {self.table} WHERE {self.pk_column}={self.get_current(self.pk_column)};'
-        self.driver.execute(q)
+        self.driver.delete_record(self, True)
 
         # callback
         if 'after_delete' in self.callbacks.keys():
@@ -1099,7 +1109,10 @@ class Query:
         answer = sg.popup_yes_no(msg, title='Confirm Duplicate', keep_on_top=True)
         if answer == 'No':
             return True
+        # Store our current pk so we can move to it if the duplication fails
+        pk = self.get_current_pk()
 
+        # Have the driver duplicate the record
         res = self.driver.duplicate_record(self,cascade)
         if res.exception:
             self.driver.rollback()
@@ -2530,7 +2543,16 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # ======================================================================================================================
 # DATABASE ABSTRACTION
 # ======================================================================================================================
+# The database abstraction hides the complexity of dealing with multiple databases.  The concept relies on individual
+# "drivers" that derive from the SQLDriver class, and return a generic ResultSet instance, which contains a collection
+# of generic ResultRow instances.
+# ----------------------------------------------------------------------------------------------------------------------
 class ResultRow:
+    # The ResulRow class is a generic row class.  It holds a dict containing the columns and values of the row, along
+    # with a "virtual" flag.  A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
+    # This is useful for inserting records or other temporary storage of records.  Note that when querying a database,
+    # the virtual flag will never be set - it is only set by the end user by calling <ResultSet>.insert() to insert a
+    # new virtual row.
     def __init__(self, row:dict, virtual=False):
         self.row = row
         self.virtual=virtual
@@ -2544,17 +2566,20 @@ class ResultRow:
     def __setitem__(self, key, value):
         self.row[key] = value
 
-
     def __lt__(self, other, key):
         return self.row[key] < other.row[key]
 
     def items(self):
+        # forward calls to .items() to the underlying row dict
         return self.row.items()
 
     def copy(self):
+        # return a copy of this row
         return ResultRow(self.row.copy(), virtual=self.virtual)
 
 class ResultSet:
+    # The ResultSet class is a generic result class so that working with the resultset of the different supported
+    # databases behaves in a consistent manner.
     def __init__(self, rows:list=[], lastrowid=None, exception=None):
         self.rows = [ResultRow(r) for r in rows]
         self.lastrowid = lastrowid
@@ -2584,9 +2609,10 @@ class ResultSet:
         return len(self.rows)
 
     def fetchone(self):
-        return self.rows[0] if len(Self.rows) else []
+        return self.rows[0] if len(self.rows) else []
 
     def insert(self, row:dict, idx:int = None):
+        # Insert a new row manually.  This will mark the row as virtual, as it did not come from the database.
         self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
 
     def purge_virtual(self):
@@ -2595,15 +2621,27 @@ class ResultSet:
 
 # TODO min_pk, max_pk
 class SQLDriver:
-    # REQUIRED IMPLEMENTATIONS
-    # DERIVED CLASSES MUST IMPLEMENT THE FOLLOWING
-    def __init__(self):
+    # Abstract SQLDriver class.  Derive from this class to create drivers that conform to PySimpleSQL.  This ensures
+    # that the same code will work the same way regardless of which database is used.  There are a few important things
+    # to note:
+    # The commented code below is broken into methods that MUST be implemented in the derived class, methods that SHOULD
+    # be implemented in the derived class, and methods that MAY need to be implemented in the derived class for it to
+    # work as expected.  Most derived drivers will at least partially work by implementing the MUST have methods.
+
+    # ---------------------------------------------------------------------
+    # MUST implement
+    # in order to function
+    # ---------------------------------------------------------------------
+    def __init__(self, *args, **kwargs):
         con = None
 
     def connect(self, database):
         raise NotImplementedError
 
     def execute(self, query, values=None):
+        raise NotImplementedError
+
+    def execute_script(self, script:str):
         raise NotImplementedError
 
     def table_names(self):
@@ -2621,9 +2659,38 @@ class SQLDriver:
     def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
         raise NotImplementedError
 
+    # ---------------------------------------------------------------------
+    # SHOULD implement
+    # based on specifics of the database
+    # ---------------------------------------------------------------------
 
-    # DEFAULT IMPLEMENTATIONS
-    # OVERRIDE ANY OF THE FOLLOWING IN DERIVED CLASSES IF NEEDED
+    # QUOTING METHODS
+    # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
+    # in the SQL string should be quoted. Override these in the derived class as needed to satisfy SQL requirements
+    def quote_table(self, table: str):
+        # default to no quoting
+        return table
+    def quote_column(self, column: str):
+        # default to no quoting
+        return column
+    def quote_value(self, value: str):
+        # default to single quotes
+        return f"'{value}'"
+
+    # This is a generic way to estimate the next primary key to be generated.
+    # Note that this is not always a reliable way, as manual inserts which assign a primary key value don't always
+    # update the sequencer for the given database.  This is just a default way to "get things working", but the best
+    # bet is to override this in the derived class and get the value right from the sequencer.
+    def next_pk(self, table_name: str, pk_column_name: str) -> int:
+        n = self.max_pk(table_name, pk_column_name) + 1
+        return n if n else 1
+
+    # ---------------------------------------------------------------------
+    # MAY need to be implemented
+    # These default implementations will likely work for most SQL databases.
+    # Override any of the following methods as needed.
+    # ---------------------------------------------------------------------
+
     def commit(self):
         self.con.commit()
 
@@ -2634,17 +2701,28 @@ class SQLDriver:
         self.con.close()
 
     def default_query(self, table):
+        table=self.quote_table(table)
         return f'SELECT {table}.* FROM {table}'
 
     def default_order(self, description_column):
+        description_column = self.quote_column(description_column)
         return f' ORDER BY {description_column} ASC'
 
-    def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        rows = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
-        return rows.fetchone()[f'MAX({pk_column_name})'] + 1 if result else 1
+    def relationship_to_join_clause(self, r_obj:Relationship):
+        parent = self.quote_table(r_obj.parent)
+        child = self.quote_table(r_obj.child)
+        fk = self.quote_column(r_obj.fk)
+        pk = self.quote_column(r_obj.pk)
 
-    def relationship_to_join_clause(selfSelf, r_obj:Relationship):
-        return f'{r_obj.join} {r_obj.parent} ON {r_obj.child}.{r_obj.fk}={r_obj.parent}.{r_obj.pk}'
+        return f'{r_obj.join} {parent} ON {child}.{fk}={parent}.{pk}'
+
+    def min_pk(self, table_name: str, pk_column_name: str) -> int:
+        rows = self.execute(f"SELECT MIN({pk_column_name}) FROM {table_name}")
+        return rows.fetchone()[f'MAX({pk_column_name})']
+
+    def max_pk(self, table_name: str, pk_column_name: str) -> int:
+        rows = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
+        return rows.fetchone()[f'MAX({pk_column_name})']
 
     def generate_join_clause(self, q_obj:Query) -> str:
         """
@@ -2675,9 +2753,10 @@ class SQLDriver:
         for r in q_obj.frm.relationships:
             if q_obj.table == r.child:
                 if r.requery_table:
+                    table = q_obj.table
                     parent_pk = q_obj.frm[r.parent].get_current(r.pk)
                     if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
-                    clause=f' WHERE {q_obj.table}.{r.fk}={str(parent_pk)}'
+                    clause=f' WHERE {table}.{r.fk}={str(parent_pk)}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
 
@@ -2709,18 +2788,41 @@ class SQLDriver:
         q += f' {q_obj.order if order else ""}'
         return q
 
+    def delete_record(self, q_obj:Query, cascade=True): # TODO: get ON DELETE CASCADE from db
+        # Delete child records first!
+        if cascade:
+            for qry in q_obj.frm.queries:
+                for r in q_obj.frm.relationships:
+                    if r.parent == q_obj.table:
+                        child = self.quote_table(r.child)
+                        fk_column = self.quote_column(q_obj.fk)
+                        q = f'DELETE FROM {child} WHERE {fk_column}={q_obj.get_current(q_obj.pk_column)}'
+                        self.execute(q)
+                        logger.debug(f'Delete query executed: {q}')
+                        q_obj.frm[r.child].requery(False)
+
+        table = self.quote_table(q_obj.table)
+        pk_column = self.quote_column(q_obj.pk_column)
+        q = f'DELETE FROM {table} WHERE {pk_column}={q_obj.get_current(q_obj.pk_column)};'
+        self.execute(q)
+
     def duplicate_record(self, q_obj:Query, cascade:bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        description = q_obj.get_description_for_pk(q_obj.get_current_pk())
+        description = self.quote_value(f"Copy of {q_obj.get_description_for_pk(q_obj.get_current_pk())}")
+        print(description)
+        table = self.quote_table(q_obj.table)
+        pk_column = self.quote_column(q_obj.pk_column)
+        description_column = self.quote_column(q_obj.description_column)
+
         query= []
         query.append('DROP TABLE IF EXISTS tmp;')
-        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {q_obj.table} WHERE {q_obj.pk_column}={q_obj.get_current(q_obj.pk_column)}')
-        query.append(f'UPDATE tmp SET {q_obj.pk_column} = NULL')
-        query.append(f'UPDATE tmp SET {q_obj.description_column} = "Copy of {description}"')
-        query.append(f'INSERT INTO {q_obj.table} SELECT * FROM tmp')
+        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {table} WHERE {pk_column}={q_obj.get_current(q_obj.pk_column)}')
+        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(q_obj.table, q_obj.pk_column)}')
+        query.append(f'UPDATE tmp SET {description_column} = {description}')
+        query.append(f'INSERT INTO {table} SELECT * FROM tmp')
         for q in query:
             res = self.execute(q)
             if res.exception: return res
@@ -2735,12 +2837,17 @@ class SQLDriver:
             for qry in q_obj.frm.queries:
                 for r in q_obj.frm.relationships:
                     if r.parent == q_obj.table and r.requery_table and (r.child not in child_duplicated):
+                        child = self.quote_table(r.child)
+                        fk = self.quote_column(r.fk)
+                        pk_column = self.quote_column(q_obj.frm[r.child].pk_column)
+                        fk_column = self.quote_column(r.fk)
+
                         query = []
                         query.append('DROP TABLE IF EXISTS tmp;')
-                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={q_obj.get_current(q_obj.pk_column)}')
-                        query.append(f'UPDATE tmp SET {q_obj.frm[r.child].pk_column} = NULL')
-                        query.append(f'UPDATE tmp SET {r.fk} = {pk}')
-                        query.append(f'INSERT INTO {r.child} SELECT * FROM tmp')
+                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}={q_obj.get_current(q_obj.pk_column)}')
+                        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(r.child, r.pk)}')
+                        query.append(f'UPDATE tmp SET {fk_column} = {pk}')
+                        query.append(f'INSERT INTO {child} SELECT * FROM tmp')
                         query.append('DROP TABLE IF EXISTS tmp;')
                         for q in query:
                             res = self.execute(q)
@@ -2749,13 +2856,11 @@ class SQLDriver:
                         child_duplicated.append(r.child)
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
-# --------------
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 # SQLITE3 DRIVER
-# --------------
-try:
-    import sqlite3
-except ModuleNotFoundError:
-    pass
+# ----------------------------------------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
         new_database = False
@@ -2879,10 +2984,6 @@ class Sqlite(SQLDriver):
 # --------------
 # MYSQL DRIVER
 # --------------
-try:
-    import mysql.connector
-except ModuleNotFoundError:
-    pass
 class Mysql(SQLDriver):
     def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
         self.host = host
@@ -2966,11 +3067,6 @@ class Mysql(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def constraint(self,constraint_name):
-        query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
-        rows = self.execute(query)
-        return rows[0]['UPDATE_RULE']
-
     def execute_script(self,script):
         with open(script, 'r') as file:
             logger.info(f'Loading script {script} into database.')
@@ -2994,16 +3090,20 @@ class Mysql(SQLDriver):
             sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
             return False
         return True
+
+    # Not required for SQLDriver
+    def constraint(self,constraint_name):
+        query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
+        rows = self.execute(query)
+        return rows[0]['UPDATE_RULE']
+
 # ---------------
 # POSTGRES DRIVER
 # ---------------
-try:
-    import psycopg2
-    import psycopg2.extras
-except ModuleNotFoundError:
-    pass
-
 class Postgres(SQLDriver):
+    def quote_table(self, table:str):
+        return f'"{table}"'
+
     def __init__(self,host,user,password,database,sql_script=None, sql_commands=None):
         self.host = host
         self.user = user
@@ -3070,8 +3170,6 @@ class Postgres(SQLDriver):
         cur = self.execute(query)
         row = cur.fetchone()
         return row['column_name'] if row else None
-    def relationship_to_join_clause(selfSelf, r_obj:Relationship):
-        return f'{r_obj.join} "{r_obj.parent}" ON "{r_obj.child}".{r_obj.fk}="{r_obj.parent}".{r_obj.pk}'
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -3103,55 +3201,12 @@ class Postgres(SQLDriver):
                 relationships.append(dic)
         return relationships
 
+    def min_pk(self, table_name: str, pk_column_name: str) -> int:
+        rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM "{table_name}";')
+        return rows.fetchone()[f'min_pk']
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        result = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS next_pk FROM "{table_name}";')
-        return result.fetchone()[f'next_pk'] + 1 if result else 1
-
-    def default_query(self, table):
-        return f'SELECT "{table}".* FROM "{table}"'
-
-    def generate_join_clause(self, q_obj:Query) -> str:
-        """
-        Automatically generates a join clause from the Relationships that have been set
-
-        This typically isn't used by end users
-
-        :returns: A join string to be used in a sqlite3 query
-        :rtype: str
-        """
-        join = ''
-        for r in q_obj.frm.relationships:
-            if q_obj.table == r.child:
-                join += f' {self.relationship_to_join_clause(r)}'
-        return join if q_obj.join == '' else q_obj.join
-
-    def generate_where_clause(self, q_obj:Query) -> str:
-        """
-        Generates a where clause from the Relationships that have been set, as well as the Query's where clause
-
-        This is not typically used by end users
-
-        :returns: A where clause string to be used in a sqlite3 query
-        :rtype: str
-        """
-        where = ''
-        for r in q_obj.frm.relationships:
-            if q_obj.table == r.child:
-                if r.requery_table:
-                    parent_pk = q_obj.frm[r.parent].get_current(r.pk)
-                    if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
-                    clause=f' WHERE "{q_obj.table}".{r.fk}={str(parent_pk)}'
-                    if where!='': clause=clause.replace('WHERE','AND')
-                    where += clause
-
-        if where == '':
-            # There was no where clause from Relationships..
-            where = q_obj.where
-        else:
-            # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            where = where + ' ' + q_obj.where.replace('WHERE', 'AND')
-
-        return where
+        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM "{table_name}";')
+        return rows.fetchone()[f'max_pk'] + 1 if rows else 1
 
     def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
         # Make sure the changed dict includes the PK
@@ -3172,42 +3227,9 @@ class Postgres(SQLDriver):
             return False
         return True
 
-    def duplicate_record(self, q_obj: Query, cascade: bool) -> ResultSet:
+    def execute_script(self, script):
+        pass
 
-        description = q_obj.get_description_for_pk(q_obj.get_current_pk())
-        query = []
-        query.append('DROP TABLE IF EXISTS tmp;')
-        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {q_obj.table} WHERE {q_obj.pk_column}={q_obj.get_current(q_obj.pk_column)}')
-        query.append(f'UPDATE tmp SET {q_obj.pk_column} = NULL')
-        query.append(f'UPDATE tmp SET {q_obj.description_column} = \'Copy of {description}\'')
-        query.append(f'INSERT INTO "{q_obj.table}" SELECT * FROM tmp')
-        for q in query:
-            res = self.execute(q)
-            if res.exception: return res
-
-        # Now we save the new pk
-        pk = res.lastrowid
-
-        # create list of which children we have duplicated
-        child_duplicated = []
-        # Next, duplicate the child records!
-        if cascade:
-            for qry in q_obj.frm.queries:
-                for r in q_obj.frm.relationships:
-                    if r.parent == q_obj.table and r.requery_table and (r.child not in child_duplicated):
-                        query = []
-                        query.append('DROP TABLE IF EXISTS tmp;')
-                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={q_obj.get_current(q_obj.pk_column)}')
-                        query.append(f'UPDATE tmp SET {q_obj.frm[r.child].pk_column} = NULL')
-                        query.append(f'UPDATE tmp SET {r.fk} = {pk}')
-                        query.append(f'INSERT INTO "{r.child}" SELECT * FROM tmp')
-                        for q in query:
-                            res = self.execute(q)
-                            if res.exception: return res
-
-                        child_duplicated.append(r.child)
-        # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
-        return ResultSet(lastrowid=pk)
 
 # ======================================================================================================================
 # ALIASES
