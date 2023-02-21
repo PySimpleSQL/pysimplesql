@@ -2736,6 +2736,7 @@ class SQLDriver:
                 for r in q_obj.frm.relationships:
                     if r.parent == q_obj.table and r.requery_table and (r.child not in child_duplicated):
                         query = []
+                        query.append('DROP TABLE IF EXISTS tmp;')
                         query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={q_obj.get_current(q_obj.pk_column)}')
                         query.append(f'UPDATE tmp SET {q_obj.frm[r.child].pk_column} = NULL')
                         query.append(f'UPDATE tmp SET {r.fk} = {pk}')
