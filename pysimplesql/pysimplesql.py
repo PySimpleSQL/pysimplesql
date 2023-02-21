@@ -187,31 +187,31 @@ class Relationship:
     .. note:: This class is not typically used the end user,
     """
 
-    def __init__(self, join:str, child:str, fk:Union[str,int], parent:str, pk:Union[str,int], requery_table:bool, driver:SQLDriver) -> Relationship:
+    def __init__(self, join:str, child_table:str, fk_column:Union[str,int], parent_table:str, pk_column:Union[str,int], update_cascade:bool, driver:SQLDriver) -> Relationship:
         """
         Initialize a new Relationship instance
 
         :param join: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
         :type: str
-        :param child: The table name of the child table
-        :type child: str
-        :param fk: The child table's foreign key column
-        :type fk: Union[str,int]
-        :param parent: The table name of the parent table
-        :type parent: str
-        :param pk: The parent table's primary key column
-        :type pk: Union[str,int]
+        :param child_table: The table name of the child table
+        :type child_table: str
+        :param fk_column: The child table's foreign key column
+        :type fk_column: Union[str,int]
+        :param parent_table: The table name of the parent table
+        :type parent_table: str
+        :param pk_column: The parent table's primary key column
+        :type pk_column: Union[str,int]
         :param driver: The SQLDriver
         :type driver: SQLDriver
         :returns: A Relationship instance
         :rtype: Relationship
         """
         self.join = join
-        self.child = child
-        self.fk = fk
-        self.parent = parent
-        self.pk = pk
-        self.requery_table = requery_table
+        self.child_table = child_table
+        self.fk_column = fk_column
+        self.parent_table = parent_table
+        self.pk_column = pk_column
+        self.update_cascade = update_cascade
 
     def __str__(self):
         """
@@ -556,8 +556,8 @@ class Query:
         # handle recursive checking next
         if recursive:
             for rel in self.frm.relationships:
-                if rel.parent == self.table and rel.requery_table:
-                    dirty = self.frm[rel.child].records_changed()
+                if rel.parent_table == self.table and rel.update_cascade:
+                    dirty = self.frm[rel.child_table].records_changed()
                     if dirty: break
         return dirty
 
@@ -643,9 +643,9 @@ class Query:
         """
         if child: self.requery(update=update,dependents=False) # dependents=False: we don't another recursive dependent requery
         for rel in self.frm.relationships:
-            if rel.parent == self.table and rel.requery_table:
-                logger.debug(f"Requerying dependent table {self.frm[rel.child].table}")
-                self.frm[rel.child].requery_dependents(child=True,update=update)
+            if rel.parent_table == self.table and rel.update_cascade:
+                logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
+                self.frm[rel.child_table].requery_dependents(child=True, update=update)
 
     def first(self,update=True, dependents=True, skip_prompt_save=False):
         """
@@ -1019,8 +1019,8 @@ class Query:
     def save_record_recursive(self):
         # save relationships
         for rel in self.frm.relationships:
-            if rel.parent == self.table and rel.requery_table:
-                self.frm[rel.child].save_record_recursive()
+            if rel.parent_table == self.table and rel.update_cascade:
+                self.frm[rel.child_table].save_record_recursive()
         return self.save_record(True,False)
 
     def delete_record(self, cascade=True):
@@ -1044,8 +1044,8 @@ class Query:
         if cascade:
             for qry in self.frm.queries:
                 for r in self.frm.relationships:
-                    if r.parent == self.table and r.requery_table:
-                        children.append(r.child)
+                    if r.parent_table == self.table and r.update_cascade:
+                        children.append(r.child_table)
         
         children = list(set(children))
         if len(children):
@@ -1096,8 +1096,8 @@ class Query:
         if cascade:
             for qry in self.frm.queries:
                 for r in self.frm.relationships:
-                    if r.parent == self.table and r.requery_table:
-                        children.append(r.child)
+                    if r.parent_table == self.table and r.update_cascade:
+                        children.append(r.child_table)
         
         children = list(set(children))
         if len(children):
@@ -1129,7 +1129,7 @@ class Query:
         self.driver.commit()
         
         # move to new pk
-        self.frm[r.child].requery(False)
+        self.frm[r.child_table].requery(False)
         self.requery()
         self.set_by_pk(pk)
         self.requery_dependents()
@@ -1158,8 +1158,8 @@ class Query:
             for col in column_names:
                 found = False
                 for rel in rels:
-                    if col == rel.fk:
-                        lst.append(self.frm[rel.parent].get_description_for_pk(row[col]))
+                    if col == rel.fk_column:
+                        lst.append(self.frm[rel.parent_table].get_description_for_pk(row[col]))
                         found = True
                         break
                 if not found: lst.append(row[col])
@@ -1170,8 +1170,8 @@ class Query:
     def get_related_table_for_column(self,col):
         rels = self.frm.get_relationships_for_table(self)
         for rel in rels:
-            if col == rel.fk:
-                return rel.parent
+            if col == rel.fk_column:
+                return rel.parent_table
         return self.name # None could be found, return ourself
 
     def quick_editor(self, pk_update_funct=None,funct_param=None):
@@ -1386,7 +1386,7 @@ class Form:
         """
         rel = []
         for r in self.relationships:
-            if r.child == table.table:
+            if r.child_table == table.table:
                 rel.append(r)
         return rel
 
@@ -1397,9 +1397,9 @@ class Form:
         """
         rel = []
         for r in self.relationships:
-            if r.requery_table:
-                rel.append(r.parent)
-                rel.append(r.child)
+            if r.update_cascade:
+                rel.append(r.parent_table)
+                rel.append(r.child_table)
         # make unique
         rel = list(set(rel))
         return rel
@@ -1411,8 +1411,8 @@ class Form:
         :return: The name of the Parent table, or '' if there is none
         """
         for r in self.relationships:
-            if r.child == table and r.requery_table:
-                return r.parent
+            if r.child_table == table and r.update_cascade:
+                return r.parent_table
         return None
     
     def get_parent_cascade_fk(self, table):
@@ -1423,8 +1423,8 @@ class Form:
         """
         for qry in self.queries:
             for r in self.relationships:
-                if r.child == self[table].table:
-                    return r.fk
+                if r.child_table == self[table].table:
+                    return r.fk_column
         return None
     
     def auto_add_queries(self, prefix_queries=''):
@@ -1831,8 +1831,8 @@ class Form:
                 target_table=None
                 rels = self.get_relationships_for_table(d['query'])
                 for rel in rels:
-                    if rel.fk == d['column']:
-                        target_table = self[rel.parent]
+                    if rel.fk_column == d['column']:
+                        target_table = self[rel.parent_table]
                         pk = target_table.pk_column
                         description = target_table.description_column
                         break
@@ -1850,9 +1850,9 @@ class Form:
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
-                        if row[target_table.pk_column] == d['query'][rel.fk]:
+                        if row[target_table.pk_column] == d['query'][rel.fk_column]:
                             for entry in lst:
-                                if entry.get_pk() == d['query'][rel.fk]:
+                                if entry.get_pk() == d['query'][rel.fk_column]:
                                     updated_val = entry
                                     break
                             break
@@ -2708,10 +2708,10 @@ class SQLDriver:
         return f' ORDER BY {description_column} ASC'
 
     def relationship_to_join_clause(self, r_obj:Relationship):
-        parent = self.quote_table(r_obj.parent)
-        child = self.quote_table(r_obj.child)
-        fk = self.quote_column(r_obj.fk)
-        pk = self.quote_column(r_obj.pk)
+        parent = self.quote_table(r_obj.parent_table)
+        child = self.quote_table(r_obj.child_table)
+        fk = self.quote_column(r_obj.fk_column)
+        pk = self.quote_column(r_obj.pk_column)
 
         return f'{r_obj.join} {parent} ON {child}.{fk}={parent}.{pk}'
 
@@ -2734,7 +2734,7 @@ class SQLDriver:
         """
         join = ''
         for r in q_obj.frm.relationships:
-            if q_obj.table == r.child:
+            if q_obj.table == r.child_table:
                 join += f' {self.relationship_to_join_clause(r)}'
         return join if q_obj.join == '' else q_obj.join
 
@@ -2750,12 +2750,12 @@ class SQLDriver:
         """
         where = ''
         for r in q_obj.frm.relationships:
-            if q_obj.table == r.child:
-                if r.requery_table:
+            if q_obj.table == r.child_table:
+                if r.update_cascade:
                     table = q_obj.table
-                    parent_pk = q_obj.frm[r.parent].get_current(r.pk)
+                    parent_pk = q_obj.frm[r.parent_table].get_current(r.pk_column)
                     if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
-                    clause=f' WHERE {table}.{r.fk}={str(parent_pk)}'
+                    clause=f' WHERE {table}.{r.fk_column}={str(parent_pk)}'
                     if where!='': clause=clause.replace('WHERE','AND')
                     where += clause
 
@@ -2792,13 +2792,13 @@ class SQLDriver:
         if cascade:
             for qry in q_obj.frm.queries:
                 for r in q_obj.frm.relationships:
-                    if r.parent == q_obj.table:
-                        child = self.quote_table(r.child)
+                    if r.parent_table == q_obj.table:
+                        child = self.quote_table(r.child_table)
                         fk_column = self.quote_column(q_obj.fk)
                         q = f'DELETE FROM {child} WHERE {fk_column}={q_obj.get_current(q_obj.pk_column)}'
                         self.execute(q)
                         logger.debug(f'Delete query executed: {q}')
-                        q_obj.frm[r.child].requery(False)
+                        q_obj.frm[r.child_table].requery(False)
 
         table = self.quote_table(q_obj.table)
         pk_column = self.quote_column(q_obj.pk_column)
@@ -2835,16 +2835,16 @@ class SQLDriver:
         if cascade:
             for qry in q_obj.frm.queries:
                 for r in q_obj.frm.relationships:
-                    if r.parent == q_obj.table and r.requery_table and (r.child not in child_duplicated):
-                        child = self.quote_table(r.child)
-                        fk = self.quote_column(r.fk)
-                        pk_column = self.quote_column(q_obj.frm[r.child].pk_column)
-                        fk_column = self.quote_column(r.fk)
+                    if r.parent_table == q_obj.table and r.update_cascade and (r.child_table not in child_duplicated):
+                        child = self.quote_table(r.child_table)
+                        fk = self.quote_column(r.fk_column)
+                        pk_column = self.quote_column(q_obj.frm[r.child_table].pk_column)
+                        fk_column = self.quote_column(r.fk_column)
 
                         query = []
                         query.append('DROP TABLE IF EXISTS tmp;')
                         query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}={q_obj.get_current(q_obj.pk_column)}')
-                        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(r.child, r.pk)}')
+                        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(r.child_table, r.pk_column)}')
                         query.append(f'UPDATE tmp SET {fk_column} = {pk}')
                         query.append(f'INSERT INTO {child} SELECT * FROM tmp')
                         query.append('DROP TABLE IF EXISTS tmp;')
@@ -2852,7 +2852,7 @@ class SQLDriver:
                             res = self.execute(q)
                             if res.exception: return res
                             
-                        child_duplicated.append(r.child)
+                        child_duplicated.append(r.child_table)
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
