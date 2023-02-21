@@ -1041,7 +1041,7 @@ class Query:
 
         changed = {k:v for k,v in current_row.items()}
 
-        if not self.records_changed():
+        if not self.records_changed(recursive=False):
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
             
