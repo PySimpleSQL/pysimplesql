@@ -952,13 +952,13 @@ class Query:
             return SAVE_NONE + SHOW_MESSAGE
             
         # check to see if cascading-fk has changed before we update database
-        fk_changed = False
-        fk_column = self.frm.get_parent_cascade_fk(self.table)
-        if fk_column:
+        cascade_fk_changed = False
+        cascade_fk_column = self.frm.get_cascade_fk(self.table)
+        if cascade_fk_column:
             # check if fk 
             for v in self.frm.element_map:
-                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == fk_column:
-                    fk_changed = self.records_changed(recursive=False, column_name=v)
+                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == cascade_fk_column:
+                    cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
@@ -981,7 +981,7 @@ class Query:
         pk = self.get_current_pk()
 
         # If child changes parent, move index back and requery/requery_dependents
-        if fk_changed: # TODO: Research why fk_changed is triggering at timems it does not need to
+        if cascade_fk_changed: # TODO: Research why cascade_fk_changed is triggering at timems it does not need to
             self.frm[self.table].requery(select_first=False) #keep spot in table
             self.frm[self.table].requery_dependents()
 
