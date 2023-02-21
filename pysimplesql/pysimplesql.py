@@ -3171,6 +3171,44 @@ class Postgres(SQLDriver):
             sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
             return False
         return True
+
+    def duplicate_record(self, q_obj: Query, cascade: bool) -> ResultSet:
+
+        description = q_obj.get_description_for_pk(q_obj.get_current_pk())
+        query = []
+        query.append('DROP TABLE IF EXISTS tmp;')
+        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {q_obj.table} WHERE {q_obj.pk_column}={q_obj.get_current(q_obj.pk_column)}')
+        query.append(f'UPDATE tmp SET {q_obj.pk_column} = NULL')
+        query.append(f'UPDATE tmp SET {q_obj.description_column} = \'Copy of {description}\'')
+        query.append(f'INSERT INTO "{q_obj.table}" SELECT * FROM tmp')
+        for q in query:
+            res = self.execute(q)
+            if res.exception: return res
+
+        # Now we save the new pk
+        pk = res.lastrowid
+
+        # create list of which children we have duplicated
+        child_duplicated = []
+        # Next, duplicate the child records!
+        if cascade:
+            for qry in q_obj.frm.queries:
+                for r in q_obj.frm.relationships:
+                    if r.parent == q_obj.table and r.requery_table and (r.child not in child_duplicated):
+                        query = []
+                        query.append('DROP TABLE IF EXISTS tmp;')
+                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {r.child} WHERE {r.fk}={q_obj.get_current(q_obj.pk_column)}')
+                        query.append(f'UPDATE tmp SET {q_obj.frm[r.child].pk_column} = NULL')
+                        query.append(f'UPDATE tmp SET {r.fk} = {pk}')
+                        query.append(f'INSERT INTO "{r.child}" SELECT * FROM tmp')
+                        for q in query:
+                            res = self.execute(q)
+                            if res.exception: return res
+
+                        child_duplicated.append(r.child)
+        # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
+        return ResultSet(lastrowid=pk)
+
 # ======================================================================================================================
 # ALIASES
 # ======================================================================================================================
