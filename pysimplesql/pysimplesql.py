@@ -148,7 +148,7 @@ def escape(query_string:str) -> str:
     query_string = str(query_string)
     return query_string
 
-class Row:
+class ElementRow:
     """
     This is a convenience class used by listboxes and comboboxes to display values while keeping them linked to a primary key.
 
@@ -522,7 +522,7 @@ class Query:
                 table_val = self[c['column']]
 
                 # For elements where the value is a Row type, we need to compare primary keys
-                if type(element_val) is Row:
+                if type(element_val) is ElementRow:
                     element_val = element_val.get_pk()
 
                 # For checkboxes
@@ -1846,7 +1846,7 @@ class Form:
                 else:
                     lst = []
                     for row in target_table.rows:
-                        lst.append(Row(row[pk], row[description]))
+                        lst.append(ElementRow(row[pk], row[description]))
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
@@ -1930,11 +1930,11 @@ class Form:
                         for r in table.rows:
                             if e['where_column'] is not None:
                                 if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
-                                    lst.append(Row(r[pk], r[column]))
+                                    lst.append(ElementRow(r[pk], r[column]))
                                 else:
                                     pass
                             else:
-                                lst.append(Row(r[pk], r[column]))
+                                lst.append(ElementRow(r[pk], r[column]))
 
                         element.update(values=lst, set_to_index=table.current_index)
 
