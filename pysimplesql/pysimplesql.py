@@ -1041,7 +1041,7 @@ class Query:
 
         changed = {k:v for k,v in current_row.items()}
 
-        if not self.records_changed():
+        if not self.records_changed(recursive=False):
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
             
@@ -2873,7 +2873,7 @@ class SQLDriver:
                 for r in q_obj.frm.relationships:
                     if r.parent_table == q_obj.table:
                         child = self.quote_table(r.child_table)
-                        fk_column = self.quote_column(q_obj.fk)
+                        fk_column = self.quote_column(r.fk_column)
                         q = f'DELETE FROM {child} WHERE {fk_column}={q_obj.get_current(q_obj.pk_column)}'
                         self.execute(q)
                         logger.debug(f'Delete query executed: {q}')
