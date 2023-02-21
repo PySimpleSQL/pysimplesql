@@ -2632,6 +2632,7 @@ class SQLDriver:
     # ---------------------------------------------------------------------
     def __init__(self, *args, **kwargs):
         con = None
+        name = "Generic SQL Driver" # override in derived class
 
     def connect(self, database):
         raise NotImplementedError
@@ -2861,6 +2862,7 @@ class SQLDriver:
 # ----------------------------------------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
+        self.name = "SQLite3"
         new_database = False
         if db_path is not None:
             logger.info(f'Opening database: {db_path}')
@@ -2979,11 +2981,12 @@ class Sqlite(SQLDriver):
             return False
         return True
 
-# --------------
+# ----------------------------------------------------------------------------------------------------------------------
 # MYSQL DRIVER
-# --------------
+# ----------------------------------------------------------------------------------------------------------------------
 class Mysql(SQLDriver):
     def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
+        self.name = "MySQL"
         self.host = host
         self.user = user
         self.password = password
@@ -3095,14 +3098,15 @@ class Mysql(SQLDriver):
         rows = self.execute(query)
         return rows[0]['UPDATE_RULE']
 
-# ---------------
+# ----------------------------------------------------------------------------------------------------------------------
 # POSTGRES DRIVER
-# ---------------
+# ----------------------------------------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
     def quote_table(self, table:str):
         return f'"{table}"'
 
     def __init__(self,host,user,password,database,sql_script=None, sql_commands=None):
+        self.name = 'PostgreSQL'
         self.host = host
         self.user = user
         self.password = password
