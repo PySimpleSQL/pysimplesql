@@ -903,10 +903,8 @@ class Query:
             # At minimum, we should update the description column
             new_values[self.description_column] = 'New Record'
 
-        # Update the pk to match the expected pk the driver would generate on insert. This is a bit of a hack, and
-        # assumes that the sql sequence matches this expectation.  May look into this further in the future
-        new_values[self.pk_column] = max(self.rows.rows, key=lambda row: row[self.pk_column])[self.pk_column]+1
-
+        # Update the pk to match the expected pk the driver would generate on insert.
+        new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
         # Insert the new values using RecordSet.insert(). This will mark the new row as virtual!
         self.rows.insert(new_values)
