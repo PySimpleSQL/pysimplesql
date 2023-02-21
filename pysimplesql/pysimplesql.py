@@ -60,27 +60,33 @@ EVENT_SEARCH_DB=10
 EVENT_SAVE_DB=11
 EVENT_EDIT_PROTECT_DB=12
 
-# --------------------
-# PROMPT_SAVE Returns
-# --------------------
-PROMPT_DISCARDED = 0
-PROMPT_PROCEED = 1
-PROMPT_NONE = 2
+# ----------------
+# GENERIC BITMASKS
+# ----------------
+# Can be used with other bitmask values
+SHOW_MESSAGE  = 4096
 
-# ------------------------
-# RECORD SAVE RETURN TYPES
-# ------------------------
-SAVE_FAIL = 0     # Save failed due to callback
-SAVE_SUCCESS = 1  # Save was successful
-SAVE_NONE =2      # There was nothing to save
+# ---------------------------
+# PROMPT_SAVE RETURN BITMASKS
+# ---------------------------
+PROMPT_SAVE_DISCARDED = 1
+PROMPT_SAVE_PROCEED   = 2
+PROMPT_SAVE_NONE      = 4
 
-# --------------------
-# SEARCH RETURN VALUES
-# --------------------
-SEARCH_FAILED = 0   # No result was found
-SEARCH_RETURNED = 1 # A result was found
-SEARCH_ABORTED = 2  # The search was aborted, likely during a callback
-SEARCH_ENDED = 3  # We have reached the end of the search
+# ---------------------------
+# RECORD SAVE RETURN BITMASKS
+# ---------------------------
+SAVE_FAIL    = 1 # Save failed due to callback
+SAVE_SUCCESS = 2 # Save was successful
+SAVE_NONE    = 4 # There was nothing to save
+
+# ----------------------
+# SEARCH RETURN BITMASKS
+# ----------------------
+SEARCH_FAILED   = 1 # No result was found
+SEARCH_RETURNED = 2 # A result was found
+SEARCH_ABORTED  = 4 # The search was aborted, likely during a callback
+SEARCH_ENDED    = 8 # We have reached the end of the search
 
 
 def strip(string:str) -> str:
@@ -535,7 +541,7 @@ class Query:
         return dirty
 
 
-    def prompt_save(self, autosave=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
+    def prompt_save(self, autosave=False) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
         :param autosave: True to autosave when changes are found without prompting the user
@@ -546,7 +552,7 @@ class Query:
         # Return False if there is nothing to check or _prompt_save is False
         # TODO: children too?
         if self.current_index is None or self.rows == [] or self._prompt_save is False:
-            return PROMPT_NONE
+            return PROMPT_SAVE_NONE
 
         # Check if any records have changed
         changed = self.records_changed()
@@ -558,12 +564,12 @@ class Query:
             if save_changes == 'Yes':
                 # save this record
                 self.save_record_recursive()
-                return PROMPT_PROCEED
+                return PROMPT_SAVE_PROCEED
             else:
                 self.rows.purge_virtual()
-                return PROMPT_DISCARDED
+                return PROMPT_SAVE_DISCARDED
         else:
-            return PROMPT_NONE
+            return PROMPT_SAVE_NONE
 
 
     def requery(self, select_first=True, filtered=True, update=True, dependents=True):
@@ -940,7 +946,7 @@ class Query:
 
         if not self.records_changed():
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
-            return SAVE_NONE
+            return SAVE_NONE + SHOW_MESSAGE
             
         # check to see if cascading-fk has changed before we update database
         fk_changed = False
@@ -955,13 +961,13 @@ class Query:
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
 
         if not self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed):
-            return SAVE_FAIL
+            return SAVE_FAIL # Do not show the message in this case, since it's handled in the driver
 
         # callback
         if 'after_save' in self.callbacks.keys():
             if not self.callbacks['after_save'](self.frm, self.frm.window):
                 self.driver.rollback()
-                return SAVE_FAIL
+                return SAVE_FAIL + SHOW_MESSAGE
 
         # If we made it here, we can commit the changes
         self.driver.commit()
@@ -985,7 +991,7 @@ class Query:
         logger.debug(f'Record Saved!')
         if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
 
-        return SAVE_SUCCESS
+        return SAVE_SUCCESS + SHOW_MESSAGE
 
 
     def save_record_recursive(self):
@@ -1707,43 +1713,36 @@ class Form:
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         self.update_elements()
-                        return PROMPT_DISCARDED # We did have a change, regardless if the user chose not to save
+                        return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
                 self[q].save_record(update_elements=False) # Don't update elements yet, as there may be more saving to do yet
         self.update_elements() # Now we are safe to update elements
-        return PROMPT_PROCEED if user_prompted else PROMPT_NONE
+        return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
 
 
 
     def save_records(self, cascade_only=False):
         logger.debug(f'Saving records in all queries...')
-        msg = None
-        i = 0
-        tables = self.get_cascaded_relationships() if cascade_only else self.queries
-        last_index = len(self.queries) - 1
 
-        successes=0
-        failures=0
-        no_actions=0
+        result = 0
+        show_message = True
+        tables = self.get_cascaded_relationships() if cascade_only else self.queries
         for t in tables:
             logger.debug(f'Saving records for table {t}...')
-            result=self[t].save_record(False,update_elements=False)
-            if result==SAVE_FAIL:
-                failures+=1
-            elif result==SAVE_SUCCESS:
-                successes+=1
-            elif result==SAVE_NONE:
-                no_actions+=1
-        logger.debug(f'Successes: {successes}, Failures: {failures}, No Actions: {no_actions}')
+            res = self[t].save_record(False,update_elements=False)
+            if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
+            result |= res
 
-        if failures==0:
-            if successes==0:
-                sg.popup_quick_message('There was nothing to update.', keep_on_top=True)
-            else:
-                sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
-                self.update_elements()
+        logger.debug(f'Success: {result & SAVE_SUCCESS}, Failure: {result & SAVE_FAIL}, No Action: {result & SAVE_NONE}')
+
+        if result & SAVE_FAIL:
+            if show_message: sg.popup('There was a problem saving some updates.', keep_on_top=True)
         else:
-            sg.popup('There was a problem saving some updates.', keep_on_top=True)
+            if result & SAVE_NONE:
+                if show_message: sg.popup_quick_message('There was nothing to update.', keep_on_top=True)
+            else:
+                if show_message: sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
+                self.update_elements()
 
 
 
