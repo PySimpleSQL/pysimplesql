@@ -3204,7 +3204,7 @@ class Postgres(SQLDriver):
                 seq = s['sequence_name']
 
                 # get the max pk for this table
-                q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)%'"
+                q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)'"
                 rows = self.execute(q)
                 row=rows.fetchone()
                 table_name = row['table_name']
@@ -3213,7 +3213,10 @@ class Postgres(SQLDriver):
 
                 # update the sequence
                 seq = self.quote_table(seq)
-                q = f"SELECT setval('{seq}', {max_pk});"
+                if max_pk > 0:
+                    q = f"SELECT setval('{seq}', {max_pk});"
+                else:
+                    q = f"SELECT setval('{seq}', 1, false);"
                 self.execute(q)
 
 
@@ -3237,7 +3240,7 @@ class Postgres(SQLDriver):
         )
         return con
 
-    def execute(self, query, values=None):
+    def execute(self, query:str, values=None):
         cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         exception = None
         try:
