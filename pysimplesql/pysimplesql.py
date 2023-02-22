@@ -1057,8 +1057,10 @@ class Query:
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
 
-        if not self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed):
-            return SAVE_FAIL # Do not show the message in this case, since it's handled in the driver
+        result = self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed)
+        if result.exception is not None:
+            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+            return SAVE_FAIL # Do not show the message in this case, since it's handled here
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1068,11 +1070,14 @@ class Query:
 
         # If we made it here, we can commit the changes
         self.driver.commit()
-        # then update the current row.
-        self.rows[self.current_index] = current_row
 
-        # Store the pk can we can move to it later
-        pk = self.get_current_pk()
+        # Store the pk can we can move to it later - use the value returned in the resultset if possible, just in case
+        # the expected pk changed from autoincrement and/or condurrent access
+        pk = result.lastrowid if result.lastrowid else self.get_current_pk()
+        current_row[self.pk_column] = pk
+
+        # then update the current row data
+        self.rows[self.current_index] = current_row
 
         # If child changes parent, move index back and requery/requery_dependents
         if cascade_fk_changed and not current_row.virtual: # Virtual rows already requery, and don't have any dependents.
@@ -2979,8 +2984,14 @@ class Sqlite(SQLDriver):
         except sqlite3.Error as e:
             exception = e
 
-        lastrowid=cursor.lastrowid if cursor.lastrowid else None
-        return ResultSet([dict(row) for row in cursor], lastrowid, exception)
+        try:
+            rows = cursor.fetchall()
+        except:
+            rows = []
+
+        lastrowid = cursor.lastrowid if cursor.lastrowid else None
+
+        return ResultSet([dict(row) for row in rows], lastrowid, exception)
 
 
     def close(self):
@@ -3040,7 +3051,7 @@ class Sqlite(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
         # Make sure the changed dict includes the PK
         row[pk_column] = pk
 
@@ -3054,10 +3065,8 @@ class Sqlite(SQLDriver):
         )
         logger.info(f'Running query: {query} {tuple(row.values())}')
         result = self.execute(query, tuple(row.values()))
-        if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}",keep_on_top=True)
-            return False
-        return True
+
+        return result
 
 # ----------------------------------------------------------------------------------------------------------------------
 # MYSQL DRIVER
@@ -3100,9 +3109,14 @@ class Mysql(SQLDriver):
         except mysql.connector.Error as e:
             exception = e.msg
 
+        try:
+            rows = cursor.fetchall()
+        except:
+            rows = []
+
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
 
-        return ResultSet([dict(row) for row in cursor], lastrowid, exception)
+        return ResultSet([dict(row) for row in rows], lastrowid, exception)
 
 
     def table_names(self):
@@ -3151,7 +3165,7 @@ class Mysql(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             # TODO
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
         # Make sure the changed dict includes the PK
         row[pk_column] = pk
 
@@ -3165,10 +3179,8 @@ class Mysql(SQLDriver):
         )
         logger.info(f'Running query: {query} {tuple(row.values())}')
         result = self.execute(query, tuple(row.values()))
-        if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
-            return False
-        return True
+
+        return result
 
     # Not required for SQLDriver
     def constraint(self,constraint_name):
@@ -3248,15 +3260,14 @@ class Postgres(SQLDriver):
         except psycopg2.Error as e:
             exception = e
 
-        rows = cursor
-        if rows.rowcount <= 0:
+        try:
+            rows = cursor.fetchall()
+        except:
             rows = []
 
-        # TODO:   Need a solid way to get the last inserted PK
-        #lastrowid=cursor.currval('id') if cursor.currval('id') else None
-        lastrowid=1
-        return ResultSet([dict(row) for row in rows], lastrowid, exception)
-        #return [dict(row) for row in cursor]
+        # In Postgres, the cursor does not return a lastrowid.  We will not set it here, we will instead set it in
+        # save_records() due to the RETURNING stement of the query
+        return ResultSet([dict(row) for row in rows], exception)
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
@@ -3328,24 +3339,27 @@ class Postgres(SQLDriver):
         rows = self.execute(q)
         return rows.fetchone()['nextval']
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
         # Make sure the changed dict includes the PK
         row[pk_column] = pk
-
+        table = self.quote_table(table)
+        pk_column = self.quote_column(pk_column)
         # Generate an UPSERT query to either update the record or create a new one
         query = (
-            f"INSERT INTO \"{table}\" ({', '.join(row.keys())}) "
+            f"INSERT INTO {table} ({', '.join(row.keys())}) "
             f"VALUES ({','.join('%s' for _ in range(len(row)))}) "
             f"ON CONFLICT ({pk_column}) "
             f"DO UPDATE SET "
-            f"{', '.join(f'{c}=excluded.{c}' for c in row.keys())};"
+            f"{', '.join(f'{c}=excluded.{c}' for c in row.keys())} RETURNING {pk_column};"
         )
         logger.info(f'Running query: {query} {tuple(row.values())}')
         result = self.execute(query, tuple(row.values()))
-        if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
-            return False
-        return True
+
+        # the pk of the row affected is returned - including the new row number on an insert. (as long as there wasnt an exception)
+        if result.exception is None:
+            result.lastid = result.fetchone()[pk_column]
+
+        return result
 
     def execute_script(self, script):
         pass
