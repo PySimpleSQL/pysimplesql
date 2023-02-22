@@ -1039,7 +1039,7 @@ class Query:
                         
                     current_row[v['column']] = val
 
-        changed = {k:v for k,v in current_row.items()}
+        changed_row = {k:v for k,v in current_row.items()}
 
         if not self.records_changed(recursive=False):
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
@@ -1057,9 +1057,15 @@ class Query:
         # Update the database from the stored rows
         if self.transform is not None: self.transform(changed, TFORM_ENCODE)
 
-        result = self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed)
+        # Save or Insert the record as needed
+        if current_row.virtual==True:
+            result = self.driver.insert_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
+        else:
+            result = self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
+
         if result.exception is not None:
             sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+            self.driver.rollback()
             return SAVE_FAIL # Do not show the message in this case, since it's handled here
 
         # callback
@@ -1789,7 +1795,6 @@ class Form:
         for t in tables:
             logger.debug(f'Saving records for table {t}...')
             res = self[t].save_record(False,update_elements=False)
-            if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
             if res & SAVE_FAIL: failed_tables.append(t)
             result |= res
 
@@ -1799,6 +1804,7 @@ class Form:
         msg = ''
         tables = ', '.join(tables)
         if result & SAVE_FAIL:
+            if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
             if result & SAVE_SUCCESS:
                 msg = f"Some updates saved successfully; "
             msg += f"There was a problem saving updates to the following tables: {tables}"
@@ -2714,9 +2720,18 @@ class SQLDriver:
     # MUST implement
     # in order to function
     # ---------------------------------------------------------------------
-    def __init__(self, *args, **kwargs):
-        con = None
-        name = "Generic SQL Driver" # override in derived class
+    def __init__(self, name:str, placeholder='%s', table_quote='', column_quote='', value_quote="'"):
+        # Be sure to call super().__init__() in derived class!
+        self.con = None
+        self.name = name
+
+        # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
+        # in the SQL string should be quoted and represented as placeholders. Override these in the derived class as
+        # needed to satisfy SQL requirements
+        self.placeholder = placeholder                     # override this in derived __init__()
+        self.quote_table_char = table_quote                # override this in derived __init__() (defaults to no quotes)
+        self.quote_column_char = column_quote              # override this in derived __init__() (defaults to no quotes)
+        self.quote_value_char = value_quote                # override this in derived __init__() (defaults to single quotes)
 
     def connect(self, database):
         raise NotImplementedError
@@ -2724,7 +2739,7 @@ class SQLDriver:
     def execute(self, query, values=None):
         raise NotImplementedError
 
-    def execute_script(self, script:str):
+    def execute_script(self, script:str, silent:bool=False):
         raise NotImplementedError
 
     def table_names(self):
@@ -2742,24 +2757,13 @@ class SQLDriver:
     def save_record(self, table:str, pk:int, pk_column:str, row:dict):
         raise NotImplementedError
 
+    def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
+        raise NotImplementedError
+
     # ---------------------------------------------------------------------
     # SHOULD implement
     # based on specifics of the database
     # ---------------------------------------------------------------------
-
-    # QUOTING METHODS
-    # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
-    # in the SQL string should be quoted. Override these in the derived class as needed to satisfy SQL requirements
-    def quote_table(self, table: str):
-        # default to no quoting
-        return table
-    def quote_column(self, column: str):
-        # default to no quoting
-        return column
-    def quote_value(self, value: str):
-        # default to single quotes
-        return f"'{value}'"
-
     # This is a generic way to estimate the next primary key to be generated.
     # Note that this is not always a reliable way, as manual inserts which assign a primary key value don't always
     # update the sequencer for the given database.  This is just a default way to "get things working", but the best
@@ -2773,6 +2777,14 @@ class SQLDriver:
     # These default implementations will likely work for most SQL databases.
     # Override any of the following methods as needed.
     # ---------------------------------------------------------------------
+    def quote_table(self, table: str):
+        return f'{self.quote_table_char}{table}{self.quote_table_char}'
+
+    def quote_column(self, column: str):
+        return f'{self.quote_column_char}{column}{self.quote_column_char}'
+
+    def quote_value(self, value: str):
+        return f'{self.quote_value_char}{value}{self.quote_value_char}'
 
     def commit(self):
         self.con.commit()
@@ -2939,13 +2951,45 @@ class SQLDriver:
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
+        # Remove the pk column
+        row = {k: v for k, v in row.items() if k != pk_column}
+
+        # quote appropriately
+        table = self.quote_table(table)
+        pk_column = self.quote_column(pk_column)
+
+        # Create the WHERE clause
+        where = f"WHERE {pk_column} = {pk}"
+
+        # Generate an UPDATE query
+        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in row.keys())} {where};"
+        values = [v for v in row.values()]
+
+        return self.execute(query, tuple(values))
+
+
+    def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
+        # Remove the pk column
+        row = {k: v for k, v in row.items() if k != pk_column}
+
+        # quote appropriately
+        table = self.quote_table(table)
+        pk_column = self.quote_column(pk_column)
+
+        # Remove the primary key column to ensure autoincrement is used!
+        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES ({','.join(self.placeholder for _ in range(len(row)))}); "
+        values = [value for key, value in row.items()]
+        logger.info(f'Running query: {query} {tuple(values)}')
+        return self.execute(query, tuple(values))
 
 # ----------------------------------------------------------------------------------------------------------------------
 # SQLITE3 DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
-        self.name = "SQLite3"
+        super().__init__(name='SQLite3', placeholder='?')
+
         new_database = False
         if db_path is not None:
             logger.info(f'Opening database: {db_path}')
@@ -2976,7 +3020,8 @@ class Sqlite(SQLDriver):
     def connect(self, database):
         self.con = sqlite3.connect(database)
 
-    def execute(self, query, values=None):
+    def execute(self, query, values=None, silent=False):
+        if not silent:logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor()
         exception = None
         try:
@@ -3006,18 +3051,18 @@ class Sqlite(SQLDriver):
 
     def table_names(self):
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
-        cur = self.execute(q)
+        cur = self.execute(q, silent=True)
         return [row['name'] for row in cur]
 
     def column_names(self,table):
         # Return a list of column names
         q = f'PRAGMA table_info({table})'
-        cur = self.execute(q)
+        cur = self.execute(q, silent=True)
         return [row['name'] for row in cur]
 
     def pk_column(self,table):
         q = f'PRAGMA table_info({table})'
-        cur = self.execute(q)
+        cur = self.execute(q, silent=True)
         rows = cur
 
         for row in rows:
@@ -3030,7 +3075,7 @@ class Sqlite(SQLDriver):
         relationships = []
         tables = self.table_names()
         for from_table in tables:
-            rows = self.execute(f"PRAGMA foreign_key_list({from_table})")
+            rows = self.execute(f"PRAGMA foreign_key_list({from_table})", silent=True)
 
             for row in rows:
                 dic={}
@@ -3051,28 +3096,13 @@ class Sqlite(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
-        # Make sure the changed dict includes the PK
-        row[pk_column] = pk
-
-        # Generate an UPSERT query to either update the record or create a new one
-        query = (
-            f"INSERT INTO {table} ({', '.join(row.keys())}) "
-            f"VALUES ({','.join('?' for _ in range(len(row)))}) "
-            f"ON CONFLICT ({pk_column}) "
-            f"DO UPDATE SET "
-            f"{', '.join(f'{c}=excluded.{c}' for c in row.keys())};"
-        )
-        logger.info(f'Running query: {query} {tuple(row.values())}')
-        result = self.execute(query, tuple(row.values()))
-
-        return result
-
 # ----------------------------------------------------------------------------------------------------------------------
 # MYSQL DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Mysql(SQLDriver):
     def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
+        super().__init__(name='MySQL')
+
         self.name = "MySQL"
         self.host = host
         self.user = user
@@ -3101,7 +3131,8 @@ class Mysql(SQLDriver):
         )
         return con
 
-    def execute(self, query, values=None):
+    def execute(self, query, values=None, silent=False):
+        if not silent: logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor(dictionary=True)
         exception = None
         try:
@@ -3121,19 +3152,19 @@ class Mysql(SQLDriver):
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
-        rows = self.execute(query, [self.database])
+        rows = self.execute(query, [self.database], silent=True)
         return [row['table_name'] for row in rows]
 
 
     def column_names(self,table):
         # Return a list of column names
         query = "DESCRIBE {}".format(table)
-        rows = self.execute(query)
+        rows = self.execute(query, silent=True)
         return [row['Field'] for row in rows]
 
     def pk_column(self,table):
         query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)
-        cur = self.execute(query)
+        cur = self.execute(query, silent=True)
         row = cur.fetchone()
         return row['Column_name'] if row else None
 
@@ -3143,7 +3174,7 @@ class Mysql(SQLDriver):
         relationships = []
         for from_table in tables:
             query = "SELECT * FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
-            rows=self.execute(query, (from_table,))
+            rows=self.execute(query, (from_table,), silent=True)
 
             for row in rows:
                 dic = {}
@@ -3165,38 +3196,19 @@ class Mysql(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             # TODO
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
-        # Make sure the changed dict includes the PK
-        row[pk_column] = pk
-
-        # Generate an UPSERT query to either update the record or create a new one
-        query = (
-            f"INSERT INTO {table} ({', '.join(row.keys())}) "
-            f"VALUES ({','.join('%s' for _ in range(len(row)))}) "
-            f"ON DUPLICATE KEY "
-            f"UPDATE "
-            f"{', '.join(f'{c}=VALUES({c})' for c in row.keys())};"
-        )
-        logger.info(f'Running query: {query} {tuple(row.values())}')
-        result = self.execute(query, tuple(row.values()))
-
-        return result
-
     # Not required for SQLDriver
     def constraint(self,constraint_name):
         query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
-        rows = self.execute(query)
+        rows = self.execute(query, silent=True)
         return rows[0]['UPDATE_RULE']
 
 # ----------------------------------------------------------------------------------------------------------------------
 # POSTGRES DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
-    def quote_table(self, table:str):
-        return f'"{table}"'
-
     def __init__(self,host,user,password,database,sql_script=None, sql_commands=None, sync_sequences=True):
-        self.name = 'PostgreSQL'
+        super().__init__(name='PostgreSQL', table_quote='"')
+
         self.host = host
         self.user = user
         self.password = password
@@ -3211,13 +3223,13 @@ class Postgres(SQLDriver):
             # synchronize the sequences with the max pk for each table. This is useful if manual records were inserted
             # without calling nextval() to update the sequencer
             q = "SELECT sequence_name FROM information_schema.sequences;"
-            sequences = self.execute(q)
+            sequences = self.execute(q, silent=True)
             for s in sequences:
                 seq = s['sequence_name']
 
                 # get the max pk for this table
                 q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)'"
-                rows = self.execute(q)
+                rows = self.execute(q, silent=True)
                 row=rows.fetchone()
                 table_name = row['table_name']
                 pk_column_name = row['column_name']
@@ -3229,7 +3241,7 @@ class Postgres(SQLDriver):
                     q = f"SELECT setval('{seq}', {max_pk});"
                 else:
                     q = f"SELECT setval('{seq}', 1, false);"
-                self.execute(q)
+                self.execute(q, silent=True)
 
 
         if sql_commands is not None:
@@ -3252,13 +3264,15 @@ class Postgres(SQLDriver):
         )
         return con
 
-    def execute(self, query:str, values=None):
+    def execute(self, query:str, values=None, silent=False):
+        if not silent: logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         exception = None
         try:
             cursor.execute(query, values) if values else cursor.execute(query)
         except psycopg2.Error as e:
             exception = e
+
 
         try:
             rows = cursor.fetchall()
@@ -3267,22 +3281,23 @@ class Postgres(SQLDriver):
 
         # In Postgres, the cursor does not return a lastrowid.  We will not set it here, we will instead set it in
         # save_records() due to the RETURNING stement of the query
-        return ResultSet([dict(row) for row in rows], exception)
+        return ResultSet([dict(row) for row in rows], exception=exception)
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
         #query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
-        rows = self.execute(query)
+        rows = self.execute(query, silent=True)
         return [row['table_name'] for row in rows]
 
     def column_names(self,table):
         # Return a list of column names
         query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
-        rows = self.execute(query)
+        rows = self.execute(query, silent=True)
         return [row['column_name'] for row in rows]
+
     def pk_column(self,table):
         query = f"SELECT column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = '{table}' "
-        cur = self.execute(query)
+        cur = self.execute(query, silent=True)
         row = cur.fetchone()
         return row['column_name'] if row else None
 
@@ -3299,7 +3314,7 @@ class Postgres(SQLDriver):
             query += f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
 
 
-            rows=self.execute(query, (from_table,))
+            rows=self.execute(query, (from_table,), silent=True)
 
             for row in rows:
                 dic = {}
@@ -3319,13 +3334,13 @@ class Postgres(SQLDriver):
     def min_pk(self, table_name: str, pk_column_name: str) -> int:
         table_name = self.quote_table(table_name)
         pk_column_name = self.quote_column(pk_column_name)
-        rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM {table_name};')
+        rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM {table_name};', silent=True)
         return rows.fetchone()[f'min_pk']
 
     def max_pk(self, table_name: str, pk_column_name: str) -> int:
         table_name = self.quote_table(table_name)
         pk_column_name = self.quote_column(pk_column_name)
-        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM {table_name};')
+        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM {table_name};', silent=True)
         return rows.fetchone()[f'max_pk']
 
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
@@ -3336,29 +3351,24 @@ class Postgres(SQLDriver):
         seq = self.quote_table(seq) # quote it like a table
 
         q=f"SELECT nextval('{seq}');" # wrap the quoted string in singe quotes.  Phew!
-        rows = self.execute(q)
+        rows = self.execute(q, silent=True)
         return rows.fetchone()['nextval']
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
-        # Make sure the changed dict includes the PK
-        row[pk_column] = pk
+    def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
+        # insert_record() for Postgres is a little different than the rest. Instead of relying on an autoincrement, we
+        # first already "reserved" a primary key earlier, so we will use it directly
+        # quote appropriately
+        print(row)
         table = self.quote_table(table)
         pk_column = self.quote_column(pk_column)
-        # Generate an UPSERT query to either update the record or create a new one
-        query = (
-            f"INSERT INTO {table} ({', '.join(row.keys())}) "
-            f"VALUES ({','.join('%s' for _ in range(len(row)))}) "
-            f"ON CONFLICT ({pk_column}) "
-            f"DO UPDATE SET "
-            f"{', '.join(f'{c}=excluded.{c}' for c in row.keys())} RETURNING {pk_column};"
-        )
-        logger.info(f'Running query: {query} {tuple(row.values())}')
-        result = self.execute(query, tuple(row.values()))
 
-        # the pk of the row affected is returned - including the new row number on an insert. (as long as there wasnt an exception)
-        if result.exception is None:
-            result.lastid = result.fetchone()[pk_column]
+        # Remove the primary key column to ensure autoincrement is used!
+        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES ({','.join('%s' for _ in range(len(row)))}); "
+        values = [value for key, value in row.items()]
+        logger.info(f'Running query: {query} {values}')
+        result = self.execute(query, tuple(values))
 
+        result.lastid = pk
         return result
 
     def execute_script(self, script):

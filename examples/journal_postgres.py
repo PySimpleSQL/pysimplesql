@@ -21,7 +21,7 @@ layout=[
     [ss.record('Journal.title')],
     [ss.record('Journal.entry', sg.MLine, size=(71,20))]
 ]
-win=sg.Window('Journal (external)  example', layout, finalize=True)
+win=sg.Window('Journal example - PostgreSQL', layout, finalize=True)
 
 elephant_postgres = {
     'host':'queenie.db.elephantsql.com',
@@ -83,9 +83,9 @@ CREATE TABLE "Mood"(
 
 CREATE TABLE "Journal"(
     "id"            SERIAL NOT NULL PRIMARY KEY,
-    "title"         TEXT DEFAULT 'New Entry',
-    "entry_date"    DATE DEFAULT CURRENT_DATE,
-    "mood_id"       INTEGER,
+    "title"         TEXT DEFAULT 'New Entry' NOT NULL,
+    "entry_date"    DATE DEFAULT CURRENT_DATE NOT NULL,
+    "mood_id"       INTEGER NOT NULL,
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES "Mood"(id) 
 );
