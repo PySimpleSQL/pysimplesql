@@ -3183,7 +3183,7 @@ class Postgres(SQLDriver):
     def quote_table(self, table:str):
         return f'"{table}"'
 
-    def __init__(self,host,user,password,database,sql_script=None, sql_commands=None):
+    def __init__(self,host,user,password,database,sql_script=None, sql_commands=None, sync_sequences=True):
         self.name = 'PostgreSQL'
         self.host = host
         self.user = user
@@ -3194,6 +3194,28 @@ class Postgres(SQLDriver):
         # experiment to see if I can make a nocase collation
         query = "CREATE COLLATION NOCASE (provider = icu, locale = 'und-u-ks-level2');"
         #self.execute(query)
+
+        if sync_sequences:
+            # synchronize the sequences with the max pk for each table. This is useful if manual records were inserted
+            # without calling nextval() to update the sequencer
+            q = "SELECT sequence_name FROM information_schema.sequences;"
+            sequences = self.execute(q)
+            for s in sequences:
+                seq = s['sequence_name']
+
+                # get the max pk for this table
+                q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)%'"
+                rows = self.execute(q)
+                row=rows.fetchone()
+                table_name = row['table_name']
+                pk_column_name = row['column_name']
+                max_pk = self.max_pk(table_name, pk_column_name)
+
+                # update the sequence
+                seq = self.quote_table(seq)
+                q = f"SELECT setval('{seq}', {max_pk});"
+                self.execute(q)
+
 
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
@@ -3224,7 +3246,8 @@ class Postgres(SQLDriver):
             exception = e
 
         rows = cursor
-        print(rows)
+        if rows.rowcount <= 0:
+            rows = []
 
         # TODO:   Need a solid way to get the last inserted PK
         #lastrowid=cursor.currval('id') if cursor.currval('id') else None
@@ -3282,13 +3305,13 @@ class Postgres(SQLDriver):
     def min_pk(self, table_name: str, pk_column_name: str) -> int:
         table_name = self.quote_table(table_name)
         pk_column_name = self.quote_column(pk_column_name)
-        rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM "{table_name}";')
+        rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM {table_name};')
         return rows.fetchone()[f'min_pk']
 
     def max_pk(self, table_name: str, pk_column_name: str) -> int:
         table_name = self.quote_table(table_name)
         pk_column_name = self.quote_column(pk_column_name)
-        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM "{table_name}";')
+        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM {table_name};')
         return rows.fetchone()[f'max_pk']
 
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
