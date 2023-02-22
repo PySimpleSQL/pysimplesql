@@ -2734,7 +2734,7 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
-    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
         raise NotImplementedError
 
     # ---------------------------------------------------------------------
@@ -3040,20 +3040,20 @@ class Sqlite(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
 
-    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
         # Make sure the changed dict includes the PK
-        changed[pk_column] = pk
+        row[pk_column] = pk
 
         # Generate an UPSERT query to either update the record or create a new one
         query = (
-            f"INSERT INTO {table} ({', '.join(changed.keys())}) "
-            f"VALUES ({','.join('?' for _ in range(len(changed)))}) "
+            f"INSERT INTO {table} ({', '.join(row.keys())}) "
+            f"VALUES ({','.join('?' for _ in range(len(row)))}) "
             f"ON CONFLICT ({pk_column}) "
             f"DO UPDATE SET "
-            f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
+            f"{', '.join(f'{c}=excluded.{c}' for c in row.keys())};"
         )
-        logger.info(f'Running query: {query} {tuple(changed.values())}')
-        result = self.execute(query, tuple(changed.values()))
+        logger.info(f'Running query: {query} {tuple(row.values())}')
+        result = self.execute(query, tuple(row.values()))
         if result.exception is not None:
             sg.popup(f"Query Failed! {result.exception}",keep_on_top=True)
             return False
@@ -3151,20 +3151,20 @@ class Mysql(SQLDriver):
             logger.info(f'Loading script {script} into database.')
             # TODO
 
-    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
         # Make sure the changed dict includes the PK
-        changed[pk_column] = pk
+        row[pk_column] = pk
 
         # Generate an UPSERT query to either update the record or create a new one
         query = (
-            f"INSERT INTO {table} ({', '.join(changed.keys())}) "
-            f"VALUES ({','.join('%s' for _ in range(len(changed)))}) "
+            f"INSERT INTO {table} ({', '.join(row.keys())}) "
+            f"VALUES ({','.join('%s' for _ in range(len(row)))}) "
             f"ON DUPLICATE KEY "
             f"UPDATE "
-            f"{', '.join(f'{c}=VALUES({c})' for c in changed.keys())};"
+            f"{', '.join(f'{c}=VALUES({c})' for c in row.keys())};"
         )
-        logger.info(f'Running query: {query} {tuple(changed.values())}')
-        result = self.execute(query, tuple(changed.values()))
+        logger.info(f'Running query: {query} {tuple(row.values())}')
+        result = self.execute(query, tuple(row.values()))
         if result.exception is not None:
             sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
             return False
@@ -3223,15 +3223,13 @@ class Postgres(SQLDriver):
         except psycopg2.Error as e:
             exception = e
 
-        if cursor.description is not None:
-            results = cursor
-        else:
-            results = []
+        rows = cursor
+        print(rows)
 
         # TODO:   Need a solid way to get the last inserted PK
         #lastrowid=cursor.currval('id') if cursor.currval('id') else None
         lastrowid=1
-        return ResultSet([dict(row) for row in results], lastrowid, exception)
+        return ResultSet([dict(row) for row in rows], lastrowid, exception)
         #return [dict(row) for row in cursor]
 
     def table_names(self):
@@ -3282,26 +3280,42 @@ class Postgres(SQLDriver):
         return relationships
 
     def min_pk(self, table_name: str, pk_column_name: str) -> int:
+        table_name = self.quote_table(table_name)
+        pk_column_name = self.quote_column(pk_column_name)
         rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM "{table_name}";')
         return rows.fetchone()[f'min_pk']
-    def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM "{table_name}";')
-        return rows.fetchone()[f'max_pk'] + 1 if rows else 1
 
-    def save_record(self, table:str, pk:int, pk_column:str, changed:dict):
+    def max_pk(self, table_name: str, pk_column_name: str) -> int:
+        table_name = self.quote_table(table_name)
+        pk_column_name = self.quote_column(pk_column_name)
+        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM "{table_name}";')
+        return rows.fetchone()[f'max_pk']
+
+    def next_pk(self, table_name: str, pk_column_name: str) -> int:
+        # Working with case-sensitive tables is painful in Postgres.  First, the sequence must be quoted in a manner
+        # similar to tables, then the quoted sequence name has to be also surrounded in single quotes to be treated
+        # literally and prevent folding of the casing.
+        seq = f'{table_name}_{pk_column_name}_seq' # build the default sequence name
+        seq = self.quote_table(seq) # quote it like a table
+
+        q=f"SELECT nextval('{seq}');" # wrap the quoted string in singe quotes.  Phew!
+        rows = self.execute(q)
+        return rows.fetchone()['nextval']
+
+    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
         # Make sure the changed dict includes the PK
-        changed[pk_column] = pk
+        row[pk_column] = pk
 
         # Generate an UPSERT query to either update the record or create a new one
         query = (
-            f"INSERT INTO \"{table}\" ({', '.join(changed.keys())}) "
-            f"VALUES ({','.join('%s' for _ in range(len(changed)))}) "
+            f"INSERT INTO \"{table}\" ({', '.join(row.keys())}) "
+            f"VALUES ({','.join('%s' for _ in range(len(row)))}) "
             f"ON CONFLICT ({pk_column}) "
             f"DO UPDATE SET "
-            f"{', '.join(f'{c}=excluded.{c}' for c in changed.keys())};"
+            f"{', '.join(f'{c}=excluded.{c}' for c in row.keys())};"
         )
-        logger.info(f'Running query: {query} {tuple(changed.values())}')
-        result = self.execute(query, tuple(changed.values()))
+        logger.info(f'Running query: {query} {tuple(row.values())}')
+        result = self.execute(query, tuple(row.values()))
         if result.exception is not None:
             sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
             return False
