@@ -956,7 +956,7 @@ class Query:
                 return
 
         # Get a new dict for a new row with default values already filled in
-        new_values = self.column_info.default_dict(self.description_column)
+        new_values = self.column_info.default_dict(self)
 
         # If the values parameter was passed in, overwrite any values in the dict
         if values is not None:
@@ -2730,7 +2730,7 @@ class ColumnInfo(List):
         # if all checks pass, the string looks like a function
         return True
 
-    def default_dict(self, description_column):
+    def default_dict(self, q_obj:Query):
         """Return a dict of name: default value pairs"""
         d = {}
         for c in self:
@@ -2753,7 +2753,7 @@ class ColumnInfo(List):
                 if sql_type == 'BOOLEAN':
                     default = 0
                 elif sql_type in ['TEXT','VARCHAR','CHAR']:
-                    if c.name == description_column:
+                    if c.name == q_obj.description_column:
                         default = 'New record'  # If no default is specified, we have to do something
                 elif sql_type in ['REAL','DOUBLE','FLOAT','DECIMAL']:
                     default = 1.0
@@ -2771,6 +2771,7 @@ class ColumnInfo(List):
                 default = c.default.strip('"\'')  # strip leading and trailing quotes
 
             d[c.name]= default
+        if q_obj.transform is not None: q_obj.transform(d, TFORM_DECODE)
         return d
 
 
