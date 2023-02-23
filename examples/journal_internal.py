@@ -8,9 +8,12 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 # CREATE A SIMPLE DATABASE TO WORK WITH
 # -------------------------------------
 sql="""
+DROP TABLE IF EXISTS Journal;
+DROP TABLE IF EXISTS Mood;
+
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
-    "title"         TEXT DEFAULT "New Entry",
+    "title"         TEXT DEFAULT 'New Entry',
     "entry_date"    INTEGER NOT NULL DEFAULT (date('now')), 
     "mood_id"       INTEGER NOT NULL,
     "entry"         TEXT,

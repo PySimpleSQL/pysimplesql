@@ -17,6 +17,7 @@ line of SQL needs written to use **pysimplesql**), but also allows for very low 
 # The first two imports are for docstrings
 from __future__ import annotations
 from typing import List, Union, Optional, Tuple, Callable
+from datetime import date, datetime
 import PySimpleGUI as sg
 import functools
 import os.path
@@ -2661,13 +2662,27 @@ class ColumnInfo(List):
         for c in self:
             default = c.default
             sql_type = c.sql_type
-            if sql_type == 'INTEGER' and (default == '' or default is None):
-                default = 1
-            elif sql_type == 'TEXT' and (default == '' or default is None):
-                if c.name == description_column:
-                    default = 'New record'
+            if sql_type == 'BOOLEAN' and default is None:
+                default = 0
+            elif sql_type in ['TEXT','VARCHAR','CHAR']:
+                if default is not None:
+                    default = c.default.strip('"\'') # strip leading and trailing quotes
+                else:
+                    if c.name == description_column:
+                        default = 'New record' # If no default is specified, we have to do something!
 
-            d[c.name]=c.default
+            elif sql_type in ['REAL','DOUBLE','FLOAT','DECIMAL'] and (default is None):
+                default = 1.0
+            elif sql_type == 'DATE' or (sql_type=="INTEGER" and default=="date('now')"):
+                default = date.today().strftime("%Y-%m-%d")
+            elif sql_type in ['DATETIME','TIMESTAMP']:
+                default = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            elif sql_type == 'TIME':
+                default = datetime.now().strftime("%H:%M:%S")
+            elif sql_type == 'INTEGER' and (default is None):
+                default = 1
+
+            d[c.name]= default
         return d
 
 
