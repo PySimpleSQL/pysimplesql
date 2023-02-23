@@ -571,8 +571,8 @@ class Query:
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
-                # save this record
-                if self.save_record_recursive() == SAVE_FAIL:
+                # save this records cascaded relationships, last to first
+                if self.frm.save_records(table_name=self.table) & SAVE_FAIL:
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
@@ -991,10 +991,11 @@ class Query:
         :type update_elements: bool
         :return: None
         """
+        logger.debug(f'Saving records for table {self.table}...')
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message: sg.popup_quick_message('There were no updates to save.',keep_on_top=True)
-            return SAVE_NONE
+            return SAVE_NONE + SHOW_MESSAGE
 
         # callback
         if 'before_save' in self.callbacks.keys():
@@ -1002,7 +1003,7 @@ class Query:
                 logger.debug("We are not saving!")
                 if update_elements: self.frm.update_elements(self.table)
                 if display_message: sg.popup('Updates not saved.', keep_on_top=True)
-                return SAVE_FAIL
+                return SAVE_FAIL + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
         # Note that while saving, we are working with just the current row of data
@@ -1054,7 +1055,7 @@ class Query:
                     cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
-        if self.transform is not None: self.transform(changed, TFORM_ENCODE)
+        if self.transform is not None: self.transform(changed_row, TFORM_ENCODE)
 
         # Save or Insert the record as needed
         if current_row.virtual==True:
@@ -1101,16 +1102,32 @@ class Query:
         return SAVE_SUCCESS + SHOW_MESSAGE
 
 
-    def save_record_recursive(self):
+    def save_record_recursive(self,results:dict,display_message=False,check_prompt_save:bool=False,):
         """
-        Recursively save changes, akin into account the relationships of the tables
-
-        :return: None
+        Recursively save changes, taking into account the relationships of the tables
+        :param results: Used in Form.save_records to collect Query.save_record returns. Pass an empty dict to get list of {table_name : result}
+        :type results: dict
+        :param display_message: Passed to Query.save_record. Displays a message "Updates saved successfully", otherwise is silent on success
+        :type display_messsage: bool
+        :param check_prompt_save: Used when called from Form.prompt_save. Updates elements without saving if individual Query._prompt_save is False.
+        :type check_prompt_save: bool
+        :return: dict of {table_name : results}
         """
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.update_cascade:
-                self.frm[rel.child_table].save_record_recursive()
-        return self.save_record(True,False)
+                self.frm[rel.child_table].save_record_recursive(
+                    results=results,
+                    display_message=display_message,
+                    check_prompt_save=check_prompt_save
+                    )
+        if check_prompt_save and self._prompt_save is False:
+            self.frm.update_elements(self.table)
+            results[self.table] = PROMPT_SAVE_NONE
+            return results
+        else:
+            result = self.save_record(display_message=display_message)
+            results[self.table] = result
+            return results
 
     def delete_record(self, cascade=True):
         """
@@ -1479,15 +1496,15 @@ class Form:
                 rel.append(r)
         return rel
 
-    def get_cascaded_relationships(self):
+    def get_cascaded_relationships(self, table):
         """
+        :param table: The table to get cascaded children for
         Return a unique list of the relationships for this table that should requery with this table.
         :return: A unique list of table names
         """
         rel = []
         for r in self.relationships:
-            if r.update_cascade:
-                rel.append(r.parent_table)
+            if r.parent_table == table and r.update_cascade:
                 rel.append(r.child_table)
         # make unique
         rel = list(set(rel))
@@ -1778,42 +1795,67 @@ class Form:
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         self.update_elements()
                         return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
-                self[q].save_record(update_elements=False) # Don't update elements yet, as there may be more saving to do yet
-        self.update_elements() # Now we are safe to update elements
+                    break
+        if user_prompted:
+            self.save_records(check_prompt_save=True)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
-
-
-
-    def save_records(self, cascade_only=False):
-        logger.debug(f'Saving records in all queries...')
+    def save_records(self, table_name:str=None, cascade_only=False, check_prompt_save=False,):
+        """
+        Save records of all queries in form. If passed a single table, will save cascade.
+        :param table_name: Name of table to save, as well as any cascaded relationships. Used in Query.prompt_save
+        :type table_name: str
+        :param cascade_only: Save only tables with cascaded relationships. Default False.
+        :type cascade_only: bool
+        :param check_prompt_save: Passed to Query.save_record_recursive to check if individual query has prompt_save enabled.
+        Used when Query.save_records is called from Form.prompt_save.
+        :type check_prompt_save: bool
+        :return: result - can be used with RETURN BITMASKS
+        """
+        if check_prompt_save: logger.debug(f'Saving records in all queries that allow prompt_save...')
+        else: logger.debug(f'Saving records in all queries...')
 
         result = 0
         show_message = True
         failed_tables = []
-        tables = self.get_cascaded_relationships() if cascade_only else self.queries
-        for t in tables:
-            logger.debug(f'Saving records for table {t}...')
-            res = self[t].save_record(False,update_elements=False)
+        
+        if table_name: tables = [table_name] # if passed single table
+        # for cascade_only, build list of top-level queries that have children
+        elif cascade_only: tables = [q for q in self.queries
+                                     if len(self.get_cascaded_relationships(table=q))
+                                     and self.get_parent(q) is None]
+        # default behavior, build list of top-level queries (ones without a parent)
+        else: tables = [q for q in self.queries.keys() if self.get_parent(q) is None]
+        
+        # call save_record_recursive on tables, which saves from last to first.
+        result_list = []
+        for q in tables:
+            res = self[q].save_record_recursive(results={},display_message=False,check_prompt_save=check_prompt_save)
+            result_list.append(res)
+        
+        # flatten list of result dicts
+        results = {k: v for d in result_list for k, v in d.items()}
+        logger.debug(f'Form.save_records - results of tables - {results}')
+
+        # get tables that failed
+        for t, res in results.items():
+            if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
             if res & SAVE_FAIL: failed_tables.append(t)
             result |= res
 
-        logger.debug(f'Success: {result & SAVE_SUCCESS}, Failure: {result & SAVE_FAIL}, No Action: {result & SAVE_NONE}')
-
         # Build a descriptive message, since the save spans many tables potentially
         msg = ''
-        tables = ', '.join(tables)
+        tables = ', '.join(failed_tables)
         if result & SAVE_FAIL:
-            if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
             if result & SAVE_SUCCESS:
                 msg = f"Some updates saved successfully; "
             msg += f"There was a problem saving updates to the following tables: {tables}"
         elif result & SAVE_SUCCESS:
             msg = 'Updates saved successfully.'
-            self.update_elements()
         else:
             msg = 'There was nothing to update.'
         if show_message: sg.popup_quick_message(msg, keep_on_top=True)
+        return result
 
     def set_prompt_save(self, value: bool) -> None:
         """
