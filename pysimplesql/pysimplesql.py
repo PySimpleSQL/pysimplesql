@@ -2679,6 +2679,11 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # ----------------------------------------------------------------------------------------------------------------------
 
 class ColumnInfo(List):
+    def __init__(self, driver:SQLDriver, table_name:str):
+        self.driver = driver
+        self.table_name = table_name
+        super().__init__()
+
     def __contains__(self, item):
         if isinstance(item, str):
             return self._contains_key_value_pair('name', item)
@@ -2697,14 +2702,51 @@ class ColumnInfo(List):
         """Get the column name located at the specified index in this collection of columns"""
         return self[idx].name
 
+    def looks_like_function(self, s:str):
+        # check if the string is empty
+        if not s:
+            return False
+
+        # find the index of the first opening parenthesis
+        open_paren_index = s.find("(")
+
+        # if there is no opening parenthesis, the string is not a function
+        if open_paren_index == -1:
+            return False
+
+        # check if there is a name before the opening parenthesis
+        name = s[:open_paren_index].strip()
+        if not name.isidentifier():
+            return False
+
+        # find the index of the last closing parenthesis
+        last_char_index = len(s) - 1
+        close_paren_index = s.rfind(")")
+
+        # if there is no closing parenthesis, the string is not a function
+        if close_paren_index == -1 or close_paren_index <= open_paren_index:
+            return False
+
+        # if all checks pass, the string looks like a function
+        return True
+
     def default_dict(self, description_column):
         """Return a dict of name: default value pairs"""
-        print(self)
         d = {}
         for c in self:
             default = c.default
             sql_type = c.sql_type
-            if sql_type == 'BOOLEAN' and default is None:
+
+            # First, check to see if the default might be a database function
+            if self.looks_like_function(default):
+                table_name = self.driver.quote_table(self.table_name)
+                q = f'SELECT {default} FROM {table_name};' # TODO: may need as column_name to support all databases?
+                rows = self.driver.execute(q)
+                if rows.exception is None:
+                    default = rows.fetchone()[default]
+                    logger.debug(f'Default fetched from database function. Default value is: {default}')
+
+            elif sql_type == 'BOOLEAN' and default is None:
                 default = 0
             elif sql_type in ['TEXT','VARCHAR','CHAR']:
                 if default is not None:
@@ -2715,14 +2757,15 @@ class ColumnInfo(List):
 
             elif sql_type in ['REAL','DOUBLE','FLOAT','DECIMAL'] and (default is None):
                 default = 1.0
-            elif sql_type == 'DATE' or (sql_type=="INTEGER" and default=="date('now')"):
-                default = date.today().strftime("%Y-%m-%d")
+            elif sql_type == 'DATE' or (sql_type=="INTEGER" and default in ["date('now')","strftime('%s', 'now')"]): # TODO: is there a way to find out if a default is a function directly
+                default = date.today().strftime("%Y-%m-%d")                                                          # TODO: from the database, and query the information directly?
             elif sql_type in ['DATETIME','TIMESTAMP']:
                 default = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             elif sql_type == 'TIME':
                 default = datetime.now().strftime("%H:%M:%S")
             elif sql_type == 'INTEGER' and (default is None):
-                default = 1
+                if not c.pk: # we don't want to default our primary key!
+                    default = 1
 
             d[c.name]= default
         return d
@@ -2739,8 +2782,8 @@ class ResultColumn:
     The ResultColumn class is a generic column class.  It holds a dict containing the column name, type  whether the
     column is nullable and the default value, if any
     """
-    def __init__(self, name:str, sql_type:str, notnull:bool, default:None):
-        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default}
+    def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool):
+        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
 
     def __str__(self):
         return f"ResultColumn: {self._column}"
@@ -2784,7 +2827,13 @@ class ResultColumn:
         return self._column['default']
     @default.setter
     def default(self, value):
-        return self._column['default']
+        self._column['default'] = value
+    @property
+    def pk(self):
+        return(self._column['pk'])
+    @pk.setter
+    def pk(self, value):
+        self._column['pk'] = value
 
     def get_names(self):
         return [v for k,v in self.columns.items() if key == 'name']
@@ -3233,9 +3282,8 @@ class Sqlite(SQLDriver):
         # Return a list of column names
         q = f'PRAGMA table_info({table})'
         rows = self.execute(q, silent=True)
-
         names=[]
-        col_info = ColumnInfo()
+        col_info = ColumnInfo(self, table)
 
         for row in rows:
             name = row['name']
@@ -3243,7 +3291,8 @@ class Sqlite(SQLDriver):
             sql_type = row['type']
             notnull = row['notnull']
             default = row['dflt_value']
-            col_info.append(ResultColumn(name = name, sql_type = sql_type, notnull=notnull, default=default))
+            pk = row['pk']
+            col_info.append(ResultColumn(name = name, sql_type = sql_type, notnull=notnull, default=default, pk=pk))
 
         return col_info
 
