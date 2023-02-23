@@ -1822,7 +1822,7 @@ class Form:
         elif cascade_only: tables = [q for q in self.queries
                                      if len(self.get_cascaded_relationships(table=q))
                                      and self.get_parent(q) is None]
-        # default behavior, build list of top-level queries (ones without children)
+        # default behavior, build list of top-level queries (ones without a parent)
         else: tables = [q for q in self.queries.keys() if self.get_parent(q) is None]
         
         # call save_record_recursive on tables, which saves from last to first.
