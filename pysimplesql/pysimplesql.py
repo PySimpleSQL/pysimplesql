@@ -2638,24 +2638,28 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 class ColumnInfo(List):
     def __contains__(self, item):
         if isinstance(item, str):
-            return self.contains_key_value_pair('name', item)
+            return self._contains_key_value_pair('name', item)
         else:
             return super().__contains__(item)
 
     def getlist(self, key:str) -> List:
+        """returns a list of any key in the underlying ResultColumn instances. For example, column names, types, defaults, etc."""
         return [d[key] for d in self]
 
     def names(self):
+        """Return a List of column names from this collection"""
         return self.getlist('name')
 
     def col_name(self,idx):
+        """Get the column name located at the specified index in this collection of columns"""
         return self[idx].name
 
-    def contains_key_value_pair(self, key, value): #used by __contains__
+    def _contains_key_value_pair(self, key, value): #used by __contains__
         for d in self:
             if key in d and d[key] == value:
                 return True
         return False
+
 class ResultColumn:
     """
     The ResultColumn class is a generic column class.  It holds a dict containing the column name, type  whether the
