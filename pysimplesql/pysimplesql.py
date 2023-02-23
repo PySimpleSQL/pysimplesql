@@ -256,7 +256,7 @@ class Query:
         self.join = ''
         self.where = ''  # In addition to generated where!
         self.dependents = []
-        self.column_names = []
+        self.column_info = [] # a list of ResultColumn instances
         self.rows = []
         self.search_order = []
         self.selector = []
@@ -460,10 +460,10 @@ class Query:
         """
         # Now we need to set  new column names, as the query could have changed
         if names!=None:
-            self.column_names=names
+            self.column_info=names
             return
 
-        self.column_names = self.driver.column_names(self.table)
+        self.column_info = self.driver.column_info(self.table)
 
     def set_description_column(self, column:str) -> None:
         """
@@ -955,10 +955,10 @@ class Query:
                 return
 
         # Create a dict of the column names, then load in passed-in values
-        new_values = {k:None for k in self.column_names}
+        new_values = {k:None for k in self.column_info.names()}
         if values is not None:
             for k,v in values.items():
-                if v in self.column_names:
+                if k in new_values:
                     new_values[k]=v
         else:
             # At minimum, we should update the description column
@@ -1234,7 +1234,7 @@ class Query:
     def table_values(self, columns=None, mark_virtual=False):
         # Populate values to display in Table GUI elements
         values = []
-        column_names=self.column_names if columns == None else columns
+        column_names=self.column_info.names() if columns == None else columns
 
         for row in self.rows:
             if mark_virtual:
@@ -1268,7 +1268,7 @@ class Query:
         keygen_reset_all()
         query_name = self.name
         layout = []
-        headings = self.column_names.copy()
+        headings = self.column_info.names()
         visible = [1] * len(headings); visible[0] = 0
         col_width=int(55/(len(headings)-1))
         for i in range(0,len(headings)):
@@ -1279,7 +1279,7 @@ class Query:
         layout.append([pysimplesql.actions("act_quick_edit2",query_name,edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
-        for col in self.column_names:
+        for col in self.column_info.names():
             column=f'{query_name}.{col}'
             if col!=self.pk_column:
                 layout.append([pysimplesql.record(column)])
@@ -1528,14 +1528,15 @@ class Form:
         self.queries = {}
         table_names = self.driver.table_names()
         for table_name in table_names:
-            column_names = self.driver.column_names(table_name)
+            column_names = self.driver.column_info(table_name)
 
             # auto generate description column.  Default it to the 2nd column,
             # but can be overwritten below
-            description_column = column_names[1]
-            for col in column_names:
-                if col == 'name':
+            description_column = column_names.col_name(1)
+            for col in column_names.names():
+                if col in ('name', 'description', 'title'):
                     description_column = col
+                    break
 
             # Get our pk column
             pk_column = self.driver.pk_column(table_name)
@@ -1544,7 +1545,7 @@ class Form:
             logger.debug(
                 f'Adding query "{query_name}" on table {table_name} to Form with primary key {pk_column} and description of {description_column}')
             self.add_query(query_name,table_name, pk_column, description_column)
-            self.queries[query_name].column_names = column_names #TODO: use new add column names??
+            self.queries[query_name].column_info = column_names #TODO: use new add column names??
 
     # Make sure to send a list of table names to requery if you want
     # dependent queries to requery automatically
@@ -1625,7 +1626,7 @@ class Form:
                     where_column,where_value=where_info.split('=')
 
                 if table in self.queries:
-                    if col in self[table].column_names:
+                    if col in self[table].column_info:
                         # Map this element to table.column
                         self.map_element(element, self[table], col, where_column, where_value)
 
@@ -2633,6 +2634,83 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # "drivers" that derive from the SQLDriver class, and return a generic ResultSet instance, which contains a collection
 # of generic ResultRow instances.
 # ----------------------------------------------------------------------------------------------------------------------
+
+class ColumnInfo(List):
+    def __contains__(self, item):
+        if isinstance(item, str):
+            return self.contains_key_value_pair('name', item)
+        else:
+            return super().__contains__(item)
+
+    def getlist(self, key:str) -> List:
+        return [d[key] for d in self]
+
+    def names(self):
+        return self.getlist('name')
+
+    def col_name(self,idx):
+        return self[idx].name
+
+    def contains_key_value_pair(self, key, value): #used by __contains__
+        for d in self:
+            if key in d and d[key] == value:
+                return True
+        return False
+class ResultColumn:
+    """
+    The ResultColumn class is a generic column class.  It holds a dict containing the column name, type  whether the
+    column is nullable and the default value, if any
+    """
+    def __init__(self, name:str, sql_type:str, notnull:bool, default:None):
+        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default}
+
+    def __str__(self):
+        return f"ResultColumn: {self._column}"
+
+    def __repr__(self):
+        return f"ResultColumn: {self._column}"
+
+    def __getitem__(self,item):
+        return self._column[item]
+
+    def __setitem__(self, key, value):
+        self._column[key] = value
+
+    def __lt__(self, other, key):
+        return self._column[key] < other._column[key]
+
+    def __contains__(self, item):
+        return item in self._column
+
+    # Make some properties for easy access
+    @property
+    def name(self):
+        return self._column['name']
+    @name.setter
+    def name(self, value):
+        self._column['name'] = value
+    @property
+    def sql_type(self):
+        return self._column['sql_type']
+    @sql_type.setter
+    def sql_type(self, value):
+        self._column['sql_type'] = value
+    @property
+    def notnull(self):
+        return self._column['notnull']
+    @notnull.setter
+    def notnull(self, value:bool):
+        self._column['notnull'] = value
+    @property
+    def default(self):
+        return self._column['default']
+    @default.setter
+    def default(self, value):
+        return self._column['default']
+
+    def get_names(self):
+        return [v for k,v in self.columns.items() if key == 'name']
+
 class ResultRow:
     # The ResulRow class is a generic row class.  It holds a dict containing the columns and values of the row, along
     # with a "virtual" flag.  A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
@@ -2644,9 +2722,12 @@ class ResultRow:
         self.virtual=virtual
 
     def __str__(self):
-        return str(self.row)
+        return f"ResultRow: {self.row}"
 
-    def __getitem__(self,item):
+    def __contains__(self, item):
+        return item in self.row
+
+    def __getitem__(self, item):
         return self.row[item]
 
     def __setitem__(self, key, value):
@@ -2692,6 +2773,9 @@ class ResultSet:
 
     def __str__(self):
         return str([row.row for row in self.rows])
+
+    def __contains__(self, item):
+        return item in self.rows
 
     def __getitem__(self,item):
         return self.rows[item]
@@ -2756,7 +2840,7 @@ class SQLDriver:
     def table_names(self):
         raise NotImplementedError
 
-    def column_names(self,table):
+    def column_info(self, table):
         raise NotImplementedError
 
     def pk_column(self,table):
@@ -3067,21 +3151,30 @@ class Sqlite(SQLDriver):
         cur = self.execute(q, silent=True)
         return [row['name'] for row in cur]
 
-    def column_names(self,table):
+    def column_info(self, table):
         # Return a list of column names
         q = f'PRAGMA table_info({table})'
-        cur = self.execute(q, silent=True)
-        return [row['name'] for row in cur]
+        rows = self.execute(q, silent=True)
+
+        names=[]
+        col_info = ColumnInfo()
+
+        for row in rows:
+            name = row['name']
+            names.append(name)
+            sql_type = row['type']
+            notnull = row['notnull']
+            default = row['dflt_value']
+            col_info.append(ResultColumn(name = name, sql_type = sql_type, notnull=notnull, default=default))
+
+        return col_info
 
     def pk_column(self,table):
         q = f'PRAGMA table_info({table})'
-        cur = self.execute(q, silent=True)
-        rows = cur
+        row = self.execute(q, silent=True).fetchone()
 
-        for row in rows:
-            if row['pk']:
-                return row['name']
-        return None
+        return row['name'] if 'name' in row else None
+
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -3169,7 +3262,7 @@ class Mysql(SQLDriver):
         return [row['table_name'] for row in rows]
 
 
-    def column_names(self,table):
+    def column_info(self, table):
         # Return a list of column names
         query = "DESCRIBE {}".format(table)
         rows = self.execute(query, silent=True)
@@ -3302,7 +3395,7 @@ class Postgres(SQLDriver):
         rows = self.execute(query, silent=True)
         return [row['table_name'] for row in rows]
 
-    def column_names(self,table):
+    def column_info(self, table):
         # Return a list of column names
         query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
         rows = self.execute(query, silent=True)
