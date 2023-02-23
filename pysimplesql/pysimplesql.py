@@ -954,15 +954,15 @@ class Query:
             if self.prompt_save() == PROMPT_SAVE_DISCARDED:
                 return
 
-        # Create a dict of the column names, then load in passed-in values
-        new_values = {k:None for k in self.column_info.names()}
+        # Get a new dict for a new row with default values already filled in
+        new_values = self.column_info.default_dict(self.description_column)
+
+        # If the values parameter was passed in, overwrite any values in the dict
         if values is not None:
             for k,v in values.items():
                 if k in new_values:
                     new_values[k]=v
-        else:
-            # At minimum, we should update the description column
-            new_values[self.description_column] = 'New Record'
+
             # Make sure we take into account the foreign key relationships...
             for r in self.frm.relationships:
                 if self.table == r.child_table and r.update_cascade:
@@ -2653,6 +2653,23 @@ class ColumnInfo(List):
     def col_name(self,idx):
         """Get the column name located at the specified index in this collection of columns"""
         return self[idx].name
+
+    def default_dict(self, description_column):
+        """Return a dict of name: default value pairs"""
+        print(self)
+        d = {}
+        for c in self:
+            default = c.default
+            sql_type = c.sql_type
+            if sql_type == 'INTEGER' and (default == '' or default is None):
+                default = 1
+            elif sql_type == 'TEXT' and (default == '' or default is None):
+                if c.name == description_column:
+                    default = 'New record'
+
+            d[c.name]=c.default
+        return d
+
 
     def _contains_key_value_pair(self, key, value): #used by __contains__
         for d in self:
