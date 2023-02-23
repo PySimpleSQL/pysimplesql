@@ -2664,9 +2664,17 @@ class ResultRow:
         return ResultRow(self.row.copy(), virtual=self.virtual)
 
 class ResultSet:
-    # The ResultSet class is a generic result class so that working with the resultset of the different supported
-    # databases behaves in a consistent manner.
+    """
+    The ResultSet class is a generic result class so that working with the resultset of the different supported
+    databases behave in a consistent manner.
+
+    Note: The lastrowid is set by the caller, but by pysimplesql convention, the lastrowid should only be set after
+    and INSERT statement is executed.
+    """
     def __init__(self, rows:list=[], lastrowid=None, exception=None):
+        """
+        Create a new ResultSet instance
+        """
         self.rows = [ResultRow(r) for r in rows]
         self.lastrowid = lastrowid
         self._iter_index = 0
@@ -2707,13 +2715,18 @@ class ResultSet:
 
 # TODO min_pk, max_pk
 class SQLDriver:
-    # Abstract SQLDriver class.  Derive from this class to create drivers that conform to PySimpleSQL.  This ensures
-    # that the same code will work the same way regardless of which database is used.  There are a few important things
-    # to note:
-    # The commented code below is broken into methods that MUST be implemented in the derived class, methods that SHOULD
-    # be implemented in the derived class, and methods that MAY need to be implemented in the derived class for it to
-    # work as expected.  Most derived drivers will at least partially work by implementing the MUST have methods.
+    """"
+    Abstract SQLDriver class.  Derive from this class to create drivers that conform to PySimpleSQL.  This ensures
+    that the same code will work the same way regardless of which database is used.  There are a few important things
+    to note:
+    The commented code below is broken into methods that MUST be implemented in the derived class, methods that SHOULD
+    be implemented in the derived class, and methods that MAY need to be implemented in the derived class for it to
+    work as expected.  Most derived drivers will at least partially work by implementing the MUST have methods.
 
+    NOTE: SQLDriver.execute should return a ResultSet instance.  Additionally, py pysimplesql convention, the
+    ResultSet.lastrowid should always be None unless and INSERT query is executed with SQLDriver.execute() or a record
+    is inserted with SQLDriver.insert_record()
+    """
     # ---------------------------------------------------------------------
     # MUST implement
     # in order to function
