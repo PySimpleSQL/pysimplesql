@@ -604,8 +604,6 @@ class Query:
             where = self.driver.generate_where_clause(self)
 
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
-        logger.info('Running query: ' + query)
-
         rows = self.driver.execute(query)
         self.rows = rows
 
@@ -2980,7 +2978,6 @@ class SQLDriver:
         # Remove the primary key column to ensure autoincrement is used!
         query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES ({','.join(self.placeholder for _ in range(len(row)))}); "
         values = [value for key, value in row.items()]
-        logger.info(f'Running query: {query} {tuple(values)}')
         return self.execute(query, tuple(values))
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -3365,7 +3362,6 @@ class Postgres(SQLDriver):
         # Remove the primary key column to ensure autoincrement is used!
         query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES ({','.join('%s' for _ in range(len(row)))}); "
         values = [value for key, value in row.items()]
-        logger.info(f'Running query: {query} {values}')
         result = self.execute(query, tuple(values))
 
         result.lastid = pk
