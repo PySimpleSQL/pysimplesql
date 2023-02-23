@@ -4,8 +4,10 @@
 While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
-**pysimplesql** binds PySimpleGUI™ to sqlite3 databases for rapid, effortless database application development. Makes a great
-replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
+**pysimplesql** binds PySimpleGUI™ to varous databases for rapid, effortless database application development. At the time
+of this writing, **pysimplesql** supports **SQLite**, **MySQL** and **PostgreSQL** databases!
+
+Makes a great replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the 
 power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
 line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
 
@@ -22,7 +24,7 @@ as well as hosting projects like this, I have a lot to learn moving forward.  Yo
 
 ## Basic Concepts
 **pysimplesql** borrows on common concepts in other database front-end applications such as LibreOffice or MS Access.
-The basic concept revolves around Forms, which are invisible containers that connect to an underlying database, and
+The basic concept revolves around Forms, which are invisible containers that connect to an underlying database, andrefs #74
 Queries, which use SQL to access the tables within the database. Forms in **pysimplesql** are very flexible in that multiple forms (and their underlying databases and tables) can be bound to the same PySimpleGUI™ Window. This allows 
 for a tremendous amount of flexibility in your projects. Binding a **pysimplesql** Form to a PySimpleGUI™ Window is
 very easy, and automatically binds Elements of the Window to records in your own database.  Be sure to check out the 
@@ -107,13 +109,13 @@ while True:
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm=None              # <= ensures proper closing of the sqlite database and runs a database optimization at close
+        frm=None              # <= ensures proper closing of the database and runs a database optimization at close
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
 
 ```
-along with this sqlite table
+along with this SQL 
 ```sql
 DROP TABLE IF EXISTS "Restaurant";
 DROP TABLE IF EXISTS "Item";
@@ -204,9 +206,9 @@ supported as well. @Form.record() is a convenience function/"custom element" to 
 comboxes for foreign key relationships.  Of course, this can be changed manually if needed, but truly the simplictiy of 
 **pysimplesql** is in having everything happen automatically!
 
-Here is another example sqlite table that shows the above rules at work.  Don't let this scare you, there are plenty of
+Here is another example SQL table that shows the above rules at work.  Don't let this scare you, there are plenty of
 tools to create your database without resorting to raw SQL commands. These commands here are just shown for completeness
-(Creating the sqlite database is only done once anyway) 
+(Creating the SQL database is only done once anyway) 
 ```sql
 CREATE TABLE "Book"(
     "pkBook" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -394,9 +396,9 @@ frm.update_elements()
 As you can see, there is a lot of power in the auto functionality of pysimplesql, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
 
 # BREAKDOWN OF ADVANCED FUNCTIONALITY
-**pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and Sqlite databases! In full, **pysimplesql** contains:
+**pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and databases! In full, **pysimplesql** contains:
 * Convenience functions for simplifying PySimpleGUI™ layout code
-* Control binding between PySimpleGUI™ controls and Sqlite database fields
+* Control binding between PySimpleGUI™ controls and database fields
 * Automatic requerying of related tables
 * Record navigation - Such as First, Previous, Next, Last, Searching and selector controls
 * Callbacks allow your own functions to expand control over your own database front ends
@@ -459,7 +461,7 @@ while True:
     if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
+        db = None  # <= ensures proper closing of the database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')
@@ -517,7 +519,7 @@ while True:
     if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
+        db = None  # <= ensures proper closing of the database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')
@@ -572,7 +574,7 @@ while True:
     if db.process_events(event, values):  # <=== let pysimplesql process its own events! Simple!
         print(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
+        db = None  # <= ensures proper closing of the database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')
@@ -629,7 +631,7 @@ while True:
     elif event == 'btnLast':
         db[table].last()
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        db = None  # <= ensures proper closing of the sqlite database and runs a database optimization
+        db = None  # <= ensures proper closing of the database and runs a database optimization
         break
     else:
         print(f'This event ({event}) is not yet handled.')
