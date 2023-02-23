@@ -2745,27 +2745,30 @@ class ColumnInfo(List):
                 if rows.exception is None:
                     default = rows.fetchone()[default]
                     logger.debug(f'Default fetched from database function. Default value is: {default}')
+                    d[c.name] = default
+                    continue
 
-            elif sql_type == 'BOOLEAN' and default is None:
-                default = 0
-            elif sql_type in ['TEXT','VARCHAR','CHAR']:
-                if default is not None:
-                    default = c.default.strip('"\'') # strip leading and trailing quotes
-                else:
+            # The stored default is a literal value, lets try to use it:
+            if default is None:
+                if sql_type == 'BOOLEAN':
+                    default = 0
+                elif sql_type in ['TEXT','VARCHAR','CHAR']:
                     if c.name == description_column:
-                        default = 'New record' # If no default is specified, we have to do something!
-
-            elif sql_type in ['REAL','DOUBLE','FLOAT','DECIMAL'] and (default is None):
-                default = 1.0
-            elif sql_type == 'DATE' or (sql_type=="INTEGER" and default in ["date('now')","strftime('%s', 'now')"]): # TODO: is there a way to find out if a default is a function directly
-                default = date.today().strftime("%Y-%m-%d")                                                          # TODO: from the database, and query the information directly?
-            elif sql_type in ['DATETIME','TIMESTAMP']:
-                default = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            elif sql_type == 'TIME':
-                default = datetime.now().strftime("%H:%M:%S")
-            elif sql_type == 'INTEGER' and (default is None):
-                if not c.pk: # we don't want to default our primary key!
-                    default = 1
+                        default = 'New record'  # If no default is specified, we have to do something
+                elif sql_type in ['REAL','DOUBLE','FLOAT','DECIMAL']:
+                    default = 1.0
+                elif sql_type == 'DATE':
+                    default = date.today().strftime("%Y-%m-%d")
+                elif sql_type in ['DATETIME','TIMESTAMP']:
+                    default = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                elif sql_type == 'TIME':
+                    default = datetime.now().strftime("%H:%M:%S")
+                elif sql_type == 'INTEGER':
+                    if not c.pk: # we don't want to default our primary key!
+                        default = 1
+            else:
+                # strip quotes from default strings
+                default = c.default.strip('"\'')  # strip leading and trailing quotes
 
             d[c.name]= default
         return d
