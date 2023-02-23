@@ -1079,7 +1079,7 @@ class Query:
 
         # Store the pk can we can move to it later - use the value returned in the resultset if possible, just in case
         # the expected pk changed from autoincrement and/or condurrent access
-        pk = result.lastrowid if result.lastrowid else self.get_current_pk()
+        pk = result.lastrowid if result.lastrowid is not None else self.get_current_pk()
         current_row[self.pk_column] = pk
 
         # then update the current row data
