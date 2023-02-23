@@ -532,9 +532,9 @@ class Query:
 
                 if element_val != table_val:
                     dirty = True
-                    logger.info(f'CHANGED RECORD FOUND!')
-                    logger.info(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
-                    logger.info(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
+                    logger.debug(f'CHANGED RECORD FOUND!')
+                    logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
+                    logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
                     return dirty
                 else:
                     dirty = False
@@ -768,7 +768,7 @@ class Query:
 
         if skip_prompt_save is False: self.prompt_save() # TODO: Should this be before the before_search callback?
         # First lets make a search order.. TODO: remove this hard coded garbage
-        if len(self.rows): logger.info(f'DEBUG: {self.search_order} {self.rows[0].keys()}')
+        if len(self.rows): logger.debug(f'DEBUG: {self.search_order} {self.rows[0].keys()}')
         for o in self.search_order:
             # Perform a search for str, from the current position to the end and back by creating a list of all indexes
             for i in list(range(self.current_index + 1, len(self.rows))) + list(range(0, self.current_index)):
@@ -2964,7 +2964,9 @@ class SQLDriver:
         query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in row.keys())} {where};"
         values = [v for v in row.values()]
 
-        return self.execute(query, tuple(values))
+        result = self.execute(query, tuple(values))
+        result.lastrowid = None # manually clear th rowid since it is not needed for updated records (we already know the key)
+        return result
 
 
     def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
@@ -3019,6 +3021,7 @@ class Sqlite(SQLDriver):
 
     def execute(self, query, values=None, silent=False):
         if not silent:logger.info(f'Executing query: {query} {values}')
+
         cursor = self.con.cursor()
         exception = None
         try:
@@ -3028,11 +3031,11 @@ class Sqlite(SQLDriver):
 
         try:
             rows = cursor.fetchall()
+
         except:
             rows = []
 
-        lastrowid = cursor.lastrowid if cursor.lastrowid else None
-
+        lastrowid = cursor.lastrowid if cursor.lastrowid is not None else None
         return ResultSet([dict(row) for row in rows], lastrowid, exception)
 
 
@@ -3355,7 +3358,6 @@ class Postgres(SQLDriver):
         # insert_record() for Postgres is a little different than the rest. Instead of relying on an autoincrement, we
         # first already "reserved" a primary key earlier, so we will use it directly
         # quote appropriately
-        print(row)
         table = self.quote_table(table)
         pk_column = self.quote_column(pk_column)
 
