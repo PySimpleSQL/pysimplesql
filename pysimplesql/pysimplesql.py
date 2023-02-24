@@ -1948,16 +1948,18 @@ class Form:
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = d['element'].key + '.marker'
-            if self[d['query'].table].get_current_row().virtual:
-                # get the column name from the key
-                col = marker_key.split(".")[1]
-                # get notnull from the column info
-                if col in self[d['query'].table].column_info.names():
-                    if self[d['query'].table].column_info[col].notnull:
-                        self.window[marker_key].update(visible=True)
-            else:
+            try:
+                if self[d['query'].table].get_current_row().virtual:
+                    # get the column name from the key
+                    col = marker_key.split(".")[1]
+                    # get notnull from the column info
+                    if col in self[d['query'].table].column_info.names():
+                        if self[d['query'].table].column_info[col].notnull:
+                            self.window[marker_key].update(visible=True)
+                else:
+                    self.window[marker_key].update(visible=False)
+            except AttributeError:
                 self.window[marker_key].update(visible=False)
-
 
 
             updated_val = None
@@ -2521,15 +2523,13 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     else:
         layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size)
-    layout_marker = sg.T('\u2731', key=f'{key}.marker', text_color = "red", visible=True) # Marker for required (notnull) records
+    layout_marker = sg.Column([[sg.T('\u2731', key=f'{key}.marker', text_color = "red", visible=True)]], pad=(0,0)) # Marker for required (notnull) records
     if no_label:
         layout = [[layout_marker, layout_element]]
     elif label_above:
         layout = [[layout_label], [layout_marker, layout_element]]
     else:
-        print('Using default layout')
         layout = [[layout_label , layout_marker, layout_element]]
-    print("Layout:", layout)
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
