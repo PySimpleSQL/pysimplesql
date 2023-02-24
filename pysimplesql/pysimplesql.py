@@ -1937,12 +1937,28 @@ class Form:
                     win[m['event']].update(disabled=hide)
         if edit_protect_only: return
 
+
+        # Render GUI Elements
         # d= dictionary (the element map dictionary)
         for d in self.element_map:
             # If the optional query parameter was passed, we will only update elements bound to that table
             if table_name is not None:
                 if d['query'].table != table_name:
                     continue
+
+            # Show the Required Record marker if the column has notnull set and this is a virtual row
+            marker_key = d['element'].key + '.marker'
+            if self[d['query'].table].get_current_row().virtual:
+                # get the column name from the key
+                col = marker_key.split(".")[1]
+                # get notnull from the column info
+                if col in self[d['query'].table].column_info.names():
+                    if self[d['query'].table].column_info[col].notnull:
+                        self.window[marker_key].update(visible=True)
+            else:
+                self.window[marker_key].update(visible=False)
+
+
 
             updated_val = None
             # If there is a callback for this element, use it
@@ -2504,14 +2520,16 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
         layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
     else:
         layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
-    layout_label = sg.T(label_text if label == '' else label, size=_default_label_size)
+    layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size)
+    layout_marker = sg.T('\u2731', key=f'{key}.marker', text_color = "red", visible=True) # Marker for required (notnull) records
     if no_label:
-        layout = [[layout_element]]
+        layout = [[layout_marker, layout_element]]
     elif label_above:
-        layout = [[layout_label], [layout_element]]
+        layout = [[layout_label], [layout_marker, layout_element]]
     else:
-        layout = [[layout_label , layout_element]]
-
+        print('Using default layout')
+        layout = [[layout_label , layout_marker, layout_element]]
+    print("Layout:", layout)
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
@@ -2519,7 +2537,8 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
             layout[-1].append(sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=icon.quick_edit, metadata=meta))
         else:
             layout[-1].append(sg.B(icon.quick_edit, key=keygen(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
-    return sg.Col(layout=layout)
+    #return layout
+    return sg.Col(layout=layout) # TODO: Does this actually need wrapped in a sg.Col???
 
 def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
@@ -2788,7 +2807,11 @@ class ColumnInfo(List):
             return self._contains_key_value_pair('name', item)
         else:
             return super().__contains__(item)
-
+    def __getitem__(self,item):
+        if isinstance(item, str):
+            return next((i for i in self if i.name == item), None)
+        else:
+            return super().__getitem__(item)
     def names(self) -> List:
         """
         Return a List of column names from the `Column`s in this collection
@@ -2837,10 +2860,7 @@ class ColumnInfo(List):
                 # If our default is callable, call it.  Otherwise, assign it
                 # Make sure to skip primary keys, and onlu consider text that is in the description column
                 if (sql_type not in ['TEXT','VARCHAR','CHAR'] and c.name != q_obj.description_column) and c.pk==False:
-                    print(f'Setting default for {c.name} to {null_default}')
                     default = null_default() if callable(null_default) else null_default
-                else:
-                    print(f'Did not set default for {c.name}')
             else:
                 # Load the default from the database
                 if sql_type in ['TEXT', 'VARCHAR', 'CHAR']:
