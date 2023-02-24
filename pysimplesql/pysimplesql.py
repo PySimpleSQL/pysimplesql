@@ -956,7 +956,7 @@ class Query:
                 return
 
         # Get a new dict for a new row with default values already filled in
-        new_values = self.column_info.default_dict(self)
+        new_values = self.column_info.default_row_dict(self)
 
         # If the values parameter was passed in, overwrite any values in the dict
         if values is not None:
@@ -2679,6 +2679,16 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
 # ----------------------------------------------------------------------------------------------------------------------
 
 class ColumnInfo(List):
+    """
+    Column Information Class
+
+    The ColumnInfo class is a custom container that behaves like a List containing a collection of ResultColumns. This
+    class is responsible for maintaining information about all of the columns (ResultColumn) in a table. While the
+    individual ResultColumn elements of this collection contain information such as default values, primary key status,
+    SQL data type, column name, and the notnull status - this class ties them all together into a collection and adds
+    functionality to set default values for null columns and retrieve a dict representing a table row with all defaults
+    already assigned.
+    """
     def __init__(self, driver:SQLDriver, table_name:str):
         self.driver = driver
         self.table_name = table_name
@@ -2690,7 +2700,7 @@ class ColumnInfo(List):
         ]
 
         # Defaults to use for Null values returned from the database. These can be overwritten by the user and support
-        # function calls as well
+        # function calls as well by using ColumnInfo.set_null_default() and ColumnInfo.set_null_defaults()
         self.null_defaults = {
             'TEXT': 'New Record',
             'VARCHAR': 'New Record',
@@ -2714,57 +2724,40 @@ class ColumnInfo(List):
         else:
             return super().__contains__(item)
 
-    def getlist(self, key:str) -> List:
-        """returns a list of any key in the underlying ResultColumn instances. For example, column names, types, defaults, etc."""
-        return [d[key] for d in self]
+    def names(self) -> List:
+        """
+        Return a List of column names from the ResultColumns in this collection
 
-    def names(self):
-        """Return a List of column names from this collection"""
-        return self.getlist('name')
+        :return: List
+        """
+        return self._get_list('name')
 
-    def col_name(self,idx):
-        """Get the column name located at the specified index in this collection of columns"""
+    def col_name(self,idx:int) -> str:
+        """
+        Get the column name located at the specified index in this collection of ResultColumns
+
+        :param idx: The index of the column to get the name from
+        :return: The name of the column at the specified index
+        """
         return self[idx].name
 
-    def looks_like_function(self, s:str): # TODO: check if something looks like a statement for complex defaults?  Regex?
-        # check if the string is empty
-        if not s:
-            return False
+    def default_row_dict(self, q_obj:Query) -> dict:
+        """
+        Return a dictionary of a table row with all defaults assigned. This is useful for inserting new records to
+        prefill the GUI elements
 
-        # find the index of the first opening parenthesis
-        open_paren_index = s.find("(")
-
-        # if there is no opening parenthesis, the string is not a function
-        if open_paren_index == -1:
-            return False
-
-        # check if there is a name before the opening parenthesis
-        name = s[:open_paren_index].strip()
-        if not name.isidentifier():
-            return False
-
-        # find the index of the last closing parenthesis
-        last_char_index = len(s) - 1
-        close_paren_index = s.rfind(")")
-
-        # if there is no closing parenthesis, the string is not a function
-        if close_paren_index == -1 or close_paren_index <= open_paren_index:
-            return False
-
-        # if all checks pass, the string looks like a function
-        return True
-
-    def default_dict(self, q_obj:Query):
-        """Return a dict of name: default value pairs"""
+        :param q_obj: a pysimplesql Query object
+        :return: dict
+        """
         d = {}
         for c in self:
             default = c.default
             sql_type = c.sql_type
 
             # First, check to see if the default might be a database function
-            if self.looks_like_function(default):
+            if self._looks_like_function(default):
                 table_name = self.driver.quote_table(self.table_name)
-                q = f'SELECT {default} FROM {table_name};' # TODO: may need as column_name to support all databases?
+                q = f'SELECT {default} FROM {table_name};' # TODO: may need AS column_name to support all databases?
                 rows = self.driver.execute(q)
                 if rows.exception is None:
                     default = rows.fetchone()[default]
@@ -2792,13 +2785,6 @@ class ColumnInfo(List):
             d[c.name]= default
         if q_obj.transform is not None: q_obj.transform(d, TFORM_DECODE)
         return d
-
-
-    def _contains_key_value_pair(self, key, value): #used by __contains__
-        for d in self:
-            if key in d and d[key] == value:
-                return True
-        return False
 
     def set_null_default(self, sql_type:str, value:object) -> None:
         """
@@ -2828,10 +2814,59 @@ class ColumnInfo(List):
 
         self.null_defaults = null_defaults
 
+    def _contains_key_value_pair(self, key, value): #used by __contains__
+        for d in self:
+            if key in d and d[key] == value:
+                return True
+        return False
+
+    def _looks_like_function(self, s:str): # TODO: check if something looks like a statement for complex defaults?  Regex?
+        # check if the string is empty
+        if not s:
+            return False
+
+        # find the index of the first opening parenthesis
+        open_paren_index = s.find("(")
+
+        # if there is no opening parenthesis, the string is not a function
+        if open_paren_index == -1:
+            return False
+
+        # check if there is a name before the opening parenthesis
+        name = s[:open_paren_index].strip()
+        if not name.isidentifier():
+            return False
+
+        # find the index of the last closing parenthesis
+        last_char_index = len(s) - 1
+        close_paren_index = s.rfind(")")
+
+        # if there is no closing parenthesis, the string is not a function
+        if close_paren_index == -1 or close_paren_index <= open_paren_index:
+            return False
+
+        # if all checks pass, the string looks like a function
+        return True
+
+    def _get_list(self, key: str) -> List:
+        # returns a list of any key in the underlying ResultColumn instances. For example, column names, types, defaults, etc.
+        return [d[key] for d in self]
+
 class ResultColumn:
     """
     The ResultColumn class is a generic column class.  It holds a dict containing the column name, type  whether the
-    column is nullable and the default value, if any
+    column is notnull, whether the column is a primary key and the default value, if any. ResultColumns are typically
+    stored in a ColumnInfo collection. There are multiple ways to get information from a ResultColumn, including subscript
+    notation, and via properties. The available column info via these methods are name, sql_type, notnull, default and pk
+    See example:
+    ```python
+    # Get the of the first column selecting a ResultColumn from the stored ColumnInfo collection
+    col_name = frm['Journal'].column_info[0]['name'] # uses subscript notation
+    col_name = frm['Journal'].column_info[0].name    # uses the name property
+
+    # Get the default value stored in the database for the 'title' column
+    default = frm['Journal'].column_info['title'].default
+    ```
     """
     def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool):
         self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
@@ -2886,15 +2921,16 @@ class ResultColumn:
     def pk(self, value):
         self._column['pk'] = value
 
-    def get_names(self):
-        return [v for k,v in self.columns.items() if k == 'name']
 
 class ResultRow:
-    # The ResulRow class is a generic row class.  It holds a dict containing the columns and values of the row, along
-    # with a "virtual" flag.  A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
-    # This is useful for inserting records or other temporary storage of records.  Note that when querying a database,
-    # the virtual flag will never be set - it is only set by the end user by calling <ResultSet>.insert() to insert a
-    # new virtual row.
+    """
+    The ResulRow class is a generic row class.  It holds a dict containing the columns and values of the row, along
+    with a "virtual" flag.  A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
+    This is useful for inserting records or other temporary storage of records.  Note that when querying a database,
+    the virtual flag will never be set - it is only set by the end user by calling <ResultSet>.insert() to insert a
+    new virtual row.
+    """
+
     def __init__(self, row:dict, virtual=False):
         self.row = row
         self.virtual=virtual
