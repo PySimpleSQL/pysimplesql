@@ -24,7 +24,7 @@ as well as hosting projects like this, I have a lot to learn moving forward.  Yo
 
 ## Basic Concepts
 **pysimplesql** borrows on common concepts in other database front-end applications such as LibreOffice or MS Access.
-The basic concept revolves around Forms, which are invisible containers that connect to an underlying database, andrefs #74
+The basic concept revolves around Forms, which are invisible containers that connect to an underlying database, and
 Queries, which use SQL to access the tables within the database. Forms in **pysimplesql** are very flexible in that multiple forms (and their underlying databases and tables) can be bound to the same PySimpleGUI™ Window. This allows 
 for a tremendous amount of flexibility in your projects. Binding a **pysimplesql** Form to a PySimpleGUI™ Window is
 very easy, and automatically binds Elements of the Window to records in your own database.  Be sure to check out the 
