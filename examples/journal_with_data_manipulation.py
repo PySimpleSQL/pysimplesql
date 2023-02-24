@@ -57,7 +57,7 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 # SET UP TRANSFORM FOR ENCODING/DECODING UNIX TIMESTAMPS
 # ------------------------------------------------------
 # Encode/Decode to/from unix epoch to readable date on database read/write
-def tform_date(row,encode):
+def tform_date(self,row,encode):
 
     col = 'entry_date'
     if col in row:
@@ -68,9 +68,19 @@ def tform_date(row,encode):
             row[col] = datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp()
         logger.debug(f'{msg} to {row[col]}')
 
+#Use our new transform!   
+#frm['Journal'].set_transform(tform_date)
 
-# Use our new transform!
-frm['Journal'].set_transform(tform_date)
+Use our new transform!   
+frm['Journal'].set_transform(ss.simple_transform)
+
+transform_dict = {'entry_date' : {
+    'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'),
+    'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(),
+    }}
+
+frm['Journal'].add_simple_transform(transform_dict)
+
 frm['Journal'].requery()
 
 

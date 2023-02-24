@@ -266,6 +266,7 @@ class Query:
         self.filtered = filtered
         self._prompt_save=prompt_save
         # self.requery(True)
+        self._simple_transform = {}
 
     # Override the [] operator to retrieve columns by key
     def __getitem__(self, key):
@@ -611,7 +612,7 @@ class Query:
         for row in self.rows:
             # perform transform one row at a time
             if self.transform is not None:
-                self.transform(row, TFORM_DECODE)
+                self.transform(self, row, TFORM_DECODE)
             # Strip trailing white space, as this is what sg[element].get() does, so we can have an equal comparison
             # Not the prettiest solution..  Will look into this more on the  PySimpleGUI end and make a ticket to follow up
             for k,v in row.items():
@@ -1055,7 +1056,7 @@ class Query:
                     cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
-        if self.transform is not None: self.transform(changed_row, TFORM_ENCODE)
+        if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
 
         # Save or Insert the record as needed
         if current_row.virtual==True:
@@ -1326,7 +1327,16 @@ class Query:
         quick_win.close()
         self.requery()
 
+    def add_simple_transform(self,transforms):
+        """
+        Merge a dictionary of transforms into this queries _simple_transform dictionary.
 
+        Example:
+        {'entry_date' : {
+            'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'),
+            'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(),
+        }}
+        """
 
 class Form:
     """
@@ -2455,6 +2465,19 @@ def set_mline_size(w, h):
     """
     global _default_mline_size
     _default_mline_size = (w, h)
+
+def simple_transform(self,row,encode):
+    """
+    Convenience transform function that makes it easier to add transforms to your records.
+    """
+    for col, function in self._simple_transform.items():
+        if col in row:
+            msg = f'Transforming {col} from {row[col]}'
+            if encode == pysimplesql.TFORM_DECODE:
+                row[col] = function['decode'](row,col)
+            else:
+                row[col] = function['encode'](row,col)
+            logger.debug(f'{msg} to {row[col]}')
     
 def set_ttk_theme(name):
     """
