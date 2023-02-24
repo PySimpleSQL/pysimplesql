@@ -257,7 +257,7 @@ class Query:
         self.join = ''
         self.where = ''  # In addition to generated where!
         self.dependents = []
-        self.column_info = [] # a list of ResultColumn instances
+        self.column_info = [] # ColumnInfo collection
         self.rows = []
         self.search_order = []
         self.selector = []
@@ -2684,7 +2684,7 @@ class Column:
     notation, and via properties. The available column info via these methods are name, sql_type, notnull, default and pk
     See example:
     ```python
-    # Get the of the first column selecting a ResultColumn from the stored ColumnInfo collection
+    # Get the of the first column selecting a `Column` from the stored `ColumnInfo` collection
     col_name = frm['Journal'].column_info[0]['name'] # uses subscript notation
     col_name = frm['Journal'].column_info[0].name    # uses the name property
 
@@ -2696,10 +2696,10 @@ class Column:
         self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
 
     def __str__(self):
-        return f"ResultColumn: {self._column}"
+        return f"Column: {self._column}"
 
     def __repr__(self):
-        return f"ResultColumn: {self._column}"
+        return f"Column: {self._column}"
 
     def __getitem__(self,item):
         return self._column[item]
@@ -2815,7 +2815,7 @@ class ColumnInfo(List):
 
     def names(self) -> List:
         """
-        Return a List of column names from the ResultColumns in this collection
+        Return a List of column names from the `Column`s in this collection
 
         :return: List
         """
@@ -2823,7 +2823,7 @@ class ColumnInfo(List):
 
     def col_name(self,idx:int) -> str:
         """
-        Get the column name located at the specified index in this collection of ResultColumns
+        Get the column name located at the specified index in this collection of `Column`s
 
         :param idx: The index of the column to get the name from
         :return: The name of the column at the specified index
@@ -2938,7 +2938,7 @@ class ColumnInfo(List):
         return True
 
     def _get_list(self, key: str) -> List:
-        # returns a list of any key in the underlying ResultColumn instances. For example, column names, types, defaults, etc.
+        # returns a list of any key in the underlying Column instances. For example, column names, types, defaults, etc.
         return [d[key] for d in self]
 
 
