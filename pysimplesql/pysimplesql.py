@@ -1913,26 +1913,30 @@ class Form:
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
+            # hide mapped elements for this table if there are no records in this table or edit protect mode
+            hide = len(self[t].rows) == 0 or self._edit_protect
+            self.update_element_states(t, hide)
+            
             for m in (m for m in self.event_map if m['table'] == t):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
-                hide = len(self[t].rows) == 0 or self._edit_protect
                 if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
-                    win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
-                    
-                # Disable navigations if there is 0 or 1 records in table
-                hide = len(self[t].rows) < 2
-                if ('.table_first' in m['event']) or ('.table_previous' in m['event']) or ('.table_next' in m['event']) or ('.table_last' in m['event']):
+                    hide = len(self[t].rows) == 0 or self._edit_protect
                     win[m['event']].update(disabled=hide)
                     
-                # Disable next/last in last position
-                hide = self[t].current_index == len(self[t].rows) - 1
-                if ('.table_next' in m['event']) or ('.table_last' in m['event']):
+                elif '.table_first' in m['event']:
+                    hide = len(self[t].rows) < 2 or self[t].current_index == 0
+                    win[m['event']].update(disabled=hide)
+                
+                elif '.table_previous' in m['event']:
+                    hide = len(self[t].rows) < 2 or self[t].current_index == 0
                     win[m['event']].update(disabled=hide)
                     
-                # Disable next/last in last position
-                hide = self[t].current_index == 0 or len(self[t].rows) == 0
-                if ('.table_first' in m['event']) or ('.table_previous' in m['event']):
+                elif '.table_next' in m['event']:
+                    hide = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
+                    win[m['event']].update(disabled=hide)
+                    
+                elif '.table_last' in m['event']:
+                    hide = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
                     win[m['event']].update(disabled=hide)
 
                 # Disable insert on children with no parent records or edit protect mode
