@@ -211,7 +211,7 @@ class Query:
     """
     instances=[] # Track our instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', filtered:Bool=True, prompt_save:Bool=True) -> Query:
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', filtered:Bool=True, prompt_save:Bool=True, autosave=False) -> Query:
         """
         Initialize a new Table instance
 
@@ -233,6 +233,10 @@ class Query:
         :type filtered: bool
         :param prompt_save: Prompt to save changes when dirty records are present
         :type prompt_save: bool
+        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :type autosave: bool
+
+
         :returns: A Table instance
         :rtype: Query
         """
@@ -267,6 +271,7 @@ class Query:
         self._prompt_save=prompt_save
         # self.requery(True)
         self._simple_transform = {}
+        self.autosave = autosave
 
     # Override the [] operator to retrieve columns by key
     def __getitem__(self, key):
@@ -567,7 +572,7 @@ class Query:
         # Check if any records have changed
         changed = self.records_changed()
         if changed:
-            if autosave:
+            if autosave or self.autosave:
                 save_changes = 'Yes'
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
@@ -1281,7 +1286,12 @@ class Query:
                 return rel.parent_table
         return self.name # None could be found, return ourself
 
-    def quick_editor(self, pk_update_funct=None,funct_param=None):
+    def quick_editor(self, pk_update_funct=None,funct_param=None, skip_prompt_save=False):
+        """
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
+        """
+        if skip_prompt_save is False: self.prompt_save()
         # Reset the keygen to keep consistent naming
         logger.info('Creating Quick Editor window')
         keygen_reset_all()
@@ -1347,7 +1357,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, driver:SQLDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
+    def __init__(self, driver:SQLDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True, autosave=False):
         """
         Initialize a new @Form instance
 
@@ -1356,7 +1366,10 @@ class Form:
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: parent form to base queries off of
         :param filter: (optional) Only import elements with the same filter
-        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well. 
+        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well.
+        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :type autosave: bool
+
         """
         Form.instances.append(self)
 
@@ -1370,6 +1383,7 @@ class Form:
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships = []
         self.callbacks = {}
+        self.autosave = autosave
 
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
@@ -1796,7 +1810,7 @@ class Form:
                 # we will only show the popup once, regardless of how many queries have changed
                 if not user_prompted:
                     user_prompted = True
-                    if autosave:
+                    if autosave or self.autosave:
                         save_changes = 'Yes'
                     else:
                         save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
