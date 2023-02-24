@@ -1924,19 +1924,16 @@ class Form:
                 hide = len(self[t].rows) < 2
                 if ('.table_first' in m['event']) or ('.table_previous' in m['event']) or ('.table_next' in m['event']) or ('.table_last' in m['event']):
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
                     
                 # Disable next/last in last position
                 hide = self[t].current_index == len(self[t].rows) - 1
                 if ('.table_next' in m['event']) or ('.table_last' in m['event']):
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
                     
                 # Disable next/last in last position
-                hide = self[t].current_index == 0
+                hide = self[t].current_index == 0 or len(self[t].rows) == 0
                 if ('.table_first' in m['event']) or ('.table_previous' in m['event']):
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -2250,7 +2247,7 @@ class Form:
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.key_dict.keys():
-                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
+                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visible: {visible}')
                 if disable is not None:
                     element.update(disabled=disable)
                 if visible is not None:
