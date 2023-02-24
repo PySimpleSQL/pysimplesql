@@ -2671,23 +2671,112 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
     return layout
 
 # ======================================================================================================================
-# DATABASE ABSTRACTION
+# COLUMN ABSTRACTION
 # ======================================================================================================================
-# The database abstraction hides the complexity of dealing with multiple databases.  The concept relies on individual
-# "drivers" that derive from the SQLDriver class, and return a generic ResultSet instance, which contains a collection
-# of generic ResultRow instances.
+# The column abstraction hides the complexity of dealing with SQL columns, getting their names, default values, data
+# types, primary key status and notnull status
 # ----------------------------------------------------------------------------------------------------------------------
+class Column:
+    """
+    The `Column` class is a generic column class.  It holds a dict containing the column name, type  whether the
+    column is notnull, whether the column is a primary key and the default value, if any. `Column`s are typically
+    stored in a `ColumnInfo` collection. There are multiple ways to get information from a `Column`, including subscript
+    notation, and via properties. The available column info via these methods are name, sql_type, notnull, default and pk
+    See example:
+    ```python
+    # Get the of the first column selecting a ResultColumn from the stored ColumnInfo collection
+    col_name = frm['Journal'].column_info[0]['name'] # uses subscript notation
+    col_name = frm['Journal'].column_info[0].name    # uses the name property
+
+    # Get the default value stored in the database for the 'title' column
+    default = frm['Journal'].column_info['title'].default
+    ```
+    """
+    def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool):
+        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
+
+    def __str__(self):
+        return f"ResultColumn: {self._column}"
+
+    def __repr__(self):
+        return f"ResultColumn: {self._column}"
+
+    def __getitem__(self,item):
+        return self._column[item]
+
+    def __setitem__(self, key, value):
+        self._column[key] = value
+
+    def __lt__(self, other, key):
+        return self._column[key] < other._column[key]
+
+    def __contains__(self, item):
+        return item in self._column
+
+    # Make some properties for easy access
+    @property
+    def name(self):
+        return self._column['name']
+    @name.setter
+    def name(self, value):
+        self._column['name'] = value
+    @property
+    def sql_type(self):
+        return self._column['sql_type']
+    @sql_type.setter
+    def sql_type(self, value):
+        self._column['sql_type'] = value
+    @property
+    def notnull(self):
+        return self._column['notnull']
+    @notnull.setter
+    def notnull(self, value:bool):
+        self._column['notnull'] = value
+    @property
+    def default(self):
+        return self._column['default']
+    @default.setter
+    def default(self, value):
+        self._column['default'] = value
+    @property
+    def pk(self):
+        return(self._column['pk'])
+    @pk.setter
+    def pk(self, value):
+        self._column['pk'] = value
 
 class ColumnInfo(List):
     """
     Column Information Class
 
-    The ColumnInfo class is a custom container that behaves like a List containing a collection of ResultColumns. This
-    class is responsible for maintaining information about all of the columns (ResultColumn) in a table. While the
-    individual ResultColumn elements of this collection contain information such as default values, primary key status,
+    The `ColumnInfo` class is a custom container that behaves like a List containing a collection of `Columns`. This
+    class is responsible for maintaining information about all the columns (`Column`) in a table. While the
+    individual `Column` elements of this collection contain information such as default values, primary key status,
     SQL data type, column name, and the notnull status - this class ties them all together into a collection and adds
     functionality to set default values for null columns and retrieve a dict representing a table row with all defaults
-    already assigned.
+    already assigned. See example below:
+    ```python
+    # Set the null value default for INTEGERS to 10; When reading from the database, if an INTEGER is Null, this value will be set
+    frm['Journal'].column_info.set_null_default('INTEGER', 10)
+
+    # Provide a complete custom set of null defaults: note: All supported keys must be included
+    null_defaults = {
+        'TEXT': 'New Record',
+        'VARCHAR': 'New Record',
+        'CHAR' : 'New Record',
+        'INTEGER' : 10,
+        'REAL': 100.0,
+        'DOUBLE': 90.0,
+        'FLOAT': 80.0,
+        'DECIMAL': 70.0,
+        'BOOLEAN': 1,
+        'TIME': lambda x: datetime.now().strftime("%H:%M:%S"),
+        'DATE': lambda x: date.today().strftime("%Y-%m-%d"),
+        'TIMESTAMP': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'DATETIME': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    frm['Journal'].column_info.set_null_defaults(null_defaults)
+    ```
     """
     def __init__(self, driver:SQLDriver, table_name:str):
         self.driver = driver
@@ -2852,83 +2941,24 @@ class ColumnInfo(List):
         # returns a list of any key in the underlying ResultColumn instances. For example, column names, types, defaults, etc.
         return [d[key] for d in self]
 
-class ResultColumn:
-    """
-    The ResultColumn class is a generic column class.  It holds a dict containing the column name, type  whether the
-    column is notnull, whether the column is a primary key and the default value, if any. ResultColumns are typically
-    stored in a ColumnInfo collection. There are multiple ways to get information from a ResultColumn, including subscript
-    notation, and via properties. The available column info via these methods are name, sql_type, notnull, default and pk
-    See example:
-    ```python
-    # Get the of the first column selecting a ResultColumn from the stored ColumnInfo collection
-    col_name = frm['Journal'].column_info[0]['name'] # uses subscript notation
-    col_name = frm['Journal'].column_info[0].name    # uses the name property
 
-    # Get the default value stored in the database for the 'title' column
-    default = frm['Journal'].column_info['title'].default
-    ```
-    """
-    def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool):
-        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
-
-    def __str__(self):
-        return f"ResultColumn: {self._column}"
-
-    def __repr__(self):
-        return f"ResultColumn: {self._column}"
-
-    def __getitem__(self,item):
-        return self._column[item]
-
-    def __setitem__(self, key, value):
-        self._column[key] = value
-
-    def __lt__(self, other, key):
-        return self._column[key] < other._column[key]
-
-    def __contains__(self, item):
-        return item in self._column
-
-    # Make some properties for easy access
-    @property
-    def name(self):
-        return self._column['name']
-    @name.setter
-    def name(self, value):
-        self._column['name'] = value
-    @property
-    def sql_type(self):
-        return self._column['sql_type']
-    @sql_type.setter
-    def sql_type(self, value):
-        self._column['sql_type'] = value
-    @property
-    def notnull(self):
-        return self._column['notnull']
-    @notnull.setter
-    def notnull(self, value:bool):
-        self._column['notnull'] = value
-    @property
-    def default(self):
-        return self._column['default']
-    @default.setter
-    def default(self, value):
-        self._column['default'] = value
-    @property
-    def pk(self):
-        return(self._column['pk'])
-    @pk.setter
-    def pk(self, value):
-        self._column['pk'] = value
-
-
+# ======================================================================================================================
+# DATABASE ABSTRACTION
+# ======================================================================================================================
+# The database abstraction hides the complexity of dealing with multiple databases.  The concept relies on individual
+# "drivers" that derive from the SQLDriver class, and return a generic ResultSet instance, which contains a collection
+# of generic ResultRow instances.
+# ----------------------------------------------------------------------------------------------------------------------
 class ResultRow:
     """
-    The ResulRow class is a generic row class.  It holds a dict containing the columns and values of the row, along
+    The ResulRow class is a generic row class.  It holds a dict containing the column names and values of the row, along
     with a "virtual" flag.  A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
     This is useful for inserting records or other temporary storage of records.  Note that when querying a database,
-    the virtual flag will never be set - it is only set by the end user by calling <ResultSet>.insert() to insert a
-    new virtual row.
+    the virtual flag will never be set for a row- it is only set by the end user by calling <ResultSet>.insert() to insert
+    a new virtual row.
+
+    ResultRows are not typcially used by the end user directly, they are typically used as a collection of ResultRows in
+    a ResultSet.
     """
 
     def __init__(self, row:dict, virtual=False):
@@ -2961,7 +2991,8 @@ class ResultRow:
 class ResultSet:
     """
     The ResultSet class is a generic result class so that working with the resultset of the different supported
-    databases behave in a consistent manner.
+    databases behave in a consistent manner. A ResultSet is a collection of ResultRows, along with the lastrowid
+    and any exception returned by the underlying SQLDriver when an query is executed.
 
     Note: The lastrowid is set by the caller, but by pysimplesql convention, the lastrowid should only be set after
     and INSERT statement is executed.
@@ -2969,6 +3000,8 @@ class ResultSet:
     def __init__(self, rows:list=[], lastrowid=None, exception=None):
         """
         Create a new ResultSet instance
+
+        :return: ResultSet
         """
         self.rows = [ResultRow(r) for r in rows]
         self.lastrowid = lastrowid
@@ -3379,7 +3412,7 @@ class Sqlite(SQLDriver):
             notnull = row['notnull']
             default = row['dflt_value']
             pk = row['pk']
-            col_info.append(ResultColumn(name = name, sql_type = sql_type, notnull=notnull, default=default, pk=pk))
+            col_info.append(Column(name = name, sql_type = sql_type, notnull=notnull, default=default, pk=pk))
 
         return col_info
 
