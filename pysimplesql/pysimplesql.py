@@ -2682,6 +2682,30 @@ class ColumnInfo(List):
     def __init__(self, driver:SQLDriver, table_name:str):
         self.driver = driver
         self.table_name = table_name
+
+        # List of required SQL types to check against when user sets custom values
+        self._sql_types = [
+            'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME', 'DATE',
+            'DATETIME', 'TIMESTAMP'
+        ]
+
+        # Defaults to use for Null values returned from the database. These can be overwritten by the user and support
+        # function calls as well
+        self.null_defaults = {
+            'TEXT': 'New Record',
+            'VARCHAR': 'New Record',
+            'CHAR' : 'New Record',
+            'INTEGER' : 1,
+            'REAL': 0.0,
+            'DOUBLE': 0.0,
+            'FLOAT': 0.0,
+            'DECIMAL': 0.0,
+            'BOOLEAN': 0,
+            'TIME': self.default_time(),
+            'DATE': self.default_date(),
+            'TIMESTAMP': self.default_datetime(),
+            'DATETIME': self.default_datetime()
+        }
         super().__init__()
 
     def __contains__(self, item):
@@ -2702,7 +2726,7 @@ class ColumnInfo(List):
         """Get the column name located at the specified index in this collection of columns"""
         return self[idx].name
 
-    def looks_like_function(self, s:str):
+    def looks_like_function(self, s:str): # TODO: check if something looks like a statement for complex defaults?  Regex?
         # check if the string is empty
         if not s:
             return False
@@ -2750,25 +2774,20 @@ class ColumnInfo(List):
 
             # The stored default is a literal value, lets try to use it:
             if default is None:
-                if sql_type == 'BOOLEAN':
-                    default = 0
-                elif sql_type in ['TEXT','VARCHAR','CHAR']:
-                    if c.name == q_obj.description_column:
-                        default = 'New record'  # If no default is specified, we have to do something
-                elif sql_type in ['REAL','DOUBLE','FLOAT','DECIMAL']:
-                    default = 1.0
-                elif sql_type == 'DATE':
-                    default = date.today().strftime("%Y-%m-%d")
-                elif sql_type in ['DATETIME','TIMESTAMP']:
-                    default = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                elif sql_type == 'TIME':
-                    default = datetime.now().strftime("%H:%M:%S")
-                elif sql_type == 'INTEGER':
-                    if not c.pk: # we don't want to default our primary key!
-                        default = 1
+                null_default = self.null_defaults[sql_type]
+
+                # If our default is callable, call it.  Otherwise, assign it
+                # Make sure to skip primary keys, and onlu consider text that is in the description column
+                if (sql_type not in ['TEXT','VARCHAR','CHAR'] and c.name != q_obj.description_column) and c.pk==False:
+                    print(f'Setting default for {c.name} to {null_default}')
+                    default = null_default() if callable(null_default) else null_default
+                else:
+                    print(f'Did not set default for {c.name}')
             else:
-                # strip quotes from default strings
-                default = c.default.strip('"\'')  # strip leading and trailing quotes
+                # Load the default from the database
+                if sql_type in ['TEXT', 'VARCHAR', 'CHAR']:
+                    # strip quotes from default strings as they seem to get passed with some database-stored defaults
+                    default = c.default.strip('"\'')  # strip leading and trailing quotes
 
             d[c.name]= default
         if q_obj.transform is not None: q_obj.transform(d, TFORM_DECODE)
@@ -2780,6 +2799,43 @@ class ColumnInfo(List):
             if key in d and d[key] == value:
                 return True
         return False
+
+    def default_time(self):
+        return datetime.now().strftime("%H:%M:%S")
+
+    def default_date(self):
+        return date.today().strftime("%Y-%m-%d")
+
+    def default_datetime(self):
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def set_null_default(self, sql_type:str, value:object) -> None:
+        """
+        Set a Null default for a single SQL type
+
+        :param sql_type: The SQL type to set the default for ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
+        :param value: The new value to set the SQL type to. This can be a literal or even a callable
+        :return: None
+        """
+        if sql_type not in self._sql_types:
+            RuntimeError(f'Unsupported SQL Type: {sql_type}. Supported types are: {self._sql_types}')
+
+        self.null_defaults[sql_type] = value
+
+    def set_null_defaults(self, null_defaults:dict) -> None:
+        """
+        Set Null defaults for all SQL types
+
+        supported types:  'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME',
+        'DATE', 'DATETIME', 'TIMESTAMP'
+        :param null_defaults: A dict of SQL types and default values. This can be a literal or even a callable
+        :return: None
+        """
+        # Check if the null_defaults dict has all of the required keys:
+        if not all(key in null_defaults for key in self._sql_types):
+            RuntimeError(f'The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._sql_types}')
+
+        self.null_defaults = null_defaults
 
 class ResultColumn:
     """
@@ -2840,7 +2896,7 @@ class ResultColumn:
         self._column['pk'] = value
 
     def get_names(self):
-        return [v for k,v in self.columns.items() if key == 'name']
+        return [v for k,v in self.columns.items() if k == 'name']
 
 class ResultRow:
     # The ResulRow class is a generic row class.  It holds a dict containing the columns and values of the row, along
