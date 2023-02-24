@@ -964,10 +964,10 @@ class Query:
                 if k in new_values:
                     new_values[k]=v
 
-            # Make sure we take into account the foreign key relationships...
-            for r in self.frm.relationships:
-                if self.table == r.child_table and r.update_cascade:
-                    new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
+        # Make sure we take into account the foreign key relationships...
+        for r in self.frm.relationships:
+            if self.table == r.child_table and r.update_cascade:
+                new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
