@@ -1817,6 +1817,8 @@ class Form:
 
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
+                        for q in self.queries.keys():
+                            self[q].rows.purge_virtual()
                         self.update_elements()
                         return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
                     break
