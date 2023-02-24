@@ -2701,10 +2701,10 @@ class ColumnInfo(List):
             'FLOAT': 0.0,
             'DECIMAL': 0.0,
             'BOOLEAN': 0,
-            'TIME': self.default_time(),
-            'DATE': self.default_date(),
-            'TIMESTAMP': self.default_datetime(),
-            'DATETIME': self.default_datetime()
+            'TIME': lambda x: datetime.now().strftime("%H:%M:%S"),
+            'DATE': lambda x: date.today().strftime("%Y-%m-%d"),
+            'TIMESTAMP': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'DATETIME': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         super().__init__()
 
@@ -2799,15 +2799,6 @@ class ColumnInfo(List):
             if key in d and d[key] == value:
                 return True
         return False
-
-    def default_time(self):
-        return datetime.now().strftime("%H:%M:%S")
-
-    def default_date(self):
-        return date.today().strftime("%Y-%m-%d")
-
-    def default_datetime(self):
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def set_null_default(self, sql_type:str, value:object) -> None:
         """
