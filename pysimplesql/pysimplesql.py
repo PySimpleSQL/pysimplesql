@@ -2683,14 +2683,9 @@ class Column:
     stored in a `ColumnInfo` collection. There are multiple ways to get information from a `Column`, including subscript
     notation, and via properties. The available column info via these methods are name, sql_type, notnull, default and pk
     See example:
-    ```python
-    # Get the of the first column selecting a `Column` from the stored `ColumnInfo` collection
-    col_name = frm['Journal'].column_info[0]['name'] # uses subscript notation
-    col_name = frm['Journal'].column_info[0].name    # uses the name property
-
-    # Get the default value stored in the database for the 'title' column
-    default = frm['Journal'].column_info['title'].default
-    ```
+    .. literalinclude:: ../doc_examples/Column.1.py
+        :language: python
+        :caption: Example code
     """
     def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool):
         self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
@@ -2755,28 +2750,9 @@ class ColumnInfo(List):
     SQL data type, column name, and the notnull status - this class ties them all together into a collection and adds
     functionality to set default values for null columns and retrieve a dict representing a table row with all defaults
     already assigned. See example below:
-    ```python
-    # Set the null value default for INTEGERS to 10; When reading from the database, if an INTEGER is Null, this value will be set
-    frm['Journal'].column_info.set_null_default('INTEGER', 10)
-
-    # Provide a complete custom set of null defaults: note: All supported keys must be included
-    null_defaults = {
-        'TEXT': 'New Record',
-        'VARCHAR': 'New Record',
-        'CHAR' : 'New Record',
-        'INTEGER' : 10,
-        'REAL': 100.0,
-        'DOUBLE': 90.0,
-        'FLOAT': 80.0,
-        'DECIMAL': 70.0,
-        'BOOLEAN': 1,
-        'TIME': lambda x: datetime.now().strftime("%H:%M:%S"),
-        'DATE': lambda x: date.today().strftime("%Y-%m-%d"),
-        'TIMESTAMP': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'DATETIME': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    frm['Journal'].column_info.set_null_defaults(null_defaults)
-    ```
+    .. literalinclude:: ../doc_examples/ColumnInfo.1.py
+        :language: python
+        :caption: Example code
     """
     def __init__(self, driver:SQLDriver, table_name:str):
         self.driver = driver

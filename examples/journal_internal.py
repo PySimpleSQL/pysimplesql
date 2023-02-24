@@ -27,17 +27,17 @@ INSERT INTO Mood VALUES (1,'Happy');
 INSERT INTO Mood VALUES (2,'Sad');
 INSERT INTO Mood VALUES (3,'Angry');
 INSERT INTO Mood VALUES (4,'Content');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (1, '2023-02-05 08:00:00', 1, 'Research Started!','I am excited to start my research on a large data');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (2, '2023-02-06 12:30:00', 2, 'Unexpected result!', 'The experiment yielded a result that was not at all what I expected.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (3, '2023-02-06 18:45:00', 1, 'Eureka!', 'I think I have discovered something amazing. Need to run more tests to confirm.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (4, '2023-02-07 09:15:00', 4, 'Serendipity', 'Sometimes the best discoveries are made by accident.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (5, '2023-02-07 13:30:00', 3, 'Unexpected complication', 'The experiment had an unexpected complication that may affect the validity of the results.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (6, '2023-02-07 19:00:00', 2, 'Need more data', 'The initial results are promising, but I need more data to confirm my hypothesis.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (7, '2023-02-08 11:00:00', 1, 'Feeling optimistic', 'I have a good feeling about the experiment. Will continue with the tests.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (8, '2023-02-08 16:00:00', 4, 'Implications for industry', 'If my discovery holds up, it could have huge implications for the industry.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (9, '2023-02-08 21:30:00', 3, 'Need to rethink approach', 'The initial approach did not yield the desired results. Will need to rethink my strategy.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (10, '2023-02-09 10:00:00', 2, 'Long way to go', 'I have a long way to go before I can confidently say that I have made a significant discovery.');
-INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (11, '2023-02-09 15:15:00', 1, 'Small breakthrough', 'I had a small breakthrough today. It is a step in the right direction.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (1, '2023-02-05', 1, 'Research Started!','I am excited to start my research on a large data');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (2, '2023-02-06', 2, 'Unexpected result!', 'The experiment yielded a result that was not at all what I expected.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (3, '2023-02-06', 1, 'Eureka!', 'I think I have discovered something amazing. Need to run more tests to confirm.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (4, '2023-02-07', 4, 'Serendipity', 'Sometimes the best discoveries are made by accident.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (5, '2023-02-07', 3, 'Unexpected complication', 'The experiment had an unexpected complication that may affect the validity of the results.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (6, '2023-02-07', 2, 'Need more data', 'The initial results are promising, but I need more data to confirm my hypothesis.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (7, '2023-02-08', 1, 'Feeling optimistic', 'I have a good feeling about the experiment. Will continue with the tests.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (8, '2023-02-08', 4, 'Implications for industry', 'If my discovery holds up, it could have huge implications for the industry.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (9, '2023-02-08', 3, 'Need to rethink approach', 'The initial approach did not yield the desired results. Will need to rethink my strategy.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (10, '2023-02-09', 2, 'Long way to go', 'I have a long way to go before I can confidently say that I have made a significant discovery.');
+INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (11, '2023-02-09', 1, 'Small breakthrough', 'I had a small breakthrough today. It is a step in the right direction.');
 INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solution!', 'I can finally stop worrying about SQL syntax and focus on my research. pysimplesql is the best Python library for working with databases, and it saved me so much time and effort!');
 
 """
@@ -50,7 +50,7 @@ headings=['id','Title:                                 ','Date:      ','Mood:   
 visible=[0,1,1,1] # Hide the id column
 layout=[
     [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
-    [ss.actions('act_journal','Journal')],
+    [ss.actions('act_journal','Journal',edit_protect=False)],
     [ss.record('Journal.entry_date')],
     [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],
