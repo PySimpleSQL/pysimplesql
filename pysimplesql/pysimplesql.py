@@ -618,6 +618,7 @@ class Query:
             # perform transform one row at a time
             if self.transform is not None:
                 self.transform(self, row, TFORM_DECODE)
+
             # Strip trailing white space, as this is what sg[element].get() does, so we can have an equal comparison
             # Not the prettiest solution..  Will look into this more on the  PySimpleGUI end and make a ticket to follow up
             for k,v in row.items():
@@ -1347,6 +1348,8 @@ class Query:
             'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(),
         }}
         """
+        for k,v in transforms.items():
+            self._simple_transform[k] = v
 
 class Form:
     """
@@ -2995,7 +2998,7 @@ class ColumnInfo(List):
 # "drivers" that derive from the SQLDriver class, and return a generic ResultSet instance, which contains a collection
 # of generic ResultRow instances.
 # ----------------------------------------------------------------------------------------------------------------------
-class ResultRow:
+class ResultRow():
     """
     The ResulRow class is a generic row class.  It holds a dict containing the column names and values of the row, along
     with a "virtual" flag.  A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
@@ -3025,6 +3028,22 @@ class ResultRow:
 
     def __lt__(self, other, key):
         return self.row[key] < other.row[key]
+    def __iter__(self):
+        return iter(self.row)
+    def keys(self):
+        return self.row.keys()
+    def items(self):
+        return self.row.items()
+    def values(self):
+        return self.row.values()
+
+    def __next__(self):
+        if self._iter_index == len(self.rows):
+            raise StopIteration
+        else:
+            self._iter_index += 1
+            return self.rows[self._iter_index - 1]
+
 
     def items(self):
         # forward calls to .items() to the underlying row dict
