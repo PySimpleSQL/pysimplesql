@@ -211,7 +211,7 @@ class Query:
     """
     instances=[] # Track our instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', filtered:Bool=True, prompt_save:Bool=True) -> Query:
+    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str, query:Optional[str]= '', order:Optional[str]= '', filtered:Bool=True, prompt_save:Bool=True, autosave=False) -> Query:
         """
         Initialize a new Table instance
 
@@ -233,6 +233,10 @@ class Query:
         :type filtered: bool
         :param prompt_save: Prompt to save changes when dirty records are present
         :type prompt_save: bool
+        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :type autosave: bool
+
+
         :returns: A Table instance
         :rtype: Query
         """
@@ -266,6 +270,8 @@ class Query:
         self.filtered = filtered
         self._prompt_save=prompt_save
         # self.requery(True)
+        self._simple_transform = {}
+        self.autosave = autosave
 
     # Override the [] operator to retrieve columns by key
     def __getitem__(self, key):
@@ -566,7 +572,7 @@ class Query:
         # Check if any records have changed
         changed = self.records_changed()
         if changed:
-            if autosave:
+            if autosave or self.autosave:
                 save_changes = 'Yes'
             else:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
@@ -611,7 +617,7 @@ class Query:
         for row in self.rows:
             # perform transform one row at a time
             if self.transform is not None:
-                self.transform(row, TFORM_DECODE)
+                self.transform(self, row, TFORM_DECODE)
             # Strip trailing white space, as this is what sg[element].get() does, so we can have an equal comparison
             # Not the prettiest solution..  Will look into this more on the  PySimpleGUI end and make a ticket to follow up
             for k,v in row.items():
@@ -964,10 +970,10 @@ class Query:
                 if k in new_values:
                     new_values[k]=v
 
-            # Make sure we take into account the foreign key relationships...
-            for r in self.frm.relationships:
-                if self.table == r.child_table and r.update_cascade:
-                    new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
+        # Make sure we take into account the foreign key relationships...
+        for r in self.frm.relationships:
+            if self.table == r.child_table and r.update_cascade:
+                new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
@@ -1055,7 +1061,7 @@ class Query:
                     cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
-        if self.transform is not None: self.transform(changed_row, TFORM_ENCODE)
+        if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
 
         # Save or Insert the record as needed
         if current_row.virtual==True:
@@ -1280,7 +1286,12 @@ class Query:
                 return rel.parent_table
         return self.name # None could be found, return ourself
 
-    def quick_editor(self, pk_update_funct=None,funct_param=None):
+    def quick_editor(self, pk_update_funct=None,funct_param=None, skip_prompt_save=False):
+        """
+        :param skip_prompt_save: True to skip prompting to save dirty records
+        :type skip_prompt_save: bool
+        """
+        if skip_prompt_save is False: self.prompt_save()
         # Reset the keygen to keep consistent naming
         logger.info('Creating Quick Editor window')
         keygen_reset_all()
@@ -1326,7 +1337,16 @@ class Query:
         quick_win.close()
         self.requery()
 
+    def add_simple_transform(self,transforms):
+        """
+        Merge a dictionary of transforms into this queries _simple_transform dictionary.
 
+        Example:
+        {'entry_date' : {
+            'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'),
+            'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(),
+        }}
+        """
 
 class Form:
     """
@@ -1337,7 +1357,7 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, driver:SQLDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True):
+    def __init__(self, driver:SQLDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True, autosave=False):
         """
         Initialize a new @Form instance
 
@@ -1346,7 +1366,10 @@ class Form:
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: parent form to base queries off of
         :param filter: (optional) Only import elements with the same filter
-        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well. 
+        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well.
+        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :type autosave: bool
+
         """
         Form.instances.append(self)
 
@@ -1360,6 +1383,7 @@ class Form:
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships = []
         self.callbacks = {}
+        self.autosave = autosave
 
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
@@ -1786,13 +1810,15 @@ class Form:
                 # we will only show the popup once, regardless of how many queries have changed
                 if not user_prompted:
                     user_prompted = True
-                    if autosave:
+                    if autosave or self.autosave:
                         save_changes = 'Yes'
                     else:
                         save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
 
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
+                        for q in self.queries.keys():
+                            self[q].rows.purge_virtual()
                         self.update_elements()
                         return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
                     break
@@ -1887,30 +1913,31 @@ class Form:
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
+            # hide mapped elements for this table if there are no records in this table or edit protect mode
+            hide = len(self[t].rows) == 0 or self._edit_protect
+            self.update_element_states(t, hide)
+            
             for m in (m for m in self.event_map if m['table'] == t):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
-                hide = len(self[t].rows) == 0 or self._edit_protect
                 if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
+                    hide = len(self[t].rows) == 0 or self._edit_protect
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
                     
-                # Disable navigations if there is 0 or 1 records in table
-                hide = len(self[t].rows) < 2
-                if ('.table_first' in m['event']) or ('.table_previous' in m['event']) or ('.table_next' in m['event']) or ('.table_last' in m['event']):
+                elif '.table_first' in m['event']:
+                    hide = len(self[t].rows) < 2 or self[t].current_index == 0
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
+                
+                elif '.table_previous' in m['event']:
+                    hide = len(self[t].rows) < 2 or self[t].current_index == 0
+                    win[m['event']].update(disabled=hide)
                     
-                # Disable next/last in last position
-                hide = self[t].current_index == len(self[t].rows) - 1
-                if ('.table_next' in m['event']) or ('.table_last' in m['event']):
+                elif '.table_next' in m['event']:
+                    hide = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
                     
-                # Disable next/last in last position
-                hide = self[t].current_index == 0
-                if ('.table_first' in m['event']) or ('.table_previous' in m['event']):
+                elif '.table_last' in m['event']:
+                    hide = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
                     win[m['event']].update(disabled=hide)
-                    self.update_element_states(t, hide)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
@@ -1948,16 +1975,18 @@ class Form:
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = d['element'].key + '.marker'
-            if self[d['query'].table].get_current_row().virtual:
-                # get the column name from the key
-                col = marker_key.split(".")[1]
-                # get notnull from the column info
-                if col in self[d['query'].table].column_info.names():
-                    if self[d['query'].table].column_info[col].notnull:
-                        self.window[marker_key].update(visible=True)
-            else:
+            try:
+                if self[d['query'].table].get_current_row().virtual:
+                    # get the column name from the key
+                    col = marker_key.split(".")[1]
+                    # get notnull from the column info
+                    if col in self[d['query'].table].column_info.names():
+                        if self[d['query'].table].column_info[col].notnull:
+                            self.window[marker_key].update(visible=True)
+                else:
+                    self.window[marker_key].update(visible=False)
+            except AttributeError:
                 self.window[marker_key].update(visible=False)
-
 
 
             updated_val = None
@@ -2222,7 +2251,7 @@ class Form:
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.key_dict.keys():
-                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visiblie: {visible}')
+                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visible: {visible}')
                 if disable is not None:
                     element.update(disabled=disable)
                 if visible is not None:
@@ -2453,6 +2482,19 @@ def set_mline_size(w, h):
     """
     global _default_mline_size
     _default_mline_size = (w, h)
+
+def simple_transform(self,row,encode):
+    """
+    Convenience transform function that makes it easier to add transforms to your records.
+    """
+    for col, function in self._simple_transform.items():
+        if col in row:
+            msg = f'Transforming {col} from {row[col]}'
+            if encode == pysimplesql.TFORM_DECODE:
+                row[col] = function['decode'](row,col)
+            else:
+                row[col] = function['encode'](row,col)
+            logger.debug(f'{msg} to {row[col]}')
     
 def set_ttk_theme(name):
     """
@@ -2521,15 +2563,13 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     else:
         layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size)
-    layout_marker = sg.T('\u2731', key=f'{key}.marker', text_color = "red", visible=True) # Marker for required (notnull) records
+    layout_marker = sg.Column([[sg.T('\u2731', key=f'{key}.marker', text_color = "red", visible=True)]], pad=(0,0)) # Marker for required (notnull) records
     if no_label:
         layout = [[layout_marker, layout_element]]
     elif label_above:
         layout = [[layout_label], [layout_marker, layout_element]]
     else:
-        print('Using default layout')
         layout = [[layout_label , layout_marker, layout_element]]
-    print("Layout:", layout)
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
