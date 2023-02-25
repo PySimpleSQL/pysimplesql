@@ -1349,6 +1349,7 @@ class Query:
         }}
         """
         for k,v in transforms.items():
+            if not callable(v): RuntimeError(f'Transofrm for {k} must be callable!')
             self._simple_transform[k] = v
 
 class Form:
