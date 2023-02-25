@@ -456,7 +456,7 @@ class Query:
         logger.debug(f'Setting {self.table} order clause to {clause}')
         self.order = clause
 
-    def update_column_names(self,names=None) -> None:
+    def update_column_info(self,column_info=None) -> None:
         """
         Generate column names for the query.  This may need done, for example, when a manual query using joins
         is used.
@@ -466,11 +466,10 @@ class Query:
         :type names: list[str]
         """
         # Now we need to set  new column names, as the query could have changed
-        if names!=None:
-            self.column_info=names
-            return
-
-        self.column_info = self.driver.column_info(self.table)
+        if column_info!=None:
+            self.column_info=column_info
+        else:
+            self.column_info = self.driver.column_info(self.table)
 
     def set_description_column(self, column:str) -> None:
         """
