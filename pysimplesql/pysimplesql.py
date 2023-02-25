@@ -2273,7 +2273,7 @@ _iconpack = {
         'search' : 'Search',
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
-        'marker_required_color': 'red'
+        'marker_required_color': 'red2'
 
     },
     'ss_small' : {
@@ -2290,7 +2290,7 @@ _iconpack = {
         'search': 'Search',
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
-        'marker_required_color': 'red'
+        'marker_required_color': 'red2'
         },
     'ss_large' : {
         'edit_protect' : b'iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAADqUlEQVR42qWUW2gUVxjHvzO7O7ubzDYWUZIGY7IumqiNTdHYSB9UlJS+tIog+OAFfKqJVqqg1Ni8iW0JVKxCHrRiElvSFsGHCM2lERWjsKKBjbrgBY2ablxwL9ndc/U7k1WISepuPHCYmd2Z/++c3/fNEJjBeLxuXa3DMC4QwxgmANuLL168Pd29JN/wO/X1VgFjQQwPGIaBByONIU0JzlsC3d3yvQD3hkKGeW3gL9XW9rUhpdIAJAAeFZ79i7fswN08mjEgGTq3k5Z80ZoMhYCfOAEwPKzD7ZkFvcTABoS05w1ItC+dTUDcTs36rMS5vIlQZira0UF4V5cOUVldGiRjjC2o7O19mBdgrGNJJ6OZTZRmVAp8xLWiWbnmrSVycBBSx48rFY3aAFT1IiaEf3FfXyxnAIZvFZz+lslQoJSClAIoEwDlG6Fw5UEwlQmp1lagly4BcTg2z+/p6cxZUbJ98Xwl+S0MLtIApaTiXBAhxHiRfRWgPj2sfGWrCAkGuz5cv/7LnIv84OQiY46P9KCa1TpcSokApRhj+jnldruJ/o1ypXhgR8Rauu3zkvKqcM6ARFvlfs7oUa2FMQ5OpwMVMcDVg2m6AHsUOOf6Wklw1vv3jnS/nTEtIH520TIpxDUsqhsBxOVyYZDUNbDVuN2mrUoDcBe/lO998e1UOVMCnrYucFtu4zqGfYwAu88djvHV68CCAq8N0+c4Q6hoxcL90VTOgNiZwM+o5Ltsxyivt4AwRm0AqrF3gP/jDjjF1a/C1QenMzEJ8PJMYA2q+QeL6sBigmUVKikkySCM4N2mqdVwVCMUuv++bE/kyP/VcQIgPPC3Z+6TX++kI3fLtHev14OFdSl9rnV4PB67oOMAfjk2JlcvOTAqcgYwlqlTLHUlduUHoOFO+MBn2S9WVg22KGS7hsexBjXzdv93H94xJgDw4c3Y5r+jVyWe9BB+oxlo/DnGEqJbNFtUVCN3ljY8P/Wu8KkA+xDwkwbgJHIsApmBQ8oZuaqdv179+ZJvnm3IJXwqwDEENOi3c8K8/yfwmz8CS8dHsAGqP9r1LDIjwOjo6PmioqKv3uxgHKC/DiQ5MpRhN5o3lG3B73MeYwKgtrY2WFdXV9PY2KhKS0ttQDqdFtFo9I9kItH8SU1NOJ/wSYCqqiq99dmWZUFLS4uGXEgkEk3V1dWD+QZPAvj9/kLs8zjq0Fq6i4uLm/r7+wdmGjwJUFFRsRDf0tMYfigcDve9b/Dr8QptdEU3XH9lbwAAAABJRU5ErkJggg==',
@@ -2306,7 +2306,7 @@ _iconpack = {
         'search': 'Search',
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
-        'marker_required_color': 'red'
+        'marker_required_color': 'red2'
         },
     }
 
