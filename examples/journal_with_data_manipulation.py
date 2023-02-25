@@ -71,7 +71,7 @@ def tform_date(self,row,encode):
 #Use our new transform!   
 #frm['Journal'].set_transform(tform_date)
 
-Use our new transform!   
+# Use our new transform!
 frm['Journal'].set_transform(ss.simple_transform)
 
 transform_dict = {'entry_date' : {
