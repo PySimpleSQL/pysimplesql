@@ -1933,55 +1933,55 @@ class Form:
         for t in self.queries:
             if table_name and t != table_name:
                 continue
-            # hide mapped elements for this table if there are no records in this table or edit protect mode
-            hide = len(self[t].rows) == 0 or self._edit_protect
-            self.update_element_states(t, hide)
+            # disable mapped elements for this table if there are no records in this table or edit protect mode
+            disable = len(self[t].rows) == 0 or self._edit_protect
+            self.update_element_states(t, disable)
             
             for m in (m for m in self.event_map if m['table'] == t):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
-                    hide = len(self[t].rows) == 0 or self._edit_protect
-                    win[m['event']].update(disabled=hide)
+                    disable = len(self[t].rows) == 0 or self._edit_protect
+                    win[m['event']].update(disabled=disable)
                     
                 elif '.table_first' in m['event']:
-                    hide = len(self[t].rows) < 2 or self[t].current_index == 0
-                    win[m['event']].update(disabled=hide)
+                    disable = len(self[t].rows) < 2 or self[t].current_index == 0
+                    win[m['event']].update(disabled=disable)
                 
                 elif '.table_previous' in m['event']:
-                    hide = len(self[t].rows) < 2 or self[t].current_index == 0
-                    win[m['event']].update(disabled=hide)
+                    disable = len(self[t].rows) < 2 or self[t].current_index == 0
+                    win[m['event']].update(disabled=disable)
                     
                 elif '.table_next' in m['event']:
-                    hide = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
-                    win[m['event']].update(disabled=hide)
+                    disable = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
+                    win[m['event']].update(disabled=disable)
                     
                 elif '.table_last' in m['event']:
-                    hide = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
-                    win[m['event']].update(disabled=hide)
+                    disable = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
+                    win[m['event']].update(disabled=disable)
 
                 # Disable insert on children with no parent records or edit protect mode
                 parent = self.get_parent(t)
                 if parent is not None:
-                    hide = len(self[parent].rows) == 0 or self._edit_protect
+                    disable = len(self[parent].rows) == 0 or self._edit_protect
                 else:
-                    hide = self._edit_protect
+                    disable = self._edit_protect
                 if '.table_insert' in m['event']:
                     if m['table'] == t:
-                        win[m['event']].update(disabled=hide)
+                        win[m['event']].update(disabled=disable)
 
                 # Disable db_save when needed
-                hide = self._edit_protect
+                disable = self._edit_protect
                 if '.db_save' in m['event']:
-                    win[m['event']].update(disabled=hide)
+                    win[m['event']].update(disabled=disable)
 
                 # Disable table_save when needed
-                hide = self._edit_protect
+                disable = self._edit_protect
                 if '.table_save' in m['event']:
-                    win[m['event']].update(disabled=hide)
+                    win[m['event']].update(disabled=disable)
 
                 # Enable/Disable quick edit buttons
                 if '.quick_edit' in m['event']:
-                    win[m['event']].update(disabled=hide)
+                    win[m['event']].update(disabled=disable)
         if edit_protect_only: return
 
 
