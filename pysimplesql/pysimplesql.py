@@ -1931,6 +1931,8 @@ class Form:
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
         for t in self.queries:
+            if table_name and t != table_name:
+                continue
             # hide mapped elements for this table if there are no records in this table or edit protect mode
             hide = len(self[t].rows) == 0 or self._edit_protect
             self.update_element_states(t, hide)
