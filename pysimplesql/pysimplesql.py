@@ -2165,12 +2165,11 @@ class Form:
                         except ValueError:
                             index = []
                         logger.debug(f'Selector:: index:{index} found:{found}')
-                        try:
+                        if element in table.element_cache.keys():
                             if table.element_cache[element] != [values,index]:
                                 element.update(values=values,select_rows=index)
-                        except KeyError: # first time this selector won't be in the cache
-                            element.update(values=values,select_rows=index)
-                        table.element_cache[element] = [values,index] # fastest when here and not at bottom of try block
+                        else: element.update(values=values,select_rows=index) # first time this selector won't be in the cache                          
+                        table.element_cache[element] = [values,index] # fastest when here and not under element.update()
                         # set vertical scroll bar to follow selected element
                         if len(index): element.set_vscroll_position(pk_position)
                         eat_events(self.window)
