@@ -1588,12 +1588,12 @@ class Form:
         self.queries = {}
         table_names = self.driver.table_names()
         for table_name in table_names:
-            column_names = self.driver.column_info(table_name)
+            column_info = self.driver.column_info(table_name)
 
             # auto generate description column.  Default it to the 2nd column,
             # but can be overwritten below
-            description_column = column_names.col_name(1)
-            for col in column_names.names():
+            description_column = column_info.col_name(1)
+            for col in column_info.names():
                 if col in ('name', 'description', 'title'):
                     description_column = col
                     break
@@ -1605,7 +1605,7 @@ class Form:
             logger.debug(
                 f'Adding query "{query_name}" on table {table_name} to Form with primary key {pk_column} and description of {description_column}')
             self.add_query(query_name,table_name, pk_column, description_column)
-            self.queries[query_name].column_info = column_names #TODO: use new add column names??
+            self.queries[query_name].column_info = column_info #TODO: use new add column names??
 
     # Make sure to send a list of table names to requery if you want
     # dependent queries to requery automatically
@@ -2863,7 +2863,8 @@ class ColumnInfo(List):
             'TEXT': 'New Record',
             'VARCHAR': 'New Record',
             'CHAR' : 'New Record',
-            'INTEGER' : 1,
+            'INT': 1,
+            'INTEGER': 1,
             'REAL': 0.0,
             'DOUBLE': 0.0,
             'FLOAT': 0.0,
@@ -2929,7 +2930,11 @@ class ColumnInfo(List):
 
             # The stored default is a literal value, lets try to use it:
             if default is None:
-                null_default = self.null_defaults[sql_type]
+                try:
+                    null_default = self.null_defaults[sql_type]
+                except KeyError:
+                    # Perhaps our default dict does not yet support this datatype
+                    null_default = None
 
                 # If our default is callable, call it.  Otherwise, assign it
                 # Make sure to skip primary keys, and onlu consider text that is in the description column
@@ -2990,6 +2995,9 @@ class ColumnInfo(List):
         # check if the string is empty
         if not s:
             return False
+
+        # If the entire string is in all caps, it looks like a function (like in MySQL CURRENT_TIMESTAMP)
+        if s.isupper(): return True
 
         # find the index of the first opening parenthesis
         open_paren_index = s.find("(")
@@ -3609,7 +3617,19 @@ class Mysql(SQLDriver):
         # Return a list of column names
         query = "DESCRIBE {}".format(table)
         rows = self.execute(query, silent=True)
-        return [row['Field'] for row in rows]
+        col_info = ColumnInfo(self, table)
+
+        for row in rows:
+            name = row['Field']
+            # Capitolize and get rid of the extra information of the row type I.e. varchar(255) becomes VARCHAR
+            sql_type = row['Type'].split('(')[0].upper()
+            notnull = True if row['Null'] == 'NO' else False
+            default = row['Default']
+            pk = True if row['Key'] == 'PRI' else False
+            col_info.append(Column(name=name, sql_type=sql_type, notnull=notnull, default=default, pk=pk))
+
+        return col_info
+
 
     def pk_column(self,table):
         query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)

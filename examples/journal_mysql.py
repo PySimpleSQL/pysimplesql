@@ -70,15 +70,17 @@ Learnings from this example:
 ------------------------------------------------------------------------------------------------------------------------
 BELOW ARE THE SQL STATEMENTS USED TO CREATE THE MYSQL DATABASE FOR THIS EXAMPLE
 ------------------------------------------------------------------------------------------------------------------------
+DROP TABLE IF EXISTS Journal;
+DROP TABLE IF EXISTS Mood;
 CREATE TABLE Mood(
     `id` INTEGER NOT NULL PRIMARY KEY,
     `name` TEXT
 );
 
 CREATE TABLE Journal(
-    `id` INTEGER NOT NULL PRIMARY KEY,
+    `id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
     `title` VARCHAR(255) DEFAULT 'New Entry',
-    `entry_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+    `entry_date` DATE DEFAULT (CURRENT_DATE), 
     `mood_id` INTEGER,
     `entry` TEXT,
     INDEX (`mood_id`),
@@ -100,5 +102,6 @@ INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (9, '2023-02-
 INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (10, '2023-02-09 10:00:00', 2, 'Long way to go', 'I have a long way to go before I can confidently say that I have made a significant discovery.');
 INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (11, '2023-02-09 15:15:00', 1, 'Small breakthrough', 'I had a small breakthrough today. It is a step in the right direction.');
 INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solution!', 'I can finally stop worrying about SQL syntax and focus on my research. pysimplesql is the best Python library for working with databases, and it saved me so much time and effort!');
+
 """
 
