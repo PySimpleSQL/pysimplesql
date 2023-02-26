@@ -265,6 +265,7 @@ class Query:
         self.rows = []
         self.search_order = []
         self.selector = []
+        self.element_cache = {}
         self.callbacks = {}
         self.transform = None
         self.filtered = filtered
@@ -2071,7 +2072,7 @@ class Form:
 
                 d['element'].update(values=values, select_rows=index)
 
-                # set virtical scroll bar to follow selected element
+                # set vertical scroll bar to follow selected element
                 if len(index): d['element'].set_vscroll_position(pk_position)
 
                 eat_events(self.window)
@@ -2164,8 +2165,13 @@ class Form:
                         except ValueError:
                             index = []
                         logger.debug(f'Selector:: index:{index} found:{found}')
-                        element.update(values=values,select_rows=index)
-                        # set virtical scroll bar to follow selected element
+                        try:
+                            if table.element_cache[element] != [values,index]:
+                                element.update(values=values,select_rows=index)
+                        except KeyError: # first time this selector won't be in the cache
+                            element.update(values=values,select_rows=index)
+                        table.element_cache[element] = [values,index]
+                        # set vertical scroll bar to follow selected element
                         if len(index): element.set_vscroll_position(pk_position)
                         eat_events(self.window)
 
