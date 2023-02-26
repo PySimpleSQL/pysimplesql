@@ -2170,7 +2170,7 @@ class Form:
                                 element.update(values=values,select_rows=index)
                         except KeyError: # first time this selector won't be in the cache
                             element.update(values=values,select_rows=index)
-                        table.element_cache[element] = [values,index]
+                        table.element_cache[element] = [values,index] # fastest when here and not at bottom of try block
                         # set vertical scroll bar to follow selected element
                         if len(index): element.set_vscroll_position(pk_position)
                         eat_events(self.window)
