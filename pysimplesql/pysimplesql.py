@@ -1067,7 +1067,7 @@ class Query:
         if current_row.virtual==True:
             result = self.driver.insert_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
         else:
-            result = self.driver.save_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
+            result = self.driver.save_record(self,changed_row)
 
         if result.exception is not None:
             sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
@@ -1255,10 +1255,25 @@ class Query:
                 return row[self.description_column]
         return None
 
-    def table_values(self, columns=None, mark_virtual=False):
-        # Populate values to display in Table GUI elements
+    def table_values(self, column_names=None, mark_virtual=False) -> None:
+        """
+        Create a values list for use in a PySimpleGUI Table element
+
+        :param column_names: A list of column names to create table values for.  Defaults to getting them from the rows
+        :param mark_virtual: Place a marker next to virtual records
+        :return: None
+        """
         values = []
-        column_names=self.column_info.names() if columns == None else columns
+        #column_names=self.column_info.names() if columns == None else columns #<- old version got this from self.column_info
+        # Get the column names directly from the row information so that the order is preserved
+        if column_names == None:
+            if len(self.rows):
+                column_names = self.rows[0].keys()
+            else:
+                column_names = []
+        else:
+            column_names = column_names
+
 
         for row in self.rows:
             if mark_virtual:
@@ -2759,8 +2774,8 @@ class Column:
         :language: python
         :caption: Example code
     """
-    def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool):
-        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk}
+    def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool, virtual:bool = False):
+        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk, 'virtual': virtual}
 
     def __str__(self):
         return f"Column: {self._column}"
@@ -2811,6 +2826,12 @@ class Column:
     @pk.setter
     def pk(self, value):
         self._column['pk'] = value
+    @property
+    def virtual(self):
+        return self._column['virtual']
+    @virtual.setter
+    def virtual(self, value):
+        self._column['virtual'] = value
 
 class ColumnInfo(List):
     """
@@ -2951,6 +2972,13 @@ class ColumnInfo(List):
             RuntimeError(f'The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._sql_types}')
 
         self.null_defaults = null_defaults
+    def get_virtual_names(self) -> List:
+        """
+        Get a list of virtual column names
+
+        :return: A List of column names that are virtual, or [] if none are present in this collections
+        """
+        return [c for c in self if not c.virtual]
 
     def _contains_key_value_pair(self, key, value): #used by __contains__
         for d in self:
@@ -3161,7 +3189,7 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict):
+    def save_record(self, q_obj:Query, row:dict):
         raise NotImplementedError
 
     def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
@@ -3358,20 +3386,23 @@ class SQLDriver:
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
-    def save_record(self, table:str, pk:int, pk_column:str, row:dict) -> ResultSet:
-        # Remove the pk column
-        row = {k: v for k, v in row.items() if k != pk_column}
+    def save_record(self, q_obj:Query, changed_row:dict) -> ResultSet:
+        pk = q_obj.get_current_pk()
+        pk_column = q_obj.pk_column
+
+        # Remove the pk column and any virtual columns
+        changed_row = {k: v for k,v in changed_row.items() if k!= pk_column and k not in q_obj.column_info.get_virtual_names()}
 
         # quote appropriately
-        table = self.quote_table(table)
+        table = self.quote_table(q_obj.table)
         pk_column = self.quote_column(pk_column)
 
         # Create the WHERE clause
         where = f"WHERE {pk_column} = {pk}"
 
         # Generate an UPDATE query
-        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in row.keys())} {where};"
-        values = [v for v in row.values()]
+        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row.keys())} {where};"
+        values = [v for v in changed_row.values()]
 
         result = self.execute(query, tuple(values))
         result.lastrowid = None # manually clear th rowid since it is not needed for updated records (we already know the key)
