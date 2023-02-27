@@ -2071,7 +2071,7 @@ class Form:
 
                 d['element'].update(values=values, select_rows=index)
 
-                # set virtical scroll bar to follow selected element
+                # set vertical scroll bar to follow selected element
                 if len(index): d['element'].set_vscroll_position(pk_position)
 
                 eat_events(self.window)
