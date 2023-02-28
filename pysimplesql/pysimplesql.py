@@ -2868,19 +2868,17 @@ class TableHeadings(list):
 
         # Update the table headings
         for i in range(len(self)):
-            # If the first "invisible" marker column is selected, sort by that column
-            if i == 0:
-                s=''
             if i == column_idx:
                 sort_col_num = i
                 if asc in self[i]:
                    reverse = True
-                   s=desc
+                   s=desc # add the sort_desc_marker to the end of the string
                 else:
                     reverse = False
-                    s=asc
+                    s=asc # add the sort_asc_marker to the end of the string
             else:
-                s=''
+                s='' # we will not add anything extra to the end of the string
+            # Clear any old markers then update the marker at the end of the heading for this column
             self[i] = self[i].replace(asc, '').replace(desc, '') + s
         self.update(self.element, self)
 
