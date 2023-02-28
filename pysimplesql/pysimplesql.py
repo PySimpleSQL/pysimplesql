@@ -121,9 +121,7 @@ def eat_events(win:sg.Window) -> None:
     TODO: Determine if this is fixed yet in PySimpleSQL
 
     :param win: A PySimpleGUI Window instance
-    :type win: PySimpleGUI.Window
     :returns: None
-    :rtype: None
     """
     while True:
         event,values=win.read(timeout=0)
@@ -1705,6 +1703,11 @@ class Form:
 
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
+                    # Update the TableHeading if it is present
+                    if type(element) is sg.Table and 'TableHeading' in element.metadata:
+                        element.metadata['TableHeading'].update_element(element = element, form=self)
+
+
                 else:
                     logger.debug(f'Can not add selector {str(element)}')
 
@@ -2296,7 +2299,9 @@ _iconpack = {
         'search' : 'Search',
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
-        'marker_required_color': 'red2'
+        'marker_required_color': 'red2',
+        'sort_asc_marker': '\u25BC',
+        'sort_desc_marker': '\u25B2'
 
     },
     'ss_small' : {
@@ -2313,7 +2318,9 @@ _iconpack = {
         'search': 'Search',
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
-        'marker_required_color': 'red2'
+        'marker_required_color': 'red2',
+        'sort_asc_marker': '\u25BC',
+        'sort_desc_marker': '\u25B2'
         },
     'ss_large' : {
         'edit_protect' : b'iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAADqUlEQVR42qWUW2gUVxjHvzO7O7ubzDYWUZIGY7IumqiNTdHYSB9UlJS+tIog+OAFfKqJVqqg1Ni8iW0JVKxCHrRiElvSFsGHCM2lERWjsKKBjbrgBY2ablxwL9ndc/U7k1WISepuPHCYmd2Z/++c3/fNEJjBeLxuXa3DMC4QwxgmANuLL168Pd29JN/wO/X1VgFjQQwPGIaBByONIU0JzlsC3d3yvQD3hkKGeW3gL9XW9rUhpdIAJAAeFZ79i7fswN08mjEgGTq3k5Z80ZoMhYCfOAEwPKzD7ZkFvcTABoS05w1ItC+dTUDcTs36rMS5vIlQZira0UF4V5cOUVldGiRjjC2o7O19mBdgrGNJJ6OZTZRmVAp8xLWiWbnmrSVycBBSx48rFY3aAFT1IiaEf3FfXyxnAIZvFZz+lslQoJSClAIoEwDlG6Fw5UEwlQmp1lagly4BcTg2z+/p6cxZUbJ98Xwl+S0MLtIApaTiXBAhxHiRfRWgPj2sfGWrCAkGuz5cv/7LnIv84OQiY46P9KCa1TpcSokApRhj+jnldruJ/o1ypXhgR8Rauu3zkvKqcM6ARFvlfs7oUa2FMQ5OpwMVMcDVg2m6AHsUOOf6Wklw1vv3jnS/nTEtIH520TIpxDUsqhsBxOVyYZDUNbDVuN2mrUoDcBe/lO998e1UOVMCnrYucFtu4zqGfYwAu88djvHV68CCAq8N0+c4Q6hoxcL90VTOgNiZwM+o5Ltsxyivt4AwRm0AqrF3gP/jDjjF1a/C1QenMzEJ8PJMYA2q+QeL6sBigmUVKikkySCM4N2mqdVwVCMUuv++bE/kyP/VcQIgPPC3Z+6TX++kI3fLtHev14OFdSl9rnV4PB67oOMAfjk2JlcvOTAqcgYwlqlTLHUlduUHoOFO+MBn2S9WVg22KGS7hsexBjXzdv93H94xJgDw4c3Y5r+jVyWe9BB+oxlo/DnGEqJbNFtUVCN3ljY8P/Wu8KkA+xDwkwbgJHIsApmBQ8oZuaqdv179+ZJvnm3IJXwqwDEENOi3c8K8/yfwmz8CS8dHsAGqP9r1LDIjwOjo6PmioqKv3uxgHKC/DiQ5MpRhN5o3lG3B73MeYwKgtrY2WFdXV9PY2KhKS0ttQDqdFtFo9I9kItH8SU1NOJ/wSYCqqiq99dmWZUFLS4uGXEgkEk3V1dWD+QZPAvj9/kLs8zjq0Fq6i4uLm/r7+wdmGjwJUFFRsRDf0tMYfigcDve9b/Dr8QptdEU3XH9lbwAAAABJRU5ErkJggg==',
@@ -2329,7 +2336,9 @@ _iconpack = {
         'search': 'Search',
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
-        'marker_required_color': 'red2'
+        'marker_required_color': 'red2',
+        'sort_asc_marker': '\u25BC',
+        'sort_desc_marker': '\u25B2'
         },
     }
 
@@ -2739,28 +2748,193 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
         layout = element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
                           auto_size_text=False, metadata=meta)
     elif element == sg.Table:
-        required_kwargs = ['headings', 'visible_column_map', 'num_rows']
-        for kwarg in required_kwargs:
-            if kwarg not in kwargs:
-                raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
+        # Check if the headings arg is a Table heading...
+        if kwargs['headings'].__class__.__name__ == 'TableHeadings':
+            # Overwrite the kwargs from the TableHeading info
+            kwargs['visible_column_map'] = kwargs['headings'].visible_map()
+            kwargs['col_widths'] = kwargs['headings'].width_map()
+            kwargs['auto_size_columns'] = False  # let the col_windths handle it
+            # Store the TableHeadings object in metadata to complete setup on auto_add_elements()
+            meta['TableHeading'] = kwargs['headings']
+        else:
+            required_kwargs = ['headings', 'visible_column_map', 'num_rows']
+            for kwarg in required_kwargs:
+                if kwarg not in kwargs:
+                    raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
+
+        # Create other kwargs that are required
+        kwargs['enable_events'] = True
+        kwargs['select_mode'] = sg.TABLE_SELECT_MODE_BROWSE
+        kwargs['justification'] = 'left'
 
         # Create a narrow column for displaying a * character for virtual rows. This will have to be the 2nd column right after the pk
-        kwargs['headings'].insert(0,'  ')
+        kwargs['headings'].insert(0,'')
         kwargs['visible_column_map'].insert(0,1)
+        if 'col_widths' in kwargs:
+            kwargs['col_widths'].insert(0,2)
 
         # Make an empty list of values
         vals = []
         vals.append([''] * len(kwargs['headings']))
         meta['columns'] = columns
-        layout = element(
-                values=vals, headings=kwargs['headings'], visible_column_map=kwargs['visible_column_map'],
-                num_rows=kwargs['num_rows'], enable_events=True, key=key, select_mode=sg.TABLE_SELECT_MODE_BROWSE,
-                justification='left', metadata=meta
-            )
+        layout = element(values=vals, key=key, metadata=meta, **kwargs)
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
 
     return layout
+
+class TableHeadings(list):
+    """
+    This is a convenience class used to build table headings for PySimpleGUI.  In addition, `TableHeading` objects
+    can sort columns in ascending or descending order by clicking on the column in the heading in the PySimpleGUI Table
+    element if the sort_enable parameter is set to True.
+    """
+    # store our instances
+    instances = []
+    def __init__(self, sort_enable=True):
+        self._sort_enable = sort_enable
+        self._width_map = []
+        self._visible_map = []
+
+        self.element = None # We can update this later with update_element()
+        self.form = None    # we will update this later with update_element()
+
+        # Store this instance in the master list of instances
+        TableHeadings.instances.append(self)
+
+    def add(self, heading_column:str, width:int, visible:bool=True) -> None:
+        """
+        Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
+        Typically, the first column added will be the primary key column with the visible parameter set to False.
+
+        :param heading_column: The name of this columns heading
+        :param width: The width for this column to display within the Table element
+        :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
+        :return: None
+        """
+        self.append(heading_column)
+        self._width_map.append(width)
+        self._visible_map.append(visible)
+
+    def update_element(self,element:sg.Table, form:Form) -> None:
+        """
+        Update the stored PySimpleGUI table element.  Sorting will not work until this is done.
+        Note: Typically not used by the end user - pysimplesql will call this internally.
+
+        :param element: The PySimpleGUI Table element associated with this TableHeading
+        :param form: a pysimplesql Form
+        :return: None
+        """
+        self.element = element
+        self.form = form
+        if self._sort_enable: self.enable_sorting(element)
+        self.update(self.element,self)
+
+    def visible_map(self) -> list:
+        """
+        Convience function for creating PySimpleGUI tables
+        :return: a list of visible columns for use with th PySimpleGUI Table visible_column_map parameter
+        """
+        return [x for x in self._visible_map]
+
+    def width_map(self):
+        """
+        Convience function for creating PySimpleGUI tables
+        :return: a list column widths for use with th PySimpleGUI Table col_widths parameter
+        """
+        return[x for x in self._width_map]
+
+
+    def sort(self, column_idx:int) -> None:
+        """
+        Callback to perform the sort on the selected column.
+        Note: not typically used by the end user
+
+        :param column_idx: The index of the column to sort on
+        :return:
+        """
+        # Load in our marker characters.  We will use them to both display the sort direction and to detect current direction
+        try:
+            asc = icon.sort_asc_marker
+        except AttributeError:
+            asc = '\u25BC'
+        try:
+            desc = icon.sort_desc_marker
+        except AttributeError:
+            desc = '\u25B2'
+
+        # We never sort on column 0, as that is the super secret hidden marker column, so we will sork on pk instead
+        if column_idx == 0: column_idx = 1
+
+        # Update the table headings
+        for i in range(len(self)):
+            # If the first "invisible" marker column is selected, sort by that column
+            if i == 0:
+                s=''
+            if i == column_idx:
+                sort_col_num = i
+                if asc in self[i]:
+                   reverse = True
+                   s=desc
+                else:
+                    reverse = False
+                    s=asc
+            else:
+                s=''
+            self[i] = self[i].replace(asc, '').replace(desc, '') + s
+        self.update(self.element, self)
+
+        # Do the actual sorting of the values internally without hitting the SQL driver
+        # First, store the selected PK, which will be at column 1 (column 0 is the hidden marker index)
+        try:
+            selected = int(self.element.TKTreeview.selection()[0])-1
+        except IndexError:
+            selected=0
+        selected_pk = self.element.Values[selected][1]
+
+        # Perform the actual internal sorting
+        sorted_values = sorted(self.element.Values, key=lambda x: x[sort_col_num], reverse=reverse)
+
+        # Now get a new index from the selected_pk from earlier
+        idx=0
+        for i in range(len(sorted_values)):
+            if sorted_values[i][1] == selected_pk:
+                idx=i
+                break
+
+        # Update the Table element with the new sorted values, selecting the appropriate row
+        self.element.update(values=sorted_values, select_rows=[idx])
+        eat_events(self.form.window) # if you don't eat the event, the selector event will trigger and update_elements will overwrite changes
+
+        # set vertical scroll bar to follow selected element
+        pk_position = idx / len(sorted_values)
+        self.element.set_vscroll_position(pk_position)
+
+
+
+    def update(self, element:sg.Table, heading:list) -> None:
+        """
+        Perform the actual update to the PySimpleGUI Table heading
+        Note: Not typically called by the end user
+
+        :param element: The PySimpleGUI Table element
+        :param heading: the new list of headings to update to
+        :return: None
+        """
+        for c_idx, new in zip(range(len(self)), heading):
+            element.Widget.heading(c_idx,text=new, anchor='w')
+
+    def enable_sorting(self, element) -> None:
+        """
+        Enable the sorting callbacks for each column index
+        Note: Not typically used by the end user
+
+        :param element: The PySimpleGUI Table element associated with this TableHeading
+        :return: None
+        """
+        for c_idx in range(len(self)):
+            element.widget.heading(c_idx, command=functools.partial(self.sort,c_idx))
+
 
 # ======================================================================================================================
 # COLUMN ABSTRACTION
