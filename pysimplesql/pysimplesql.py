@@ -2863,7 +2863,7 @@ class TableHeadings(list):
         except AttributeError:
             desc = '\u25B2'
 
-        # We never sort on column 0, as that is the super secret hidden marker column, so we will sork on pk instead
+        # We never sort on column 0, as that is the super secret hidden marker column, so we will sort on pk instead
         if column_idx == 0: column_idx = 1
 
         # Update the table headings
