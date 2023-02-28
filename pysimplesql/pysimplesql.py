@@ -827,7 +827,7 @@ class Query:
         if dependents: self.requery_dependents()
         if update: self.frm.update_elements(self.table)
 
-    def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False):
+    def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False, omit_elements:list=[]):
         """
         Move to the record with this primary key
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
@@ -837,13 +837,10 @@ class Query:
         @Query.set_by_index
 
         :param pk: The primary key to move to
-        :type pk: int
         :param update: Update the GUI elements after switching records
-        :type update: bool
         :param dependents: Requery dependents after switching records?
-        :type dependents: bool
         :param skip_prompt_save: True to skip prompting to save dirty records
-        :type skip_prompt_save: bool
+        :param omit_elements: List of elements to omit from updating
         :return: None
         """
         logger.debug(f'Setting table {self.table} record by primary key {pk}')
@@ -858,7 +855,7 @@ class Query:
                 i += 1
 
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table)
+        if update: self.frm.update_elements(self.table, omit_elements=omit_elements)
 
     def get_current(self, column:str, default=""):
         """
@@ -1915,7 +1912,7 @@ class Form:
         for q in self.queries:
             self[q].set_prompt_save(value)
 
-    def update_elements(self, table_name:str=None, edit_protect_only:bool=False) -> None:
+    def update_elements(self, table_name:str=None, edit_protect_only:bool=False, omit_elements:list=[]) -> None:
         """
         Updated the GUI elements to reflect values from the database for this Form instance only
 
@@ -1923,11 +1920,10 @@ class Form:
 
 
         :param table_name: (optional) name of table to update elements for, otherwise updates elements for all queries
-        :type table_name: str
         :param edit_protect_only: (default False) If true, only update items affected by edit_protect
-        :type edit_protect_only: bool
+        :param omit_elements: A list of elements to omit updating
         :returns: None
-        :rtype: None
+
         """
         msg='edit protect' if edit_protect_only else 'PySimpleGUI'
         logger.debug(f'update_elements(): Updating {msg} elements')
@@ -1995,6 +1991,8 @@ class Form:
             if table_name is not None:
                 if d['query'].table != table_name:
                     continue
+            # skip updating this element if requested
+            if d['element'] in omit_elements: continue
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = d['element'].key + '.marker'
@@ -2120,6 +2118,9 @@ class Form:
             if len(table.selector):
                 for e in table.selector:
                     logger.debug(f'update_elements: SELECTOR FOUND')
+                    # skip updating this element if requested
+                    if e['element'] in omit_elements: continue
+
                     element=e['element']
                     logger.debug(f'{type(element)}')
                     pk = table.pk_column
@@ -2250,7 +2251,7 @@ class Form:
                                 # Since this is a selector, we have to check the 2nd column for the pk since we
                                 # added a narrow column to mark virtual rows
                                 pk = self.window[event].Values[index][1]
-                                table.set_by_pk(pk, True)
+                                table.set_by_pk(pk, True, omit_elements=[element])
                                 changed=True
                             if changed:
                                 if 'record_changed' in table.callbacks.keys():
