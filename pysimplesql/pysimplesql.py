@@ -803,7 +803,7 @@ class Query:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index:int, update=True, dependents=True, skip_prompt_save=False):
+    def set_by_index(self, index:int, update=True, dependents=True, skip_prompt_save=False, omit_elements:list=[]):
         """
         Move to the record of the table located at the specified index in Query.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -811,13 +811,10 @@ class Query:
         @Query.set_by_pk.
 
         :param index: The index of the record to move to.
-        :type index: int
         :param update: Update the GUI elements after switching records
-        :type update: bool
         :param dependents: Requery dependents after switching records?
-        :type dependents: bool
         :param skip_prompt_save: True to skip prompting to save dirty records
-        :type skip_prompt_save: bool
+        :param omit_elements: A list of elements to omit from updating
         :return: None
         """
         logger.debug(f'Moving to the record at index {index} on {self.table}')
@@ -825,7 +822,7 @@ class Query:
 
         self.current_index = index
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table)
+        if update: self.frm.update_elements(self.table, omit_elements=omit_elements)
 
     def set_by_pk(self, pk, update=True, dependents=True, skip_prompt_save=False, omit_elements:list=[]):
         """
@@ -3322,6 +3319,12 @@ class ResultSet:
     def purge_virtual(self):
         # Purge virtual rows from the list
         self.rows = [row for row in self.rows if not row.virtual]
+
+    def sort_by_column(self,column:str,reverse=False):
+        self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
+
+    def sort_by_index(self,index:int,reverse=False):
+        self.rows = sorted(self.rows, key=lambda x: x[index], reverse=reverse)
 
 # TODO min_pk, max_pk
 class SQLDriver:
