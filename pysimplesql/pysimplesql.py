@@ -2071,7 +2071,7 @@ class Form:
 
                 d['element'].update(values=values, select_rows=index)
 
-                # set virtical scroll bar to follow selected element
+                # set vertical scroll bar to follow selected element
                 if len(index): d['element'].set_vscroll_position(pk_position)
 
                 eat_events(self.window)
@@ -2110,7 +2110,10 @@ class Form:
         # We can update the selector elements
         # We do it down here because it's not a mapped element...
         # Check for selector events
-        for k, table in self.queries.items():
+        for q, table in self.queries.items():
+            if table_name is not None:
+                if q != table_name:
+                    continue
             if len(table.selector):
                 for e in table.selector:
                     logger.debug(f'update_elements: SELECTOR FOUND')
@@ -2135,7 +2138,7 @@ class Form:
 
                         element.update(values=lst, set_to_index=table.current_index)
 
-                        # set virtical scroll bar to follow selected element (for listboxes only)
+                        # set vertical scroll bar to follow selected element (for listboxes only)
                         if type(element) == sg.PySimpleGUI.Listbox:
                             try:
                                 element.set_vscroll_position(table.current_index / len(lst))
@@ -2165,7 +2168,7 @@ class Form:
                             index = []
                         logger.debug(f'Selector:: index:{index} found:{found}')
                         element.update(values=values,select_rows=index)
-                        # set virtical scroll bar to follow selected element
+                        # set vertical scroll bar to follow selected element
                         if len(index): element.set_vscroll_position(pk_position)
                         eat_events(self.window)
 
