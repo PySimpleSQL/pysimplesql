@@ -3324,7 +3324,12 @@ class ResultSet:
         self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
 
     def sort_by_index(self,index:int,reverse=False):
-        self.rows = sorted(self.rows, key=lambda x: x[index], reverse=reverse)
+        try:
+            column = list(self[0].keys())[index]
+        except IndexError:
+            return
+        self.sort_by_column(column, reverse)
+
 
 # TODO min_pk, max_pk
 class SQLDriver:
