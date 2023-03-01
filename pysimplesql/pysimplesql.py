@@ -129,6 +129,20 @@ def eat_events(win:sg.Window) -> None:
             break
     return
 
+class TableRow(list):
+    """
+    This is a convenience class used by Tables to associate a primary key with a row of information
+    """
+    def __init__(self, pk:int, *args, **kwargs):
+        self.pk = pk
+        super().__init__(*args, **kwargs)
+
+    def __str__(self):
+        return str(self[:])
+
+    def __repr__(self):
+        # Add some extra information that could be useful for debugging
+        return f'TableRow(pk={self.pk}): {super().__repr__()}'
 
 class ElementRow:
     """
@@ -1249,7 +1263,7 @@ class Query:
 
     def table_values(self, column_names=None, mark_virtual=False) -> None:
         """
-        Create a values list for use in a PySimpleGUI Table element
+        Create a values list of lists for use in a PySimpleGUI Table element
 
         :param column_names: A list of column names to create table values for.  Defaults to getting them from the rows
         :param mark_virtual: Place a marker next to virtual records
@@ -1266,6 +1280,7 @@ class Query:
         else:
             column_names = column_names
 
+        pk_column = self.column_info.pk_column()
 
         for row in self.rows:
             if mark_virtual:
@@ -1274,7 +1289,11 @@ class Query:
                 lst = []
 
             rels = self.frm.get_relationships_for_table(self)
+            pk = None
             for col in column_names:
+                # Is this the primary key column?
+                if col == pk_column: pk = row[col]
+
                 found = False
                 for rel in rels:
                     if col == rel.fk_column:
@@ -1282,7 +1301,7 @@ class Query:
                         found = True
                         break
                 if not found: lst.append(row[col])
-            values.append(lst)
+            values.append(TableRow(pk,lst))
 
         return values
 
@@ -2245,10 +2264,8 @@ class Form:
                                 changed=True
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
-                                # Since this is a selector, we have to check the 2nd column for the pk since we
-                                # added a narrow column to mark virtual rows
-                                pk = self.window[event].Values[index][1]
-                                table.set_by_pk(pk, True, omit_elements=[element])
+                                pk = self.window[event].Values[index].pk
+                                table.set_by_pk(pk, True, omit_elements=[element]) # no need to update the selector!
                                 changed=True
                             if changed:
                                 if 'record_changed' in table.callbacks.keys():
@@ -3062,6 +3079,16 @@ class ColumnInfo(List):
             return next((i for i in self if i.name == item), None)
         else:
             return super().__getitem__(item)
+    def pk_column(self) -> str:
+        """
+        Get the pk_column for this colection of column_info
+
+        :return: A string containing the column name of the PK column, or None if one was not found
+        """
+        for c in self:
+            if c.pk: return c.name
+        return None
+
     def names(self) -> List:
         """
         Return a List of column names from the `Column`s in this collection
