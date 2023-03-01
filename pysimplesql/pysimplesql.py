@@ -1695,19 +1695,18 @@ class Form:
             if keys is not None:
                 if key not in keys: continue
 
-            if '?' in key:
-                table_info, where_info = key.split('?')
-            else:
-                table_info = key;
-                where_info = None
-            try:
-                table, col = table_info.split('.')
-            except ValueError:
-                table, col = table_info, None
-
             # Map Record Element
             if element.metadata['type']==TYPE_RECORD:
                 # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+                if '?' in key:
+                    table_info, where_info = key.split('?')
+                else:
+                    table_info = key;
+                    where_info = None
+                try:
+                    table, col = table_info.split('.')
+                except ValueError:
+                    table, col = table_info, None
 
                 if where_info is None:
                     where_column=where_value=None
@@ -1740,7 +1739,7 @@ class Form:
                         table_heading:TableHeadings = element.metadata['TableHeading']
                         # We need a whole chain of things to happen when a heading is clicked on:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
-                        # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_revers
+                        # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_reverse
                         # 3 we need to run update_elements() to see the changes
                         def callback_wrapper(column_name, element=element, query=query):
                             sort_order = self[query].rows.sort_cycle(column_name)
