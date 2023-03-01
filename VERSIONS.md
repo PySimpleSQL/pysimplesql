@@ -1,12 +1,15 @@
 # **pysimplesql** Version Information
 
-## <V2.3.1>
+## <V3.0.0>
 ### Released ?/?/23
 Fixes for checkboxes not always working correctly when checking for changes for prompt_save
-various bug fixes in the prompt_Save system
+various bug fixes in the prompt_save system
 Bug fix for similar names used in multiple selectors
 Bug fix for primary keys that start at 1 vs at 0
-Various optimizations
+Various optimizations and performance increases
+Table selectors can now have sortable column headings by using the new TableHeading class while setting up the table
+Inserted records now show a marker next to them, and prompt save on navigating away
+Lots of under-the-hood changes to the ResultSet abstraction to allow for sorting
 
 ## <v2.3.0>
 ### Released 02/03/23
