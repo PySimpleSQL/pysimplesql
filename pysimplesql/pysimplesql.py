@@ -2907,7 +2907,7 @@ class TableHeadings(list):
         for i, x in zip(range(len(self)), self):
             # Clear the direction markers
             x['heading'] = x['heading'].replace(asc, '').replace(desc, '')
-            if x['column_name'] == sort_column:
+            if x['column_name'] == sort_column and sort_column is not None:
                 if sort_order != ResultSet.SORT_NONE:
                     x['heading'] += asc if sort_order == ResultSet.SORT_ASC else desc
             element.Widget.heading(i, text=x['heading'], anchor='w')
