@@ -3321,12 +3321,16 @@ class ResultSet:
         self.rows = [row for row in self.rows if not row.virtual]
 
     def sort_by_column(self,column:str,reverse=False):
-        self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
+        try:
+            self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
+        except KeyError:
+            logger.debug(f'ResultSet could not sort by column {column}. KeyError.')
 
     def sort_by_index(self,index:int,reverse=False):
         try:
             column = list(self[0].keys())[index]
         except IndexError:
+            logger.debug(f'ResultSet could not sort by column index {index}. IndexError.')
             return
         self.sort_by_column(column, reverse)
 
