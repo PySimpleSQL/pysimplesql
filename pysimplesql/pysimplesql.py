@@ -2825,6 +2825,12 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
         vals = []
         vals.append([''] * len(kwargs['headings']))
         meta['columns'] = columns
+
+        # Change the headings parameter to be a list so the heading doesn't display dicts when it first loads
+        # The TableHeadings instance is already stored in metadata
+        if kwargs['headings'].__class__.__name__ == 'TableHeadings':
+            kwargs['headings'] = kwargs['headings'].heading_names()
+
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
@@ -2860,6 +2866,9 @@ class TableHeadings(list):
         self.append({'heading': heading_column, 'column_name': column_name})
         self._width_map.append(width)
         self._visible_map.append(visible)
+
+    def heading_names(self):
+        return [c['heading'] for c in self]
 
     def column_names(self):
         return [c['column_name'] for c in self if c['column_name'] is not None]
