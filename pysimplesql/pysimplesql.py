@@ -3221,8 +3221,9 @@ class ResultRow():
     a ResultSet.
     """
 
-    def __init__(self, row:dict, virtual=False):
+    def __init__(self, row:dict, original_index=None, virtual=False):
         self.row = row
+        self.original_index = original_index
         self.virtual=virtual
 
     def __str__(self):
@@ -3273,16 +3274,24 @@ class ResultSet:
     Note: The lastrowid is set by the caller, but by pysimplesql convention, the lastrowid should only be set after
     and INSERT statement is executed.
     """
-    def __init__(self, rows:list=[], lastrowid=None, exception=None):
+    # Store class-related constants
+    SORT_NONE = 0
+    SORT_ASC = 1
+    SORT_DESC = 2
+
+    def __init__(self, rows:list=[], lastrowid=None, exception=None, column_info=None):
         """
         Create a new ResultSet instance
 
         :return: ResultSet
         """
-        self.rows = [ResultRow(r) for r in rows]
+        self.rows = [ResultRow(r,i) for r,i in zip(rows,range(len(rows)))]
         self.lastrowid = lastrowid
         self._iter_index = 0
         self.exception = exception
+        self.column_info = column_info
+        self.sort_column = None
+        self.sort_reverse = False # ASC or DESC
 
     def __iter__(self):
         return (row for row in self.rows)
@@ -3334,6 +3343,33 @@ class ResultSet:
             return
         self.sort_by_column(column, reverse)
 
+    def sort_reset(self) -> None:
+        """
+        Reset the sort order to the original when this ResultSet was created.  Each ResultRow has the original order
+        stored
+        :return: None
+        """
+        self.rows = sorted(self.rows, key=lambda x: x.original_index)
+
+    def sort_cycle(self, column:str) -> int:
+        """
+        Cycle between original sort order of the ResultSet, ASC by column, and DESC by column with each call
+        :param column: The column name to cycle the sort on
+        :return: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or ResultSet.SORT_DESC
+        """
+        if column != self.sort_column:
+            # We are going to sort by a new column.  Default to ASC
+            self.sort_column = column
+            self.sort_reverse = False
+            self.sort_by_column(self.sort_column, self.sort_reverse)
+        else:
+            if self.sort_reverse == False:
+                self.sort_reverse = True
+                self.sort_by_column(self.sort_column, self.sort_reverse)
+            else:
+                self.sort_reverse=False
+                self.sort_column = None
+                self.sort_reset()
 
 # TODO min_pk, max_pk
 class SQLDriver:
@@ -3369,7 +3405,7 @@ class SQLDriver:
     def connect(self, database):
         raise NotImplementedError
 
-    def execute(self, query, values=None):
+    def execute(self, query, values=None, column_info:ColumnInfo=None):
         raise NotImplementedError
 
     def execute_script(self, script:str, silent:bool=False):
@@ -3657,24 +3693,24 @@ class Sqlite(SQLDriver):
     def connect(self, database):
         self.con = sqlite3.connect(database)
 
-    def execute(self, query, values=None, silent=False):
+    def execute(self, query, values=None, silent=False, column_info = None):
         if not silent:logger.info(f'Executing query: {query} {values}')
 
         cursor = self.con.cursor()
         exception = None
         try:
-            cursor.execute(query, values) if values else cursor.execute(query)
+            cur = cursor.execute(query, values) if values else cursor.execute(query)
         except sqlite3.Error as e:
             exception = e
 
         try:
-            rows = cursor.fetchall()
-
+            rows = cur.fetchall()
         except:
             rows = []
 
+
         lastrowid = cursor.lastrowid if cursor.lastrowid is not None else None
-        return ResultSet([dict(row) for row in rows], lastrowid, exception)
+        return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
 
 
     def close(self):
@@ -3778,7 +3814,7 @@ class Mysql(SQLDriver):
         )
         return con
 
-    def execute(self, query, values=None, silent=False):
+    def execute(self, query, values=None, silent=False, column_info=None):
         if not silent: logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor(dictionary=True)
         exception = None
@@ -3794,7 +3830,7 @@ class Mysql(SQLDriver):
 
         lastrowid=cursor.lastrowid if cursor.lastrowid else None
 
-        return ResultSet([dict(row) for row in rows], lastrowid, exception)
+        return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
 
 
     def table_names(self):
@@ -3923,7 +3959,7 @@ class Postgres(SQLDriver):
         )
         return con
 
-    def execute(self, query:str, values=None, silent=False):
+    def execute(self, query:str, values=None, silent=False, column_info=None):
         if not silent: logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         exception = None
@@ -3932,7 +3968,6 @@ class Postgres(SQLDriver):
         except psycopg2.Error as e:
             exception = e
 
-
         try:
             rows = cursor.fetchall()
         except:
@@ -3940,7 +3975,7 @@ class Postgres(SQLDriver):
 
         # In Postgres, the cursor does not return a lastrowid.  We will not set it here, we will instead set it in
         # save_records() due to the RETURNING stement of the query
-        return ResultSet([dict(row) for row in rows], exception=exception)
+        return ResultSet([dict(row) for row in rows], exception=exception, column_info=column_info)
 
     def table_names(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
