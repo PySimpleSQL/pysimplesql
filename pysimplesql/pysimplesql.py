@@ -1742,9 +1742,11 @@ class Form:
                         # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_reverse
                         # 3 we need to run update_elements() to see the changes
                         def callback_wrapper(column_name, element=element, query=query):
+                            # store the pk:
+                            pk = self[query].get_current_pk()
                             sort_order = self[query].rows.sort_cycle(column_name)
+                            self[query].set_by_pk(pk, update=True, dependents=False, skip_prompt_save=True)
                             table_heading.update_headings(element, column_name, sort_order)
-                            self.update_elements(query)
 
                         table_heading.enable_sorting(element, callback_wrapper)
 
@@ -2075,7 +2077,7 @@ class Form:
                 for rel in rels:
                     if rel.fk_column == d['column']:
                         target_table = self[rel.parent_table]
-                        pk = target_table.pk_column
+                        pk_column = target_table.pk_column
                         description = target_table.description_column
                         break
 
@@ -2088,7 +2090,7 @@ class Form:
                 else:
                     lst = []
                     for row in target_table.rows:
-                        lst.append(ElementRow(row[pk], row[description]))
+                        lst.append(ElementRow(row[pk_column], row[description]))
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
@@ -2103,12 +2105,12 @@ class Form:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
                 values = d['query'].table_values()
                 # Select the current one
-                pk = d['query'].get_current_pk()
+                pk_column = d['query'].get_current_pk()
 
                 found = False
                 # set index to pk
                 try:
-                    index = [[v[0] for v in values].index(pk)]
+                    index = [[v[0] for v in values].index(pk_column)]
                     pk_position = index[0] / len(values)  # calculate pk percentage position
                     found = True
                 except ValueError:
@@ -2167,8 +2169,8 @@ class Form:
 
                     element=e['element']
                     logger.debug(f'{type(element)}')
-                    pk = table.pk_column
-                    column = table.description_column
+                    pk_column = table.pk_column
+                    description_column = table.description_column
                     if element.Key in self.callbacks:
                         self.callbacks[element.Key]()
 
@@ -2178,11 +2180,11 @@ class Form:
                         for r in table.rows:
                             if e['where_column'] is not None:
                                 if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
-                                    lst.append(ElementRow(r[pk], r[column]))
+                                    lst.append(ElementRow(r[pk_column], r[description_column]))
                                 else:
                                     pass
                             else:
-                                lst.append(ElementRow(r[pk], r[column]))
+                                lst.append(ElementRow(r[pk_column], r[description_column]))
 
                         element.update(values=lst, set_to_index=table.current_index)
 
@@ -2211,8 +2213,9 @@ class Form:
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
                         pk = table.get_current_pk()
+
                         found = False
-                        # set index to pk
+                        # set to index by pk
                         try:
                             index = [[v.pk for v in values].index(pk)]
                             pk_position = index[0] / len(values)  # calculate pk percentage position
@@ -2222,7 +2225,7 @@ class Form:
                         logger.debug(f'Selector:: index:{index} found:{found}')
                         element.update(values=values,select_rows=index)
                         # set vertical scroll bar to follow selected element
-                        if len(index): element.set_vscroll_position(pk_position)
+                        element.set_vscroll_position(pk_position)
                         eat_events(self.window)
 
         # Run callbacks
