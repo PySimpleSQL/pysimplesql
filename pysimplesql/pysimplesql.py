@@ -622,8 +622,17 @@ class Query:
             where = self.driver.generate_where_clause(self)
 
         query = self.query + ' ' + join + ' ' + where + ' ' + self.order
+        # We want to store our sort settings before we wipe out the current ResultSet
+        try:
+            sort_settings = self.rows.store_sort_settings()
+        except AttributeError:
+            sort_settings = [None, ResultSet.SORT_NONE] # default for first query
+
         rows = self.driver.execute(query)
         self.rows = rows
+        # now we can restore the sort order
+        self.rows.load_sort_settings(sort_settings)
+        self.rows.sort()
 
         for row in self.rows:
             # perform transform one row at a time
@@ -1186,7 +1195,7 @@ class Query:
         else:
             self.driver.commit()
 
-        self.requery(False)  # Don't move to the first record
+
         self.current_index = self.current_index  # force the current_index to be in bounds! todo should this be done in requery?
         self.requery_dependents()
 
@@ -1272,11 +1281,13 @@ class Query:
         values = []
         #column_names=self.column_info.names() if columns == None else columns #<- old version got this from self.column_info
         # Get the column names directly from the row information so that the order is preserved
+        try:
+            all_columns = self.rows[0].keys()
+        except IndexError:
+            all_columns = []
+
         if column_names == None:
-            if len(self.rows):
-                column_names = self.rows[0].keys()
-            else:
-                column_names = []
+            column_names = all_columns
         else:
             column_names = column_names
 
@@ -1290,10 +1301,12 @@ class Query:
 
             rels = self.frm.get_relationships_for_table(self)
             pk = None
-            for col in column_names:
+            for col in all_columns:
                 # Is this the primary key column?
                 if col == pk_column: pk = row[col]
-
+                # Skip this column if we aren't supposed to grab it
+                if col not in column_names: continue
+                # Get this column info, including fk descriptions
                 found = False
                 for rel in rels:
                     if col == rel.fk_column:
@@ -1682,15 +1695,20 @@ class Form:
             if keys is not None:
                 if key not in keys: continue
 
+            if '?' in key:
+                table_info, where_info = key.split('?')
+            else:
+                table_info = key;
+                where_info = None
+            try:
+                table, col = table_info.split('.')
+            except ValueError:
+                table, col = table_info, None
+
             # Map Record Element
             if element.metadata['type']==TYPE_RECORD:
                 # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-                if '?' in key:
-                    table_info, where_info = key.split('?')
-                else:
-                    table_info = key; where_info = None
 
-                table, col = table_info.split('.')
                 if where_info is None:
                     where_column=where_value=None
                 else:
@@ -1716,9 +1734,20 @@ class Form:
 
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
-                    # Update the TableHeading if it is present
+
+                    # Enable sorting if TableHeading  is present
                     if type(element) is sg.Table and 'TableHeading' in element.metadata:
-                        element.metadata['TableHeading'].update_element(element = element, form=self)
+                        table_heading:TableHeadings = element.metadata['TableHeading']
+                        # We need a whole chain of things to happen when a heading is clicked on:
+                        # 1 we need to run the ResultRow.sort_cycle() with the correct column name
+                        # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_revers
+                        # 3 we need to run update_elements() to see the changes
+                        def callback_wrapper(column_name, element=element, query=query):
+                            sort_order = self[query].rows.sort_cycle(column_name)
+                            table_heading.update_headings(element, column_name, sort_order)
+                            self.update_elements(query)
+
+                        table_heading.enable_sorting(element, callback_wrapper)
 
 
                 else:
@@ -2173,7 +2202,12 @@ class Form:
                     elif type(element) is sg.PySimpleGUI.Table:
                         logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
-                        values = table.table_values(element.metadata['columns'], mark_virtual=True)
+                        try:
+                            column_names = element.metadata['TableHeading'].column_names()
+                        except KeyError:
+                            column_names = None # default to all columns
+
+                        values = table.table_values(column_names, mark_virtual=True)
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
@@ -2181,7 +2215,7 @@ class Form:
                         found = False
                         # set index to pk
                         try:
-                            index = [[v[1] for v in values].index(pk)]
+                            index = [[v.pk for v in values].index(pk)]
                             pk_position = index[0] / len(values)  # calculate pk percentage position
                             found = True
                         except ValueError:
@@ -2811,13 +2845,10 @@ class TableHeadings(list):
         self._width_map = []
         self._visible_map = []
 
-        self.element = None # We can update this later with update_element()
-        self.form = None    # we will update this later with update_element()
-
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
-    def add(self, heading_column:str, width:int, visible:bool=True) -> None:
+    def add(self, heading_column:str, column_name:str, width:int, visible:bool=True) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
         Typically, the first column added will be the primary key column with the visible parameter set to False.
@@ -2827,23 +2858,15 @@ class TableHeadings(list):
         :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
         :return: None
         """
-        self.append(heading_column)
+        self.append({'heading': heading_column, 'column_name': column_name})
         self._width_map.append(width)
         self._visible_map.append(visible)
 
-    def update_element(self,element:sg.Table, form:Form) -> None:
-        """
-        Update the stored PySimpleGUI table element.  Sorting will not work until this is done.
-        Note: Typically not used by the end user - pysimplesql will call this internally.
+    def column_names(self):
+        return [c['column_name'] for c in self if c['column_name'] is not None]
 
-        :param element: The PySimpleGUI Table element associated with this TableHeading
-        :param form: a pysimplesql Form
-        :return: None
-        """
-        self.element = element
-        self.form = form
-        if self._sort_enable: self.enable_sorting(element)
-        self.update(self.element,self)
+    def insert(self, idx, heading_column:str, column_name:str=None, *args, **kwargs):
+        super().insert(idx,{'heading': heading_column, 'column_name': column_name})
 
     def visible_map(self) -> list:
         """
@@ -2859,15 +2882,18 @@ class TableHeadings(list):
         """
         return[x for x in self._width_map]
 
-
-    def sort(self, column_idx:int) -> None:
+    def update_headings(self, element:sg.Table, sort_column=None, sort_order:int = None) -> None:
         """
-        Callback to perform the sort on the selected column.
-        Note: not typically used by the end user
+        Perform the actual update to the PySimpleGUI Table heading
+        Note: Not typically called by the end user
 
-        :param column_idx: The index of the column to sort on
-        :return:
+        :param element: The PySimpleGUI Table element
+        :param sort_column: The column to show the sort direction indicators on
+        :param sort_order: A ResultSet SORT_* constant (ResultSet.SORT_NONE, ResultSet.SORT_ASC, ResultSet.SORT_DESC)
+        :return: None
         """
+        global icon
+        print(f'in update_headings. sort_order{sort_order}')
         # Load in our marker characters.  We will use them to both display the sort direction and to detect current direction
         try:
             asc = icon.sort_asc_marker
@@ -2878,75 +2904,29 @@ class TableHeadings(list):
         except AttributeError:
             desc = '\u25B2'
 
-        # We never sort on column 0, as that is the super secret hidden marker column, so we will sort on pk instead
-        if column_idx == 0: column_idx = 1
-
-        # Update the table headings
-        for i in range(len(self)):
-            if i == column_idx:
-                sort_col_num = i
-                if asc in self[i]:
-                   reverse = True
-                   s=desc # add the sort_desc_marker to the end of the string
-                else:
-                    reverse = False
-                    s=asc # add the sort_asc_marker to the end of the string
-            else:
-                s='' # we will not add anything extra to the end of the string
-            # Clear any old markers then update the marker at the end of the heading for this column
-            self[i] = self[i].replace(asc, '').replace(desc, '') + s
-        self.update(self.element, self)
-
-        # Do the actual sorting of the values internally without hitting the SQL driver
-        # First, store the selected PK, which will be at column 1 (column 0 is the hidden marker index)
-        try:
-            selected = int(self.element.TKTreeview.selection()[0])-1
-        except IndexError:
-            selected=0
-        selected_pk = self.element.Values[selected][1]
-
-        # Perform the actual internal sorting
-        sorted_values = sorted(self.element.Values, key=lambda x: x[sort_col_num], reverse=reverse)
-
-        # Now get a new index from the selected_pk from earlier
-        idx=0
-        for i in range(len(sorted_values)):
-            if sorted_values[i][1] == selected_pk:
-                idx=i
-                break
-
-        # Update the Table element with the new sorted values, selecting the appropriate row
-        self.element.update(values=sorted_values, select_rows=[idx])
-        eat_events(self.form.window) # if you don't eat the event, the selector event will trigger and update_elements will overwrite changes
-
-        # set vertical scroll bar to follow selected element
-        pk_position = idx / len(sorted_values)
-        self.element.set_vscroll_position(pk_position)
+        for i, x in zip(range(len(self)), self):
+            # Clear the direction markers
+            x['heading'] = x['heading'].replace(asc, '').replace(desc, '')
+            if x['column_name'] == sort_column:
+                if sort_order != ResultSet.SORT_NONE:
+                    x['heading'] += asc if sort_order == ResultSet.SORT_ASC else desc
+            element.Widget.heading(i, text=x['heading'], anchor='w')
 
 
-
-    def update(self, element:sg.Table, heading:list) -> None:
-        """
-        Perform the actual update to the PySimpleGUI Table heading
-        Note: Not typically called by the end user
-
-        :param element: The PySimpleGUI Table element
-        :param heading: the new list of headings to update to
-        :return: None
-        """
-        for c_idx, new in zip(range(len(self)), heading):
-            element.Widget.heading(c_idx,text=new, anchor='w')
-
-    def enable_sorting(self, element) -> None:
+    def enable_sorting(self, element:sg.Table, fn:callable) -> None:
         """
         Enable the sorting callbacks for each column index
         Note: Not typically used by the end user
 
         :param element: The PySimpleGUI Table element associated with this TableHeading
+        :param fn: A callback functions to run when a heading is clicked. The callback should take one colun_name parameter.
         :return: None
         """
-        for c_idx in range(len(self)):
-            element.widget.heading(c_idx, command=functools.partial(self.sort,c_idx))
+        if self._sort_enable:
+            for i in range(len(self)):
+                if self[i]['column_name'] is not None:
+                    element.widget.heading(i, command=functools.partial(fn, self[i]['column_name']))
+        self.update_headings(element)
 
 
 # ======================================================================================================================
@@ -3370,6 +3350,14 @@ class ResultSet:
             return
         self.sort_by_column(column, reverse)
 
+
+    def store_sort_settings(self) -> list:
+        return [self.sort_column, self.sort_reverse]
+    def load_sort_settings(self, sort_settings:list):
+        self.sort_column = sort_settings[0]
+        self.sort_reverse = sort_settings[1]
+
+
     def sort_reset(self) -> None:
         """
         Reset the sort order to the original when this ResultSet was created.  Each ResultRow has the original order
@@ -3377,27 +3365,45 @@ class ResultSet:
         :return: None
         """
         self.rows = sorted(self.rows, key=lambda x: x.original_index)
+    def sort(self) -> None:
+        """
+        Sort according to the internal sort_column and sort_reverse variables
+        This is a good way to re-sort without changing the sort_cycle
 
-    def sort_cycle(self, column:str) -> int:
+        :return: None
+        """
+        print(f'Sort. ', self.sort_column, self.sort_reverse)
+        if self.sort_column is None:
+            self.sort_reset()
+        else:
+            self.sort_by_column(self.sort_column, self.sort_reverse)
+
+    def sort_cycle(self, column:str, advance_cycle=True) -> int:
         """
         Cycle between original sort order of the ResultSet, ASC by column, and DESC by column with each call
         :param column: The column name to cycle the sort on
+        :param cb: A callable function callback to run after this sort runs.
         :return: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or ResultSet.SORT_DESC
         """
+        print(f'In sort_cycle!')
         if column != self.sort_column:
             # We are going to sort by a new column.  Default to ASC
             self.sort_column = column
             self.sort_reverse = False
-            self.sort_by_column(self.sort_column, self.sort_reverse)
+            self.sort()
+            ret =  ResultSet.SORT_ASC
         else:
             if self.sort_reverse == False:
                 self.sort_reverse = True
-                self.sort_by_column(self.sort_column, self.sort_reverse)
+                self.sort()
+                ret = ResultSet.SORT_DESC
             else:
                 self.sort_reverse=False
                 self.sort_column = None
-                self.sort_reset()
-
+                self.sort()
+                ret = ResultSet.SORT_NONE
+        print(f'After sort: {ret} {self}')
+        return ret
 # TODO min_pk, max_pk
 class SQLDriver:
     """"
