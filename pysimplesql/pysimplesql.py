@@ -2105,12 +2105,12 @@ class Form:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
                 values = d['query'].table_values()
                 # Select the current one
-                pk_column = d['query'].get_current_pk()
+                pk = d['query'].get_current_pk()
 
                 found = False
                 # set index to pk
                 try:
-                    index = [[v[0] for v in values].index(pk_column)]
+                    index = [[v[0] for v in values].index(pk)]
                     pk_position = index[0] / len(values)  # calculate pk percentage position
                     found = True
                 except ValueError:
