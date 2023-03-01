@@ -2893,7 +2893,7 @@ class TableHeadings(list):
         :return: None
         """
         global icon
-        print(f'in update_headings. sort_order{sort_order}')
+
         # Load in our marker characters.  We will use them to both display the sort direction and to detect current direction
         try:
             asc = icon.sort_asc_marker
@@ -2916,7 +2916,7 @@ class TableHeadings(list):
     def enable_sorting(self, element:sg.Table, fn:callable) -> None:
         """
         Enable the sorting callbacks for each column index
-        Note: Not typically used by the end user
+        Note: Not typically used by the end user. Called from Form.auto_map_elements()
 
         :param element: The PySimpleGUI Table element associated with this TableHeading
         :param fn: A callback functions to run when a heading is clicked. The callback should take one colun_name parameter.
@@ -3372,7 +3372,6 @@ class ResultSet:
 
         :return: None
         """
-        print(f'Sort. ', self.sort_column, self.sort_reverse)
         if self.sort_column is None:
             self.sort_reset()
         else:
@@ -3385,7 +3384,6 @@ class ResultSet:
         :param cb: A callable function callback to run after this sort runs.
         :return: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or ResultSet.SORT_DESC
         """
-        print(f'In sort_cycle!')
         if column != self.sort_column:
             # We are going to sort by a new column.  Default to ASC
             self.sort_column = column
@@ -3402,7 +3400,6 @@ class ResultSet:
                 self.sort_column = None
                 self.sort()
                 ret = ResultSet.SORT_NONE
-        print(f'After sort: {ret} {self}')
         return ret
 # TODO min_pk, max_pk
 class SQLDriver:
