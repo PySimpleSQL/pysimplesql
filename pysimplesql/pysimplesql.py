@@ -2673,13 +2673,13 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     #return layout
     return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
 
-def actions(key, query, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
+def actions(query, key=None, default=True, edit_protect=None, navigation=None, insert=None, delete=None, duplicate=None, save=None,
             search=None, search_size=(30, 1), bind_return_key=True, filter=None):
     """
     Allows for easily adding record navigation and elements to the PySimpleGUI window
     The navigation elements are separated into different sections as detailed by the parameters.
-    :param key: The key to give these controls
-    :param query: The table that this "element" will provide actions for
+    :param query: The query that this "element" will provide actions for.
+    :param key: The key to give these controls. If none is supplied, it will default to 'action_{query}'
     :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
                     The individual keyword arguments will trump the default parameter
     :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that toggles
@@ -2707,6 +2707,9 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
 
     layout = []
     meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+    
+    # Generate a key if none is supplied. 
+    key=f'action_{table}' if key is None else key
 
     # Form-level events
     if edit_protect:
@@ -2784,8 +2787,12 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
 
 
 
-def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, **kwargs):
+def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=None, **kwargs):
+
+    # Generate a key if none is supplied. 
+    key=f'selector_{table}' if key is None else key
     key=keygen(key)
+
     meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
         layout = element(values=(), size=size or _default_element_size, key=key,
@@ -2804,7 +2811,7 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
             # Overwrite the kwargs from the TableHeading info
             kwargs['visible_column_map'] = kwargs['headings'].visible_map()
             kwargs['col_widths'] = kwargs['headings'].width_map()
-            kwargs['auto_size_columns'] = False  # let the col_windths handle it
+            kwargs['auto_size_columns'] = False  # let the col_widths handle it
             # Store the TableHeadings object in metadata to complete setup on auto_add_elements()
             meta['TableHeading'] = kwargs['headings']
         else:
@@ -2856,11 +2863,12 @@ class TableHeadings(list):
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
-    def add(self, heading_column:str, column_name:str, width:int, visible:bool=True) -> None:
+    def add(self, column_name:str, heading_column:str, width:int, visible:bool=True) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
         Typically, the first column added will be the primary key column with the visible parameter set to False.
 
+        :param column_name: The name of the query's column
         :param heading_column: The name of this columns heading
         :param width: The width for this column to display within the Table element
         :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column

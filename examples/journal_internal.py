@@ -47,17 +47,17 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
 headings=ss.TableHeadings(sort_enable=True)
-headings.add('Title', 'title', width=40)
-headings.add('Date',  'entry_date', width=10)
-headings.add('Mood',  'mood_id', width=20)
+headings.add('title', 'Title', width=40) # query's column name, then text for header, then space widths
+headings.add('entry_date', 'Date', width=10)
+headings.add('mood_id', 'Mood', width=20)
 
 layout=[
-    [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings)],
-    [ss.actions('act_journal','Journal',edit_protect=False)],
+    [ss.selector('Journal',sg.Table,key='sel_journal',num_rows=10,headings=headings)],
+    [ss.actions('Journal',key='act_journal',edit_protect=False)],
     [ss.record('Journal.entry_date')],
     [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],
-    [ss.record('Journal.entry', sg.MLine, size=(71,20))]
+    [ss.record('Journal.entry', sg.MLine, key='record_journal_entry', size=(71,20))]
 ]
 win=sg.Window('Journal (internal) example', layout, finalize=True)
 driver=ss.Sqlite(':memory:', sql_commands=sql)
