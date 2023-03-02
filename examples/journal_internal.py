@@ -46,13 +46,13 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
-columns=ss.TableColumns(sort_enable=True)
-columns.add('title', 'Title', width=40) # query's column name, then text for header, then space widths
-columns.add('entry_date', 'Date', width=10)
-columns.add('mood_id', 'Mood', width=20)
+sortedtable=ss.TableWidget(sort_enable=True)
+sortedtable.add_column('title', 'Title', width=40) # query's column name, then text for header, then space widths
+sortedtable.add_column('entry_date', 'Date', width=10)
+sortedtable.add_column('mood_id', 'Mood', width=20)
 
 layout=[
-    [ss.selector('Journal',sg.Table,key='sel_journal',num_rows=10,columns=columns)],
+    [ss.selector('Journal',sortedtable,key='sel_journal',num_rows=10)],
     [ss.actions('Journal',key='act_journal',edit_protect=False)],
     [ss.record('Journal.entry_date')],
     [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],

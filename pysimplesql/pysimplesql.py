@@ -1734,12 +1734,12 @@ class Form:
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
 
-                    # Enable sorting if TableColumn  is present
-                    if type(element) is sg.Table and 'TableColumn' in element.metadata:
-                        table_heading:TableColumns = element.metadata['TableColumn']
+                    # Enable sorting if TableWidget  is present
+                    if type(element) is sg.Table and 'TableWidget' in element.metadata:
+                        table_heading:TableWidget = element.metadata['TableWidget']
                         # We need a whole chain of things to happen when a heading is clicked on:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
-                        # 2 we need to run TableColumn.update_headings() with the Table element, sort_column and sort_reverse
+                        # 2 we need to run TableWidget.update_headings() with the Table element, sort_column and sort_reverse
                         # 3 we need to run update_elements() to see the changes
                         def callback_wrapper(column_name, element=element, query=query):
                             # store the pk:
@@ -2204,7 +2204,7 @@ class Form:
                         logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
                         try:
-                            column_names = element.metadata['TableColumn'].column_names()
+                            column_names = element.metadata['TableWidget'].column_names()
                         except KeyError:
                             column_names = None # default to all columns
 
@@ -2787,7 +2787,7 @@ def actions(query, key=None, default=True, edit_protect=None, navigation=None, i
 
 
 
-def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=None, **kwargs):
+def selector(table, element=sg.LBox, key=None, size=None, filter=None, **kwargs):
 
     # Generate a key if none is supplied. 
     key=f'selector_{table}' if key is None else key
@@ -2805,21 +2805,21 @@ def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=N
         w = _default_element_size[0]
         layout = element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
                           auto_size_text=False, metadata=meta)
-    elif element == sg.Table:
-        # Check if the headings arg is a Table heading...
-        if columns.__class__.__name__ == 'TableColumns':
-            kwargs['headings'] = columns
-            # Overwrite the kwargs from the TableColumn info
-            kwargs['visible_column_map'] = kwargs['headings'].visible_map()
-            kwargs['col_widths'] = kwargs['headings'].width_map()
-            kwargs['auto_size_columns'] = False  # let the col_widths handle it
-            # Store the TableColumns object in metadata to complete setup on auto_add_elements()
-            meta['TableColumn'] = kwargs['headings']
-        else:
+    elif element == sg.Table or element.__class__.__name__ == 'TableWidget':
+        if element == sg.Table:
             required_kwargs = ['headings', 'visible_column_map', 'num_rows']
             for kwarg in required_kwargs:
                 if kwarg not in kwargs:
                     raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
+        if element.__class__.__name__ == 'TableWidget':
+            kwargs['headings'] = element
+            element = sg.Table
+            # Overwrite the kwargs from the TableWidget info
+            kwargs['visible_column_map'] = kwargs['headings'].visible_map()
+            kwargs['col_widths'] = kwargs['headings'].width_map()
+            kwargs['auto_size_columns'] = False  # let the col_widths handle it
+            # Store the TableWidget object in metadata to complete setup on auto_add_elements()
+            meta['TableWidget'] = kwargs['headings']
 
         # Create other kwargs that are required
         kwargs['enable_events'] = True
@@ -2836,13 +2836,9 @@ def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=N
         vals = []
         vals.append([''] * len(kwargs['headings']))
 
-        if columns.__class__.__name__ != 'TableColumns':
-            meta['columns'] = columns
-        else: meta['columns'] = columns.column_names
-
         # Change the headings parameter to be a list so the heading doesn't display dicts when it first loads
-        # The TableColumns instance is already stored in metadata
-        if kwargs['headings'].__class__.__name__ == 'TableColumns':
+        # The TableWidget instance is already stored in metadata
+        if kwargs['headings'].__class__.__name__ == 'TableWidget':
             kwargs['headings'] = kwargs['headings'].heading_names()
 
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
@@ -2851,10 +2847,10 @@ def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=N
 
     return layout
 
-class TableColumns(list):
+class TableWidget(list):
     """
     This is a convenience class used to build sg.Table information for PySimpleGUI, including header text, visible_column_map, and col_widths. 
-    In addition, `TableColumn` objects can sort columns in ascending or descending order by clicking on the column in the heading in the 
+    In addition, `TableWidget` objects can sort columns in ascending or descending order by clicking on the column in the heading in the 
     PySimpleGUI Table element if the sort_enable parameter is set to True.
     """
     # store our instances
@@ -2865,11 +2861,11 @@ class TableColumns(list):
         self._visible_map = []
 
         # Store this instance in the master list of instances
-        TableColumns.instances.append(self)
+        TableWidget.instances.append(self)
 
-    def add(self, column_name:str, heading:str, width:int, visible:bool=True) -> None:
+    def add_column(self, column_name:str, heading:str, width:int, visible:bool=True) -> None:
         """
-        Add a new column to this TableColumn object. Columns are added in the order that this method is called.
+        Add a new column to this TableWidget object. Columns are added in the order that this method is called.
         Typically, the first column added will be the primary key column with the visible parameter set to False.
 
         :param column_name: The name of the query's column
@@ -2941,7 +2937,7 @@ class TableColumns(list):
         Enable the sorting callbacks for each column index
         Note: Not typically used by the end user. Called from Form.auto_map_elements()
 
-        :param element: The PySimpleGUI Table element associated with this TableColumn
+        :param element: The PySimpleGUI Table element associated with this TableWidget
         :param fn: A callback functions to run when a heading is clicked. The callback should take one column_name parameter.
         :return: None
         """
