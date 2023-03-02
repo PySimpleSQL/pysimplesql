@@ -124,7 +124,7 @@ def eat_events(win:sg.Window) -> None:
     :returns: None
     """
     while True:
-        event,values=win.read(timeout=0)
+        event,values=win.read(timeout=1)
         if event=='__TIMEOUT__':
             break
     return
