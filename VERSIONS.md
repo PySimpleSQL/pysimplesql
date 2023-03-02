@@ -25,6 +25,9 @@ first, last, etc) now prompt for changes before making the record change so that
 cycles through these 3 sort orders: ASC, DESC, and original sort as returned by the SQL database.  See documentation for
 the new TableHeader class and examples for creating sortable table headers.
 - Markers are now displayed for new records, required entries (notnull columns), and column sorting on Table elements.
+![image](https://github.com/PySimpleSQL/pysimplesql/raw/abstracted_database/doc_screenshots/sort_marker.png)
+![image](https://github.com/PySimpleSQL/pysimplesql/raw/abstracted_database/doc_screenshots/virtual_marker.png)
+![image](https://github.com/PySimpleSQL/pysimplesql/raw/abstracted_database/doc_screenshots/required_marker.png)
 - New iconpack system allows for changing the look of your project easily and efficiently.  Add custom button images to
 auto-generated buttons (save, previous, next, edit_protect, and so on). Also use custom unicode character markers for
 things like the new record marker, the required entry marker, and the sort ASC/DESC marker.
