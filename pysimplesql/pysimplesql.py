@@ -3479,8 +3479,11 @@ class SQLDriver:
     # update the sequencer for the given database.  This is just a default way to "get things working", but the best
     # bet is to override this in the derived class and get the value right from the sequencer.
     def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        n = self.max_pk(table_name, pk_column_name) + 1
-        return n if n else 1
+        max_pk = self.max_pk(table_name, pk_column_name)
+        if max_pk is not None:
+            return max_pk + 1
+        else: return 1
+        
 
     # ---------------------------------------------------------------------
     # MAY need to be implemented
