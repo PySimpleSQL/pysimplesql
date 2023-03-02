@@ -2,14 +2,42 @@
 
 ## <V3.0.0>
 ### Released ?/?/23
+This version introduces *many* new features that take pysimplesql to the next level.  Please see the documentation for
+more information on these new features.
+#### New Features
+- Multiple database support is here!  SQLite, MySQL and PostgreSQL are all not supported.  Using pysimplesql, your
+projects can now seamlessly transition from one database type to another, as they are fully abstracted and a single
+interface handles all of the complexity of dealing with mutliple database types. This includes a fully abstracted
+ResultSet that works the same across all database implementations!
+- New Transform system allows data manipulation as it's read from and written to the database.  For example, if dates
+are stored as a timestamp in the database, it can be transformed into a string representation when it is read from the
+database so that it displays correctly in the GUI, then transformed back to a timestamp when written back to the 
+database.  The use cases for transforms are actually limitless! 
+- New ColumnInfo class exposes information on table columns.  This includes they SQLType of the column (VARCHAR, INT, etc)
+the default value of the column as defined in the SQL definition, whether notnull is set on the column, and if the column
+is a primary key.  You can access this information through Query.column_info property (form['table'].column_info)
+- New support for virtual rows and columns in pysimplesql.  This allows for the addition of rows and columns that don't
+actually exist in the database but may be useful for your application.  The new insert_record() method actually uses
+a virtual row to display the row to the user before actual insertion into the database.
+- The prompt save system had a major overhaul - all of pysimplesql's internal record changing methods (previous, next,
+first, last, etc) now prompt for changes before making the record change so that changed/inserted data is not lost accidentally
+- Table element selectors can now sort data by column by clicking on the table header. This is a 3-click system that 
+cycles through these 3 sort orders: ASC, DESC, and original sort as returned by the SQL database.  See documentation for
+the new TableHeader class and examples for creating sortable table headers.
+- Markers are now displayed for new records, required entries (notnull columns), and column sorting on Table elements.
+- New iconpack system allows for changing the look of your project easily and efficiently.  Add custom button images to
+auto-generated buttons (save, previous, next, edit_protect, and so on). Also use custom unicode character markers for
+things like the new record marker, the required entry marker, and the sort ASC/DESC marker.
+- reduced the amount of default logging. Its mostly limited to logging database queries
+- tons of docstring improvements and overall documentation improvements
+- Examples updated to show new features
+#### Bug Fixes
+Scrollbars will now follow selected rows in PySimpleGUI elements (more of a new feature than a bug fix)
 Fixes for checkboxes not always working correctly when checking for changes for prompt_save
 various bug fixes in the prompt_save system
 Bug fix for similar names used in multiple selectors
 Bug fix for primary keys that start at 1 vs at 0
 Various optimizations and performance increases
-Table selectors can now have sortable column headings by using the new TableHeading class while setting up the table
-Inserted records now show a marker next to them, and prompt save on navigating away
-Lots of under-the-hood changes to the ResultSet abstraction to allow for sorting
 
 ## <v2.3.0>
 ### Released 02/03/23
