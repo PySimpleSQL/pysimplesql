@@ -2709,7 +2709,7 @@ def actions(query, key=None, default=True, edit_protect=None, navigation=None, i
     meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
     
     # Generate a key if none is supplied. 
-    key=f'action_{table}' if key is None else key
+    key=f'action_{query}' if key is None else key
 
     # Form-level events
     if edit_protect:
