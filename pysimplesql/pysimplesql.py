@@ -2108,16 +2108,16 @@ class Form:
                 pk = d['query'].get_current_pk()
 
                 found = False
-                # set index to pk
-                try:
-                    index = [[v[0] for v in values].index(pk)]
+                if len(values):
+                    index = [[v[0] for v in values].index(pk)] # set index to pk
                     pk_position = index[0] / len(values)  # calculate pk percentage position
                     found = True
-                except ValueError:
+                else: # if empty
                     index = []
+                    pk_position = 0
 
+                # update element
                 d['element'].update(values=values, select_rows=index)
-
                 # set vertical scroll bar to follow selected element
                 if len(index): d['element'].set_vscroll_position(pk_position)
 
@@ -2215,17 +2215,20 @@ class Form:
                         pk = table.get_current_pk()
 
                         found = False
-                        # set to index by pk
-                        try:
-                            index = [[v.pk for v in values].index(pk)]
+                        if len(values):
+                            index = [[v.pk for v in values].index(pk)] # set to index by pk
                             pk_position = index[0] / len(values)  # calculate pk percentage position
                             found = True
-                        except ValueError:
+                        else: # if empty
                             index = []
+                            pk_position = 0
+
                         logger.debug(f'Selector:: index:{index} found:{found}')
+                        # update element
                         element.update(values=values,select_rows=index)
                         # set vertical scroll bar to follow selected element
                         element.set_vscroll_position(pk_position)
+
                         eat_events(self.window)
 
         # Run callbacks
