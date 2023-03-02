@@ -1734,12 +1734,12 @@ class Form:
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
 
-                    # Enable sorting if TableHeading  is present
-                    if type(element) is sg.Table and 'TableHeading' in element.metadata:
-                        table_heading:TableHeadings = element.metadata['TableHeading']
+                    # Enable sorting if TableColumn  is present
+                    if type(element) is sg.Table and 'TableColumn' in element.metadata:
+                        table_heading:TableColumns = element.metadata['TableColumn']
                         # We need a whole chain of things to happen when a heading is clicked on:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
-                        # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_reverse
+                        # 2 we need to run TableColumn.update_headings() with the Table element, sort_column and sort_reverse
                         # 3 we need to run update_elements() to see the changes
                         def callback_wrapper(column_name, element=element, query=query):
                             # store the pk:
@@ -2204,7 +2204,7 @@ class Form:
                         logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
                         try:
-                            column_names = element.metadata['TableHeading'].column_names()
+                            column_names = element.metadata['TableColumn'].column_names()
                         except KeyError:
                             column_names = None # default to all columns
 
@@ -2807,13 +2807,14 @@ def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=N
                           auto_size_text=False, metadata=meta)
     elif element == sg.Table:
         # Check if the headings arg is a Table heading...
-        if kwargs['headings'].__class__.__name__ == 'TableHeadings':
-            # Overwrite the kwargs from the TableHeading info
+        if columns.__class__.__name__ == 'TableColumns':
+            kwargs['headings'] = columns
+            # Overwrite the kwargs from the TableColumn info
             kwargs['visible_column_map'] = kwargs['headings'].visible_map()
             kwargs['col_widths'] = kwargs['headings'].width_map()
             kwargs['auto_size_columns'] = False  # let the col_widths handle it
-            # Store the TableHeadings object in metadata to complete setup on auto_add_elements()
-            meta['TableHeading'] = kwargs['headings']
+            # Store the TableColumns object in metadata to complete setup on auto_add_elements()
+            meta['TableColumn'] = kwargs['headings']
         else:
             required_kwargs = ['headings', 'visible_column_map', 'num_rows']
             for kwarg in required_kwargs:
@@ -2834,11 +2835,14 @@ def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=N
         # Make an empty list of values
         vals = []
         vals.append([''] * len(kwargs['headings']))
-        meta['columns'] = columns
+
+        if columns.__class__.__name__ != 'TableColumns':
+            meta['columns'] = columns
+        else: meta['columns'] = columns.column_names
 
         # Change the headings parameter to be a list so the heading doesn't display dicts when it first loads
-        # The TableHeadings instance is already stored in metadata
-        if kwargs['headings'].__class__.__name__ == 'TableHeadings':
+        # The TableColumns instance is already stored in metadata
+        if kwargs['headings'].__class__.__name__ == 'TableColumns':
             kwargs['headings'] = kwargs['headings'].heading_names()
 
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
@@ -2847,11 +2851,11 @@ def selector(table, element=sg.LBox, key=None, size=None, columns=None, filter=N
 
     return layout
 
-class TableHeadings(list):
+class TableColumns(list):
     """
-    This is a convenience class used to build table headings for PySimpleGUI.  In addition, `TableHeading` objects
-    can sort columns in ascending or descending order by clicking on the column in the heading in the PySimpleGUI Table
-    element if the sort_enable parameter is set to True.
+    This is a convenience class used to build sg.Table information for PySimpleGUI, including header text, visible_column_map, and col_widths. 
+    In addition, `TableColumn` objects can sort columns in ascending or descending order by clicking on the column in the heading in the 
+    PySimpleGUI Table element if the sort_enable parameter is set to True.
     """
     # store our instances
     instances = []
@@ -2861,20 +2865,20 @@ class TableHeadings(list):
         self._visible_map = []
 
         # Store this instance in the master list of instances
-        TableHeadings.instances.append(self)
+        TableColumns.instances.append(self)
 
-    def add(self, column_name:str, heading_column:str, width:int, visible:bool=True) -> None:
+    def add(self, column_name:str, heading:str, width:int, visible:bool=True) -> None:
         """
-        Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
+        Add a new column to this TableColumn object. Columns are added in the order that this method is called.
         Typically, the first column added will be the primary key column with the visible parameter set to False.
 
         :param column_name: The name of the query's column
-        :param heading_column: The name of this columns heading
+        :param heading: The name of this columns heading
         :param width: The width for this column to display within the Table element
-        :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
+        :param visible: True if the column is visible. While not necessary, you may want to include the primary key column, and unhide it for debugging purposes.
         :return: None
         """
-        self.append({'heading': heading_column, 'column_name': column_name})
+        self.append({'heading': heading, 'column_name': column_name})
         self._width_map.append(width)
         self._visible_map.append(visible)
 
@@ -2884,8 +2888,8 @@ class TableHeadings(list):
     def column_names(self):
         return [c['column_name'] for c in self if c['column_name'] is not None]
 
-    def insert(self, idx, heading_column:str, column_name:str=None, *args, **kwargs):
-        super().insert(idx,{'heading': heading_column, 'column_name': column_name})
+    def insert(self, idx, heading:str, column_name:str=None, *args, **kwargs):
+        super().insert(idx,{'heading': heading, 'column_name': column_name})
 
     def visible_map(self) -> list:
         """
@@ -2937,8 +2941,8 @@ class TableHeadings(list):
         Enable the sorting callbacks for each column index
         Note: Not typically used by the end user. Called from Form.auto_map_elements()
 
-        :param element: The PySimpleGUI Table element associated with this TableHeading
-        :param fn: A callback functions to run when a heading is clicked. The callback should take one colun_name parameter.
+        :param element: The PySimpleGUI Table element associated with this TableColumn
+        :param fn: A callback functions to run when a heading is clicked. The callback should take one column_name parameter.
         :return: None
         """
         if self._sort_enable:
