@@ -2,9 +2,13 @@
 
 ## <V3.0.0>
 ### Released ?/?/23
-This version introduces *many* new features that take pysimplesql to the next level.  Please see the documentation for
-more information on these new features.
+This version introduces **many** new features that take pysimplesql to the next level.  Please see the documentation for
+more information on these new features. Another big thanks to **ssweber** for tons of help through sharing ideas, helping
+with the butden of writing code throut issuing pull requests and sharing the vision of bringing rapid and easy database 
+application development to the masses.
 #### New Features
+- Duplicate record action now supported.  Quickly and easily insert a new record from an existing one to have most of
+your data already filled in for you.  This can be a real timesaver for some use cases.
 - Multiple database support is here!  SQLite, MySQL and PostgreSQL are all not supported.  Using pysimplesql, your
 projects can now seamlessly transition from one database type to another, as they are fully abstracted and a single
 interface handles all of the complexity of dealing with mutliple database types. This includes a fully abstracted
