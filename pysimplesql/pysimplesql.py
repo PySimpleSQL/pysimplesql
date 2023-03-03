@@ -1001,10 +1001,12 @@ class Query:
                 if '?' in v['element'].key and '=' in v['element'].key:
                     val = v['element'].get()
                     table_info, where_info = v['element'].Key.split('?')
-                    table_info = table_info.split(':')
+                    table_info = table_info.split(':')[0]
                     for row in self.rows:
                         if row[v['where_column']] == v['where_value']:
                             row[v['column']] = val
+                            print(f"{row[v['where_column']]=}")
+                            print(f"{v['where_value']=}")
                 else:
                     if '.' not in v['element'].key:
                         continue
@@ -2666,8 +2668,8 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
     if '?' in key:
-        query_info, where_info = key.split('?')
-        query_info = query_info.split(':')[0]
+        key, where_info = key.split('?')
+        query_info = key.split(':')[0]
         label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     else:
         query_info = key.split(':')[0]
@@ -2675,7 +2677,10 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
         label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     query, column = query_info.split('.')
 
-    key=keygen.get(key)
+    if where_info:
+        key=f'{keygen.get(key)}?{where_info}'
+    else: key=keygen.get(key)
+    print(key)
 
     if 'values' in kwargs:
         first_param=kwargs['values']
