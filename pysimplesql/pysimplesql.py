@@ -2415,8 +2415,23 @@ class Form:
                     element.update(visible=visible)
 
 # ======================================================================================================================
-# MAIN PYSIMPLESQL FUNCTIONS & UTILITIES
+# MAIN PYSIMPLESQL UTILITY FUNCTIONS
 # ======================================================================================================================
+# These functions exist as utilities to the pysimplesql module
+# This is a dummy class for documenting utility functions
+class Utility():
+    """
+    Utility functions are a collection of functions and classes that directly improve on aspects of the pysimplesql
+    module.
+
+    See the documentation for the following utility functions:
+    `sprocess_events()`, `supdate_elements()`, `bind()`, `get_record_info()`, `simple_transform()`, `kegen()`,
+    `keygen_reset()`, `kegen_reset_from_form()`, `keygen_reset_all()`
+
+    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    """
+    pass
+
 def process_events(event:str, values:list) -> bool:
     """
         Process mapped events for ALL Form instances.
@@ -2532,6 +2547,19 @@ def keygen_reset_all():
 # TODO: How to save Form in metadata?  Perhaps give forms names and reference them that way??
 # For exapmle - give forms names!  and reference them by name string
 # They could even be converted later to a real form during form creation?
+
+# This is a dummy class for documenting convenience functions
+class Convenience():
+    """
+    Convenience functions are a collection of functions and classes that aide in building PySimpleGUI layouts that
+    conform to pysimplesql standards so that your database application is up and running quickly, and with all the great
+    automatic functionality pysimplesql has to offer.
+    See the documentation for the following convenience functions:
+    `set_label_size()`, `set_element_size()`, `set_mline_size()`, `record()`, `selector()`, `actions()`, `TableHeadings`
+
+    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    """
+    pass
 
 # Global variables to set default sizes for the record function below
 _default_label_size = (15, 1)
@@ -2748,6 +2776,12 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
 
 
 def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, **kwargs):
+    """
+    Selectors in pysimplesql are special elements that allow the user to change records in the database application.
+    For example, Listboxes, Comboboxes and Tables all provide a convenient way to users to choose which record they
+    want to select.
+
+    """
     key=keygen(key)
     meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
@@ -2819,7 +2853,7 @@ class TableHeadings(list):
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
-    def add(self, heading_column:str, column_name:str, width:int, visible:bool=True) -> None:
+    def add_column(self, heading_column:str, column_name:str, width:int, visible:bool=True) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
         Typically, the first column added will be the primary key column with the visible parameter set to False.
@@ -2907,6 +2941,21 @@ class TableHeadings(list):
 # THEMEPACKS
 # ======================================================================================================================
 # Change the look and feel of your database application all in one place.
+
+# This is a dummy class for documenting ThemePacks
+class ThemePacks():
+    """
+    ThemePacks are user-definable dicts that allow for the look and feel of database applications built with
+    PySimpleGUI + pysimplesql.  This includes everything from icons, the ttk themes, to sounds. pysimplesql comes with
+    3 pre-made ThemePacks: ss_small (default), ss_large and ss_text
+
+    See the documentation for the following ThemePack related functions:
+    `load_iconpack()`, `set_iconpack()`, `set_ttk_theme()`, `get_ttk_theme()`
+
+    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    """
+    pass
+
 _iconpack = {
     'ss_text': {
         'edit_protect': '\U0001F512',
@@ -3030,6 +3079,25 @@ def get_ttk_theme():
     :return: _default_ttk_theme
     """
     return _default_ttk_theme
+
+
+# ======================================================================================================================
+# ABSTRACTION LAYERS
+# ======================================================================================================================
+# Database abstraction layers for a uniform API
+# ----------------------------------------------------------------------------------------------------------------------
+
+# This is a dummy class for documenting convenience functions
+class Abstractions():
+    """
+    Supporting multiple databases in your application can quickly become very complicated and unmanagealbe.
+    pysimplesql abstracts all of this complexity and presents a unified API via abstracting the main concepts of
+    database programming. See the following documentation for a better understanding of how this is accomplished.
+    `Column`, `ColumnInfo`, `ResultRow `, `ResultSet`, `SQLDriver`, `Sqlite`, `Mysql`, `Postgres`
+
+    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    """
+    pass
 
 # ======================================================================================================================
 # COLUMN ABSTRACTION
