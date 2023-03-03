@@ -2885,7 +2885,6 @@ def selector(key:str, table_name:str, element:sg.Element=sg.LBox, size:Tuple[int
         # Make an empty list of values
         vals = []
         vals.append([''] * len(kwargs['headings']))
-        meta['columns'] = columns
 
         # Change the headings parameter to be a list so the heading doesn't display dicts when it first loads
         # The TableHeadings instance is already stored in metadata
@@ -3132,11 +3131,11 @@ class ThemePack():
                 'delete' : either base64 image (eg b''), or string eg '', f''
                 'duplicate' : either base64 image (eg b''), or string eg '', f''
                 'search' : either base64 image (eg b''), or string eg '', f''
-                'marker_virtual' : string eg '', f'', '\uxxxx' unicode
-                'marker_required' : string eg '', f'', '\uxxxx' unicode
+                'marker_virtual' : string eg '', f'',  unicode
+                'marker_required' : string eg '', f'',  unicode
                 'marker_required_color': string eg 'red', Tuple eg (255,0,0)
-                'sort_asc_marker': string eg '', f'', '\uxxxx' unicode
-                'sort_desc_marker': string eg '', f'', '\uxxxx unicode
+                'sort_asc_marker': string eg '', f'',  unicode
+                'sort_desc_marker': string eg '', f'',  unicode
             }
         For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder
       	Remember to us b'' around the string.
