@@ -3162,6 +3162,47 @@ class ThemePack():
 themepack = ThemePack()
 
 # ======================================================================================================================
+# LANGUAGEPACKS
+# ======================================================================================================================
+# Change the look language text used throughout the program.
+class LanguagePack():
+    """
+    LanguagePacks are user-definable collections of strings that allow for localization of strings and messages presented
+    to the end user. Creating your own is easy as well! In fact, a LanguagePack can be as simple as one line if you just
+    want to change one aspect of the default LanguagePack. Example:
+        lp_en = {'search': 'SEARCH'} # I want the search button to display this text in English in all caps
+    """
+    default = {
+        'search_button' : 'Search'
+    }
+    """Default LanguagePack"""
+
+    def __init__(self, lp_dict={}):
+        """
+        Create a new LanguagePack instance
+
+        """
+        # For default use cases, load the default directly to avoid the overhead
+        # of __getattr__() going through 2 key reads
+        if lp_dict == {}: tp_dict = type(self).default
+
+        self.lp_dict = lp_dict
+
+    def __getattr__(self, key):
+        # Try to get the key from the internal tp_dict first.  If it fails, then check the default dict.
+        try:
+            return self.lp_dict[key]
+        except KeyError:
+            try:
+                return type(self).default[key]
+            except KeyError:
+                raise AttributeError(f"LanguagePack object has no attribute '{key}'")
+
+# set a default languagepack
+lang = LanguagePack()
+
+
+# ======================================================================================================================
 # ABSTRACTION LAYERS
 # ======================================================================================================================
 # Database abstraction layers for a uniform API
