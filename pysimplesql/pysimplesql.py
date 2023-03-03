@@ -1382,38 +1382,47 @@ class Form:
     """
     @orm class
     Maintains an internal version of the actual database
-    Queries can be accessed by key, I.e. frm['query_name"] to return a Query instance
+    Queries can be accessed by key, I.e. frm['query_name"] to return a `Query` instance
     """
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, driver:SQLDriver, bind=None, prefix_queries='', parent=None, filter=None, select_first:Bool=True, autosave=False):
+    def __init__(self, driver:SQLDriver, bind:sg.Window=None, prefix_queries:str='', parent:Form=None, filter:str=None,
+                 select_first:bool=True, autosave:bool=False) -> Form:
         """
-        Initialize a new @Form instance
+        Initialize a new `Form` instance
 
-        :param driver: Supported SQLDriver.
-        :param bind: (PySimpleSQL Window) Bind this window to the Form
+        :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
+        :param bind: Bind this window to the `Form`
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
-        :param parent: parent form to base queries off of
-        :param filter: (optional) Only import elements with the same filter
+        :param parent: (optional)Parent `Form` to base queries off of
+        :param filter: (optional) Only import elements with the same filter set. Typically set with `record()`, but can
+                       also be set manually as a dict with the key 'filter' set in the element's metadata
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well.
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
-        :type autosave: bool
+        :return: A `Form` instance
 
         """
         Form.instances.append(self)
 
-        self.driver = driver
-        self.filter = filter
-        self.parent = parent
-        self.window = None
-        self._edit_protect=False
-        self.queries = {}
-        self.element_map = []
+        self.driver:SQLDriver = driver
+        self.filter:str = filter
+        self.parent:Form = parent  # TODO: This doesn't seem to really be used yet
+        self.window:sg.Window = None
+        self._edit_protect:bool = False
+        self.queries:Dict[str,Query] = {}
+        self.element_map:Dict[str,any] = []
+        """
+        The element map dict is set up as below:
+        
+        .. literalinclude:: ../doc_examples/element_map.1.py
+        :language: python
+        :caption: Example code
+        """
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
-        self.relationships = []
-        self.callbacks = {}
-        self.autosave = autosave
+        self.relationships:List[Relationship] = []
+        self.callbacks:Dict[str,Callable[[Form,sg.Window],Union[None,bool]]] = {}
+        self.autosave:bool = autosave
 
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
@@ -1431,18 +1440,23 @@ class Form:
     def __getitem__(self, key:str) -> Query:
         return self.queries[key]
 
-    def close(self,reset_keygen=True):
-        # Safely close out the form
+    def close(self,reset_keygen:bool=True):
+        """
+        Safely close out the `Form`
+
+        :param reset_keygen: True to reset the keygen for this `Form`
+        """
         # First delete the queries associated
         Query.purge_form(self,reset_keygen)
         self.driver.close()
 
-    def bind(self, win):
+    def bind(self, win:sg.Window) -> None:
         """
-        Bind the Window to the Form for the purpose of GUI element, event and relationship mapping
-        This can happen automatically on@Form creation with a parameter.
-        This function literally just groups all of the auto_* methods.  See" Form.auto_add_tables,
-        Form.auto_add_relationships, Form.auto_map_elements, @orm.auto_map_events
+        Bind the PySimpleGUI Window to the Form for the purpose of GUI element, event and relationship mapping.
+        This can happen automatically on `Form` creation with the bind parameter and is not typically called by the end user.
+        This function literally just groups all of the auto_* methods.  See `Form.auto_add_tables`(),
+        `Form.auto_add_relationships()`, `Form.auto_map_elements()`, `Form.auto_map_events()`
+
         :param win: The PySimpleGUI window
         :return:  None
         """
@@ -1454,38 +1468,38 @@ class Form:
         logger.debug('Binding finished!')
 
 
+    def execute(self, query_string:str) -> ResultSet:
+        """
+        Convenience function to pass along to `SQLDriver.execute()`
 
-    def execute(self, q):
+        :param query_string: The query to execute
+        :return: A `ResultSet` object
         """
-        Convenience function to pass along to SQLDriver.execute()
-        :param q: The query to execute
-        :return: sqlite3.cursor
-        """
-        return self.driver.execute(q)
+        return self.driver.execute(query_string)
 
-    def commit(self):
+    def commit(self) -> None:
         """
-        Convience function to pass along to SQLDriver.commit()
+        Convenience function to pass along to `SQLDriver.commit()`
+
         :return: None
         """
         self.driver.commit()
 
-    def set_callback(self, callback, fctn):
+    def set_callback(self, callback_name:str, fctn:Callable[[Form,sg.Window],Union[None,bool]]) -> None:
         """
-       Set @orm callbacks. A runtime error will be raised if the callback is not supported.
+       Set `Form` callbacks. A runtime error will be raised if the callback is not supported.
        The following callbacks are supported:
-           update_elements Called after elements are updated via @Form.update_elements. This allows for other GUI manipulation on each update of the GUI
+           update_elements Called after elements are updated via `Form.update_elements()`. This allows for other GUI manipulation on each update of the GUI
            edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
            edit_disable Called after the editing mode is disabled
            {element_name} Called while updating MAPPED element.  This overrides the default element update implementation.
            Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
 
-       :param callback: The name of the callback, from the list above
-
+       :param callback_name: The name of the callback, from the list above
        :param fctn: The function to call.  Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
        :return: None
        """
-        logger.info(f'Callback {callback} being set on Form')
+        logger.info(f'Callback {callback_name} being set on Form')
         supported = ['update_elements', 'edit_enable', 'edit_disable']
 
         # Add in mapped elements
@@ -1496,51 +1510,51 @@ class Form:
         for element in self.window.key_dict:
             supported.append(element)
 
-        if callback in supported:
-            self.callbacks[callback] = fctn
+        if callback_name in supported:
+            self.callbacks[callback_name] = fctn
         else:
-            raise RuntimeError(f'Callback "{callback}" not supported. callback: {callback} supported: {supported}')
+            raise RuntimeError(f'Callback "{callback_name}" not supported. callback: {callback_name} supported: {supported}')
 
-
-    # Add a Query object
-    def add_query(self, name, table, pk_column, description_column, query='', order=''):
+    def add_query(self, name:str, table_name:str, pk_column:str, description_column:str, query_string:str='',
+                  order_clause:str='') -> None:
         """
-        Manually add a Query to the Form
-        When you attach to an sqlite database, PySimpleSQL isn't aware of what it contains until this command is run
-        Note that Form.auto_add_queries will do this automatically, which is also called from Form.auto_bind
-        and even from the Form.__init__ with a parameter
+        Manually add a `Query` to the `Form`
+        When you attach to a database, PySimpleSQL isn't aware of what it contains until this command is run
+        Note that `Form.auto_add_queries()` does this automatically, which is called when a `Form` is created
 
-        :param table: The name of the table (must match sqlite)
-        :param pk_column: The primary key column
-        :param description_column: The column to be used to display to users
-        :param query: The initial query for the table.  Set to "SELECT * FROM {table}" if none is passed
-        :param order: The initial sort order for the query
+        :param name: The name to give this `Query`.  Use frm['query_name'] to access it.
+        :param table_name: The name of the table in the database
+        :param pk_column: The primary key column of the table in the database
+        :param description_column: The column to be used to display to users in listboxes, comboboxes, etc.
+        :param query_string: The initial query for the table.  Auto generates "SELECT * FROM {table}" if none is passed
+        :param order_clause: The initial sort order for the query
         :return: None
         """
-        self.queries.update({name: Query(name,self, table, pk_column, description_column, query, order)})
+        self.queries.update({name: Query(name,self, table_name, pk_column, description_column, query_string, order_clause)})
         self[name].set_search_order([description_column])  # set a default sort order
 
-    def add_relationship(self, join, child_table, fk_column, parent_table, pk_column, update_cascade):
+    def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str, update_cascade) -> None:
         """
         Add a foreign key relationship between two queries of the database
-        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until queries are
-        added via @Form.add_table, and the relationship of various queries is set with this function.
-        Note that @Form.auto_add_relationships will do this automatically from the schema of the sqlite database,
-        which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
+        When you attach a database, PySimpleSQL isn't aware of the relationships contained until queries are
+        added via `Form.add_query`, and the relationship of various tables is set with this function.
+        Note that `Form.auto_add_relationships()` will do this automatically from the schema of the database,
+        which also happens automatically when a `Form` is created.
+
         :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
         :param child_table: The child table containing the foreign key
         :param fk_column: The foreign key column of the child table
-        :param parent_Table: The parent table containing the primary key
+        :param parent_table: The parent table containing the primary key
         :param pk_column: The primary key column of the parent table
-        :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql)
-
+        :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in SQL)
         :return: None
         """
         self.relationships.append(Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver))
 
-    def get_relationships_for_table(self, table):
+    def get_relationships_for_table(self, table:str) -> List[Relationship]:
         """
         Return the relationships for the passed-in table.
+
         :param table: The table to get relationships for
         :return: A list of @Relationship objects
         """
@@ -1550,10 +1564,11 @@ class Form:
                 rel.append(r)
         return rel
 
-    def get_cascaded_relationships(self, table):
+    def get_cascaded_relationships(self, table:str) -> List[str]:
         """
-        :param table: The table to get cascaded children for
         Return a unique list of the relationships for this table that should requery with this table.
+
+        :param table: The table to get cascaded children for
         :return: A unique list of table names
         """
         rel = []
@@ -1564,21 +1579,22 @@ class Form:
         rel = list(set(rel))
         return rel
 
-    def get_parent(self, table):
+    def get_parent(self, table:str) -> Union[str,None]:
         """
         Return the parent table for the passed-in table
         :param table: The table (str) to get relationships for
-        :return: The name of the Parent table, or '' if there is none
+        :return: The name of the Parent table, or None if there is none
         """
         for r in self.relationships:
             if r.child_table == table and r.update_cascade:
                 return r.parent_table
         return None
     
-    def get_cascade_fk_column(self, table):
+    def get_cascade_fk_column(self, table:str) -> Union[str,None]:
         """
         Return the cascade fk that filters for the passed-in table
-        :param table: The table (str) of child
+
+        :param table: The table name of the child
         :return: The name of the cascade-fk, or None
         """
         for qry in self.queries:
@@ -1587,12 +1603,15 @@ class Form:
                     return r.fk_column
         return None
     
-    def auto_add_queries(self, prefix_queries=''):
+    def auto_add_queries(self, prefix_queries:str='') -> None:
         """
-        Automatically add Query objects from a sqlite database by looping through the tables available and creating a query for each.
+        Automatically add `Query` objects from the database by looping through the tables available and creating a
+        `Query` object for each.
         When you attach to a sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
-        This is also called by @Form.auto_bind() or even from the @Form.__init__ with a parameter
-        Note that @Form.add_table can do this manually on a per-table basis.
+        This is called automatically when a `Form ` is created.
+        Note that `Form.add_table()` can do this manually on a per-table basis.
+
+        :param prefix_queries: Adds a prefix to the auto-generated `Query` names
         :return: None
         """
         logger.info('Automatically generating queries for each table in the sqlite database')
@@ -1617,19 +1636,18 @@ class Form:
             logger.debug(
                 f'Adding query "{query_name}" on table {table_name} to Form with primary key {pk_column} and description of {description_column}')
             self.add_query(query_name,table_name, pk_column, description_column)
-            self.queries[query_name].column_info = column_info #TODO: use new add column names??
+            self.queries[query_name].column_info = column_info
 
     # Make sure to send a list of table names to requery if you want
     # dependent queries to requery automatically
-    # TODO: clear relationships first so that successive calls don't add multiple entries.
-    def auto_add_relationships(self):
+    def auto_add_relationships(self) -> None:
         """
-        Automatically add a foreign key relationship between queries of the database. This is done by foregn key constrains
-        within the sqlite database.  Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql is set)
-        When you attach an sqlite database, PySimpleSQL isn't aware of the relationships contained until queries are
-        added and the relationship of various queries is set.
-        Note that @Form.add_relationship() can do this manually.
-        which also happens automatically with @Form.auto_bind and even from the @Form.__init__ with a parameter
+        Automatically add a foreign key relationship between tables of the database. This is done by foregn key constrains
+        within the database.  Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in sql is set)
+        When you attach a database, PySimpleSQL isn't aware of the relationships contained until tables are
+        added and the relationship of various tables is set. This happens automatically during `Form` creation.
+        Note that `Form.add_relationship()` can do this manually.
+
         :return: None
         """
         logger.info(f'Automatically adding foreign key relationships')
@@ -1642,7 +1660,21 @@ class Form:
 
     # Map an element to a Query.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
-    def map_element(self, element, query, column, where_column=None, where_value=None):
+    def map_element(self, element:sg.Element, query:Query, column:str, where_column:str=None, where_value:str=None) -> None:
+        """
+        Map a PySimpleGUI element to a specific `Query` column.  This is what makes the GUI automatically update to
+        the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
+        using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the
+        Table.column naming convention is used, This method can be used to manually map any element to any `Query` column
+        regardless of naming convention.
+
+        :param element: A PySimpleGUI Element
+        :param query: A `Query` object
+        :param column: The name of the column to bind to the element
+        :param where_column: Used for ke, value shorthand TODO: expand on this
+        :param where_value: Used for ey, value shorthand TODO: expand on this
+        :return: None
+        """
         dic = {
             'element': element,
             'query': query,
@@ -1657,7 +1689,23 @@ class Form:
         logger.debug(f'Mapping element {element.Key}')
         self.element_map.append(dic)
 
-    def auto_map_elements(self, win, keys=None):
+    def auto_map_elements(self, win:sg.Window, keys:List[str]=None) -> None:
+        """
+        Automatically map PySimpleGUI Elements to `Query` columns. A special naming convention has to be used for
+        automatic mapping to happen.  Note that `Form.map_element()` can be used to manually map an Element to a column.
+        Automatic mapping reilies on a special naming convention as well as certain data in the Elemen's metadata.
+        The convenience functions `record()`, `selector()`, and `actions()` do this automatically and shoule be used in
+        almost all cases to make elements that conform to this standard, but this information will allow you to do this
+        manually if needed.
+        For individual fields, Element keys must be named 'Table.column'. Additionally the metadata must contain a dict
+        with the key of 'type' set to `TYPE_RECORD`.
+        For selectors, the key can be named whatever you want, but the metadata must contain a dict with the key of
+        'type' set to TPE_SELECTOR
+
+        :param win: A PySimpleGUI Window
+        :param keys: (optional) Limit the auto mapping to this list of Element keys
+        :return: None
+        """
         logger.info('Automapping elements')
         # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
         self.element_map = []
@@ -1742,13 +1790,32 @@ class Form:
                 else:
                     logger.debug(f'Can not add selector {str(element)}')
 
-    def set_element_clause(self,element,where:str=None,order:str=None) -> None:
+    def set_element_clauses(self,element:sg.Element, where_clause:str=None, order_clause:str=None) -> None:
+        """
+        Set the where and/or order clauses for the specified element in the element map
+
+        :param element: A PySimpleGUI Element
+        :param where_clause: (optional) The where clause to set
+        :param order_clause: (optional) The order clause to set
+        :return: None
+        """
         for e in self.element_map:
             if e['element']==element:
-                e['where_clause']=where
-                e['order_clause']=order
+                e['where_clause']=where_clause
+                e['order_clause']=order_clause
 
-    def map_event(self, event, fctn, table=None):
+    def map_event(self, event:str, fctn:Callable[[None],None], table:str=None) -> None:
+        """
+        Manually map a PySimpleGUI event (returned by Window.read()) to a callable. The callable will execute
+        when the event is detected by `Form.process_events()`. Most users will not have to manually map any events,
+        as `Form.auto_map_events()` will create most needed events when a PySimpleGUI Window is bound to a `Form`
+        by using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()`.
+
+        :param event: The event to watch for, as returned by PySimpleGUI Window.read() (an element name for example)
+        :param fctn: The callable to run when the event is detected. It should take no parameters and have no return value
+        :table: (optional) currently not used
+        :return: None
+        """
         dic = {
             'event': event,
             'function': fctn,
@@ -1757,13 +1824,32 @@ class Form:
         logger.debug(f'Mapping event {event} to function {fctn}')
         self.event_map.append(dic)
 
-    def replace_event(self,event,function,table=None):
+    def replace_event(self, event:str ,fctn:Callable[[None],None], table:str=None) -> None:
+        """
+        Replace an event that was manually mapped with `Form.auto_map_events()` or `Form.map_event()`. The callable will execute
+
+        :param event: The event to watch for, as returned by PySimpleGUI Window.read() (an element name for example)
+        :param fctn: The callable to run when the event is detected. It should take no parameters and have no return value
+        :table: (optional) currently not used
+        :return: None
+        """
         for e in self.event_map:
             if e['event'] == event:
-                e['function'] = function
+                e['function'] = fctn
                 e['table'] = table if table is not None else e['table']
 
-    def auto_map_events(self, win):
+    def auto_map_events(self, win:sg.Window) -> None:
+        """
+        Automatically map events. pysimplesql relies on certain events to function properly. This method maps all of
+        the needed events to intelligently have the PySimpleGUI elements interact with the database. This includes things
+        like record navigation (previous, next, etc.) and database actions (insert, delete, save, etc.).  Note that the
+        event mapper is very general-purpose, and you ca add your own event triggers to the mapper using
+        `Form.map_event()`, or even replace one of the auto-generated ones if you have specific needs by using
+        `Form.replace_event()`
+
+        :param win: A PySimpleGUI Window
+        :return: None
+        """
         logger.info(f'Automapping events')
         # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
@@ -1826,8 +1912,14 @@ class Form:
                     self.map_event(key, funct, event_query)
 
 
+    def edit_protect(self) -> None:
+        """
+        The edit protect system allows records to be protected from accidental editing by disabling the insert, delete,
+        duplicate and save buttons on the GUI.  A button to toggle the edit protect mode can easily be added by using
+        the `actions()` convenience function.
 
-    def edit_protect(self,event=None, values=None):
+        :return: None
+        """
         logger.debug('Toggling edit protect mode.')
         # Callbacks
         if self._edit_protect:
@@ -1842,16 +1934,21 @@ class Form:
         self._edit_protect = not self._edit_protect
         self.update_elements(edit_protect_only=True)
 
-    def get_edit_protect(self):
+    def get_edit_protect(self) -> bool:
+        """
+        Get the current edit protect state
+
+        :return: True if edit protect is enabled, False if not enabled
+        """
         return self._edit_protect
 
-    def prompt_save(self, autosave=False) -> int:
+    def prompt_save(self, autosave:bool=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
         """
-        Prompt to save if any GUI changes are found the affect any table on this form
+        Prompt to save if any GUI changes are found the affect any table on this form. The helps prevent data entry
+        loss when performing an action that changes the current record of a `Query`.
+
         :param autosave: True to autosave when changes are found without prompting the user
-        :type autosave: bool
-        :return: Prompt return value
-        :rtype: int, one of Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]
+        :return: One of the prompt constant values: PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE
         """
         user_prompted = False # Has the user been prompted yet?
         for q in self.queries:
@@ -1878,16 +1975,15 @@ class Form:
             self.save_records(check_prompt_save=True)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
-    def save_records(self, table_name:str=None, cascade_only=False, check_prompt_save=False,):
+    def save_records(self, table_name:str=None, cascade_only:bool=False, check_prompt_save:bool=False,) \
+                    -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
         """
-        Save records of all queries in form. If passed a single table, will save cascade.
-        :param table_name: Name of table to save, as well as any cascaded relationships. Used in Query.prompt_save
-        :type table_name: str
+        Save records of all `Query` objects` associated with this `Form`.
+
+        :param table_name: Name of table to save, as well as any cascaded relationships. Used in `Query.prompt_save()`
         :param cascade_only: Save only tables with cascaded relationships. Default False.
-        :type cascade_only: bool
-        :param check_prompt_save: Passed to Query.save_record_recursive to check if individual query has prompt_save enabled.
-        Used when Query.save_records is called from Form.prompt_save.
-        :type check_prompt_save: bool
+        :param check_prompt_save: Passed to `Query.save_record_recursive` to check if individual `Query` has prompt_save enabled.
+                                  Used when `Query.save_records()` is called from `Form.prompt_save()`.
         :return: result - can be used with RETURN BITMASKS
         """
         if check_prompt_save: logger.debug(f'Saving records in all queries that allow prompt_save...')
@@ -1937,27 +2033,23 @@ class Form:
 
     def set_prompt_save(self, value: bool) -> None:
         """
-        Set the prompt to save action when navigating records for all queries associated with this form
+        Set the prompt to save action when navigating records for all `Query` objects associated with this `Form`
 
         :param value: a boolean value, True to prompt to save, False for no prompt to save
-        :type value: bool
         :return: None
         """
         for q in self.queries:
             self[q].set_prompt_save(value)
 
-    def update_elements(self, table_name:str=None, edit_protect_only:bool=False, omit_elements:list=[]) -> None:
+    def update_elements(self, table_name:str=None, edit_protect_only:bool=False, omit_elements:List[str]=[]) -> None:
         """
-        Updated the GUI elements to reflect values from the database for this Form instance only
-
-        Not to be confused with pysimplesql.update_elements(), which updates GUI elements for all Form instances.
-
+        Updated the GUI elements to reflect values from the database for this `Form` instance only
+        Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
 
         :param table_name: (optional) name of table to update elements for, otherwise updates elements for all queries
-        :param edit_protect_only: (default False) If true, only update items affected by edit_protect
+        :param edit_protect_only: (optional) If true, only update items affected by edit_protect
         :param omit_elements: A list of elements to omit updating
-        :returns: None
-
+        :return: None
         """
         msg='edit protect' if edit_protect_only else 'PySimpleGUI'
         logger.debug(f'update_elements(): Updating {msg} elements')
@@ -2227,18 +2319,20 @@ class Form:
             self.callbacks['update_elements'](self, self.window)
 
 
-    def requery_all(self, select_first=True, filtered=True, update=True, dependents=True) -> None:
+    def requery_all(self, select_first:bool=True, filtered:bool=True, update:bool=True, dependents:bool=True) -> None:
         """
-        Requeries all queries in the database
+        Requeries all `Query` objects associated with this `Form`
+        This effectively re-loads the data from the database into `Query` objects
 
-        This effectively re-loads the data from the actual sqlite3 queries into Query class objects
-
-        :param select_first: passed to Query.requery() -> Query.first(). If True, the first record will be selected after the requery
-        :param filtered: passed to Query.requery(). If True, the relationships will be considered and an appropriate WHERE clause will be generated. False will display all records in query.
-        :param update: passed to Query.requery() -> Query.first() to update_elements. Note that the select_first parameter must = True to use this parameter.
-        :param dependents: passed to Query.requery() -> Query.first() to requery_dependents(). Note that the select_first parameter must = True to use this parameter.
-        :returns: None
-        :rtype: None
+        :param select_first: passed to `Query.requery()` -> `Query.first()`. If True, the first record will be selected
+                             after the requery
+        :param filtered: passed to `Query.requery()`. If True, the relationships will be considered and an appropriate
+                        WHERE clause will be generated. False will display all records from the table.
+        :param update: passed to `Query.requery()` -> `Query.first()` to `Form.update_elements()`. Note that the
+                       select_first parameter must = True to use this parameter.
+        :param dependents: passed to `Query.requery()` -> `Query.first()` to `Form.requery_dependents()`. Note that the
+                           select_first parameter must = True to use this parameter.
+        :return: None
         """
         # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
         logger.info('Requerying all queries')
@@ -2248,18 +2342,15 @@ class Form:
 
     def process_events(self, event:str, values:list) -> bool:
         """
-        Process mapped events for this specific Form instance.
+        Process mapped events for this specific `Form` instance.
 
-        Not to be confused with pysimplesql.process_events(), which processes events for ALL Form instances.
+        Not to be confused with the main `process_events()`, which processes events for ALL `Form` instances.
         This should be called once per iteration in your event loop
-         .. note:: Events handled are responsible for requerying and updating elements as needed
+        Note: Events handled are responsible for requerying and updating elements as needed
 
         :param event: The event returned by PySimpleGUI.read()
-        :type event: str
         :param values: the values returned by PySimpleGUI.read()
-        :type values: list
-        :returns: True if an event was handled, False otherwise
-        :rtype: bool
+        :return: True if an event was handled, False otherwise
         """
         if self.window is None:
             logger.info(f'***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***')
@@ -2303,15 +2394,12 @@ class Form:
 
     def update_element_states(self, table_name:str, disable:bool=None, visible:bool=None) -> None:
         """
-        Disable/enable and/or show/hide all elements assocated with a query.
+        Disable/enable and/or show/hide all elements assocated with a table.
 
         :param table_name: table name assocated with elements to disable/enable
-        :type table_name: str
         :param disable: True/False to disable/enable element(s), None for no change
-        :type disable: bool
         :param visible: True/False to make elements visible or not, None for no change
-        :returns: None
-        :rtype: None
+        :return: None
         """
         for c in self.element_map:
             if c['query'].table != table_name:
@@ -2326,7 +2414,10 @@ class Form:
                 if visible is not None:
                     element.update(visible=visible)
 
-# RECORD SELECTOR ICONS
+
+# ======================================================================================================================
+# THEMEPACKS
+# ======================================================================================================================
 _iconpack = {
     'ss_text' : {
         'edit_protect' : '\U0001F512',
