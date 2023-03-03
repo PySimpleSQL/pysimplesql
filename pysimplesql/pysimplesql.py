@@ -3103,7 +3103,7 @@ class ThemePack():
     }
     """Default Themepack"""
 
-    def __init__(self, tp_dict:Dict[str,str] = None) -> None:
+    def __init__(self, tp_dict:Dict[str,str] = {}) -> None:
         """
         Create a new ThemePack object from tp_dict
 
@@ -3140,28 +3140,19 @@ class ThemePack():
                         specified in the minimal default ThemePack
         :returns: None
         """
-        if tp_dict is not None:
-            # The user passed in a dict.  Make sure that it has all of the minimum required keys.
-            # if it doesn't have a key, use the default for that key
-            for k,v in ThemePack.default.items():
-                if k not in tp_dict:
-                    tp_dict[k] = v
-        else:
-            tp_dict = ThemePack.default
-
         self.tp_dict = tp_dict
 
     def __getattr__(self, key):
+        # Try to get the key from the internal tp_dict first.  If it fails, then check the default dict.
         try:
             return self.tp_dict[key]
         except KeyError:
-            raise AttributeError(f"ThemePack object has no attribute '{key}'")
+            try:
+                return ThemePack.default[key]
+            except KeyError:
+                raise AttributeError(f"ThemePack object has no attribute '{key}'")
 
-    def __setattr__(self, key, value):
-        if key == 'tp_dict':
-            super().__setattr__(key, value)
-        else:
-            self.tp_dict[key] = value
+
 
 # set a default themepack
 themepack = ThemePack()
