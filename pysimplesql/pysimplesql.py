@@ -180,8 +180,67 @@ class Relationship:
     See the following for more information: `Form.add_relationship` and `Form.auto_add_relationships`
     Note: This class is not typically used the end user,
     """
+    #store our own instances
+    instances = []
+
+    @classmethod
+    def get_relationships_for_table(cls, table: str) -> List[Relationship]:
+        """
+        Return the relationships for the passed-in table.
+
+        :param table: The table to get relationships for
+        :returns: A list of @Relationship objects
+        """
+        rel = []
+        for r in cls.instances:
+            if r.child_table == table.table:
+                rel.append(r)
+        return rel
+
+    @classmethod
+    def get_cascaded_relationships(cls, table: str) -> List[str]:
+        """
+        Return a unique list of the relationships for this table that should requery with this table.
+
+        :param table: The table to get cascaded children for
+        :returns: A unique list of table names
+        """
+        rel = []
+        for r in cls.instances:
+            if r.parent_table == table and r.update_cascade:
+                rel.append(r.child_table)
+        # make unique
+        rel = list(set(rel))
+        return rel
+
+    @classmethod
+    def get_parent(cls, table: str) -> Union[str, None]:
+        """
+        Return the parent table for the passed-in table
+        :param table: The table (str) to get relationships for
+        :returns: The name of the Parent table, or None if there is none
+        """
+        for r in cls.instances:
+            if r.child_table == table and r.update_cascade:
+                return r.parent_table
+        return None
+
+    @classmethod
+    def get_cascade_fk_column(cls, table: str, frm:Form) -> Union[str, None]:
+        """
+        Return the cascade fk that filters for the passed-in table
+
+        :param table: The table name of the child
+        :returns: The name of the cascade-fk, or None
+        """
+        for qry in frm.queries:
+            for r in cls.instances:
+                if r.child_table == frm[table].table and r.update_cascade:
+                    return r.fk_column
+        return None
+
     def __init__(self, join:str, child_table:str, fk_column:Union[str,int], parent_table:str, pk_column:Union[str,int],
-                 update_cascade:bool, driver:SQLDriver) -> Relationship:
+                 update_cascade:bool, driver:SQLDriver, frm:Form) -> None:
         """
         Initialize a new Relationship instance
 
@@ -191,7 +250,8 @@ class Relationship:
         :param parent_table: The table name of the parent table
         :param pk_column: The parent table's primary key column
         :param driver: A `SQLDriver` instance
-        :returns: A `Relationship` instance
+        :param frm: A Form instance
+        :returns: None
         """
         self.join = join
         self.child_table = child_table
@@ -200,6 +260,8 @@ class Relationship:
         self.pk_column = pk_column
         self.update_cascade = update_cascade
         self.driver = driver
+        self.frm = frm
+        Relationship.instances.append(self)
 
     def __str__(self):
         """
@@ -1554,7 +1616,7 @@ class Form:
         :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in SQL)
         :returns: None
         """
-        self.relationships.append(Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver))
+        self.relationships.append(Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver, self))
 
     def get_relationships_for_table(self, table:str) -> List[Relationship]:
         """
@@ -3627,7 +3689,7 @@ class ResultSet:
         # Purge virtual rows from the list
         self.rows = [row for row in self.rows if not row.virtual]
 
-    def sort_by_column(self,column:str,reverse=False):
+    def sort_by_column(self,column:str, table:str, reverse=False):
         try:
             self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
         except KeyError:
