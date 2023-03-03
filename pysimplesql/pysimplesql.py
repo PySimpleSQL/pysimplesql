@@ -471,7 +471,7 @@ class Query:
         yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL
         actually reads from or writes to the database.
 
-        :param fn: A callable function to preform encode/decode. This function should take two arguments: row (which will
+        :param fn: A callable function to preform encode/decode. This function should take three arguments: self, row (which will
         be populated by a dictionary of the row data), and an encode parameter (1 to endode, 0 to decode - see constants
         `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at a time.
         See the example `journal_with_data_manipulation.py` for a usage example.
@@ -696,7 +696,7 @@ class Query:
         for row in self.rows:
             # perform transform one row at a time
             if self.transform is not None:
-                self.transform(row, TFORM_DECODE)
+                self.transform(self, row, TFORM_DECODE)
 
             # Strip trailing white space, as this is what sg[element].get() does, so we can have an equal comparison
             # Not the prettiest solution..  Will look into this more on the  PySimpleGUI end and make a ticket to follow up
