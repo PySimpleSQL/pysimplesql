@@ -677,7 +677,7 @@ class Query:
         self.rows = rows
         # now we can restore the sort order
         self.rows.load_sort_settings(sort_settings)
-        self.rows.sort()
+        self.rows.sort(self.table)
 
         for row in self.rows:
             # perform transform one row at a time
@@ -1847,7 +1847,7 @@ class Form:
                         def callback_wrapper(column_name, element=element, query=query):
                             # store the pk:
                             pk = self[query].get_current_pk()
-                            sort_order = self[query].rows.sort_cycle(column_name)
+                            sort_order = self[query].rows.sort_cycle(column_name, query)
                             self[query].set_by_pk(pk, update=True, dependents=False, skip_prompt_save=True)
                             table_heading.update_headings(element, column_name, sort_order)
 
@@ -3690,18 +3690,22 @@ class ResultSet:
         self.rows = [row for row in self.rows if not row.virtual]
 
     def sort_by_column(self,column:str, table:str, reverse=False):
+        # We don't want to sort by foreign key relationships - we want to sort by the description column of the foreign
+        # table that that the foreign key references
+        #rels = get_cascaded_relationships(table)
+
         try:
             self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
         except KeyError:
             logger.debug(f'ResultSet could not sort by column {column}. KeyError.')
 
-    def sort_by_index(self,index:int,reverse=False):
+    def sort_by_index(self,index:int, table:str, reverse=False):
         try:
             column = list(self[0].keys())[index]
         except IndexError:
             logger.debug(f'ResultSet could not sort by column index {index}. IndexError.')
             return
-        self.sort_by_column(column, reverse)
+        self.sort_by_column(column, table, reverse)
 
 
     def store_sort_settings(self) -> list:
@@ -3718,7 +3722,7 @@ class ResultSet:
         :returns: None
         """
         self.rows = sorted(self.rows, key=lambda x: x.original_index)
-    def sort(self) -> None:
+    def sort(self, table) -> None:
         """
         Sort according to the internal sort_column and sort_reverse variables
         This is a good way to re-sort without changing the sort_cycle
@@ -3728,9 +3732,9 @@ class ResultSet:
         if self.sort_column is None:
             self.sort_reset()
         else:
-            self.sort_by_column(self.sort_column, self.sort_reverse)
+            self.sort_by_column(self.sort_column, table, self.sort_reverse)
 
-    def sort_cycle(self, column:str, advance_cycle=True) -> int:
+    def sort_cycle(self, column:str, table:str, advance_cycle=True) -> int:
         """
         Cycle between original sort order of the ResultSet, ASC by column, and DESC by column with each call
         :param column: The column name to cycle the sort on
@@ -3741,17 +3745,17 @@ class ResultSet:
             # We are going to sort by a new column.  Default to ASC
             self.sort_column = column
             self.sort_reverse = False
-            self.sort()
+            self.sort(table)
             ret =  ResultSet.SORT_ASC
         else:
             if self.sort_reverse == False:
                 self.sort_reverse = True
-                self.sort()
+                self.sort(table)
                 ret = ResultSet.SORT_DESC
             else:
                 self.sort_reverse=False
                 self.sort_column = None
-                self.sort()
+                self.sort(table)
                 ret = ResultSet.SORT_NONE
         return ret
 # TODO min_pk, max_pk
