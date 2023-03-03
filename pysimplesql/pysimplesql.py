@@ -2141,8 +2141,9 @@ class Form:
 
             updated_val = None
             # If there is a callback for this element, use it
-            if d['element'].key in self.callbacks:
-                self.callbacks[d['element'].key]()
+            for ekey in self.callbacks:
+                if ekey == d['element'].key:
+                    self.callbacks[d['element'].Key]()
 
             elif d['where_column'] is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
