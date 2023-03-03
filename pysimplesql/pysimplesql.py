@@ -3140,6 +3140,10 @@ class ThemePack():
                         specified in the minimal default ThemePack
         :returns: None
         """
+        # For default use cases, load the default directly to avoid the overhead
+        # of __getattr__() going through 2 key reads
+        if tp_dict == {}: tp_dict = ThemePack.default
+
         self.tp_dict = tp_dict
 
     def __getattr__(self, key):
