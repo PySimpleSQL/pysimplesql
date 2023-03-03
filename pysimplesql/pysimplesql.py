@@ -2332,9 +2332,8 @@ class Form:
                     logger.debug(f'{type(element)}')
                     pk_column = table.pk_column
                     description_column = table.description_column
-                    for ekey in self.callbacks:
-                        if ekey == element.Key:
-                            self.callbacks[element.Key]()
+                    if element.key in self.callbacks:
+                        self.callbacks[element.key]()
 
                     if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
                         logger.debug(f'update_elements: List/Combo selector found...')
