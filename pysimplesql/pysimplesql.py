@@ -301,6 +301,7 @@ class Query:
         :param reset_keygen: Reset the keygen after purging?
         :return: None
         """
+        global keygen
         new_instances=[]
         selector_keys=[]
 
@@ -318,8 +319,8 @@ class Query:
         # This is probably a little hack-ish, perhaps I should relocate the keygen?
         if reset_keygen:
             for k in selector_keys:
-                keygen_reset(k)
-            keygen_reset_from_form(frm)
+                keygen.reset_key(k)
+            keygen.reset_from_form(frm)
         # Update the internally tracked instances
         Query.instances=new_instances
 
@@ -1315,10 +1316,12 @@ class Query:
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
         :return: None
         """
+        global keygen
+
         if skip_prompt_save is False: self.prompt_save()
         # Reset the keygen to keep consistent naming
         logger.info('Creating Quick Editor window')
-        keygen_reset_all()
+        keygen.reset()
         query_name = self.name
         layout = []
         headings = self.column_info.names()
@@ -2425,8 +2428,7 @@ class Utility():
     module.
 
     See the documentation for the following utility functions:
-    `sprocess_events()`, `supdate_elements()`, `bind()`, `get_record_info()`, `simple_transform()`, `kegen()`,
-    `keygen_reset()`, `kegen_reset_from_form()`, `keygen_reset_all()`
+    `sprocess_events()`, `supdate_elements()`, `bind()`, `get_record_info()`, `simple_transform()`, `KeyGen`,
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
@@ -2503,41 +2505,79 @@ def simple_transform(self,row,encode):
                 row[col] = function['encode'](row,col)
             logger.debug(f'{msg} to {row[col]}')
 
-#---------------------
-# Keygen System
-# --------------------
-# The keygen system provides a mechanism to generate unique keys for use as PySimpleGUI element keys.
-# This is needed because many auto-generated items will have the same name.  If for example you had two save buttons on
-# the screen at the same time, they must have unique names.  The keygen will append a separator and an incremental number
-# to keys that would otherwise be duplicates
-_keygen={}
-def keygen(key,separator:str=':'):
-    global _keygen
-    # Generate a unique key by attaching a sequential integer to the end
-    if key not in _keygen:
-        _keygen[key]=0
-    k=key
-    if _keygen[key]>0:k+=f'{separator}{str(_keygen[key])}' # only modify the key if it is a duplicate!
-    logger.debug(f'Key generated: {k}')
-    _keygen[key] += 1
-    return k
+class KeyGen():
+    """
+    The keygen system provides a mechanism to generate unique keys for use as PySimpleGUI element keys.
+    This is needed because many auto-generated items will have the same name.  If for example you had two save buttons on
+    the screen at the same time, they must have unique names.  The keygen will append a separator and an incremental number
+    to keys that would otherwise be duplicates. A global KeyGen instance is created automatically, see `keygen` for info.
+    """
+    def __init__(self, separator=':'):
+        """
+        Create a new KeyGen instance
 
-def keygen_reset(key:str):
-    global _keygen
-    try:
-        del _keygen[key]
-    except KeyError:
-        pass
+        :param separator: The default separator that goes between the key and the incremental number
+        :return: None
+        """
+        self._keygen = {}
+        self._separator = separator
 
-def keygen_reset_from_form(frm:Form):
-    # reset keys related to form
-    for e in frm.element_map:
-        keygen_reset(e['element'].key)
+    def get(self, key:str, separator:str=None) -> str:
+        """
+        Get a generated key from the `KeyGen`
 
-def keygen_reset_all():
-    global _keygen
-    _keygen={}
+        :param key: The key from which to generate the new key.  If the key has not been used before, then it will be
+                    returned unmodified.  For each successive call with the same key, it will be appended with a the
+                    separator character and an incremental number.  For example, if the key 'button' was passed to
+                    `KeyGen.get()` 3 times in a row, then the keys 'button', 'button:1', and 'button:2' would be
+                    returned respectively.
+        param separator: (optional) override the default separator wth this separator
+        :return: None
+        """
+        if separator is None: separator = self._separator
 
+        # Generate a unique key by attaching a sequential integer to the end
+        if key not in self._keygen:
+            self._keygen[key] = 0
+        return_key = key
+        if self._keygen[key] > 0: return_key += f'{separator}{str(self._keygen[key])}'  # only modify the key if it is a duplicate!
+        logger.debug(f'Key generated: {return_key}')
+        self._keygen[key] += 1
+        return return_key
+
+    def reset_key(self, key: str) -> None:
+        """
+        Reset the generation sequence for the supplied key
+
+        :param key: The base key to reset te sequence for
+        """
+        try:
+            del self._keygen[key]
+        except KeyError:
+            pass
+
+    def reset(self) -> None:
+        """
+        Reset the entire `KeyGen` and remove all keys
+
+        :return: None
+        """
+        self._keygen = {}
+
+    def reset_from_form(self, frm:Form) -> None:
+        """
+        Reset keys from the keygen that were from mapped PySimpleGUI elements of that `Form`
+
+        :param frm: The `Form` from which to get the list of mapped elements
+        :return: None
+        """
+        # reset keys related to form
+        for e in frm.element_map:
+            self.reset_key(e['element'].key)
+
+# create a global KeyGen instance
+keygen = KeyGen(separator=':')
+"""This is a global keygen instance for general purpose use. See `KeyGen` for more info"""
 
 # ----------------------------------------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
@@ -2621,6 +2661,7 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
              will not need to be wrapped in [] in your layout code.
     """
     # TODO: See what the metadata does after initial setu is complete
+    global keygen
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
     if '?' in table:
@@ -2634,7 +2675,7 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
 
     key=table if key is None else key
 
-    key=keygen(key)
+    key=keygen.get(key)
 
     if 'values' in kwargs:
         first_param=kwargs['values']
@@ -2658,9 +2699,9 @@ def record(table, element=sg.I, key=None, size=None, label='', no_label=False, l
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.quick_edit) is bytes:
-            layout[-1].append(sg.B('', key=keygen(f'{key}.quick_edit'), size=(1, 1), image_data=icon.quick_edit, metadata=meta))
+            layout[-1].append(sg.B('', key=keygen.get(f'{key}.quick_edit'), size=(1, 1), image_data=icon.quick_edit, metadata=meta))
         else:
-            layout[-1].append(sg.B(icon.quick_edit, key=keygen(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
+            layout[-1].append(sg.B(icon.quick_edit, key=keygen.get(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
     #return layout
     return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
 
@@ -2688,6 +2729,7 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
     :return: An element to be used in the creation of PySimpleGUI layouts.  Note that this is already an array, so it
              will not need to be wrapped in [] in your layout code.
     """
+    global keygen
     edit_protect = default if edit_protect is None else edit_protect
     navigation = default if navigation is None else navigation
     insert = default if insert is None else insert
@@ -2703,74 +2745,74 @@ def actions(key, query, default=True, edit_protect=None, navigation=None, insert
     if edit_protect:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.edit_protect) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
+            layout.append(sg.B('', key=keygen.get(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
                                image_data=icon.edit_protect, metadata=meta))
         else:
-            layout.append(sg.B(icon.edit_protect, key=keygen(f'{key}.edit_protect'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.edit_protect, key=keygen.get(f'{key}.edit_protect'), metadata=meta, use_ttk_buttons = True))
     if save:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.save) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=icon.save,
+            layout.append(sg.B('', key=keygen.get(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=icon.save,
                                metadata=meta))
         else:
-            layout.append(sg.B(icon.save, key=keygen(f'{key}.db_save'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.save, key=keygen.get(f'{key}.db_save'), metadata=meta, use_ttk_buttons = True))
 
     # Query-level events
     if navigation:
         # first
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.first) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_first'), size=(1, 1), image_data=icon.first, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_first'), size=(1, 1), image_data=icon.first, metadata=meta))
         else:
-            layout.append(sg.B(icon.first, key=keygen(f'{key}.table_first'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.first, key=keygen.get(f'{key}.table_first'), metadata=meta, use_ttk_buttons = True))
         # previous
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.previous) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_previous'), size=(1, 1), image_data=icon.previous, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_previous'), size=(1, 1), image_data=icon.previous, metadata=meta))
         else:
-            layout.append(sg.B(icon.previous, key=keygen(f'{key}.table_previous'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.previous, key=keygen.get(f'{key}.table_previous'), metadata=meta, use_ttk_buttons = True))
         # next
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.next) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_next'), size=(1, 1), image_data=icon.next, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_next'), size=(1, 1), image_data=icon.next, metadata=meta))
         else:
-            layout.append(sg.B(icon.next, key=keygen(f'{key}.table_next'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.next, key=keygen.get(f'{key}.table_next'), metadata=meta, use_ttk_buttons = True))
         # last
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.last) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_last'), size=(1, 1), image_data=icon.last, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_last'), size=(1, 1), image_data=icon.last, metadata=meta))
         else:
-            layout.append(sg.B(icon.last, key=keygen(f'{key}.table_last'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.last, key=keygen.get(f'{key}.table_last'), metadata=meta, use_ttk_buttons = True))
     if duplicate:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'query': query, 'function': None, 'Form': None,
                 'filter': filter}
         if type(icon.duplicate) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_duplicate'), size=(1, 1), button_color=('orange', 'orange'),
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_duplicate'), size=(1, 1), button_color=('orange', 'orange'),
                                image_data=icon.duplicate, metadata=meta))
         else:
             layout.append(
-                sg.B(icon.duplicate, key=keygen(f'{key}.table_duplicate'), metadata=meta, use_ttk_buttons=True))
+                sg.B(icon.duplicate, key=keygen.get(f'{key}.table_duplicate'), metadata=meta, use_ttk_buttons=True))
     if insert:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.insert) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
                                image_data=icon.insert, metadata=meta))
         else:
-            layout.append(sg.B(icon.insert, key=keygen(f'{key}.table_insert'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.insert, key=keygen.get(f'{key}.table_insert'), metadata=meta, use_ttk_buttons = True))
     if delete:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.delete) is bytes:
-            layout.append(sg.B('', key=keygen(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
+            layout.append(sg.B('', key=keygen.get(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
                             image_data=icon.delete, metadata=meta))
         else:
-            layout.append(sg.B(icon.delete, key=keygen(f'{key}.table_delete'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(icon.delete, key=keygen.get(f'{key}.table_delete'), metadata=meta, use_ttk_buttons = True))
     if search:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': query, 'function': None, 'Form': None, 'filter': filter}
         if type(icon.search) is bytes:
-            layout+=[sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),sg.B('', key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, size=(1, 1), button_color=('white', 'red'),
+            layout+=[sg.Input('', key=keygen.get(f'{key}.input_search'), size=search_size),sg.B('', key=keygen.get(f'{key}.table_search'), bind_return_key=bind_return_key, size=(1, 1), button_color=('white', 'red'),
                                                                                             image_data=icon.delete, metadata=meta, use_ttk_buttons = True)]
         else:
-            layout+=[sg.Input('', key=keygen(f'{key}.input_search'), size=search_size),sg.B(icon.search, key=keygen(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = True)]
+            layout+=[sg.Input('', key=keygen.get(f'{key}.input_search'), size=search_size),sg.B(icon.search, key=keygen.get(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = True)]
     return sg.Col(layout=[layout])
 
 
@@ -2782,7 +2824,8 @@ def selector(key, table, element=sg.LBox, size=None, columns=None, filter=None, 
     want to select.
 
     """
-    key=keygen(key)
+    global keygen
+    key=keygen.get(key)
     meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
         layout = element(values=(), size=size or _default_element_size, key=key,
