@@ -2507,7 +2507,7 @@ class KeyGen():
     the screen at the same time, they must have unique names.  The keygen will append a separator and an incremental number
     to keys that would otherwise be duplicates. A global KeyGen instance is created automatically, see `keygen` for info.
     """
-    def __init__(self, separator=':'):
+    def __init__(self, separator='_'):
         """
         Create a new KeyGen instance
 
@@ -2571,7 +2571,7 @@ class KeyGen():
             self.reset_key(e['element'].key)
 
 # create a global KeyGen instance
-keygen = KeyGen(separator=':')
+keygen = KeyGen(separator='_')
 """This is a global keygen instance for general purpose use. See `KeyGen` for more info"""
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -2680,7 +2680,6 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
     if where_info:
         key=f'{keygen.get(key)}?{where_info}'
     else: key=keygen.get(key)
-    print(key)
 
     if 'values' in kwargs:
         first_param=kwargs['values']
