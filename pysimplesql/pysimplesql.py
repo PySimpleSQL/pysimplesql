@@ -193,7 +193,7 @@ class Relationship:
         """
         rel = []
         for r in cls.instances:
-            if r.child_table == table.table:
+            if r.child_table == table:
                 rel.append(r)
         return rel
 
@@ -268,6 +268,20 @@ class Relationship:
         Return a join clause when cast to a string
         """
         return self.driver.relationship_to_join_clause(self)
+
+    def __repr__(self):
+        """
+        Return a more descriptive string for debugging
+        """
+        ret = f'Relationship (' \
+              f'\n\tjoin={self.join},' \
+              f'\n\tchild_table={self.child_table},' \
+              f'\n\tfk_column={self.fk_column},' \
+              f'\n\tparent_table={self.parent_table},' \
+              f'\n\tpk_column={self.pk_column}' \
+        f'\n)'
+
+        return ret
 
 
 class Query:
@@ -3678,6 +3692,9 @@ class ResultSet:
     def __len__(self):
         return len(self.rows)
 
+    def get(self, key, default=None):
+        return self.rows.get(key, default)
+
     def fetchone(self):
         return self.rows[0] if len(self.rows) else []
 
@@ -3690,12 +3707,25 @@ class ResultSet:
         self.rows = [row for row in self.rows if not row.virtual]
 
     def sort_by_column(self,column:str, table:str, reverse=False):
-        # We don't want to sort by foreign key relationships - we want to sort by the description column of the foreign
-        # table that that the foreign key references
-        #rels = get_cascaded_relationships(table)
+        # Target sorting by this ResultSet
+        rows = self         # search criteria is based on rows
+        target_col = column # Looking in rows for this column
+        target_val = column # to be equal to the same column in self.rows
+
+        # We don't want to sort by foreign keys directly - we want to sort by the description column of the foreign
+        # table that the foreign key references
+        rels = Relationship.get_relationships_for_table(table)
+        for rel in rels:
+            if column == rel.fk_column:
+                rows = rel.frm[rel.parent_table].rows # change the rows used for sort criteria
+                target_col = rel.pk_column # change our target column to look in
+                target_val = rel.frm[rel.parent_table].description_column # and return the value in this column
+                print(repr(rel))
+                break
 
         try:
-            self.rows = sorted(self.rows, key=lambda x: x[column], reverse=reverse)
+            self.rows = sorted(self.rows, key=lambda x: next(r[target_val] for r in rows if r[target_col] == x[column]),
+                               reverse=reverse)
         except KeyError:
             logger.debug(f'ResultSet could not sort by column {column}. KeyError.')
 
