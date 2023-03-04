@@ -621,35 +621,29 @@ class Query:
             # Compare the DB version to the GUI version
             if mapped.table_name == self.table:
                 ## if passed custom column_name
-                if column_name is not None and c != column_name:
+                if column_name is not None and mapped.column != column_name:
                     continue
 
-                element_val = mapped.element.get()
-                table_val = self[mapped.column]
+                # Get the element value and cast it so we can compare it to the database version
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
-                # For elements where the value is a Row type, we need to compare primary keys
-                if type(element_val) is ElementRow:
-                    element_val = element_val.get_pk()
+                # Get the table value.  If this is a keyed element, we need figure out the appropriate table column to use
+                if mapped.where_column is not None:
+                    for row in self.rows:
+                        if row[mapped.where_column] == mapped.where_value:
+                            table_val = row[mapped.column]
+                else:
+                    table_val = self[mapped.column]
 
-                # For checkboxes
-                if type(element_val) is bool:
-                    if table_val is None: ## if there is no record, it will be '' instead of False
-                        table_val = False
-                    else:
-                        table_val = bool(table_val)
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
-
-                # Cast to similar types
-                if type(element_val) != type(table_val):
-                    element_val = str(element_val)
-                    table_val = str(table_val)
 
                 # Strip trailing whitespace from strings
                 if type(table_val) is str: table_val = table_val.rstrip()
                 if type(element_val) is str: element_val = element_val.rstrip()
 
+                # Make the comparison
                 if element_val != table_val:
                     dirty = True
                     logger.debug(f'CHANGED RECORD FOUND!')
@@ -1109,11 +1103,16 @@ class Query:
                 if display_message: sg.popup('Updates not saved.', keep_on_top=True)
                 return SAVE_FAIL + SHOW_MESSAGE
 
+        # Check right away to see if any records have changed, no need to proceed any further than we have to
+        if not self.records_changed(recursive=False) :
+            if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
+            return SAVE_NONE + SHOW_MESSAGE
+
         # Work with a copy of the original row and transform it if needed
         # Note that while saving, we are working with just the current row of data
         current_row = self.get_current_row().copy()
 
-        # Track the keyed queries we have to run
+        # Track the keyed queries we have to run.  Set to None so we can tell later if there were keyed elements
         keyed_queries:list = None # each entry a dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
@@ -1121,35 +1120,11 @@ class Query:
             if mapped.query == self:
 
                 # convert the data into the correct data type using the sql_type in ColumnInfo
-                element_val = mapped.element.get()
-                sql_type=self.column_info[mapped.column]['sql_type']
-                if sql_type in ['TEXT','VARCHAR','CHAR']:
-                    if type(element_val) is int:
-                        element_val = str(element_val)
-                    elif type(element_val) is bool:
-                        element_val = str(int(element_val))
-                    else:
-                        element_val = str(element_val)
-                elif sql_type in ['INT', 'INTEGER', 'BOOLEAN']:
-                    try:
-                        element_val=int(element_val)
-                    except Exception:
-                        element_val=str(element_val)
-                elif sql_type in ['REAL','DOUBLE','DECIMAL','FLOAT']:
-                    try:
-                        element_val = float(element_val)
-                    except:
-                        element_val = str(element_val)
-                elif sql_type in ['TIME','DATE','DATETIME','TIMESTAMP']:
-                    try:
-                        element_val = datetime.datetime(element_val)
-                    except:
-                        element_val = str(element_val)
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
                 # Looked for keyed elements first
-                if '?' in mapped.element.key and '=' in mapped.element.key:
-                    if keyed_queries is None: keyed_queries = []
-                    table_info, where_info = mapped.element.key.split('?')
+                if mapped.where_column is not None:
+                    if keyed_queries is None: keyed_queries = [] # Make the list here so that it != None if there were keyed elements
                     for row in self.rows:
                         if row[mapped.where_column] == mapped.where_value:
                             if row[mapped.column] != element_val:
@@ -1157,7 +1132,7 @@ class Query:
                                 row[mapped.column] = element_val # propagate the value
                                 changed = {mapped.column: element_val}
                                 where_clause = f'WHERE {self.driver.quote_column(mapped.where_column)} = {self.driver.quote_value(mapped.where_value)}'
-                                keyed_queries.append({'column': table_info.split('.')[1], 'changed_row': changed, 'where_clause': where_clause})
+                                keyed_queries.append({'column': mapped.column, 'changed_row': changed, 'where_clause': where_clause})
                 else:
                     if '.' not in mapped.element.key:
                         continue
@@ -1165,11 +1140,6 @@ class Query:
                     current_row[mapped.column] = element_val
 
         changed_row = {k:v for k,v in current_row.items()}
-
-        if not self.records_changed(recursive=False) and keyed_queries is None:
-            if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
-            return SAVE_NONE + SHOW_MESSAGE
-
 
 
         cascade_fk_changed = False
@@ -3440,6 +3410,48 @@ class Column:
     def virtual(self, value):
         self._column['virtual'] = value
 
+    def cast(self, value: any) -> any:
+        """
+        Cast a value to the appropriate date type as defined by the column info for column_name.
+        This can be sueful for comparing values between the database and the GUI.
+
+        :param value: The value you would like to cast
+        :returns: The value, cast to a type as defined by the sql_type datatype
+        """
+        # convert the data into the correct data type using the sql_type in ColumnInfo
+        sql_type = self.sql_type
+
+        # String type casting
+        if sql_type in ['TEXT', 'VARCHAR', 'CHAR']:
+            if type(value) is int:
+                value = str(value)
+            elif type(value) is bool:
+                value = str(int(value))
+            else:
+                value = str(value)
+
+        # Integer type casting
+        elif sql_type in ['INT', 'INTEGER', 'BOOLEAN']:
+            try:
+                value = int(value)
+            except:
+                value = str(value)
+
+        # float type casting
+        elif sql_type in ['REAL', 'DOUBLE', 'DECIMAL', 'FLOAT']:
+            try:
+                value = float(value)
+            except:
+                value = str(value)
+
+        # date/time casting
+        elif sql_type in ['TIME', 'DATE', 'DATETIME', 'TIMESTAMP']:
+            try:
+                value = datetime(value)
+            except:
+                value = str(value)
+        return value
+
 class ColumnInfo(List):
     """
     Column Information Class
@@ -3642,6 +3654,7 @@ class ColumnInfo(List):
     def _get_list(self, key: str) -> List:
         # returns a list of any key in the underlying Column instances. For example, column names, types, defaults, etc.
         return [d[key] for d in self]
+
 
 
 # ======================================================================================================================

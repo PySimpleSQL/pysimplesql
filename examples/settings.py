@@ -51,7 +51,6 @@ layout=[
 win = sg.Window('Preferences: Application Settings', layout, finalize=True)
 frm.bind(win)
 
-print(frm['Settings'].get_keyed_value('description', 'key', 'debug_mode'))
 
 while True:
     event, values = win.read()
