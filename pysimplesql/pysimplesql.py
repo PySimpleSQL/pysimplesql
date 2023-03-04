@@ -283,6 +283,43 @@ class Relationship:
 
         return ret
 
+class ElementMap(dict):
+    """
+    Map a PySimpleGUI element to a specific `Query` column.  This is what makes the GUI automatically update to
+    the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
+    using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the
+    Table.column naming convention is used, This method can be used to manually map any element to any `Query` column
+    regardless of naming convention.
+
+    """
+    def __init__(self, element: sg.Element, query: Query, column: str, where_column: str = None, where_value: str = None) -> None:
+        """
+        Create a new ElementMap instance
+        :param element: A PySimpleGUI Element
+        :param query: A `Query` object
+        :param column: The name of the column to bind to the element
+        :param where_column: Used for ke, value shorthand TODO: expand on this
+        :param where_value: Used for ey, value shorthand TODO: expand on this
+        :returns: None
+        """
+        super().__init__()
+        self['element'] = element
+        self['query'] = query
+        self['table_name'] = query.table
+        self['column'] = column
+        self['where_column'] = where_column
+        self['where_value'] = where_value
+
+
+    def __getattr__(self, key:str):
+        try:
+            return self[key]
+        except KeyError:
+            raise KeyError(f'ElementMap has no key {key}.')
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
 
 class Query:
     """
@@ -574,15 +611,15 @@ class Query:
 
         dirty = False
         # First check the current record to see if it's dirty
-        for c in self.frm.element_map:
+        for mapped in self.frm.element_map:
             # Compare the DB version to the GUI version
-            if c['query'].table == self.table:
+            if mapped.table_name == self.table:
                 ## if passed custom column_name
                 if column_name is not None and c != column_name:
                     continue
 
-                element_val = c['element'].get()
-                table_val = self[c['column']]
+                element_val = mapped.element.get()
+                table_val = self[mapped.column]
 
                 # For elements where the value is a Row type, we need to compare primary keys
                 if type(element_val) is ElementRow:
@@ -611,7 +648,7 @@ class Query:
                     dirty = True
                     logger.debug(f'CHANGED RECORD FOUND!')
                     logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
-                    logger.debug(f'\t{c["element"].Key}:{element_val} != {c["column"]}:{table_val}')
+                    logger.debug(f'\t{mapped.element.Key}:{element_val} != {mapped.column}:{table_val}')
                     return dirty
                 else:
                     dirty = False
@@ -1071,34 +1108,34 @@ class Query:
         current_row = self.get_current_row().copy()
 
         # Propagate GUI data back to the stored current_row
-        for v in self.frm.element_map:
-            if v['query'] == self:
-                if '?' in v['element'].key and '=' in v['element'].key:
-                    val = v['element'].get()
-                    table_info, where_info = v['element'].Key.split('?')
+        for mapped in self.frm.element_map:
+            if mapped.query == self:
+                if '?' in mapped.element.key and '=' in mapped.element.key:
+                    val = mapped.element.get()
+                    table_info, where_info = mapped.element.key.split('?')
                     for row in self.rows:
-                        if row[v['where_column']] == v['where_value']:
-                            row[v['column']] = val
+                        if row[mapped.where_column] == mapped.where_value:
+                            row[mapped.column] = val
                 else:
-                    if '.' not in v['element'].key:
+                    if '.' not in mapped.element.key:
                         continue
 
-                    if type(v['element']) == sg.Combo:
-                        if type(v['element'].get()) == str:
-                            val = v['element'].get()
+                    if type(mapped.element) == sg.Combo:
+                        if type(mapped.element.get()) == str:
+                            val = mapped.element.get()
                         else:
-                            val = v['element'].get().get_pk()
+                            val = mapped.element.get().get_pk()
                     else:
-                        val = v['element'].get()
+                        val = mapped.element.get()
 
                     if val =='':
                         val = None
                     
                     # Fix for Checkboxes switching from 0 to False, and from 1 to True
-                    if type(val) is bool and type(self[v['column']]) is int:
+                    if type(val) is bool and type(self[mapped.column]) is int:
                         val = int(val)
                         
-                    current_row[v['column']] = val
+                    current_row[mapped.column] = val
 
         changed_row = {k:v for k,v in current_row.items()}
 
@@ -1111,8 +1148,8 @@ class Query:
         cascade_fk_column = self.frm.get_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk 
-            for v in self.frm.element_map:
-                if v['query'] == self and pysimplesql.get_record_info(v['element'].Key)[1] == cascade_fk_column:
+            for mapped in self.frm.element_map:
+                if mapped.query == self and pysimplesql.get_record_info(mapped.element.key)[1] == cascade_fk_column:
                     cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
 
         # Update the database from the stored rows
@@ -1492,7 +1529,7 @@ class Form:
         self.window:sg.Window = None
         self._edit_protect:bool = False
         self.queries:Dict[str,Query] = {}
-        self.element_map:Dict[str,any] = []
+        self.element_map:List[ElementMap] = []
         """
         The element map dict is set up as below:
         
@@ -1584,8 +1621,8 @@ class Form:
         supported = ['update_elements', 'edit_enable', 'edit_disable']
 
         # Add in mapped elements
-        for element in self.element_map:
-            supported.append(element['element'].Key)
+        for mapped in self.element_map:
+            supported.append(mapped.element.key)
 
         # Add in other window elements
         for element in self.window.key_dict:
@@ -1756,19 +1793,8 @@ class Form:
         :param where_value: Used for ey, value shorthand TODO: expand on this
         :returns: None
         """
-        dic = {
-            'element': element,
-            'query': query,
-            'column': column,
-            'where_column': where_column,
-            'where_value': where_value,
-            # Element-level query clauses
-            'where_clause': None,
-            'order_clause': None,
-            'join_clause': None
-        }
-        logger.debug(f'Mapping element {element.Key}')
-        self.element_map.append(dic)
+        logger.debug(f'Mapping element {element.key}')
+        self.element_map.append(ElementMap(element, query, column, where_column, where_value))
 
     def auto_map_elements(self, win:sg.Window, keys:List[str]=None) -> None:
         """
@@ -1880,10 +1906,10 @@ class Form:
         :param order_clause: (optional) The order clause to set
         :returns: None
         """
-        for e in self.element_map:
-            if e['element']==element:
-                e['where_clause']=where_clause
-                e['order_clause']=order_clause
+        for mapped in self.element_map:
+            if mapped.element == element:
+                mapped.where_clause = where_clause
+                mapped.order_clause =order_clause
 
     def map_event(self, event:str, fctn:Callable[[None],None], table:str=None) -> None:
         """
@@ -2193,23 +2219,23 @@ class Form:
 
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
-        for d in self.element_map:
+        for mapped in self.element_map:
             # If the optional query parameter was passed, we will only update elements bound to that table
             if table_name is not None:
-                if d['query'].table != table_name:
+                if mapped.table_name != table_name:
                     continue
             # skip updating this element if requested
-            if d['element'] in omit_elements: continue
+            if mapped.element in omit_elements: continue
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
-            marker_key = d['element'].key + '.marker'
+            marker_key = mapped.element.key + '.marker'
             try:
-                if self[d['query'].table].get_current_row().virtual:
+                if mapped.query.get_current_row().virtual:
                     # get the column name from the key
                     col = marker_key.split(".")[1]
                     # get notnull from the column info
-                    if col in self[d['query'].table].column_info.names():
-                        if self[d['query'].table].column_info[col].notnull:
+                    if col in mapped.query.column_info.names():
+                        if mapped.query.column_info[col].notnull:
                             self.window[marker_key].update(visible=True)
                 else:
                     self.window[marker_key].update(visible=False)
@@ -2219,33 +2245,33 @@ class Form:
 
             updated_val = None
             # If there is a callback for this element, use it
-            if d['element'].key in self.callbacks:
-                self.callbacks[d['element'].key]()
+            if mapped.element.key in self.callbacks:
+                self.callbacks[mapped.element.key]()
 
-            elif d['where_column'] is not None:
+            elif mapped.where_column is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
-                updated_val=d['query'].get_keyed_value(d['column'], d['where_column'], d['where_value'])
-                if type(d['element']) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
+                updated_val=mapped.query.get_keyed_value(mmapped.column, mapped.where_column, mapped.where_value)
+                if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
                     updated_val=int(updated_val)
 
-            elif type(d['element']) is sg.PySimpleGUI.Combo:
+            elif type(mapped.element) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign queries first
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
                 target_table=None
-                rels = self.get_relationships_for_table(d['query'])
+                rels = self.get_relationships_for_table(mapped.query) # TODO this should be get_relationships_for_query
                 for rel in rels:
-                    if rel.fk_column == d['column']:
+                    if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
                         pk_column = target_table.pk_column
                         description = target_table.description_column
                         break
 
                 if target_table==None:
-                    logger.info(f"Error! Cound not find a related query for element {d['element'].key} bound to query {d['query'].table}, column: {d['column']}")
+                    logger.info(f"Error! Cound not find a related query for element {mapped.element.key} bound to query {mapped.table_name}, column: {mapped.column}")
                     # we don't want to update the list in this case, as it was most likely supplied and not tied to a query
-                    updated_val=d['query'][d['column']]
+                    updated_val=mapped.query[mapped.column]
 
                 # Populate the combobox entries
                 else:
@@ -2255,18 +2281,18 @@ class Form:
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
-                        if row[target_table.pk_column] == d['query'][rel.fk_column]:
+                        if row[target_table.pk_column] == mapped.query[rel.fk_column]:
                             for entry in lst:
-                                if entry.get_pk() == d['query'][rel.fk_column]:
+                                if entry.get_pk() == mapped.query[rel.fk_column]:
                                     updated_val = entry
                                     break
                             break
-                    d['element'].update(values=lst)
-            elif type(d['element']) is sg.PySimpleGUI.Table:
+                    mapped.element.update(values=lst)
+            elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
-                values = d['query'].table_values()
+                values = mapped.query.table_values()
                 # Select the current one
-                pk = d['query'].get_current_pk()
+                pk = mapped.query.get_current_pk()
 
                 found = False
                 if len(values):
@@ -2278,39 +2304,39 @@ class Form:
                     pk_position = 0
 
                 # update element
-                d['element'].update(values=values, select_rows=index)
+                mapped.element.update(values=values, select_rows=index)
                 # set vertical scroll bar to follow selected element
-                if len(index): d['element'].set_vscroll_position(pk_position)
+                if len(index): mapped.element.set_vscroll_position(pk_position)
 
                 eat_events(self.window)
                 continue
 
-            elif type(d['element']) is sg.PySimpleGUI.InputText or type(d['element']) is sg.PySimpleGUI.Multiline:
+            elif type(mapped.element) is sg.PySimpleGUI.InputText or type(mapped.element) is sg.PySimpleGUI.Multiline:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
-                d['element'].update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
-                updated_val = d['query'][d['column']]
+                mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
+                updated_val = mapped.query[mapped.column]
 
-            elif type(d['element']) is sg.PySimpleGUI.Checkbox:
-                updated_val = d['query'][d['column']]
-            elif type(d['element']) is sg.PySimpleGUI.Image:
-                val = d['query'][d['column']]
+            elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
+                updated_val = mapped.query[mapped.column]
+            elif type(mapped.element) is sg.PySimpleGUI.Image:
+                val = mapped.query[mapped.column]
 
                 try:
                     val=eval(val)
                 except:
                     # treat it as a filename
-                    d['element'].update(val)
+                    mapped.element.update(val)
                 else:
                     # update the bytes data
-                    d['element'].update(data=val)
+                    mapped.element.update(data=val)
                 updated_val=None # Prevent the update from triggering below, since we are doing it here
             else:
-                sg.popup(f'Unknown element type {type(d["element"])}')
+                sg.popup(f'Unknown element type {type(mapped.element)}')
 
             # Finally, we will update the actual GUI element!
             if updated_val is not None:
-                d['element'].update(updated_val)
+                mapped.element.update(updated_val)
 
         # ---------
         # SELECTORS
@@ -2481,10 +2507,10 @@ class Form:
         :param visible: True/False to make elements visible or not, None for no change
         :returns: None
         """
-        for c in self.element_map:
-            if c['query'].table != table_name:
+        for mapped in self.element_map:
+            if mapped.table_name != table_name:
                 continue
-            element=c['element']
+            element=mapped.element
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
                 #if element.Key in self.window.key_dict.keys():
@@ -2640,8 +2666,8 @@ class KeyGen():
         :returns: None
         """
         # reset keys related to form
-        for e in frm.element_map:
-            self.reset_key(e['element'].key)
+        for mapped in frm.element_map:
+            self.reset_key(mapped.element.key)
 
 # create a global KeyGen instance
 keygen = KeyGen(separator=':')
