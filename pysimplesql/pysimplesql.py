@@ -110,24 +110,6 @@ SEARCH_ABORTED:int  = 4 # The search was aborted, likely during a callback
 SEARCH_ENDED:int    = 8 # We have reached the end of the search
 
 
-
-def eat_events(win:sg.Window) -> None:
-    """
-    Eat extra events emitted by PySimpleGUI.Query.update().
-
-    Call this function directly after update() is run on a Query element. The reason is that updating the selection or values
-    will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
-    TODO: Determine if this is fixed yet in PySimpleSQL (still not fixed as of 3/2/23)
-
-    :param win: A PySimpleGUI Window instance
-    :returns: None
-    """
-    while True:
-        event,values=win.read(timeout=1)
-        if event=='__TIMEOUT__':
-            break
-    return
-
 # TODO: Combine TableRow and ElementRow into one class for simplicity
 class TableRow(list):
     """
@@ -2612,6 +2594,23 @@ def simple_transform(self,row,encode): # TODO: why is self here?
                 row[col] = function['encode'](row,col)
             logger.debug(f'{msg} to {row[col]}')
 
+def eat_events(win:sg.Window) -> None:
+    """
+    Eat extra events emitted by PySimpleGUI.Query.update().
+
+    Call this function directly after update() is run on a Query element. The reason is that updating the selection or values
+    will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
+    TODO: Determine if this is fixed yet in PySimpleSQL (still not fixed as of 3/2/23)
+
+    :param win: A PySimpleGUI Window instance
+    :returns: None
+    """
+    while True:
+        event,values=win.read(timeout=1)
+        if event=='__TIMEOUT__':
+            break
+    return
+
 class KeyGen():
     """
     The keygen system provides a mechanism to generate unique keys for use as PySimpleGUI element keys.
@@ -3383,8 +3382,8 @@ class Column:
 
     def cast(self, value: any) -> any:
         """
-        Cast a value to the appropriate date type as defined by the column info for column_name.
-        This can be sueful for comparing values between the database and the GUI.
+        Cast a value to the appropriate data type as defined by the column info for column_name.
+        This can be useful for comparing values between the database and the GUI.
 
         :param value: The value you would like to cast
         :returns: The value, cast to a type as defined by the sql_type datatype
@@ -3416,7 +3415,7 @@ class Column:
                 value = str(value)
 
         # date/time casting
-        elif sql_type in ['TIME', 'DATE', 'DATETIME', 'TIMESTAMP']:
+        elif sql_type in ['TIME', 'DATE', 'DATETIME', 'TIMESTAMP']: # TODO: i'm sure there is a lot of work to do here
             try:
                 value = datetime(value)
             except:
@@ -3477,7 +3476,7 @@ class ColumnInfo(List):
             return next((i for i in self if i.name == item), None)
         else:
             return super().__getitem__(item)
-    def pk_column(self) -> str:
+    def pk_column(self) -> Union[str,None]:
         """
         Get the pk_column for this colection of column_info
 
@@ -3487,15 +3486,15 @@ class ColumnInfo(List):
             if c.pk: return c.name
         return None
 
-    def names(self) -> List:
+    def names(self) -> List[str]:
         """
         Return a List of column names from the `Column`s in this collection
 
-        :returns: List
+        :returns: List of column names
         """
         return self._get_list('name')
 
-    def col_name(self,idx:int) -> str:
+    def col_name(self, idx:int) -> str:
         """
         Get the column name located at the specified index in this collection of `Column`s
 
@@ -3577,7 +3576,7 @@ class ColumnInfo(List):
             RuntimeError(f'The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._sql_types}')
 
         self.null_defaults = null_defaults
-    def get_virtual_names(self) -> List:
+    def get_virtual_names(self) -> List[str]:
         """
         Get a list of virtual column names
 
@@ -3682,11 +3681,6 @@ class ResultRow():
             self._iter_index += 1
             return self.rows[self._iter_index - 1]
 
-
-    def items(self):
-        # forward calls to .items() to the underlying row dict
-        return self.row.items()
-
     def copy(self):
         # return a copy of this row
         return ResultRow(self.row.copy(), virtual=self.virtual)
@@ -3694,8 +3688,13 @@ class ResultRow():
 class ResultSet:
     """
     The ResultSet class is a generic result class so that working with the resultset of the different supported
-    databases behave in a consistent manner. A ResultSet is a collection of ResultRows, along with the lastrowid
-    and any exception returned by the underlying SQLDriver when an query is executed.
+    databases behave in a consistent manner. A `ResultSet` is a collection of `ResultRow`s, along with the lastrowid
+    and any exception returned by the underlying `SQLDriver` when a query is executed.
+
+    ResultSets can be thought up as rows of information.  Iterating through a ResultSet is very simple:
+        rows:ResultSet = driver.execute('SELECT * FROM Journal;')
+        for row in rows:
+            print(row['title'])
 
     Note: The lastrowid is set by the caller, but by pysimplesql convention, the lastrowid should only be set after
     and INSERT statement is executed.
@@ -3705,11 +3704,14 @@ class ResultSet:
     SORT_ASC = 1
     SORT_DESC = 2
 
-    def __init__(self, rows:list=[], lastrowid=None, exception=None, column_info=None):
+    def __init__(self, rows:List[Dict[str, any]]=[], lastrowid:int=None, exception:str=None, column_info:ColumnInfo=None) -> None:
         """
         Create a new ResultSet instance
 
-        :returns: ResultSet
+        :param rows: a list of dicts representing a row of data, with each key being a column name
+        :param lastrowid: The primary key of an inserted item
+        :exception: If an exception was encountered during the query, it will be passed along here
+        :column_info: a `ColumnInfo` object can be supplied so that information can be accessed about the column information
         """
         self.rows = [ResultRow(r,i) for r,i in zip(rows,range(len(rows)))]
         self.lastrowid = lastrowid
@@ -3747,18 +3749,54 @@ class ResultSet:
     def get(self, key, default=None):
         return self.rows.get(key, default)
 
-    def fetchone(self):
-        return self.rows[0] if len(self.rows) else []
+    def fetchone(self) -> ResultRow:
+        """
+        Fetch the first record in the ResulSet.
 
-    def insert(self, row:dict, idx:int = None):
+        :returns: A `ResultRow` object
+        """
+        return self.rows[0] if len(self.rows) else []
+    def fetchall(self) -> ResultSet:
+        """
+        ResultSets don't actually support a fetchall(), since the rows are already returned. This is more of a
+        comfort method that does nothing, for those that are used to calling fetchall()
+
+        :returns: The same ResultSet that called fetchall()
+        """
+        return self
+
+    def insert(self, row:dict, idx:int = None) -> None:
+        """
+        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist in memory, but not in the database.
+        When a save action is performed, virtua rows will be added into the database.
+
+        :param row: A dict representation of a row of data
+        :param idx: The index where the row should be inserted (default to last index)
+        :returns: None
+        """
         # Insert a new row manually.  This will mark the row as virtual, as it did not come from the database.
         self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
 
-    def purge_virtual(self):
+    def purge_virtual(self) -> None:
+        """
+        Purge virtual rows from the `ResultSet`
+
+        :returns: None
+        """
         # Purge virtual rows from the list
         self.rows = [row for row in self.rows if not row.virtual]
 
-    def sort_by_column(self,column:str, table:str, reverse=False):
+    def sort_by_column(self,column:str, table:str, reverse=False) -> None:
+        """
+        Sort the `ResultSet` by column.
+        Using the mapped relationships of the database, foreign keys will automatically sort based on the
+        parent table's description column, rather than the foreign key number.
+
+        :param column: The name of the column to sort the `ResultSet` by
+        :param table: The name of the table the column belongs to
+        :param reverse: Reverse the sort; False = ASC, True = DESC
+        :returns: None
+        """
         # Target sorting by this ResultSet
         rows = self         # search criteria is based on rows
         target_col = column # Looking in rows for this column
@@ -3773,7 +3811,6 @@ class ResultSet:
                 target_col = rel.pk_column # change our target column to look in
                 target_val = rel.frm[rel.parent_table].description_column # and return the value in this column
                 break
-
         try:
             self.rows = sorted(self.rows, key=lambda x: next(r[target_val] for r in rows if r[target_col] == x[column]),
                                reverse=reverse)
@@ -3781,6 +3818,16 @@ class ResultSet:
             logger.debug(f'ResultSet could not sort by column {column}. KeyError.')
 
     def sort_by_index(self,index:int, table:str, reverse=False):
+        """
+        Sort the `ResultSet` by column index
+        Using the mapped relationships of the database, foreign keys will automatically sort based on the
+        parent table's description column, rather than the foreign key number.
+
+        :param index: The index of the column to sort the `ResultSet` by
+        :param table: The name of the table the column belongs to
+        :param reverse: Reverse the sort; False = ASC, True = DESC
+        :returns: None
+        """
         try:
             column = list(self[0].keys())[index]
         except IndexError:
@@ -3790,8 +3837,20 @@ class ResultSet:
 
 
     def store_sort_settings(self) -> list:
+        """
+        Store the current sort settingg. Sort settings are just the sort column and reverse setting.
+        Sort order can be restored with `ResultSet.load_sort_settings()`
+
+        :returns: A list containing the sort_column and the sort_reverse
+        """
         return [self.sort_column, self.sort_reverse]
-    def load_sort_settings(self, sort_settings:list):
+
+    def load_sort_settings(self, sort_settings:list) -> None:
+        """
+        Load a previously stored sort setting. Sort settings are just the sort columm and reverse setting
+
+        :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
+        """
         self.sort_column = sort_settings[0]
         self.sort_reverse = sort_settings[1]
 
@@ -3800,14 +3859,17 @@ class ResultSet:
         """
         Reset the sort order to the original when this ResultSet was created.  Each ResultRow has the original order
         stored
+
         :returns: None
         """
         self.rows = sorted(self.rows, key=lambda x: x.original_index)
-    def sort(self, table) -> None:
+
+    def sort(self, table:str) -> None:
         """
         Sort according to the internal sort_column and sort_reverse variables
         This is a good way to re-sort without changing the sort_cycle
 
+        :param table: The table associated with this ResultSet.  Passed along to `ResultSet.sort_by_column()`
         :returns: None
         """
         if self.sort_column is None:
@@ -3815,11 +3877,12 @@ class ResultSet:
         else:
             self.sort_by_column(self.sort_column, table, self.sort_reverse)
 
-    def sort_cycle(self, column:str, table:str, advance_cycle=True) -> int:
+    def sort_cycle(self, column:str, table:str) -> int:
         """
         Cycle between original sort order of the ResultSet, ASC by column, and DESC by column with each call
+
         :param column: The column name to cycle the sort on
-        :param cb: A callable function callback to run after this sort runs.
+        :param table: The table that the column belongs to
         :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or ResultSet.SORT_DESC
         """
         if column != self.sort_column:
@@ -3839,15 +3902,18 @@ class ResultSet:
                 self.sort(table)
                 ret = ResultSet.SORT_NONE
         return ret
-# TODO min_pk, max_pk
+
+
 class SQLDriver:
     """"
     Abstract SQLDriver class.  Derive from this class to create drivers that conform to PySimpleSQL.  This ensures
     that the same code will work the same way regardless of which database is used.  There are a few important things
     to note:
-    The commented code below is broken into methods that MUST be implemented in the derived class, methods that SHOULD
-    be implemented in the derived class, and methods that MAY need to be implemented in the derived class for it to
-    work as expected.  Most derived drivers will at least partially work by implementing the MUST have methods.
+    The commented code below is broken into methods that **MUST** be implemented in the derived class, methods that **SHOULD**
+    be implemented in the derived class, and methods that **MAY** need to be implemented in the derived class for it to
+    work as expected.  Most derived drivers will at least partially work by implementing the **MUST** have methods.
+
+    See the source code for `Sqlite`, `Mysql` and `Postgres` for examples of how to construct your own driver.
 
     NOTE: SQLDriver.execute should return a ResultSet instance.  Additionally, py pysimplesql convention, the
     ResultSet.lastrowid should always be None unless and INSERT query is executed with SQLDriver.execute() or a record
@@ -3858,6 +3924,11 @@ class SQLDriver:
     # in order to function
     # ---------------------------------------------------------------------
     def __init__(self, name:str, placeholder='%s', table_quote='', column_quote='', value_quote="'"):
+        """
+        Create a new SQLDriver instance
+        This must be overridden in the derrived class, which must call super().__init__()
+
+        """
         # Be sure to call super().__init__() in derived class!
         self.con = None
         self.name = name
@@ -3865,12 +3936,22 @@ class SQLDriver:
         # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
         # in the SQL string should be quoted and represented as placeholders. Override these in the derived class as
         # needed to satisfy SQL requirements
+
+        # The placeholder for values in the query string.  This is typically '?' or'%s'
         self.placeholder = placeholder                     # override this in derived __init__()
+
+        # These se the quote characters for tables, columns and values.  It varies between different databases
         self.quote_table_char = table_quote                # override this in derived __init__() (defaults to no quotes)
         self.quote_column_char = column_quote              # override this in derived __init__() (defaults to no quotes)
         self.quote_value_char = value_quote                # override this in derived __init__() (defaults to single quotes)
 
-    def connect(self, database):
+    def connect(self, *args, **kwargs):
+        """
+        Connect to a database
+        Connect to a database in the connect() method, assigning the connection to self.con
+        Implementation varies by database, you may need only one parameter, or several depending on how a connection
+        is established with the target database.
+        """
         raise NotImplementedError
 
     def execute(self, query, values=None, column_info:ColumnInfo=None):
