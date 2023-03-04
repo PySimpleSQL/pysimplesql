@@ -24,7 +24,7 @@ import os.path
 import logging
 import pysimplesql ## Needed for quick_edit pop-ups
 # Load database backends if present
-supported_databases = ['SQLite3','MySQL','PostgreSQL']
+supported_databases = ['SQLite3','MySQL','PostgreSQL','CSV']
 failed_modules = 0
 try:
     import sqlite3
@@ -39,6 +39,11 @@ try:
     import psycopg2.extras
 except ModuleNotFoundError:
     failed_modules += 1
+try:
+    import csv
+except ModuleNotFoundError:
+    failed_modules += 1
+
 if failed_modules == len(supported_databases):
     RuntimeError(f"You muse have at least one of the following databases installed to use PySimpleSQL:\n{', '.join(supported_databases)} ")
 
@@ -4255,7 +4260,6 @@ class Sqlite(SQLDriver):
         except:
             rows = []
 
-
         lastrowid = cursor.lastrowid if cursor.lastrowid is not None else None
         return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
 
@@ -4325,6 +4329,69 @@ class Sqlite(SQLDriver):
         with open(script, 'r') as file:
             logger.info(f'Loading script {script} into database.')
             self.con.executescript(file.read())
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# CSV DRIVER
+# ----------------------------------------------------------------------------------------------------------------------
+# The CSV driver uses SQlite3 in the background to use pysimplesql directly with CSV files
+class Csv(Sqlite):
+    def __init__(self, csv_path=None, separator=','):
+        super().__init__(':memory:')
+        super(Sqlite,self).__init__(name='Csv', placeholder='?')
+        self.connect(':memory:')
+        self.csv_path = csv_path
+        self.separator = separator
+        self.table_name = self.quote_table('csv')
+        self.con.row_factory = sqlite3.Row
+
+        # Open the CSV file and read the first row to get column names
+        with open(csv_path, 'r') as f:
+            reader = csv.reader(f)
+            columns = next(reader)
+
+        self.columns = columns # save for writing out later
+
+        # Construct the SQL commands to create a temporary table
+        q_cols = ', '.join([f'{col} TEXT' for col in columns])
+        query = f'CREATE TEMP TABLE {self.table_name} ({q_cols})'
+
+        # Execute the SQL command to create the temporary table
+        self.execute(query)
+
+        # Load the CSV data into the temporary table
+        with open(csv_path, 'r') as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip the first row
+            query = f'INSERT INTO {self.table_name} ({", ".join(columns)}) VALUES ({", ".join(["?" for col in columns])})'
+            for row in reader:
+                self.execute(query, row)
+
+        self.commit()
+
+
+    def save_record(self, q_obj: Query, changed_row: dict, where_clause: str = None) -> ResultSet:
+        result = super().save_record(q_obj, changed_row ,where_clause)
+
+        if result.exception is None:
+            # Write our data back out to the CSV file
+
+            rows = self.execute(f"SELECT * FROM {self.table_name}")
+
+            # open the CSV file for writing
+            with open(self.csv_path, 'w', newline='') as csvfile:
+                # create a csv writer object
+                writer = csv.writer(csvfile)
+
+                # write the header row
+                writer.writerow([column for column in self.columns])
+
+                # write the data rows
+                writer.writerows(rows)
+
+        return result
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # MYSQL DRIVER
