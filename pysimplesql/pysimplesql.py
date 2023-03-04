@@ -3372,43 +3372,14 @@ class Column:
     def __contains__(self, item):
         return item in self._column
 
-    # Make some properties for easy access
-    @property
-    def name(self):
-        return self._column['name']
-    @name.setter
-    def name(self, value):
-        self._column['name'] = value
-    @property
-    def sql_type(self):
-        return self._column['sql_type']
-    @sql_type.setter
-    def sql_type(self, value):
-        self._column['sql_type'] = value
-    @property
-    def notnull(self):
-        return self._column['notnull']
-    @notnull.setter
-    def notnull(self, value:bool):
-        self._column['notnull'] = value
-    @property
-    def default(self):
-        return self._column['default']
-    @default.setter
-    def default(self, value):
-        self._column['default'] = value
-    @property
-    def pk(self):
-        return(self._column['pk'])
-    @pk.setter
-    def pk(self, value):
-        self._column['pk'] = value
-    @property
-    def virtual(self):
-        return self._column['virtual']
-    @virtual.setter
-    def virtual(self, value):
-        self._column['virtual'] = value
+    def __getattr__(self, key):
+        return self._column[key]
+
+    def __setattr__(self, key, value):
+        if key == '_column':
+            super().__setattr__(key, value)
+        else:
+            self._column[key] = value
 
     def cast(self, value: any) -> any:
         """
