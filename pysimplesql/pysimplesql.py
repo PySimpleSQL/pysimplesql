@@ -1107,19 +1107,26 @@ class Query:
         # Note that while saving, we are working with just the current row of data
         current_row = self.get_current_row().copy()
 
+        # Track the keyed queries we have to run
+        keyed_queries = [] # each entry a dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
+
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
             if mapped.query == self:
                 if '?' in mapped.element.key and '=' in mapped.element.key:
-                    val = mapped.element.get()
+                    element_val = mapped.element.get()
                     table_info, where_info = mapped.element.key.split('?')
                     for row in self.rows:
                         if row[mapped.where_column] == mapped.where_value:
-                            row[mapped.column] = val
+                            if row[mapped.column] != element_val:
+                                # This record has changed.  We will save it
+                                row[mapped.column] = element_val # propagate the value
+                                changed = {mapped.column: element_val}
+                                where_clause = f'WHERE {self.driver.quote_column(mapped.where_column)} = {self.driver.quote_value(mapped.where_value)}'
+                                keyed_queries.append({'column': table_info.split('.')[1], 'changed_row': changed, 'where_clause': where_clause})
                 else:
                     if '.' not in mapped.element.key:
                         continue
-
                     if type(mapped.element) == sg.Combo:
                         if type(mapped.element.get()) == str:
                             val = mapped.element.get()
@@ -1139,15 +1146,17 @@ class Query:
 
         changed_row = {k:v for k,v in current_row.items()}
 
-        if not self.records_changed(recursive=False):
+        if not self.records_changed(recursive=False) and len(keyed_queries) == 0:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
-            
-        # check to see if cascading-fk has changed before we update database
+
+
+
         cascade_fk_changed = False
+        # check to see if cascading-fk has changed before we update database
         cascade_fk_column = self.frm.get_cascade_fk_column(self.table)
         if cascade_fk_column:
-            # check if fk 
+            # check if fk
             for mapped in self.frm.element_map:
                 if mapped.query == self and pysimplesql.get_record_info(mapped.element.key)[1] == cascade_fk_column:
                     cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
@@ -1156,15 +1165,46 @@ class Query:
         if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
 
         # Save or Insert the record as needed
-        if current_row.virtual==True:
-            result = self.driver.insert_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
+        if len(keyed_queries) > 0:
+            # Now execute all the saved queries from earlier
+            for q in keyed_queries:
+                # Update the database from the stored rows
+                if self.transform is not None: self.transform(self, q['changed_row'], TFORM_ENCODE)
+                result = self.driver.save_record(self, q['changed_row'], q['where_clause'])
+                if result.exception is not None:
+                    sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+                    self.driver.rollback()
+                    return SAVE_FAIL  # Do not show the message in this case, since it's handled here
         else:
-            result = self.driver.save_record(self,changed_row)
+            if current_row.virtual==True:
+                result = self.driver.insert_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
+            else:
+                result = self.driver.save_record(self,changed_row)
 
-        if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
-            self.driver.rollback()
-            return SAVE_FAIL # Do not show the message in this case, since it's handled here
+            if result.exception is not None:
+                sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+                self.driver.rollback()
+                return SAVE_FAIL  # Do not show the message in this case, since it's handled here
+
+            # Store the pk can we can move to it later - use the value returned in the resultset if possible, just in case
+            # the expected pk changed from autoincrement and/or condurrent access
+            pk = result.lastrowid if result.lastrowid is not None else self.get_current_pk()
+            current_row[self.pk_column] = pk
+
+            # then update the current row data
+            self.rows[self.current_index] = current_row
+
+            # If child changes parent, move index back and requery/requery_dependents
+            if cascade_fk_changed and not current_row.virtual:  # Virtual rows already requery, and don't have any dependents.
+                self.frm[self.table].requery(select_first=False)  # keep spot in table
+                self.frm[self.table].requery_dependents()
+
+            # Lets refresh our data
+            if current_row.virtual:
+                self.requery(select_first=False,
+                             update=False)  # Requery so that the new  row honors the order clause
+                self.set_by_pk(pk, skip_prompt_save=True)  # Then move to the record
+
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1175,23 +1215,6 @@ class Query:
         # If we made it here, we can commit the changes
         self.driver.commit()
 
-        # Store the pk can we can move to it later - use the value returned in the resultset if possible, just in case
-        # the expected pk changed from autoincrement and/or condurrent access
-        pk = result.lastrowid if result.lastrowid is not None else self.get_current_pk()
-        current_row[self.pk_column] = pk
-
-        # then update the current row data
-        self.rows[self.current_index] = current_row
-
-        # If child changes parent, move index back and requery/requery_dependents
-        if cascade_fk_changed and not current_row.virtual: # Virtual rows already requery, and don't have any dependents.
-            self.frm[self.table].requery(select_first=False) #keep spot in table
-            self.frm[self.table].requery_dependents()
-
-        # Lets refresh our data
-        if current_row.virtual:
-            self.requery(select_first=False, update=False) # Requery so that the new  row honors the order clause
-            self.set_by_pk(pk,skip_prompt_save=True)       # Then move to the record
 
         if update_elements:self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
@@ -2250,7 +2273,7 @@ class Form:
 
             elif mapped.where_column is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
-                updated_val=mapped.query.get_keyed_value(mmapped.column, mapped.where_column, mapped.where_value)
+                updated_val=mapped.query.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
                 if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
                     updated_val=int(updated_val)
 
@@ -3865,12 +3888,6 @@ class SQLDriver:
     def relationships(self):
         raise NotImplementedError
 
-    def save_record(self, q_obj:Query, row:dict):
-        raise NotImplementedError
-
-    def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
-        raise NotImplementedError
-
     # ---------------------------------------------------------------------
     # SHOULD implement
     # based on specifics of the database
@@ -4065,7 +4082,7 @@ class SQLDriver:
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
-    def save_record(self, q_obj:Query, changed_row:dict) -> ResultSet:
+    def save_record(self, q_obj:Query, changed_row:dict, where_clause:str = None) -> ResultSet:
         pk = q_obj.get_current_pk()
         pk_column = q_obj.pk_column
 
@@ -4077,10 +4094,11 @@ class SQLDriver:
         pk_column = self.quote_column(pk_column)
 
         # Create the WHERE clause
-        where = f"WHERE {pk_column} = {pk}"
+        if where_clause is None:
+            where_clause = f"WHERE {pk_column} = {pk}"
 
         # Generate an UPDATE query
-        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row.keys())} {where};"
+        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row.keys())} {where_clause};"
         values = [v for v in changed_row.values()]
 
         result = self.execute(query, tuple(values))
