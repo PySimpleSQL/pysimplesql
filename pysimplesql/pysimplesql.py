@@ -141,6 +141,9 @@ class TableRow(list):
     def __str__(self):
         return str(self[:])
 
+    def __int__(self):
+        return self.pk
+
     def __repr__(self):
         # Add some extra information that could be useful for debugging
         return f'TableRow(pk={self.pk}): {super().__repr__()}'
@@ -159,6 +162,9 @@ class ElementRow:
 
     def __str__(self):
         return str(self.val)
+
+    def __int__(self):
+        return self.pk
 
     def get_pk(self):
         # Return the primary key portion of the row
@@ -1108,13 +1114,41 @@ class Query:
         current_row = self.get_current_row().copy()
 
         # Track the keyed queries we have to run
-        keyed_queries = [] # each entry a dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
+        keyed_queries:list = None # each entry a dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
             if mapped.query == self:
+
+                # convert the data into the correct data type using the sql_type in ColumnInfo
+                element_val = mapped.element.get()
+                sql_type=self.column_info[mapped.column]['sql_type']
+                if sql_type in ['TEXT','VARCHAR','CHAR']:
+                    if type(element_val) is int:
+                        element_val = str(element_val)
+                    elif type(element_val) is bool:
+                        element_val = str(int(element_val))
+                    else:
+                        element_val = str(element_val)
+                elif sql_type in ['INT', 'INTEGER', 'BOOLEAN']:
+                    try:
+                        element_val=int(element_val)
+                    except Exception:
+                        element_val=str(element_val)
+                elif sql_type in ['REAL','DOUBLE','DECIMAL','FLOAT']:
+                    try:
+                        element_val = float(element_val)
+                    except:
+                        element_val = str(element_val)
+                elif sql_type in ['TIME','DATE','DATETIME','TIMESTAMP']:
+                    try:
+                        element_val = datetime.datetime(element_val)
+                    except:
+                        element_val = str(element_val)
+
+                # Looked for keyed elements first
                 if '?' in mapped.element.key and '=' in mapped.element.key:
-                    element_val = mapped.element.get()
+                    if keyed_queries is None: keyed_queries = []
                     table_info, where_info = mapped.element.key.split('?')
                     for row in self.rows:
                         if row[mapped.where_column] == mapped.where_value:
@@ -1127,26 +1161,12 @@ class Query:
                 else:
                     if '.' not in mapped.element.key:
                         continue
-                    if type(mapped.element) == sg.Combo:
-                        if type(mapped.element.get()) == str:
-                            val = mapped.element.get()
-                        else:
-                            val = mapped.element.get().get_pk()
-                    else:
-                        val = mapped.element.get()
 
-                    if val =='':
-                        val = None
-                    
-                    # Fix for Checkboxes switching from 0 to False, and from 1 to True
-                    if type(val) is bool and type(self[mapped.column]) is int:
-                        val = int(val)
-                        
-                    current_row[mapped.column] = val
+                    current_row[mapped.column] = element_val
 
         changed_row = {k:v for k,v in current_row.items()}
 
-        if not self.records_changed(recursive=False) and len(keyed_queries) == 0:
+        if not self.records_changed(recursive=False) and keyed_queries is None:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
 
@@ -1165,7 +1185,7 @@ class Query:
         if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
 
         # Save or Insert the record as needed
-        if len(keyed_queries) > 0:
+        if keyed_queries is not None:
             # Now execute all the saved queries from earlier
             for q in keyed_queries:
                 # Update the database from the stored rows
@@ -3768,7 +3788,6 @@ class ResultSet:
                 rows = rel.frm[rel.parent_table].rows # change the rows used for sort criteria
                 target_col = rel.pk_column # change our target column to look in
                 target_val = rel.frm[rel.parent_table].description_column # and return the value in this column
-                print(repr(rel))
                 break
 
         try:
