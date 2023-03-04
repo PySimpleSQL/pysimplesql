@@ -657,7 +657,7 @@ class Query:
             return PROMPT_SAVE_NONE
 
         # Check if any records have changed
-        changed = self.records_changed()
+        changed = self.records_changed() or len([row for row in self.rows if row.virtual])
         if changed:
             if autosave or self.autosave:
                 save_changes = 'Yes'
@@ -670,6 +670,7 @@ class Query:
                 return PROMPT_SAVE_PROCEED
             else:
                 self.rows.purge_virtual()
+                self.frm.update_elements(self.table)
                 return PROMPT_SAVE_DISCARDED
         else:
             return PROMPT_SAVE_NONE
@@ -1034,8 +1035,7 @@ class Query:
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
         if skip_prompt_save is False:
-            if self.prompt_save() == PROMPT_SAVE_DISCARDED:
-                return
+            self.prompt_save()
 
         # Get a new dict for a new row with default values already filled in
         new_values = self.column_info.default_row_dict(self)
@@ -1131,7 +1131,7 @@ class Query:
             # check if fk
             for mapped in self.frm.element_map:
                 if mapped.query == self and pysimplesql.get_record_info(mapped.element.key)[1] == cascade_fk_column:
-                    cascade_fk_changed = self.records_changed(recursive=False, column_name=v)
+                    cascade_fk_changed = self.records_changed(recursive=False, column_name=cascade_fk_column)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
