@@ -588,7 +588,7 @@ class Query:
         """
         self.description_column = column_name
 
-    def records_changed(self, column_name: str = None, recursive=False) -> bool:
+    def records_changed(self, column_name: str = None, recursive=True) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values
 
