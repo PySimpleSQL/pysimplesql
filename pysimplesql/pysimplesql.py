@@ -588,12 +588,12 @@ class Query:
         """
         self.description_column = column_name
 
-    def records_changed(self, recursive=True, column_name:str=None) -> bool:
+    def records_changed(self, column_name: str = None, recursive=False) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values
 
-        :param recursive: True to check related `Query` instances
         :param column_name: Limit the changed records search to just the supplied column name
+        :param recursive: True to check related `Query` instances
         :returns: True or False on whether changed records were found
         """
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
@@ -1147,7 +1147,7 @@ class Query:
             # check if fk
             for mapped in self.frm.element_map:
                 if mapped.query == self and pysimplesql.get_record_info(mapped.element.key)[1] == cascade_fk_column:
-                    cascade_fk_changed = self.records_changed(recursive=False, column_name=cascade_fk_column)
+                    cascade_fk_changed = self.records_changed(column_name=cascade_fk_column, recursive=False)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
