@@ -625,6 +625,10 @@ class Query:
                             table_val = row[mapped.column]
                 else:
                     table_val = self[mapped.column]
+                    
+                if type(mapped.element) is sg.PySimpleGUI.Checkbox:
+                    table_val = checkbox_to_bool(table_val)
+                    element_val = checkbox_to_bool(element_val)
 
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
@@ -2270,7 +2274,7 @@ class Form:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
                 updated_val=mapped.query.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
                 if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
-                    updated_val=int(updated_val)
+                    updated_val = checkbox_to_bool(mapped.query[mapped.column])
 
             elif type(mapped.element) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign queries first
@@ -2336,7 +2340,7 @@ class Form:
                 updated_val = mapped.query[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
-                updated_val = mapped.query[mapped.column]
+                updated_val = checkbox_to_bool(mapped.query[mapped.column])
             elif type(mapped.element) is sg.PySimpleGUI.Image:
                 val = mapped.query[mapped.column]
 
@@ -2626,6 +2630,14 @@ def eat_events(win:sg.Window) -> None:
         if event=='__TIMEOUT__':
             break
     return
+
+def checkbox_to_bool(value):
+    """
+    Allows a variety of checkbox values to still return True or False.
+    :param value: Value to convert into True or False
+    :returns: bool
+    """
+    return str(value).lower() in ['y','yes','t','true','1']
 
 class KeyGen():
     """
@@ -3422,7 +3434,7 @@ class Column:
             if type(value) is int:
                 value = str(value)
             elif type(value) is bool:
-                value = str(int(value))
+                value = str(value)
             else:
                 value = str(value)
 
