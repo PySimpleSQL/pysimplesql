@@ -501,7 +501,7 @@ class Query:
         yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL
         actually reads from or writes to the database.
 
-        :param fn: A callable function to preform encode/decode. This function should take three arguments: self, row (which will
+        :param fn: A callable function to preform encode/decode. This function should take three arguments: query, row (which will
         be populated by a dictionary of the row data), and an encode parameter (1 to endode, 0 to decode - see constants
         `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at a time.
         See the example `journal_with_data_manipulation.py` for a usage example.
@@ -610,6 +610,10 @@ class Query:
                 ## if passed custom column_name
                 if column_name is not None and mapped.column != column_name:
                     continue
+                
+                # don't check if there arn't any rows. Fixes checkbox = '' when no rows.
+                if not len(self.frm[mapped.table_name].rows):
+                    continue
 
                 # Get the element value and cast it so we can compare it to the database version
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
@@ -661,8 +665,10 @@ class Query:
         if self.current_index is None or self.rows == [] or self._prompt_save is False:
             return PROMPT_SAVE_NONE
 
+        # See if any rows are virtual
+        vrows = len([row for row in self.rows if row.virtual])
         # Check if any records have changed
-        changed = self.records_changed() or len([row for row in self.rows if row.virtual])
+        changed = self.records_changed() or vrows
         if changed:
             if autosave or self.autosave:
                 save_changes = 'Yes'
@@ -675,7 +681,7 @@ class Query:
                 return PROMPT_SAVE_PROCEED
             else:
                 self.rows.purge_virtual()
-                self.frm.update_elements(self.table)
+                if vrows: self.frm.update_elements(self.table)
                 return PROMPT_SAVE_DISCARDED
         else:
             return PROMPT_SAVE_NONE
@@ -2596,11 +2602,11 @@ def get_record_info(record:str) -> Tuple[str,str]:
     """
     return record.split('.')
 
-def simple_transform(self,row,encode): # TODO: why is self here?
+def simple_transform(query,row,encode):
     """
     Convenience transform function that makes it easier to add transforms to your records.
     """
-    for col, function in self._simple_transform.items():
+    for col, function in query._simple_transform.items():
         if col in row:
             msg = f'Transforming {col} from {row[col]}'
             if encode == pysimplesql.TFORM_DECODE:
@@ -3561,7 +3567,7 @@ class ColumnInfo(List):
                     default = c.default.strip('"\'')  # strip leading and trailing quotes
 
             d[c.name]= default
-        if q_obj.transform is not None: q_obj.transform(d, TFORM_DECODE)
+        if q_obj.transform is not None: q_obj.transform(q_obj, d, TFORM_DECODE)
         return d
 
     def set_null_default(self, sql_type:str, value:object) -> None:
