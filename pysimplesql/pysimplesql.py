@@ -3059,7 +3059,7 @@ class TableHeadings(list):
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
-    def add_column(self, heading_column:str, column_name:str, width:int, visible:bool=True) -> None:
+    def add_column(self, column_name: str, heading_column: str, width: int, visible: bool = True) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
         Note that the primary key column does not need to be included, as primary keys are stored internally in the

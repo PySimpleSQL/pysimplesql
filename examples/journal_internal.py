@@ -47,9 +47,9 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
 headings=ss.TableHeadings(sort_enable=True)
-headings.add_column('Title', 'title', width=40)
-headings.add_column('Date',  'entry_date', width=10)
-headings.add_column('Mood',  'mood_id', width=20)
+headings.add_column('title', 'Title', width=40)
+headings.add_column('entry_date', 'Date', width=10)
+headings.add_column('mood_id', 'Mood', width=20)
 
 layout=[
     [ss.selector('Journal', 'sel_journal', sg.Table, num_rows=10, headings=headings)],
