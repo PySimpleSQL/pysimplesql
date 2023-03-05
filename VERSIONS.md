@@ -43,6 +43,16 @@ various bug fixes in the prompt_save system
 Bug fix for similar names used in multiple selectors
 Bug fix for primary keys that start at 1 vs at 0
 Various optimizations and performance increases
+### Reverse Compatibility
+The order of some parameters have changed to make parameter order more universal.  Now, if a function or method deals
+with the database (table, column, etc), that parameter is listed first.  As a result, the parameter order of 
+ss.actions() and ss.selector() have changed to be more in line with ss.record()
+
+The process for creating a form has changed slightly.  Previous versions of pysimplesql only supported SQLite.  Now,
+with 4 different database drivers available, the process has changed a little.  The new work flow is:
+1) Create your layout and PySimpleGUI window
+2) **new** Define your driver. For example, for SQLite: driver = SQLite(":memory:"...)
+3) **slightly different** Create your form, binding the driver to the window: frm = Form(driver, win)
 
 ## <v2.3.0>
 ### Released 02/03/23
