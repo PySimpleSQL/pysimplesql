@@ -660,8 +660,10 @@ class Query:
         if self.current_index is None or self.rows == [] or self._prompt_save is False:
             return PROMPT_SAVE_NONE
 
+        # See if any rows are virtual
+        vrows = len([row for row in self.rows if row.virtual])
         # Check if any records have changed
-        changed = self.records_changed() or len([row for row in self.rows if row.virtual])
+        changed = self.records_changed() or vrows
         if changed:
             if autosave or self.autosave:
                 save_changes = 'Yes'
@@ -674,7 +676,7 @@ class Query:
                 return PROMPT_SAVE_PROCEED
             else:
                 self.rows.purge_virtual()
-                self.frm.update_elements(self.table)
+                if vrows: self.frm.update_elements(self.table)
                 return PROMPT_SAVE_DISCARDED
         else:
             return PROMPT_SAVE_NONE
