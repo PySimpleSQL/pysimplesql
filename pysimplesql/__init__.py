@@ -3,6 +3,7 @@
 from .pysimplesql import *
 from update_checker import UpdateChecker # pip install update-checker
 
+
 __name__ = "pysimplesql"
 __version__ = "develop"
 __keywords__ = ["SQL", "sqlite", "sqlite3", "database", "front-end", "access", "libre office", "GUI", "PySimpleGUI"]

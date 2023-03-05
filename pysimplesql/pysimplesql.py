@@ -23,8 +23,16 @@ import functools
 import os.path
 import logging
 import pysimplesql ## Needed for quick_edit pop-ups
+
+# Wrap this in a try block so that pysimplesql can be imported as a single file if desired
+try:
+    from .reserved_sql_keywords import ADAPTERS as RESERVED
+except ModuleNotFoundError:
+    # At least make a minimum default # TODO expland defaults to cover common collisions
+    RESERVED = {'all': {'DEFAULT','KEY','GROUP', 'TABLE', 'COLUMN', 'ORDER'}}
+
 # Load database backends if present
-supported_databases = ['SQLite3','MySQL','PostgreSQL','CSV']
+supported_databases = ['SQLite3','MySQL','PostgreSQL','Flatfile']
 failed_modules = 0
 try:
     import sqlite3
@@ -1869,6 +1877,11 @@ class Form:
                 else:
                     where_column,where_value=where_info.split('=')
 
+                # make sure we don't use reserved keywords that could end up in a query
+                for keyword in [table, col, where_column, where_value]:
+                    if keyword is not None and keyword != '':
+                        check_keyword(keyword)
+
                 if table in self.queries:
                     if col in self[table].column_info:
                         # Map this element to table.column
@@ -2639,6 +2652,21 @@ def checkbox_to_bool(value):
     """
     return str(value).lower() in ['y','yes','t','true','1']
 
+class ReservedKeywordError(Exception):
+    pass
+def check_keyword(keyword:str) -> None:
+    """
+    Check keyword to see if it is a reserved word.  If it is raise a ReservedKeywordError
+
+    :param keyword: the value to check against reserved words
+    :returns: None
+    """
+    global RESERVED
+
+    if keyword.upper() in RESERVED['all']:
+        raise ReservedKeywordError(f"`{keyword}` is a reserved keyword and cannot be used for table or column names.")
+
+
 class KeyGen():
     """
     The keygen system provides a mechanism to generate unique keys for use as PySimpleGUI element keys.
@@ -2814,7 +2842,6 @@ def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None
         where_info = None
         label_text = table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     table, column = table_info.split('.')
-
 
     key = keygen.get(record) if 'key' not in kwargs else kwargs['key']
     # Now we can safely get rid of the key in kwargs so that it doesn't get passed twice
@@ -2997,6 +3024,7 @@ def selector(table_name: str, element: sg.Element = sg.LBox, size: Tuple[int, in
 
     """
     global keygen
+
     key = f'{table_name}:selector' if key is None else key
     key=keygen.get(key)
 
