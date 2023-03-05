@@ -1091,7 +1091,7 @@ class Query:
                 return SAVE_FAIL + SHOW_MESSAGE
 
         # Check right away to see if any records have changed, no need to proceed any further than we have to
-        if not self.records_changed(recursive=False) :
+        if not self.records_changed(recursive=False) and self.frm.force_save is False:
             if display_message:  sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
 
@@ -1541,6 +1541,7 @@ class Form:
         self.relationships:List[Relationship] = []
         self.callbacks:Dict[str,Callable[[Form,sg.Window],Union[None,bool]]] = {}
         self.autosave:bool = autosave
+        self.force_save:bool = False
 
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
@@ -2081,6 +2082,15 @@ class Form:
         if user_prompted:
             self.save_records(check_prompt_save=True)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
+
+    def set_force_save(self, force:bool=False) -> None:
+        """
+        Force save without checking for changes first, so even an unchanged record will be written back to the database.
+
+        :param force: True to force unchanged records to save.
+        :returns: None
+        """
+        self.force_save = force
 
     def save_records(self, table_name:str=None, cascade_only:bool=False, check_prompt_save:bool=False,) \
                     -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
