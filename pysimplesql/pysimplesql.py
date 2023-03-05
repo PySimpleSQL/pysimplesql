@@ -1096,7 +1096,7 @@ class Query:
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data
+        # Note that while saving, we are working with just the current row of data, unless it's 'keyed' via ?/= 
         current_row = self.get_current_row().copy()
 
         # Track the keyed queries we have to run.  Set to None so we can tell later if there were keyed elements
@@ -4333,38 +4333,96 @@ class Sqlite(SQLDriver):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# CSV DRIVER
+# FLATFILE DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 # The CSV driver uses SQlite3 in the background to use pysimplesql directly with CSV files
-class Csv(Sqlite):
-    def __init__(self, csv_path=None, separator=','):
-        super().__init__(':memory:')
-        super(Sqlite,self).__init__(name='Csv', placeholder='?')
+class Flatfile(Sqlite):
+    """
+    The Flatfile driver adds support for flatfile databases such as CSV files to pysimplesql.
+    The flatfile data is loaded into an internal SQlite database, where it can be used and manipulated like any other
+    database file.  Each timem records are saved, the contents of the internal SQlite database are written back out
+    to the file. This makes working with flatfile data as easy and consistent as any other database.
+    """
+    def __init__(self, file_path:str, delimiter:str=',', quotechar:str='"', header_row_num:int = 0,
+                 table_name:str = None, pk_col:str=None) -> None:
+        """
+        Create a new Flatfile driver instance
+
+        :param file_path: The path to the flatfile
+        :param delimiter: The delimiter for the flatfile. Defaults to ','.  Tabs ('\t') are another popular option
+        :param quotechar: The quoting character specified by the flatfile. Defaults to '"'
+        :param header_row_num: The row containing the header column names.  Defaults to 0
+        :param table_name: The name to give this table in pysimplesql. Default is 'Flatfile'
+        :param pk_col: The column name that acts as a primary key for the dataset. See below how to use this parameter:
+                       - If no pk_col parameter is supplied, then a generic primary key column named 'pk' will be generated
+                         with AUTO INCREMENT and PRIMARY KEY set.  This is a virtual column and will not be written back
+                         out to the flatfile.
+                       - If the pk_col parameter is supplied, and it exists in the header row, then it will be used
+                         as the primary key for the dataset.  If this column does not exist in the header row, then a
+                         virtual primary key column with this name will be created with AUTO INCREMENT and PRIMARY KEY set.
+                         As above, the virtual primary key column that was created will not be written to the flatfile.
+
+        """
+
+        # First up the SQLite driver that we derived from
+        super().__init__(':memory:')  # use an in-memory database
+
+        # Store our Flatfile-specific information
+        self.name = 'Flatfile'
+        self.placeholder = '?'  # update
         self.connect(':memory:')
-        self.csv_path = csv_path
-        self.separator = separator
-        self.table_name = self.quote_table('csv')
+        self.file_path = file_path
+        self.delimiter = delimiter
+        self.quotechar = quotechar
+        self.header_row_num = header_row_num
+        self.pk_col = pk_col if pk_col is not None else 'pk'
+        self.pk_col_is_virtual = False
+        self.table_name = table_name if table_name is not None else 'Flatfile'
         self.con.row_factory = sqlite3.Row
+        self.pre_header = [] # Store any text up to the header line so they can be restored
 
-        # Open the CSV file and read the first row to get column names
-        with open(csv_path, 'r') as f:
-            reader = csv.reader(f)
-            columns = next(reader)
+        # Open the CSV file and read the header row to get column names
+        with open(file_path, 'r') as f:
+            reader = csv.reader(f, delimiter = self.delimiter, quotechar=self.quotechar)
+            # skip lines as determined by header_row_num
+            for i in range(self.header_row_num):
+                self.pre_header.append(next(reader))
 
-        self.columns = columns # save for writing out later
+            # Grab the header row information
+            self.columns = next(reader)
 
-        # Construct the SQL commands to create a temporary table
-        q_cols = ', '.join([f'{col} TEXT' for col in columns])
-        query = f'CREATE TEMP TABLE {self.table_name} ({q_cols})'
+        if self.pk_col not in self.columns:
+            # The pk column was not found, we will make it virutal
+            self.columns.insert(0, self.pk_col)
+            self.pk_col_is_virtual = True
 
-        # Execute the SQL command to create the temporary table
+        # Construct the SQL commands to create the table to represent the flatfile data
+        q_cols = ''
+        for col in self.columns:
+            if col == self.pk_col:
+                q_cols += f'{col} {"INTEGER PRIMARY KEY AUTOINCREMENT" if self.pk_col_is_virtual else "PRIMARY KEY"}'
+            else:
+                q_cols += f'{col} TEXT'
+
+            if col != self.columns[-1]:
+                q_cols += ', '
+
+        query = f'CREATE TABLE {self.table_name} ({q_cols})'
         self.execute(query)
 
-        # Load the CSV data into the temporary table
-        with open(csv_path, 'r') as f:
-            reader = csv.reader(f)
-            next(reader)  # Skip the first row
-            query = f'INSERT INTO {self.table_name} ({", ".join(columns)}) VALUES ({", ".join(["?" for col in columns])})'
+        # Load the CSV data into the table
+        with open(self.file_path, 'r') as f:
+            reader = csv.reader(f, delimiter = self.delimiter, quotechar=self.quotechar)
+            # advance to past the header column
+            for i in range(self.header_row_num+1):
+                next(reader)
+
+            # We only want to insert the pk_column if it is not virtual. We will remove it now, as it has already
+            # served its purpose to create the table
+            if self.pk_col_is_virtual:
+                self.columns.remove(self.pk_col)
+
+            query = f'INSERT INTO {self.table_name} ({", ".join(self.columns)}) VALUES ({", ".join(["?" for col in self.columns])})'
             for row in reader:
                 self.execute(query, row)
 
@@ -4372,22 +4430,36 @@ class Csv(Sqlite):
 
 
     def save_record(self, q_obj: Query, changed_row: dict, where_clause: str = None) -> ResultSet:
+        # Have SQlite save this record
         result = super().save_record(q_obj, changed_row ,where_clause)
 
         if result.exception is None:
-            # Write our data back out to the CSV file
+            # No it is safe to write our data back out to the CSV file
 
-            rows = self.execute(f"SELECT * FROM {self.table_name}")
+            # Update the Query object's ResultSet with the changes, so then
+            # the entire ResultSet can be written back to file sequentially
+            q_obj.rows[q_obj.current_index] = changed_row
 
             # open the CSV file for writing
-            with open(self.csv_path, 'w', newline='') as csvfile:
+            with open(self.file_path, 'w', newline='\n') as csvfile:
                 # create a csv writer object
-                writer = csv.writer(csvfile)
+                writer = csv.writer(csvfile, delimiter=self.delimiter, quotechar=self.quotechar)
+
+                # Skip the number of lines defined by header_row_num. Write out the stored pre_header lines
+                for line in self.pre_header:
+                    writer.writerow(line)
 
                 # write the header row
                 writer.writerow([column for column in self.columns])
 
-                # write the data rows
+                # write the ResultSet out.  Use our columns to exclude the possible virtual pk
+                rows = []
+                for r in q_obj.rows:
+                    rows.append([r[c] for c in self.columns])
+
+
+                logger.debug(f'Writing the following data to {self.file_path}')
+                logger.debug(rows)
                 writer.writerows(rows)
 
         return result
