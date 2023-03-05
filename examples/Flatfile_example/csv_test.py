@@ -14,12 +14,12 @@ headings.add_column('phone', 'Phone #', width=10)
 headings.add_column('email', 'EMail', width=25)
 
 layout = [
-    [ss.selector('Flatfile', sg.Table, key='selector', num_rows=10, headings=headings)],
+    [ss.selector('Flatfile', sg.Table, num_rows=10, headings=headings)],
     [ss.record('Flatfile.name')],
     [ss.record('Flatfile.address')],
     [ss.record('Flatfile.phone')],
     [ss.record('Flatfile.email')],
-    [ss.actions('Flatfile', 'actions', edit_protect=False)]
+    [ss.actions('Flatfile', edit_protect=False)]
 ]
 
 # Create our PySimpleGUI Window

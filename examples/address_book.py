@@ -56,12 +56,14 @@ INSERT INTO Addresses VALUES (2, 1, "Sally", "Jones", "111 North St.","Suite A",
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-columns=['pkAddresses','firstName','lastName','city','fkState']
-headings=['pk','First name:    ','Last name:     ','City:        ','State']
-visible=[0,1,1,1,1] # Hide the primary key column
+headings = ss.TableHeadings()
+headings.add_column('firstName', 'First name:', 15)
+headings.add_column('lastName', 'Last name:', 15)
+headings.add_column('city', 'City:', 13)
+headings.add_column('fkState', 'State:', 5)
+
 layout=[
-    [ss.selector("Addresses", sg.Table, key="sel", headings=headings, visible_column_map=visible, columns=columns,
-                 num_rows=10)],
+    [ss.selector("Addresses", sg.Table, headings=headings, num_rows=10)],
     [ss.record("Addresses.fkGroupName", sg.Combo, size=(30, 10), auto_size_text=False)],
     [ss.record("Addresses.firstName", label="First name:")],
     [ss.record("Addresses.lastName", label="Last name:")],
@@ -70,14 +72,13 @@ layout=[
     [ss.record("Addresses.city", size=(23, 1), label="City/State:"),
      ss.record("Addresses.fkState", element=sg.Combo, size=(3, 10), no_label=True, quick_editor=False)],
     [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", size=(6, 1), no_label=True)],
-    [ss.actions("Addresses", "browser", edit_protect=False, duplicate=True)]
+    [ss.actions("Addresses", edit_protect=False, duplicate=True)]
 ]
-win=sg.Window('Journal example', layout, finalize=True, ttk_theme=ss.get_ttk_theme())
+win=sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.themepack.ttk_theme)
 # Connnect to a database
 driver=ss.Sqlite(':memory:', sql_commands=sql)
 # Create our frm
 frm=ss.Form(driver, bind=win)
-
 
 # Use a callback to validate the zip code
 frm['Addresses'].set_callback('before_save',validate_zip)
@@ -92,13 +93,7 @@ while True:
         # Use a timeout (As set in win.read() above) to check for changes and enable/disable the save button on the fly.
         # This could also be done by enabling events in the input controls, but this is much simpler (but less optimized)
         dirty = frm['Addresses'].records_changed()
-        win['browser.db_save'].update(disabled=dirty)
-        if dirty:
-            win['browser.db_save'].update(disabled=False)
-        else:
-            win['browser.db_save'].update(disabled=True)
-        # The above could have been written as below, but it's less verbose. Your choice!
-        # win['browser.db_save'].update(disabled=not dirty)
+        win['Addresses:db_save'].update(disabled = not dirty)
     elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
