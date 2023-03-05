@@ -1452,8 +1452,9 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            [pysimplesql.selector('quick_edit2', query_name, sg.Table, num_rows=10, headings=headings, visible_column_map=visible)])
-        layout.append([pysimplesql.actions("act_quick_edit2",query_name,edit_protect=False)])
+            [pysimplesql.selector(query_name, 'quick_edit2', sg.Table, num_rows=10, headings=headings,
+                                  visible_column_map=visible)])
+        layout.append([pysimplesql.actions(query_name, "act_quick_edit2", edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_info.names():
@@ -2837,7 +2838,7 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
     #return layout
     return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
 
-def actions(key:str, table_name:str, default:bool=True, edit_protect:bool=None, navigation:bool=None, insert:bool=None,
+def actions(table_name:str, key:str, default:bool=True, edit_protect:bool=None, navigation:bool=None, insert:bool=None,
             delete:bool=None, duplicate:bool=None, save:bool=None, search:bool=None, search_size:Tuple[int,int]=(30, 1),
             bind_return_key:bool=True, filter:str=None) -> sg.Column:
     """
@@ -2964,7 +2965,7 @@ def actions(key:str, table_name:str, default:bool=True, edit_protect:bool=None, 
 
 
 
-def selector(key:str, table_name:str, element:sg.Element=sg.LBox, size:Tuple[int,int]=None, filter:str=None,
+def selector(table_name: str, key: str, element: sg.Element = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
              **kwargs) -> sg.Element:
     """
     Selectors in pysimplesql are special elements that allow the user to change records in the database application.

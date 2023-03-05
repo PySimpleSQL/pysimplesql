@@ -41,9 +41,11 @@ record_columns=[
     [ss.record('Colors.primary_color',label= 'Primary Color?',element=sg.CBox)],
 ]
 selectors=[
-    [ss.selector('tableSelector', 'Colors', element=sg.Table, headings=headings, visible_column_map=visible,num_rows=10)],
-    [ss.selector('selector1','Colors', size=(15,10))],
-    [ss.selector('selector2','Colors',element=sg.Slider,size=(26,18)),ss.selector('selector3','Colors',element=sg.Combo, size=(30,10))],
+    [ss.selector('Colors', 'tableSelector', element=sg.Table, headings=headings, visible_column_map=visible,
+                 num_rows=10)],
+    [ss.selector('Colors', 'selector1', size=(15, 10))],
+    [ss.selector('Colors', 'selector2', element=sg.Slider, size=(26, 18)),
+     ss.selector('Colors', 'selector3', element=sg.Combo, size=(30, 10))],
 
 
 ]
@@ -51,7 +53,7 @@ layout = [
     [sg.Text(description)],
     [sg.Frame('Test out all of these selectors and watch the magic!',selectors)],
     [sg.Col(record_columns,vertical_alignment='t')],
-    [ss.actions('colorActions','Colors')]
+    [ss.actions('Colors', 'colorActions')]
 ]
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)

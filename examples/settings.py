@@ -44,7 +44,7 @@ layout=[
     # For the actions, we don't want to offer users to insert or delete records from the settings table,
     # and there is no use for navigation buttons due to the key,value nature of the data.  Therefore, we will
     # disable all actions (default=False) except for the Save action (save=True)
-    [ss.actions('nav','Settings',default=False, save=True)]
+    [ss.actions('Settings', 'nav', default=False, save=True)]
 ]
 
 # Initialize our window then bind it to the Form

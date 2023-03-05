@@ -37,8 +37,8 @@ INSERT INTO Journal (id,mood_id,title,entry)VALUES (2,4,"My 2nd entry!","I feel 
 headings=['id','Date:              ','Mood:      ','Title:                                 ']
 visible=[0,1,1,1] # Hide the id column
 layout=[
-    [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings,visible_column_map=visible)],
-    [ss.actions('act_journal','Journal',edit_protect=False)],
+    [ss.selector('Journal', 'sel_journal', sg.Table, num_rows=10, headings=headings, visible_column_map=visible)],
+    [ss.actions('Journal', 'act_journal', edit_protect=False)],
     [ss.record('Journal.entry_date')],
     [ss.record('Journal.mood_id', sg.Combo, size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],

@@ -67,49 +67,50 @@ pip3 install pysimplesql --upgrade
 
 ```python
 import PySimpleGUI as sg
-import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
-logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG)  # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # Define our layout. We will use the Form.record convenience function to create the controls
 layout = [
     [ss.record('Restaurant.name')],
     [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
+    [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('selector1','Item',size=(35,10))],
+    [ss.selector('Item', 'selector1', size=(35, 10))],
     [
         sg.Col(
             layout=[
                 [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False)],
+                [ss.record('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
                 [ss.record('Item.price')],
                 [ss.record('Item.description', sg.MLine, size=(30, 7))]
             ]
         )
     ],
-    #[ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
+    # [ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
 ]
 layout.append([sg.Frame('Items', sub_layout)])
-layout.append([ss.actions('act_restaurant','Restaurant')])
+layout.append([ss.actions('Restaurant', 'act_restaurant')])
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
 # Create our Form
-frm = ss.Form(':memory:', sql_script='example.sql', bind=win)      # <=== load the database
+frm = ss.Form(':memory:', sql_script='example.sql', bind=win)  # <=== load the database
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         logger.info('PySimpleDB event handler handled the event!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm=None              # <= ensures proper closing of the database and runs a database optimization at close
+        frm = None  # <= ensures proper closing of the database and runs a database optimization at close
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
@@ -256,6 +257,7 @@ to @pysimplesql.record() to have custom sizing of the control elements.  Even wi
 of @pysimplesql.record() will override the default control size, for plenty of flexibility.
 
 Place those two functions just above the layout definition shown in the example above and then run the code again
+
 ```python
 # set the sizing for the Restaurant section
 ss.set_label_size(10, 1)
@@ -266,7 +268,7 @@ layout = [
     [ss.record('Restaurant.fkType', sg.Combo, auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('selector1','Item')],
+    [ss.selector('Item', 'selector1')],
     [
         sg.Col(
             layout=[
@@ -277,10 +279,10 @@ sub_layout = [
             ]
         )
     ],
-    #[ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
+    # [ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
 ]
 layout.append([sg.Frame('Items', sub_layout)])
-layout.append([ss.actions('act_restaurant','Restaurant')])
+layout.append([ss.actions('Restaurant', 'act_restaurant')])
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91287363-a71ea680-e75d-11ea-8b2f-d240c1ec2acf.png)
 You will see that now, the controls were resized using the new sizing rules.  Notice however that the 'Description'
@@ -296,24 +298,24 @@ ss.set_control_size(90, 1)
 layout = [
     [ss.record('Restaurant.name')],
     [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
+    [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('selector1','Item',size=(35,10))],
+    [ss.selector('Item', 'selector1', size=(35, 10))],
     [
         sg.Col(
             layout=[
                 [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False)],
+                [ss.record('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
                 [ss.record('Item.price')],
                 [ss.record('Item.description', sg.MLine, size=(30, 7))]
             ]
         )
     ],
-    #[ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
+    # [ss.actions('act_item','Item', edit_protect=False,navigation=False,save=False, search=False)]
 ]
 layout.append([sg.Frame('Items', sub_layout)])
-layout.append([ss.actions('act_restaurant','Restaurant')])
+layout.append([ss.actions('act_restaurant', 'Restaurant')])
 ```
 ![image](https://user-images.githubusercontent.com/70232210/91288080-8e62c080-e75e-11ea-8438-86035d4d6609.png)
 
@@ -448,7 +450,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
     [ss.record(table, 'name', label='Fruit Name')],  # pysimplesql.record() convenience function for easy record creation!
-    [ss.actions(table)]  # pysimplesql.actions() convenience function for easy navigation controls!
+    [ss.actions(,table]  # pysimplesql.actions() convenience function for easy navigation controls!
 ]
 
 win = sg.Window('Navigation demo', layout, finalize=True)

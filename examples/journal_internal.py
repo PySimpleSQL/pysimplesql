@@ -52,8 +52,8 @@ headings.add_column('Date',  'entry_date', width=10)
 headings.add_column('Mood',  'mood_id', width=20)
 
 layout=[
-    [ss.selector('sel_journal','Journal',sg.Table,num_rows=10,headings=headings)],
-    [ss.actions('act_journal','Journal',edit_protect=False)],
+    [ss.selector('Journal', 'sel_journal', sg.Table, num_rows=10, headings=headings)],
+    [ss.actions('Journal', 'act_journal', edit_protect=False)],
     [ss.record('Journal.entry_date')],
     [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
     [ss.record('Journal.title')],
