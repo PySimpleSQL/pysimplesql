@@ -36,16 +36,16 @@ on this frm and watch it all just work!
 headings=['id','Name     ','Example                                          ','Primary Color?'] # Query column widths can be set by the spacing of the headings!
 visible=[0,1,1,1] # Hide the primary key column in the table
 record_columns=[
-    [ss.record('Colors.name',label='Color name:')],
-    [ss.record('Colors.example',label='Example usage: ')],
-    [ss.record('Colors.primary_color',label= 'Primary Color?',element=sg.CBox)],
+    [ss.record('Colors.name', label='Color name:')],
+    [ss.record('Colors.example', label='Example usage: ')],
+    [ss.record('Colors.primary_color', element=sg.CBox, label='Primary Color?')],
 ]
 selectors=[
-    [ss.selector('Colors', 'tableSelector', element=sg.Table, headings=headings, visible_column_map=visible,
+    [ss.selector('Colors', element=sg.Table, key='tableSelector', headings=headings, visible_column_map=visible,
                  num_rows=10)],
-    [ss.selector('Colors', 'selector1', size=(15, 10))],
-    [ss.selector('Colors', 'selector2', element=sg.Slider, size=(26, 18)),
-     ss.selector('Colors', 'selector3', element=sg.Combo, size=(30, 10))],
+    [ss.selector('Colors', size=(15, 10), key='selector1')],
+    [ss.selector('Colors', element=sg.Slider, size=(26, 18), key='selector2'),
+     ss.selector('Colors', element=sg.Combo, size=(30, 10), key='selector3')],
 
 
 ]

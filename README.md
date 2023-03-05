@@ -81,7 +81,7 @@ layout = [
     [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('Item', 'selector1', size=(35, 10))],
+    [ss.selector('Item', size=(35, 10), key='selector1')],
     [
         sg.Col(
             layout=[
@@ -249,6 +249,7 @@ adding your own keys in the Python list contained within.
 There is even more you can do with this. The @pysimplesql.record() method can take a PySimpleGUI™ control element as a 
 parameter as well, overriding the default Input() element.
 See this code which creates a combobox instead:
+
 ```python
 [ss.record('Restaurant.fkType', sg.Combo)]
 ```
@@ -268,7 +269,7 @@ layout = [
     [ss.record('Restaurant.fkType', sg.Combo, auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('Item', 'selector1')],
+    [ss.selector('Item', key='selector1')],
     [
         sg.Col(
             layout=[
@@ -301,7 +302,7 @@ layout = [
     [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('Item', 'selector1', size=(35, 10))],
+    [ss.selector('Item', size=(35, 10), key='selector1')],
     [
         sg.Col(
             layout=[
@@ -449,14 +450,15 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    [ss.record(table, 'name', label='Fruit Name')],  # pysimplesql.record() convenience function for easy record creation!
-    [ss.actions(,table]  # pysimplesql.actions() convenience function for easy navigation controls!
+    [ss.record(table, 'name', label='Fruit Name')],
+    # pysimplesql.record() convenience function for easy record creation!
+    [ss.actions(, table]  # pysimplesql.actions() convenience function for easy navigation controls!
 ]
 
 win = sg.Window('Navigation demo', layout, finalize=True)
 # note: Since win was passed as a parameter, binding is automatic (including event mapping!)
 # Also note, in-memory databases can be created with ":memory:"!
-db = ss.Database(':memory:', sql_commands=sql, bind=win) #<- Database can be used as an alias to Form!
+db = ss.Database(':memory:', sql_commands=sql, bind=win)  # <- Database can be used as an alias to Form!
 
 while True:
     event, values = win.read()
@@ -502,13 +504,18 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    [ss.record(table, 'name', label='Fruit Name')],  # pysimplesql.record() convenience function for easy record creation!
+    [ss.record(table, 'name', label='Fruit Name')],
+    # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
-    [sg.Button('<<', key=f'btnFirst', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_FIRST, 'table': table, 'function': None}),
-     sg.Button('<', key=f'btnPrevious', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_PREVIOUS, 'table': table, 'function': None}),
-     sg.Button('>', key=f'btnNext', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_NEXT, 'table': table, 'function': None}),
-     sg.Button('>>', key=f'btnLast', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_LAST, 'table': table, 'function': None})
-     ]
+    [sg.Button('<<', key=f'btnFirst', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_FIRST,
+                                                                    'table': table, 'function': None}),
+sg.Button('<', key=f'btnPrevious', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_PREVIOUS,
+                                                                 'table': table, 'function': None}),
+sg.Button('>', key=f'btnNext', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_NEXT,
+                                                             'table': table, 'function': None}),
+sg.Button('>>', key=f'btnLast', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_LAST,
+                                                              'table': table, 'function': None})
+]
 ]
 
 win = sg.Window('Navigation demo', layout, finalize=True)
@@ -563,7 +570,7 @@ layout = [
 win = sg.Window('Navigation demo', layout, finalize=True)
 # note: Since win was passed as a parameter, binding is automatic (including event mapping!)
 # Also note, in-memory databases can be created with ":memory:"!
-db = ss.Database(':memory:', sql_commands=sql,bind=win)
+db = ss.Database(':memory:', sql_commands=sql, bind=win)
 
 # Manually map the events, since we did not adhere to the naming convention that the automatic mapper expects
 db.map_event('btnFirst', db[table].first)

@@ -2,7 +2,7 @@ import PySimpleGUI as sg
 import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
 logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # -------------------------------------
 # CREATE A SIMPLE DATABASE TO WORK WITH
@@ -52,12 +52,12 @@ headings.add_column('entry_date', 'Date', width=10)
 headings.add_column('mood_id', 'Mood', width=20)
 
 layout=[
-    [ss.selector('Journal', 'sel_journal', sg.Table, num_rows=10, headings=headings)],
-    [ss.actions('Journal', 'act_journal', edit_protect=False)],
+    [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
+    [ss.actions('Journal', edit_protect=False)],
     [ss.record('Journal.entry_date')],
-    [ss.record('Journal.mood_id', sg.Combo, label='My mood:', size=(30,10), auto_size_text=False)],
+    [ss.record('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.record('Journal.title')],
-    [ss.record('Journal.entry', sg.MLine, size=(71,20))]
+    [ss.record('Journal.entry', sg.MLine, size=(71, 20))]
 ]
 win=sg.Window('Journal (internal) example', layout, finalize=True)
 driver=ss.Sqlite(':memory:', sql_commands=sql)
@@ -71,7 +71,7 @@ frm['Journal'].set_order_clause('ORDER BY entry_date ASC')
 frm['Journal'].set_search_order(['entry_date','title','entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
-
+print(win.key_dict.keys())
 # ---------
 # MAIN LOOP
 # ---------

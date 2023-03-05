@@ -60,15 +60,16 @@ columns=['pkAddresses','firstName','lastName','city','fkState']
 headings=['pk','First name:    ','Last name:     ','City:        ','State']
 visible=[0,1,1,1,1] # Hide the primary key column
 layout=[
-    [ss.selector("Addresses", "sel", sg.Table, headings=headings, visible_column_map=visible, columns=columns,
+    [ss.selector("Addresses", sg.Table, key="sel", headings=headings, visible_column_map=visible, columns=columns,
                  num_rows=10)],
-    [ss.record("Addresses.fkGroupName",sg.Combo,auto_size_text=False, size=(30,10))],
+    [ss.record("Addresses.fkGroupName", sg.Combo, size=(30, 10), auto_size_text=False)],
     [ss.record("Addresses.firstName", label="First name:")],
     [ss.record("Addresses.lastName", label="Last name:")],
     [ss.record("Addresses.address1", label="Address 1:")],
     [ss.record("Addresses.address2", label="Address 2:")],
-    [ss.record("Addresses.city", label="City/State:", size=(23,1)) ,ss.record("Addresses.fkState",element=sg.Combo, no_label=True, quick_editor=False, size=(3,10))],
-    [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", no_label=True,size=(6,1))],
+    [ss.record("Addresses.city", size=(23, 1), label="City/State:"),
+     ss.record("Addresses.fkState", element=sg.Combo, size=(3, 10), no_label=True, quick_editor=False)],
+    [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", size=(6, 1), no_label=True)],
     [ss.actions("Addresses", "browser", edit_protect=False, duplicate=True)]
 ]
 win=sg.Window('Journal example', layout, finalize=True, ttk_theme=ss.get_ttk_theme())

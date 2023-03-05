@@ -1132,21 +1132,16 @@ class Query:
                                 where_clause = f'WHERE {self.driver.quote_column(mapped.where_column)} = {self.driver.quote_value(mapped.where_value)}'
                                 keyed_queries.append({'column': mapped.column, 'changed_row': changed, 'where_clause': where_clause})
                 else:
-                    if '.' not in mapped.element.key:
-                        continue
-
                     current_row[mapped.column] = element_val
 
         changed_row = {k:v for k,v in current_row.items()}
-
-
         cascade_fk_changed = False
         # check to see if cascading-fk has changed before we update database
         cascade_fk_column = self.frm.get_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
-                if mapped.query == self and pysimplesql.get_record_info(mapped.element.key)[1] == cascade_fk_column:
+                if mapped.query == self and mapped.column == cascade_fk_column:
                     cascade_fk_changed = self.records_changed(column_name=cascade_fk_column, recursive=False)
 
         # Update the database from the stored rows
@@ -1457,7 +1452,7 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            [pysimplesql.selector(query_name, 'quick_edit2', sg.Table, num_rows=10, headings=headings,
+            [pysimplesql.selector(query_name, sg.Table, key='quick_edit2', num_rows=10, headings=headings,
                                   visible_column_map=visible)])
         layout.append([pysimplesql.actions(query_name, "act_quick_edit2", edit_protect=False)])
         layout.append([sg.Text('')])
@@ -1854,10 +1849,11 @@ class Form:
             # Map Record Element
             if element.metadata['type']==TYPE_RECORD:
                 # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-                if '?' in key:
-                    table_info, where_info = key.split('?')
+                record = element.metadata['record']
+                if '?' in record:
+                    table_info, where_info = record.split('?')
                 else:
-                    table_info = key;
+                    table_info = record;
                     where_info = None
                 try:
                     table, col = table_info.split('.')
@@ -1885,7 +1881,7 @@ class Form:
                 else:
                     query_info = k;
                     where_info = where_column = where_value = None
-                query= query_info # TODO audit this code, as query is overwritten in the next line!
+                query= query_info
 
                 if query in self.queries:
                     self[query].add_selector(element,query,where_column,where_value)
@@ -1986,12 +1982,12 @@ class Form:
                 continue
             if element.metadata['type'] == TYPE_EVENT:
                 event_type=element.metadata['event_type']
-                query=element.metadata['query']
+                table=element.metadata['table']
+                column = element.metadata['column']
                 function=element.metadata['function']
-
                 funct=None
 
-                event_query=query if query in self.queries else None
+                event_query=table if table in self.queries else None
                 if event_type==EVENT_FIRST:
                     if event_query: funct=self[event_query].first
                 elif event_type==EVENT_PREVIOUS:
@@ -2015,15 +2011,14 @@ class Form:
                     funct=self.save_records
                 elif event_type==EVENT_SEARCH:
                     # Build the search box name
-                    search_element,command=key.split('.')
-                    search_box=f'{search_element}.input_search'
+                    search_element,command=key.split(':')
+                    search_box=f'{search_element}.search_input'
                     if event_query: funct=functools.partial(self[event_query].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
-                    t,c,e=key.split('.') #table, column, event
-                    referring_table=query
-                    query=self[query].get_related_table_for_column(c)
-                    funct=functools.partial(self[query].quick_editor,self[referring_table].get_current,c)
+                    referring_table=table
+                    table=self[table].get_related_table_for_column(column)
+                    funct=functools.partial(self[table].quick_editor,self[referring_table].get_current,column)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
                 else:
@@ -2194,23 +2189,23 @@ class Form:
             
             for m in (m for m in self.event_map if m['table'] == t):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
-                if ('.table_delete' in m['event']) or ('.table_duplicate' in m['event']):
+                if (':table_delete' in m['event']) or (':table_duplicate' in m['event']):
                     disable = len(self[t].rows) == 0 or self._edit_protect
                     win[m['event']].update(disabled=disable)
                     
-                elif '.table_first' in m['event']:
+                elif ':table_first' in m['event']:
                     disable = len(self[t].rows) < 2 or self[t].current_index == 0
                     win[m['event']].update(disabled=disable)
                 
-                elif '.table_previous' in m['event']:
+                elif ':table_previous' in m['event']:
                     disable = len(self[t].rows) < 2 or self[t].current_index == 0
                     win[m['event']].update(disabled=disable)
                     
-                elif '.table_next' in m['event']:
+                elif ':table_next' in m['event']:
                     disable = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
                     win[m['event']].update(disabled=disable)
                     
-                elif '.table_last' in m['event']:
+                elif ':table_last' in m['event']:
                     disable = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
                     win[m['event']].update(disabled=disable)
 
@@ -2220,22 +2215,22 @@ class Form:
                     disable = len(self[parent].rows) == 0 or self._edit_protect
                 else:
                     disable = self._edit_protect
-                if '.table_insert' in m['event']:
+                if ':table_insert' in m['event']:
                     if m['table'] == t:
                         win[m['event']].update(disabled=disable)
 
                 # Disable db_save when needed
                 disable = self._edit_protect
-                if '.db_save' in m['event']:
+                if ':db_save' in m['event']:
                     win[m['event']].update(disabled=disable)
 
                 # Disable table_save when needed
                 disable = self._edit_protect
-                if '.table_save' in m['event']:
+                if ':table_save' in m['event']:
                     win[m['event']].update(disabled=disable)
 
                 # Enable/Disable quick edit buttons
-                if '.quick_edit' in m['event']:
+                if ':quick_edit' in m['event']:
                     win[m['event']].update(disabled=disable)
         if edit_protect_only: return
 
@@ -2251,11 +2246,11 @@ class Form:
             if mapped.element in omit_elements: continue
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
-            marker_key = mapped.element.key + '.marker'
+            marker_key = mapped.element.key + ':marker'
             try:
                 if mapped.query.get_current_row().virtual:
                     # get the column name from the key
-                    col = marker_key.split(".")[1]
+                    col = mapped.column
                     # get notnull from the column info
                     if col in mapped.query.column_info.names():
                         if mapped.query.column_info[col].notnull:
@@ -2556,7 +2551,7 @@ class Utility():
     module.
 
     See the documentation for the following utility functions:
-    `sprocess_events()`, `supdate_elements()`, `bind()`, `get_record_info()`, `simple_transform()`, `KeyGen`,
+    `sprocess_events()`, `supdate_elements()`, `bind()`, `simple_transform()`, `KeyGen`,
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
@@ -2602,15 +2597,6 @@ def bind(win:sg.Window) -> None:
     for i in Form.instances:
         i.bind(win)
 
-def get_record_info(record:str) -> Tuple[str,str]:
-    """
-    Take a table.column string and return a tuple of the same
-
-    :param record: A table.column string that needs separated
-    :returns: (table,column) Tuple of table and column
-    """
-    return record.split('.')
-
 def simple_transform(query,row,encode):
     """
     Convenience transform function that makes it easier to add transforms to your records.
@@ -2648,7 +2634,7 @@ class KeyGen():
     the screen at the same time, they must have unique names.  The keygen will append a separator and an incremental number
     to keys that would otherwise be duplicates. A global KeyGen instance is created automatically, see `keygen` for info.
     """
-    def __init__(self, separator=':'):
+    def __init__(self, separator='!'):
         """
         Create a new KeyGen instance
 
@@ -2777,17 +2763,18 @@ def set_mline_size(w:int, h:int) -> None:
 
 
 
-def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str='', no_label:bool=False,
-           label_above:bool=False, quick_editor:bool=True, filter=None, **kwargs) -> sg.Column:
+def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None, label: str = '',
+           no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None,
+           key=None, **kwargs) -> sg.Column:
     """
     Convenience function for adding PySimpleGUI elements to the Window so they are properly configured for pysimplesql
-    The automatic functionality of pysimplesql relies on PySimpleGUI elements to have the key {Query}.{name}, as well as
-    have some accompanying metadata so that the `Form.auto_add_elements()` can pick them up.
-    This convenience function will create a text label, along with a element with the above naming convention and
-    metadata set up for you.
+    The automatic functionality of pysimplesql relies on accompanying metadata so that the `Form.auto_add_elements()`
+    can pick them up. This convenience function will create a text label, along with a element with the above metadata
+    already set up for you.
+    Note: The element key will default to the record name if none is supplied.
     See `set_label_size()`, `set_element_size()` and `set_mline_size()` for setting default sizes of these elements.
 
-    :param key: The key must be named table.column in order to map to the database properly
+    :param record: The database record in the form of table.column I.e. 'Journal.entry'
     :param element: (optional) The element type desired (defaults to PySimpleGUI.Input)
     :param size: Overrides the default element size that was set with `set_element_size()` for this element only
     :param label: The text/label will automatically be generated from the column name. If a different text/label is
@@ -2797,6 +2784,7 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
     :param quick_editor: For records that reference another table, place a quick edit button next to the element
     :param filter: Can be used to reference different `Form`s in the same layout.  Use a matching filter when creating
             the `Form` with the filter parameter.
+    :param key: (optional) The key to give this element. See note above about the default auto generated key
     :param kwargs: Any additional arguments will be passed on to the PySimpleGUI element
     :returns: Element(s) to be used in the creation of PySimpleGUI layouts.  Note that this function actually creates
               multiple Elements wrapped in a PySimpleGUI Column, but can be treated as a single Element.
@@ -2806,17 +2794,20 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
     global themepack
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-    if '?' in key:
-        query_info, where_info = key.split('?')
+    if '?' in record:
+        table_info, where_info = record.split('?')
         label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     else:
-        query_info = key
+        table_info = record
         where_info = None
-        label_text = query_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
-    query, column = query_info.split('.')
+        label_text = table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    table, column = table_info.split('.')
 
 
-    key=keygen.get(key)
+    key = keygen.get(record) if 'key' not in kwargs else kwargs['key']
+    # Now we can safely get rid of the key in kwargs so that it doesn't get passed twice
+    if 'key' in kwargs: del kwargs['key']
+
 
     if 'values' in kwargs:
         first_param=kwargs['values']
@@ -2825,11 +2816,11 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
         first_param=''
 
     if element.__name__ == 'Multiline':
-        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': record}, **kwargs)
     else:
-        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': record}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size)
-    layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}.marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0,0)) # Marker for required (notnull) records
+    layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
     if no_label:
         layout = [[layout_marker, layout_element]]
     elif label_above:
@@ -2838,7 +2829,7 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
         layout = [[layout_label , layout_marker, layout_element]]
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'query': query, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'column': column, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.quick_edit) is bytes:
             layout[-1].append(sg.B('', key=keygen.get(f'{key}.quick_edit'), size=(1, 1), image_data=themepack.quick_edit, metadata=meta))
         else:
@@ -2846,7 +2837,7 @@ def record(key:str, element:sg.Element=sg.I, size:Tuple[int,int]=None, label:str
     #return layout
     return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
 
-def actions(table_name:str, key:str, default:bool=True, edit_protect:bool=None, navigation:bool=None, insert:bool=None,
+def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None, navigation:bool=None, insert:bool=None,
             delete:bool=None, duplicate:bool=None, save:bool=None, search:bool=None, search_size:Tuple[int,int]=(30, 1),
             bind_return_key:bool=True, filter:str=None) -> sg.Column:
     """
@@ -2856,14 +2847,16 @@ def actions(table_name:str, key:str, default:bool=True, edit_protect:bool=None, 
     over what is available to the user of your database application. Check out `ThemePacks` to give any of these auto
     generated controls a custom look!
 
-    :param key: The key to give these controls. Note that this is a root key, and the various elements will build from
-                this root key.  For example, if the root key 'action' is used, then the following element keys will be
-                generated (depending on parameters set) of:
-                action.edit_protect, action.db_save, action.table_first, action.table_previous, action.table_next,
-                action.table_last, action.table_duplicate, action.table_insert, action.table_delete, action.input_search,
-                action.table_search. Also note that these autogenerated keys also pass through the `KeyGen`, so it's
-                possible that these keys could be action.table_last:1, action.table_last:2, etc.
+    Note: By default, the base element keys generated for PySimpleGUI will be table!action usint the name of the table
+    passed in the table_name parameter plus the action strings below separated by a colon: (I.e. Journal:table_insert)
+    edit_protect, db_save, table_first, table_previous, table_next, table_last, table_duplicate, table_insert,
+    table_delete, search_input, search_button.
+    If you supply a key with the key parameter, then these additional strings will be appended to that key. Also note
+    that these autogenerated keys also pass through the `KeyGen`, so it's possible that these keys could be
+    selector:table_last!1, selector:table_last!2, etc.
+
     :param table_name: The table name that this "element" will provide actions for
+    :param key: (optional) The base key to give the generated elements
     :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
                     The individual keyword arguments will trump the default parameter.  This allows for starting with
                     all actions defualted False, then individual ones can be enabled with True - or the opposite by
@@ -2893,105 +2886,108 @@ def actions(table_name:str, key:str, default:bool=True, edit_protect:bool=None, 
     duplicate = default if duplicate is None else duplicate
     save = default if save is None else save
     search = default if search is None else search
+    key = f'{table_name}:' if key is None else f'{key}:'
 
     layout = []
-    meta = {'type': TYPE_EVENT, 'event_type': None, 'query': None, 'function': None, 'Form': None, 'filter': filter}
 
     # Form-level events
     if edit_protect:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'query': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'table': None, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.edit_protect) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
+            layout.append(sg.B('', key=keygen.get(f'{key}edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
                                image_data=themepack.edit_protect, metadata=meta))
         else:
-            layout.append(sg.B(themepack.edit_protect, key=keygen.get(f'{key}.edit_protect'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.edit_protect, key=keygen.get(f'{key}edit_protect'), metadata=meta, use_ttk_buttons = True))
     if save:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'table': None, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.save) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.db_save'), size=(1, 1), button_color=('white', 'white'), image_data=themepack.save,
+            layout.append(sg.B('', key=keygen.get(f'{key}db_save'), size=(1, 1), button_color=('white', 'white'), image_data=themepack.save,
                                metadata=meta))
         else:
-            layout.append(sg.B(themepack.save, key=keygen.get(f'{key}.db_save'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.save, key=keygen.get(f'{key}db_save'), metadata=meta, use_ttk_buttons = True))
 
     # Query-level events
     if navigation:
         # first
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.first) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_first'), size=(1, 1), image_data=themepack.first, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_first'), size=(1, 1), image_data=themepack.first, metadata=meta))
         else:
-            layout.append(sg.B(themepack.first, key=keygen.get(f'{key}.table_first'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.first, key=keygen.get(f'{key}table_first'), metadata=meta, use_ttk_buttons = True))
         # previous
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.previous) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_previous'), size=(1, 1), image_data=themepack.previous, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_previous'), size=(1, 1), image_data=themepack.previous, metadata=meta))
         else:
-            layout.append(sg.B(themepack.previous, key=keygen.get(f'{key}.table_previous'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.previous, key=keygen.get(f'{key}table_previous'), metadata=meta, use_ttk_buttons = True))
         # next
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.next) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_next'), size=(1, 1), image_data=themepack.next, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_next'), size=(1, 1), image_data=themepack.next, metadata=meta))
         else:
-            layout.append(sg.B(themepack.next, key=keygen.get(f'{key}.table_next'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.next, key=keygen.get(f'{key}table_next'), metadata=meta, use_ttk_buttons = True))
         # last
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.last) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_last'), size=(1, 1), image_data=themepack.last, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_last'), size=(1, 1), image_data=themepack.last, metadata=meta))
         else:
-            layout.append(sg.B(themepack.last, key=keygen.get(f'{key}.table_last'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.last, key=keygen.get(f'{key}table_last'), metadata=meta, use_ttk_buttons = True))
     if duplicate:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'query': table_name, 'function': None, 'Form': None,
-                'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.duplicate) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_duplicate'), size=(1, 1), button_color=('orange', 'orange'),
+            layout.append(sg.B('', key=keygen.get(f'{key}table_duplicate'), size=(1, 1), button_color=('orange', 'orange'),
                                image_data=themepack.duplicate, metadata=meta))
         else:
             layout.append(
-                sg.B(themepack.duplicate, key=keygen.get(f'{key}.table_duplicate'), metadata=meta, use_ttk_buttons=True))
+                sg.B(themepack.duplicate, key=keygen.get(f'{key}table_duplicate'), metadata=meta, use_ttk_buttons=True))
     if insert:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.insert) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
+            layout.append(sg.B('', key=keygen.get(f'{key}table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
                                image_data=themepack.insert, metadata=meta))
         else:
-            layout.append(sg.B(themepack.insert, key=keygen.get(f'{key}.table_insert'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.insert, key=keygen.get(f'{key}table_insert'), metadata=meta, use_ttk_buttons = True))
     if delete:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.delete) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}.table_delete'), size=(1, 1), button_color=('white', 'red'),
+            layout.append(sg.B('', key=keygen.get(f'{key}table_delete'), size=(1, 1), button_color=('white', 'red'),
                             image_data=themepack.delete, metadata=meta))
         else:
-            layout.append(sg.B(themepack.delete, key=keygen.get(f'{key}.table_delete'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.delete, key=keygen.get(f'{key}table_delete'), metadata=meta, use_ttk_buttons = True))
     if search:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'query': table_name, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.search) is bytes:
-            layout+=[sg.Input('', key=keygen.get(f'{key}.input_search'), size=search_size),sg.B('', key=keygen.get(f'{key}.table_search'), bind_return_key=bind_return_key, size=(1, 1), button_color=('white', 'red'),
+            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B('', key=keygen.get(f'{key}search_button'), bind_return_key=bind_return_key, size=(1, 1), button_color=('white', 'red'),
                                                                                             image_data=themepack.delete, metadata=meta, use_ttk_buttons = True)]
         else:
-            layout+=[sg.Input('', key=keygen.get(f'{key}.input_search'), size=search_size),sg.B(themepack.search, key=keygen.get(f'{key}.table_search'), bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = True)]
+            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B(themepack.search, key=keygen.get(f'{key}search_button'), bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = True)]
     return sg.Col(layout=[layout], pad=(0,0))
 
 
 
-def selector(table_name: str, key: str, element: sg.Element = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
-             **kwargs) -> sg.Element:
+def selector(table_name: str, element: sg.Element = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
+             key: str = None, **kwargs) -> sg.Element:
     """
     Selectors in pysimplesql are special elements that allow the user to change records in the database application.
     For example, Listboxes, Comboboxes and Tables all provide a convenient way to users to choose which record they
     want to select. This convenience function makes making selectors very quick and as easy as using a normal
     PySimpleGUI element.
 
-    :param key: The key to give to this selector
     :param table_name: The table name in the database that this selector will act on
     :param element: The type of element you would like to use as a selector (defaults to a Listbox)
     :param size: The desired size of this selector element
     :param filter: Can be used to reference different `Form`s in the same layout.  Use a matching filter when creating
                    the `Form` with the filter parameter.
+    :param key: (optional) The key to give to this selector. If no key is provided, it will default to table:selector
+                using the table specified in the table_name parameter. This is also passed through the keygen, so if
+                selectors all use the default name, they will be made unique. I.e. Journal:selector!1, Journal:selector!2, etc.
     :param kwargs: Any additional arguments supplied will be passed on to the PySimpleGUI element
 
     """
     global keygen
+    key = f'{table_name}:selector' if key is None else key
     key=keygen.get(key)
+
     meta = {'type': TYPE_SELECTOR, 'table': table_name, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
         layout = element(values=(), size=size or _default_element_size, key=key,
@@ -4558,7 +4554,7 @@ class Mysql(SQLDriver):
 
         for row in rows:
             name = row['Field']
-            # Capitolize and get rid of the extra information of the row type I.e. varchar(255) becomes VARCHAR
+            # Capitalize and get rid of the extra information of the row type I.e. varchar(255) becomes VARCHAR
             sql_type = row['Type'].split('(')[0].upper()
             notnull = True if row['Null'] == 'NO' else False
             default = row['Default']

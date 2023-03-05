@@ -9,15 +9,15 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 layout = [
     [ss.record('Restaurant.name')],
     [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, size=(30,10), auto_size_text=False)]
+    [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
-    [ss.selector('Item', 'selector1', size=(35, 10))],
+    [ss.selector('Item', size=(35, 10), key='selector1')],
     [
         sg.Col(
             layout=[
                 [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, size=(30,10), auto_size_text=False)],
+                [ss.record('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
                 [ss.record('Item.price')],
                 [ss.record('Item.description', sg.MLine, size=(30, 7))]
             ]

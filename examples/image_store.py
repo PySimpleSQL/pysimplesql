@@ -37,7 +37,7 @@ CREATE TABLE Image(
 layout=[
     [sg.Image(key='preview',size=(300,300))],
     [ss.record('Image.name')],
-    [ss.record('Image.data', visible=False, no_label=True)], # Hide this record - it is only here to recieve data to insert into the database
+    [ss.record('Image.data', no_label=True, visible=False)], # Hide this record - it is only here to recieve data to insert into the database
     [sg.Input(key='image_path'), sg.FileBrowse(target='image_path',file_types=(('PNG Images','*.png'),))],
     [ss.actions('actImage', 'Image', edit_protect=False)]
 ]
