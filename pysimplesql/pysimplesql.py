@@ -687,7 +687,8 @@ class Query:
             return PROMPT_SAVE_NONE
 
 
-    def requery(self, select_first:bool=True, filtered:bool=True, update:bool=True, dependents:bool=True) -> None:
+    def requery(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
+                requery_dependents: bool = True) -> None:
         """
         Requeries the table
         The `Query` object maintains an internal representation of the actual database table.
@@ -696,9 +697,9 @@ class Query:
         :param select_first: (optional) If True, the first record will be selected after the requery
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                          be generated. If False all records in the table will be fetched.
-        :param update: (optional) Passed to `Query.first()` to update_elements. Note that the select_first parameter
+        :param update_elements: (optional) Passed to `Query.first()` to update_elements. Note that the select_first parameter
                         must = True to use this parameter.
-        :param dependents: (optional) passed to `Query.first()` to requery_dependents. Note that the select_first
+        :param requery_dependents: (optional) passed to `Query.first()` to requery_dependents. Note that the select_first
                            parameter must = True to use this parameter.
         :returns: None
         """
@@ -736,73 +737,75 @@ class Query:
 
 
         if select_first:
-            self.first(skip_prompt_save=True, update=update, dependents=dependents) # We don't want to prompt save in this situation, since there was a requery of the data
+            self.first(update_elements=update_elements, requery_dependents=requery_dependents,
+                       skip_prompt_save=True)  # We don't want to prompt save in this situation, since there was a requery of the data
 
-    def requery_dependents(self,child:bool=False, update:bool=True) -> None:
+    def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
         """
         Requery parent `Query` instances as defined by the relationships of the table
 
         :param child: (optional) If True, will requery self. Default False; used to skip requery when called by parent.
-        :param update: (optional) passed to `Query.requery()` -> `Query.first()` to update_elements.
+        :param update_elements: (optional) passed to `Query.requery()` -> `Query.first()` to update_elements.
         :returns: None
         """
-        if child: self.requery(update=update,dependents=False) # dependents=False: we don't another recursive dependent requery
+        if child: self.requery(update_elements=update_elements,
+                               requery_dependents=False)  # dependents=False: we don't another recursive dependent requery
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.update_cascade:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
-                self.frm[rel.child_table].requery_dependents(child=True, update=update)
+                self.frm[rel.child_table].requery_dependents(child=True, update_elements=update_elements)
 
-    def first(self, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False) -> None:
+    def first(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False) -> None:
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
         `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
 
-        :param update: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param update_elements: (optional) Update the GUI elements after switching records
+        :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
         logger.debug(f'Moving to the first record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = 0
-        if dependents: self.requery_dependents(update=update)
-        if update: self.frm.update_elements(self.table)
+        if requery_dependents: self.requery_dependents(update_elements=update_elements)
+        if update_elements: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def last(self, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False):
+    def last(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
         `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
 
-        :param update: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param update_elements: (optional) Update the GUI elements after switching records
+        :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
         logger.debug(f'Moving to the last record of table {self.table}')
         if skip_prompt_save is False: self.prompt_save()
         self.current_index = len(self.rows) - 1
-        if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table)
+        if requery_dependents: self.requery_dependents()
+        if update_elements: self.frm.update_elements(self.table)
         # callback
         if 'record_changed' in self.callbacks.keys():
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def next(self, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False):
+    def next(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
         `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
 
-        :param update: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param update_elements: (optional) Update the GUI elements after switching records
+        :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
@@ -810,21 +813,21 @@ class Query:
             logger.debug(f'Moving to the next record of table {self.table}')
             if skip_prompt_save is False: self.prompt_save()
             self.current_index += 1
-            if dependents: self.requery_dependents()
-            if update: self.frm.update_elements(self.table)
+            if requery_dependents: self.requery_dependents()
+            if update_elements: self.frm.update_elements(self.table)
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def previous(self, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False):
+    def previous(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
         `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
 
-        :param update: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param update_elements: (optional) Update the GUI elements after switching records
+        :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
@@ -832,14 +835,15 @@ class Query:
             logger.debug(f'Moving to the previous record of table {self.table}')
             if skip_prompt_save is False: self.prompt_save()
             self.current_index -= 1
-            if dependents: self.requery_dependents()
-            if update: self.frm.update_elements(self.table)
+            if requery_dependents: self.requery_dependents()
+            if update_elements: self.frm.update_elements(self.table)
             # callback
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def search(self, search_string:str, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False) \
-        -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
+    def search(self, search_string: str, update_elements: bool = True, dependents: bool = True,
+               skip_prompt_save: bool = False) \
+            -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
         Move to the next record in the `Query` that contains `search_string`.
         Successive calls will search from the current position, and wrap around back to the beginning.
@@ -850,7 +854,7 @@ class Query:
         `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
 
         :param search_string: The search string to look for
-        :param update: (optional) Update the GUI elements after switching records
+        :param update_elements: (optional) Update the GUI elements after switching records
         :param dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: One of the following search values: `SEARCH_FAILED`, `SEARCH_RETURNED`, `SEARCH_ABORTED`
@@ -879,7 +883,7 @@ class Query:
                             old_index = self.current_index
                             self.current_index = i
                             if dependents: self.requery_dependents()
-                            if update: self.frm.update_elements(self.table)
+                            if update_elements: self.frm.update_elements(self.table)
 
                             # callback
                             if 'after_search' in self.callbacks.keys():
@@ -899,8 +903,8 @@ class Query:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index:int, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False,
-                     omit_elements:List[str]=[]) -> None:
+    def set_by_index(self, index: int, update_elements: bool = True, dependents: bool = True,
+                     skip_prompt_save: bool = False, omit_elements: List[str] = []) -> None:
         """
         Move to the record of the table located at the specified index in Query.
          Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -908,7 +912,7 @@ class Query:
         `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
 
         :param index: The index of the record to move to.
-        :param update: (optional) Update the GUI elements after switching records
+        :param update_elements: (optional) Update the GUI elements after switching records
         :param dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :param omit_elements: (optional) A list of elements to omit from updating
@@ -919,10 +923,10 @@ class Query:
 
         self.current_index = index
         if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table, omit_elements=omit_elements)
+        if update_elements: self.frm.update_elements(self.table, omit_elements=omit_elements)
 
-    def set_by_pk(self, pk:int, update:bool=True, dependents:bool=True, skip_prompt_save:bool=False,
-                  omit_elements:list=[str]) -> None:
+    def set_by_pk(self, pk: int, update_elements: bool = True, requery_dependents: bool = True,
+                  skip_prompt_save: bool = False, omit_elements: list = [str]) -> None:
         """
         Move to the record with this primary key
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
@@ -932,8 +936,8 @@ class Query:
         @Query.set_by_index
 
         :param pk: The record to move to containing the primary key
-        :param update: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param update_elements: (optional) Update the GUI elements after switching records
+        :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
@@ -949,8 +953,8 @@ class Query:
             else:
                 i += 1
 
-        if dependents: self.requery_dependents()
-        if update: self.frm.update_elements(self.table, omit_elements=omit_elements)
+        if requery_dependents: self.requery_dependents()
+        if update_elements: self.frm.update_elements(self.table, omit_elements=omit_elements)
 
     def get_current(self, column_name:str, default:Union[str,int]="") -> Union[str,int]:
         """
@@ -1069,7 +1073,8 @@ class Query:
         self.rows.insert(new_values)
 
         # and move to the new record
-        self.set_by_pk(new_values[self.pk_column], update=True, dependents=True, skip_prompt_save=True) # already saved
+        self.set_by_pk(new_values[self.pk_column], update_elements=True, requery_dependents=True,
+                       skip_prompt_save=True)  # already saved
         self.frm.update_elements(self.table)
 
     def save_record(self, display_message:bool=True, update_elements:bool=True) -> None:
@@ -1185,7 +1190,7 @@ class Query:
             # Lets refresh our data
             if current_row.virtual:
                 self.requery(select_first=False,
-                             update=False)  # Requery so that the new  row honors the order clause
+                             update_elements=False)  # Requery so that the new  row honors the order clause
                 self.set_by_pk(pk, skip_prompt_save=True)  # Then move to the record
 
 
@@ -1553,7 +1558,7 @@ class Form:
         # Add our default queries and relationships
         self.auto_add_queries(prefix_queries)
         self.auto_add_relationships()
-        self.requery_all(select_first=select_first, update=False, dependents=True)
+        self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
         if bind!=None:
             self.window=bind
             self.bind(self.window)
@@ -1896,7 +1901,8 @@ class Form:
                             # store the pk:
                             pk = self[query].get_current_pk()
                             sort_order = self[query].rows.sort_cycle(column_name, query)
-                            self[query].set_by_pk(pk, update=True, dependents=False, skip_prompt_save=True)
+                            self[query].set_by_pk(pk, update_elements=True, requery_dependents=False,
+                                                  skip_prompt_save=True)
                             table_heading.update_headings(element, column_name, sort_order)
 
                         table_heading.enable_sorting(element, callback_wrapper)
@@ -2442,7 +2448,8 @@ class Form:
             self.callbacks['update_elements'](self, self.window)
 
 
-    def requery_all(self, select_first:bool=True, filtered:bool=True, update:bool=True, dependents:bool=True) -> None:
+    def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
+                    requery_dependents: bool = True) -> None:
         """
         Requeries all `Query` objects associated with this `Form`
         This effectively re-loads the data from the database into `Query` objects
@@ -2451,9 +2458,9 @@ class Form:
                              after the requery
         :param filtered: passed to `Query.requery()`. If True, the relationships will be considered and an appropriate
                         WHERE clause will be generated. False will display all records from the table.
-        :param update: passed to `Query.requery()` -> `Query.first()` to `Form.update_elements()`. Note that the
+        :param update_elements: passed to `Query.requery()` -> `Query.first()` to `Form.update_elements()`. Note that the
                        select_first parameter must = True to use this parameter.
-        :param dependents: passed to `Query.requery()` -> `Query.first()` to `Form.requery_dependents()`. Note that the
+        :param requery_dependents: passed to `Query.requery()` -> `Query.first()` to `Form.requery_dependents()`. Note that the
                            select_first parameter must = True to use this parameter.
         :returns: None
         """
@@ -2461,7 +2468,8 @@ class Form:
         logger.info('Requerying all queries')
         for k in self.queries.keys():
             if self.get_parent(k) is None:
-                self[k].requery(select_first=select_first, filtered=filtered, update=update, dependents=dependents)
+                self[k].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
+                                requery_dependents=requery_dependents)
 
     def process_events(self, event:str, values:list) -> bool:
         """
@@ -2507,7 +2515,7 @@ class Form:
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
-                                table.set_by_pk(pk, True, omit_elements=[element]) # no need to update the selector!
+                                table.set_by_pk(pk, True, omit_elements=[element])  # no need to update the selector!
                                 changed=True
                             if changed:
                                 if 'record_changed' in table.callbacks.keys():
