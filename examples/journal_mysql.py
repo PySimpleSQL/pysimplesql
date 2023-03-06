@@ -28,7 +28,7 @@ driver = ss.Mysql(
     password='DMmCAFX2es',
     database='sql9598795'
 )
-frm= ss.Form(driver, bind=win)  #<=== Here is the magic!
+frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
 # Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 

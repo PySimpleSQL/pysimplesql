@@ -58,7 +58,7 @@ layout = [
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)
 driver = ss.Sqlite(':memory:', sql_commands=sql)
-frm= ss.Form(driver, bind=win)  #<=== Here is the magic!
+frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
 
 frm['Colors'].set_search_order(['name','example']) # the search box will search in both the name and example columns
 while True:

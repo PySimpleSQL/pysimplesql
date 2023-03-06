@@ -100,7 +100,7 @@ layout.append([ss.actions('Restaurant', 'act_restaurant')])
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
 # Create our Form
-frm = ss.Form(':memory:', sql_script='example.sql', bind=win)  # <=== load the database
+frm = ss.Form(':memory:', sql_script='example.sql', bind_window=win)  # <=== load the database
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 
@@ -456,13 +456,13 @@ table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
     [ss.field(table, 'name', label='Fruit Name')],
     # pysimplesql.record() convenience function for easy record creation!
-    [ss.actions(, table]  # pysimplesql.actions() convenience function for easy navigation controls!
+    [ss.actions(), table]  # pysimplesql.actions() convenience function for easy navigation controls!
 ]
 
 win = sg.Window('Navigation demo', layout, finalize=True)
 # note: Since win was passed as a parameter, binding is automatic (including event mapping!)
 # Also note, in-memory databases can be created with ":memory:"!
-db = ss.Database(':memory:', sql_commands=sql, bind=win)  # <- Database can be used as an alias to Form!
+db = ss.Database(':memory:', sql_commands=sql, bind_window=win)  # <- Database can be used as an alias to Form!
 
 while True:
     event, values = win.read()
@@ -574,7 +574,7 @@ layout = [
 win = sg.Window('Navigation demo', layout, finalize=True)
 # note: Since win was passed as a parameter, binding is automatic (including event mapping!)
 # Also note, in-memory databases can be created with ":memory:"!
-db = ss.Database(':memory:', sql_commands=sql, bind=win)
+db = ss.Database(':memory:', sql_commands=sql, bind_window=win)
 
 # Manually map the events, since we did not adhere to the naming convention that the automatic mapper expects
 db.map_event('btnFirst', db[table].first)

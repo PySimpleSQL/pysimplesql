@@ -1,13 +1,13 @@
 import PySimpleGUI as sg
-import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
-logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)  # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # -------------------------------------
 # CREATE A SIMPLE DATABASE TO WORK WITH
 # -------------------------------------
-sql="""
+sql = """
 DROP TABLE IF EXISTS Journal;
 DROP TABLE IF EXISTS Mood;
 
@@ -46,12 +46,12 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
-headings=ss.TableHeadings(sort_enable=True)
+headings = ss.TableHeadings(sort_enable=True)
 headings.add_column('title', 'Title', width=40)
 headings.add_column('entry_date', 'Date', width=10)
 headings.add_column('mood_id', 'Mood', width=20)
 
-layout=[
+layout = [
     [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
     [ss.actions('Journal', edit_protect=False)],
     [ss.field('Journal.entry_date')],
@@ -59,16 +59,16 @@ layout=[
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
-win=sg.Window('Journal (internal) example', layout, finalize=True)
-driver=ss.Sqlite(':memory:', sql_commands=sql)
-frm= ss.Form(driver, bind=win)  #<=== Here is the magic!
+win = sg.Window('Journal (internal) example', layout, finalize=True)
+driver = ss.Sqlite(':memory:', sql_commands=sql)
+frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 # Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date ASC')
-# Set the column order for search operations.  By default, only the column designated as the description column is searched
-frm['Journal'].set_search_order(['entry_date','title','entry'])
+# Set the column order for search operations.  By default, only the designated description column is searched
+frm['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
 
@@ -89,8 +89,8 @@ win.close()
 
 """
 I hope that you enjoyed this simple demo of a Journal database.  
-Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full database-backed
-usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
+Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full 
+database-backed usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
 - Using Data.set_search_order() to set the search order of the query for search operations.

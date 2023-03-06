@@ -54,23 +54,23 @@ Naming conventions can fall under 4 categories:
 
 # The first two imports are for docstrings
 from __future__ import annotations
-from typing import List, Union, Optional, Tuple, Callable, Dict
+from typing import List, Union, Optional, Tuple, Callable, Dict, Type, Literal
 from datetime import date, datetime
 import PySimpleGUI as sg
 import functools
 import os.path
 import logging
-import pysimplesql ## Needed for quick_edit pop-ups
+
 
 # Wrap this in a try block so that pysimplesql can be imported as a single file if desired
 try:
     from .reserved_sql_keywords import ADAPTERS as RESERVED
 except ModuleNotFoundError:
-    # At least make a minimum default # TODO expland defaults to cover common collisions
-    RESERVED = {'all': {'DEFAULT','KEY','GROUP', 'TABLE', 'COLUMN', 'ORDER'}}
+    # At least make a minimum default # TODO expand defaults to cover common collisions
+    RESERVED = {'all': {'DEFAULT', 'KEY', 'GROUP', 'TABLE', 'COLUMN', 'ORDER'}}
 
 # Load database backends if present
-supported_databases = ['SQLite3','MySQL','PostgreSQL','Flatfile']
+supported_databases = ['SQLite3', 'MySQL', 'PostgreSQL', 'Flatfile']
 failed_modules = 0
 try:
     import sqlite3
@@ -344,7 +344,7 @@ class ElementMap(dict):
         super().__init__()
         self['element'] = element
         self['data'] = data
-        self['table_name'] = data.table
+        self['table'] = data.table
         self['column'] = column
         self['where_column'] = where_column
         self['where_value'] = where_value
@@ -402,27 +402,27 @@ class Data:
         if order == '':
             order = self.driver.default_order(description_column)
 
-        self.key:str = data_key
-        self.frm:Form = frm_reference
-        self._current_index:int = 0
-        self.table:str = table
-        self.pk_column:str = pk_column
-        self.description_column:str = description_column
-        self.query:str = query #
-        self.order:str = order # TODO: refactor to order_clause
-        self.join:str = ''  # TODO: refactor to join_clause
-        self.where:str = '' # In addition to the generated where clause! TODO: refactor to where_clause
-        self.dependents:list = []
-        self.column_info:ColumnInfo = [] # ColumnInfo collection
-        self.rows:ResultSet = []
-        self.search_order:List[str] = []
-        self.selector:List[str] = []
-        self.callbacks:Dict[str:Callable[[Form,sg.Window],bool]] = {}
-        self.transform:Callable[[ResultRow,Union[TFORM_ENCODE, TFORM_DECODE]],None] = None
-        self.filtered:bool = filtered
-        self._prompt_save:bool = prompt_save
-        self._simple_transform = {} # TODO: typehint after researching
-        self.autosave:bool = autosave
+        self.key: str = data_key
+        self.frm: Form = frm_reference
+        self._current_index: int = 0
+        self.table: str = table
+        self.pk_column: str = pk_column
+        self.description_column: str = description_column
+        self.query: str = query
+        self.order: str = order  # TODO: refactor to order_clause
+        self.join: str = ''  # TODO: refactor to join_clause
+        self.where: str = ''  # In addition to the generated where clause! TODO: refactor to where_clause
+        self.dependents: list = []
+        self.column_info: ColumnInfo  # ColumnInfo collection
+        self.rows: ResultSet
+        self.search_order: List[str] = []
+        self.selector: List[str] = []
+        self.callbacks: Dict[str:Callable[[Form,sg.Window],bool]] = {}
+        self.transform: Callable[[ResultRow,Union[TFORM_ENCODE, TFORM_DECODE]], None] = None
+        self.filtered: bool = filtered
+        self._prompt_save: bool = prompt_save
+        self._simple_transform: dict = {}  # TODO: typehint after researching
+        self.autosave: bool = autosave
 
     # Override the [] operator to retrieve columns by key
     def __getitem__(self, key:str):
@@ -620,7 +620,7 @@ class Data:
         else:
             self.column_info = self.driver.column_info(self.table)
 
-    def set_description_column(self, column_name:str) -> None:
+    def set_description_column(self, column: str) -> None:
         """
         Set the `Data` object's description column.
 
@@ -629,16 +629,16 @@ class Data:
         table if none of those columns exist.
         This method allows you to specify a different column to use as the description for the record.
 
-        :param column_name: The name of the column to use
+        :param column: The name of the column to use
         :returns: None
         """
-        self.description_column = column_name
+        self.description_column = column
 
-    def records_changed(self, column_name: str = None, recursive=True) -> bool:
+    def records_changed(self, column: str = None, recursive=True) -> bool:
         """
         Checks if records have been changed by comparing PySimpleGUI control values with the stored Data values
 
-        :param column_name: Limit the changed records search to just the supplied column name
+        :param column: Limit the changed records search to just the supplied column name
         :param recursive: True to check related `Data` instances
         :returns: True or False on whether changed records were found
         """
@@ -652,13 +652,13 @@ class Data:
         # First check the current record to see if it's dirty
         for mapped in self.frm.element_map:
             # Compare the DB version to the GUI version
-            if mapped.table_name == self.table:
-                ## if passed custom column_name
-                if column_name is not None and mapped.column != column_name:
+            if mapped.table == self.table:
+                ## if passed custom column name
+                if column is not None and mapped.column != column:
                     continue
                 
                 # don't check if there arn't any rows. Fixes checkbox = '' when no rows.
-                if not len(self.frm[mapped.table_name].rows):
+                if not len(self.frm[mapped.table].rows):
                     continue
 
                 # Get the element value and cast it so we can compare it to the database version
@@ -726,7 +726,7 @@ class Data:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
                 # save this records cascaded relationships, last to first
-                if self.frm.save_records(table_name=self.table) & SAVE_FAIL:
+                if self.frm.save_records(table=self.table) & SAVE_FAIL:
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
@@ -1006,37 +1006,37 @@ class Data:
         if requery_dependents: self.requery_dependents()
         if update_elements: self.frm.update_elements(self.table, omit_elements=omit_elements)
 
-    def get_current(self, column_name:str, default:Union[str,int]="") -> Union[str,int]:
+    def get_current(self, column: str, default: Union[str, int] = "") -> Union[str, int]:
         """
-        Get the current value pointed to for `column_name`
+        Get the current value for the supplid column
         You can also use indexing of the @Form object to get the current value of a column
-        I.e. frm["{Data}].[{column'}]
+        I.e. frm[{Data}].[{column}]
 
-        :param column_name: The column you want to get the value from
+        :param column: The column you want to get the value from
         :param default: A value to return if the record is null
         :returns: The value of the column requested
         """
-        logger.debug(f'Getting current record for {self.table}.{column_name}')
+        logger.debug(f'Getting current record for {self.table}.{column}')
         if self.rows:
-            if self.get_current_row()[column_name] != '':
-                return self.get_current_row()[column_name]
+            if self.get_current_row()[column] != '':
+                return self.get_current_row()[column]
             else:
                 return default
         else:
             return default
 
-    def set_current(self, column_name:str, value:Union[str,int]) -> None:
+    def set_current(self, column: str, value: Union[str, int]) -> None:
         """
-       Set the current value pointed to for `column_name`
+       Set the current value for the supplied columbn
        You can also use indexing of the `Form` object to set the current value of a column
        I.e. frm[{Data}].[{column}] = 'New value'
 
-       :param column_name: The column you want to set the value for
+       :param column: The column you want to set the value for
        :param value: A value to set the current record's column to
        :returns: None
        """
-        logger.debug(f'Setting current record for {self.table}.{column_name} = {value}')
-        self.get_current_row()[column_name] = value
+        logger.debug(f'Setting current record for {self.table}.{column} = {value}')
+        self.get_current_row()[column] = value
 
     def get_keyed_value(self,value_column:str, key_column:str, key_value:Union[str,int]) -> Union[str,int]:
         """
@@ -1087,12 +1087,12 @@ class Data:
         d={'element': element, 'data_key': data_key, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
-    def insert_record(self, values:Dict[str:Union[str,int]]=None, skip_prompt_save:bool=False) -> None:
+    def insert_record(self, values: Dict[str:Union[str,int]] = None, skip_prompt_save: bool = False) -> None:
         """
         Insert a new record virtually in the `Data` object. If values are passed, it will initially set those columns to
         the values (I.e. {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the database if present.
 
-        :param values: column_name:value pairs
+        :param values: column:value pairs
         :param skip_prompt_save: Skip prompting the user to save dirty records before the insert
         :returns: None
         """
@@ -1161,7 +1161,7 @@ class Data:
         current_row = self.get_current_row().copy()
 
         # Track the keyed dataset we have to run.  Set to None so we can tell later if there were keyed elements
-        keyed_queries:list = None # each entry a dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
+        keyed_queries:list = None  # entry dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
@@ -1172,7 +1172,7 @@ class Data:
 
                 # Looked for keyed elements first
                 if mapped.where_column is not None:
-                    if keyed_queries is None: keyed_queries = [] # Make the list here so that it != None if there were keyed elements
+                    if keyed_queries is None: keyed_queries = []  # Make the list here so != None if keyed elements
                     for row in self.rows:
                         if row[mapped.where_column] == mapped.where_value:
                             if row[mapped.column] != element_val:
@@ -1192,7 +1192,7 @@ class Data:
             # check if fk
             for mapped in self.frm.element_map:
                 if mapped.data == self and mapped.column == cascade_fk_column:
-                    cascade_fk_changed = self.records_changed(column_name=cascade_fk_column, recursive=False)
+                    cascade_fk_changed = self.records_changed(column=cascade_fk_column, recursive=False)
 
         # Update the database from the stored rows
         if self.transform is not None: self.transform(self,changed_row, TFORM_ENCODE)
@@ -1262,12 +1262,12 @@ class Data:
         """
         Recursively save changes, taking into account the relationships of the tables
         :param results: Used in Form.save_records to collect Data.save_record returns. Pass an empty dict to get list
-               of {table_name : result}
+               of {table : result}
         :param display_message: Passed to Data.save_record. Displays a message "Updates saved successfully", otherwise
                is silent on success
         :param check_prompt_save: Used when called from Form.prompt_save. Updates elements without saving if individual
                `Data._prompt_save()` is False.
-        :returns: dict of {table_name : results}
+        :returns: dict of {table : results}
         """
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.update_cascade:
@@ -1411,11 +1411,11 @@ class Data:
                 return row[self.description_column]
         return None
 
-    def table_values(self, column_names:List[str]=None, mark_virtual:bool=False) -> List[TableRow]:
+    def table_values(self, columns: List[str] = None, mark_virtual: bool = False) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element. Each
 
-        :param column_names: A list of column names to create table values for.  Defaults to getting them from the
+        :param columns: A list of column names to create table values for.  Defaults to getting them from the
                              `Data.rows` `ResultSet`
         :param mark_virtual: Place a marker next to virtual records
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table element values
@@ -1423,17 +1423,15 @@ class Data:
         global themepack
 
         values = []
-        #column_names=self.column_info.names() if columns == None else columns #<- old version got this from self.column_info
-        # Get the column names directly from the row information so that the order is preserved
         try:
             all_columns = self.rows[0].keys()
         except IndexError:
             all_columns = []
 
-        if column_names == None:
-            column_names = all_columns
+        if columns == None:
+            columns = all_columns
         else:
-            column_names = column_names
+            columns = columns
 
         pk_column = self.column_info.pk_column()
 
@@ -1449,7 +1447,7 @@ class Data:
                 # Is this the primary key column?
                 if col == pk_column: pk = row[col]
                 # Skip this column if we aren't supposed to grab it
-                if col not in column_names: continue
+                if col not in columns: continue
                 # Get this column info, including fk descriptions
                 found = False
                 for rel in rels:
@@ -1462,20 +1460,21 @@ class Data:
 
         return values
 
-    def get_related_table_for_column(self, column_name:str) -> str:
+    def get_related_table_for_column(self, column: str) -> str:
         """
         Get parent table name as it relates to this column
 
-        :param column_name: The column name to get related table informaion for
+        :param column: The column name to get related table informaion for
         :returns: The name of the related table, or the current table if none are found
         """
         rels = self.frm.get_relationships_for_table(self)
         for rel in rels:
-            if column_name == rel.fk_column:
+            if column == rel.fk_column:
                 return rel.parent_table
         return self.table  # None could be found, return our own table instead
 
-    def quick_editor(self, pk_update_funct:callable=None, funct_param:any=None, skip_prompt_save:bool=False) -> None:
+    def quick_editor(self, pk_update_funct: callable = None, funct_param: any = None,
+                     skip_prompt_save: bool = False) -> None:
         """
         The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.  This is very useful for putting
         a button next to a combobox or listbox so that the available values can be added/edited/deleted easily.
@@ -1502,19 +1501,18 @@ class Data:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            [pysimplesql.selector(data_key, sg.Table, num_rows=10, headings=headings,
-                                  visible_column_map=visible)])
-        layout.append([pysimplesql.actions(data_key, edit_protect=False)])
+            [selector(data_key, sg.Table, num_rows=10, headings=headings, visible_column_map=visible)])
+        layout.append([actions(data_key, edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_info.names():
             column=f'{data_key}.{col}'
             if col!=self.pk_column:
-                layout.append([pysimplesql.field(column)])
+                layout.append([field(column)])
 
         quick_win = sg.Window(f'Quick Edit - {data_key}', layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
         driver=Sqlite(sqlite3_database=self.frm.driver.con)
-        quick_frm = Form(driver, bind=quick_win)
+        quick_frm = Form(driver, bind_window=quick_win)
 
 
         # Select the current entry to start with
@@ -1562,13 +1560,13 @@ class Form:
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, driver: SQLDriver, bind: sg.Window = None, prefix_data_keys: str = '', parent: Form = None,
-                 filter: str = None, select_first: bool = True, autosave: bool = False) -> Form:
+    def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
+                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False) -> Form:
         """
         Initialize a new `Form` instance
 
         :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
-        :param bind: Bind this window to the `Form`
+        :param bind_window: Bind this window to the `Form`
         :param prefix_data_keys: (optional) prefix auto generated data_key names with this value. Example 'data_'
         :param parent: (optional)Parent `Form` to base dataset off of
         :param filter: (optional) Only import elements with the same filter set. Typically set with `field()`, but can
@@ -1605,8 +1603,8 @@ class Form:
         self.auto_add_dataset(prefix_data_keys)
         self.auto_add_relationships()
         self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
-        if bind!=None:
-            self.window=bind
+        if bind_window!=None:
+            self.window=bind_window
             self.bind(self.window)
 
     def __del__(self):
@@ -1794,8 +1792,8 @@ class Form:
         logger.info('Automatically generating dataset for each table in the sqlite database')
         # Ensure we clear any current dataset so that successive calls will not double the entries
         self.dataset = {}
-        table_names = self.driver.table_names()
-        for table in table_names:
+        tables = self.driver.get_tables()
+        for table in tables:
             column_info = self.driver.column_info(table)
 
             # auto generate description column.  Default it to the 2nd column,
@@ -1950,13 +1948,13 @@ class Form:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
                         # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_reverse
                         # 3 we need to run update_elements() to see the changes
-                        def callback_wrapper(column_name, element=element, data_key=data_key):
+                        def callback_wrapper(column, element=element, data_key=data_key):
                             # store the pk:
                             pk = self[data_key].get_current_pk()
-                            sort_order = self[data_key].rows.sort_cycle(column_name, data_key)
+                            sort_order = self[data_key].rows.sort_cycle(column, data_key)
                             self[data_key].set_by_pk(pk, update_elements=True, requery_dependents=False,
                                                   skip_prompt_save=True)
-                            table_heading.update_headings(element, column_name, sort_order)
+                            table_heading.update_headings(element, column, sort_order)
 
                         table_heading.enable_sorting(element, callback_wrapper)
 
@@ -1964,7 +1962,7 @@ class Form:
                 else:
                     logger.debug(f'Can not add selector {str(element)}')
 
-    def set_element_clauses(self,element:sg.Element, where_clause:str=None, order_clause:str=None) -> None:
+    def set_element_clauses(self, element: sg.Element, where_clause: str = None, order_clause: str = None) -> None:
         """
         Set the where and/or order clauses for the specified element in the element map
 
@@ -2075,7 +2073,7 @@ class Form:
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table=table
-                    table=self[table].get_related_table_for_column(column)
+                    table= self[table].get_related_table_for_column(column)
                     funct=functools.partial(self[table].quick_editor, self[referring_table].get_current, column)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
@@ -2158,12 +2156,12 @@ class Form:
         """
         self.force_save = force
 
-    def save_records(self, table_name:str=None, cascade_only:bool=False, check_prompt_save:bool=False,) \
-                    -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
+    def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False) \
+            -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
         """
         Save records of all `Data` objects` associated with this `Form`.
 
-        :param table_name: Name of table to save, as well as any cascaded relationships. Used in `Data.prompt_save()`
+        :param table: Name of table to save, as well as any cascaded relationships. Used in `Data.prompt_save()`
         :param cascade_only: Save only tables with cascaded relationships. Default False.
         :param check_prompt_save: Passed to `Data.save_record_recursive` to check if individual `Data` has prompt_save enabled.
                                   Used when `Data.save_records()` is called from `Form.prompt_save()`.
@@ -2176,7 +2174,7 @@ class Form:
         show_message = True
         failed_tables = []
         
-        if table_name: tables = [table_name] # if passed single table
+        if table: tables = [table] # if passed single table
         # for cascade_only, build list of top-level dataset that have children
         elif cascade_only: tables = [data.table for data in self.dataset.values()
                                      if len(self.get_cascaded_relationships(table=data.table))
@@ -2298,7 +2296,7 @@ class Form:
         for mapped in self.element_map:
             # If the optional data_key parameter was passed, we will only update elements bound to that table
             if data_key is not None:
-                if mapped.table_name != self[data_key].table:
+                if mapped.table != self[data_key].table:
                     continue
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
@@ -2346,7 +2344,7 @@ class Form:
 
                 if target_table==None:
                     logger.info(f"Error! Cound not find related data for element {mapped.element.key} bound to Data key"
-                                f"{mapped.table_name}, column: {mapped.column}")
+                                f"{mapped.table}, column: {mapped.column}")
 
                     # we don't want to update the list in this case, as it was most likely supplied and not tied to data
                     updated_val=mapped.data[mapped.column]
@@ -2392,7 +2390,7 @@ class Form:
             elif type(mapped.element) is sg.PySimpleGUI.InputText or type(mapped.element) is sg.PySimpleGUI.Multiline:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
-                mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
+                mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out
                 updated_val = mapped.data[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
@@ -2432,7 +2430,7 @@ class Form:
                     # skip updating this element if requested
                     if e['element'] in omit_elements: continue
 
-                    element=e['element']
+                    element:sg.Element = e['element']
                     logger.debug(f'{type(element)}')
                     pk_column = data.pk_column
                     description_column = data.description_column
@@ -2451,29 +2449,29 @@ class Form:
                             else:
                                 lst.append(ElementRow(r[pk_column], r[description_column]))
 
-                        element.update(values=lst, set_to_index=table.current_index)
+                        element.update(values=lst, set_to_index=data.current_index)
 
                         # set vertical scroll bar to follow selected element (for listboxes only)
                         if type(element) == sg.PySimpleGUI.Listbox:
                             try:
-                                element.set_vscroll_position(table.current_index / len(lst))
+                                element.set_vscroll_position(data.current_index / len(lst))
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
 
                     elif type(element) == sg.PySimpleGUI.Slider:
                         # We need to re-range the element depending on the number of records
                         l = len(data.rows)
-                        element.update(value=table._current_index + 1, range=(1, l))
+                        element.update(value=data._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
                         logger.debug(f'update_elements: Table selector found...')
                         # Populate entries
                         try:
-                            column_names = element.metadata['TableHeading'].column_names()
+                            columns = element.metadata['TableHeading'].columns()
                         except KeyError:
-                            column_names = None # default to all columns
+                            columns = None # default to all columns
 
-                        values = data.table_values(column_names, mark_virtual=True)
+                        values = data.table_values(columns, mark_virtual=True)
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
@@ -2578,17 +2576,17 @@ class Form:
                             return changed
         return False
 
-    def update_element_states(self, table_name:str, disable:bool=None, visible:bool=None) -> None:
+    def update_element_states(self, table: str, disable: bool = None, visible: bool = None) -> None:
         """
         Disable/enable and/or show/hide all elements assocated with a table.
 
-        :param table_name: table name assocated with elements to disable/enable
+        :param table: table name assocated with elements to disable/enable
         :param disable: True/False to disable/enable element(s), None for no change
         :param visible: True/False to make elements visible or not, None for no change
         :returns: None
         """
         for mapped in self.element_map:
-            if mapped.table_name != table_name:
+            if mapped.table != table:
                 continue
             element=mapped.element
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
@@ -2846,8 +2844,9 @@ def set_mline_size(w:int, h:int) -> None:
 
 
 
-def field(field: str, element: sg.Element = sg.I, size: Tuple[int, int] = None, label: str = '', no_label: bool = False,
-          label_above: bool = False, quick_editor: bool = True, filter=None, key=None, **kwargs) -> sg.Column:
+def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = None, label: str = '',
+          no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None, key=None,
+          **kwargs) -> sg.Column:
     """
     Convenience function for adding PySimpleGUI elements to the Window so they are properly configured for pysimplesql
     The automatic functionality of pysimplesql relies on accompanying metadata so that the `Form.auto_add_elements()`
@@ -2918,9 +2917,9 @@ def field(field: str, element: sg.Element = sg.I, size: Tuple[int, int] = None, 
     #return layout
     return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
 
-def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None, navigation:bool=None, insert:bool=None,
-            delete:bool=None, duplicate:bool=None, save:bool=None, search:bool=None, search_size:Tuple[int,int]=(30, 1),
-            bind_return_key:bool=True, filter:str=None) -> sg.Column:
+def actions(table: str, key=None, default: bool = True, edit_protect: bool = None, navigation: bool = None,
+            insert: bool = None, delete: bool = None, duplicate: bool = None, save: bool = None, search: bool = None,
+            search_size: Tuple[int, int] = (30, 1), bind_return_key: bool = True, filter: str = None) -> sg.Column:
     """
     Allows for easily adding record navigation and record action elements to the PySimpleGUI window
     The navigation elements are generated automatically (first, previous, next, last and search).  The action elements
@@ -2929,14 +2928,14 @@ def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None,
     generated controls a custom look!
 
     Note: By default, the base element keys generated for PySimpleGUI will be table!action usint the name of the table
-    passed in the table_name parameter plus the action strings below separated by a colon: (I.e. Journal:table_insert)
+    passed in the table parameter plus the action strings below separated by a colon: (I.e. Journal:table_insert)
     edit_protect, db_save, table_first, table_previous, table_next, table_last, table_duplicate, table_insert,
     table_delete, search_input, search_button.
     If you supply a key with the key parameter, then these additional strings will be appended to that key. Also note
     that these autogenerated keys also pass through the `KeyGen`, so it's possible that these keys could be
     selector:table_last!1, selector:table_last!2, etc.
 
-    :param table_name: The table name that this "element" will provide actions for
+    :param table: The table name that this "element" will provide actions for
     :param key: (optional) The base key to give the generated elements
     :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults to True)
                     The individual keyword arguments will trump the default parameter.  This allows for starting with
@@ -2967,7 +2966,7 @@ def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None,
     duplicate = default if duplicate is None else duplicate
     save = default if save is None else save
     search = default if search is None else search
-    key = f'{table_name}:' if key is None else f'{key}:'
+    key = f'{table}:' if key is None else f'{key}:'
 
     layout = []
 
@@ -2990,31 +2989,31 @@ def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None,
     # Data-level events
     if navigation:
         # first
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.first) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_first'), size=(1, 1), image_data=themepack.first, metadata=meta))
         else:
             layout.append(sg.B(themepack.first, key=keygen.get(f'{key}table_first'), metadata=meta, use_ttk_buttons = True))
         # previous
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.previous) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_previous'), size=(1, 1), image_data=themepack.previous, metadata=meta))
         else:
             layout.append(sg.B(themepack.previous, key=keygen.get(f'{key}table_previous'), metadata=meta, use_ttk_buttons = True))
         # next
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.next) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_next'), size=(1, 1), image_data=themepack.next, metadata=meta))
         else:
             layout.append(sg.B(themepack.next, key=keygen.get(f'{key}table_next'), metadata=meta, use_ttk_buttons = True))
         # last
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.last) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_last'), size=(1, 1), image_data=themepack.last, metadata=meta))
         else:
             layout.append(sg.B(themepack.last, key=keygen.get(f'{key}table_last'), metadata=meta, use_ttk_buttons = True))
     if duplicate:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.duplicate) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_duplicate'), size=(1, 1), button_color=('orange', 'orange'),
                                image_data=themepack.duplicate, metadata=meta))
@@ -3022,21 +3021,21 @@ def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None,
             layout.append(
                 sg.B(themepack.duplicate, key=keygen.get(f'{key}table_duplicate'), metadata=meta, use_ttk_buttons=True))
     if insert:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.insert) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
                                image_data=themepack.insert, metadata=meta))
         else:
             layout.append(sg.B(themepack.insert, key=keygen.get(f'{key}table_insert'), metadata=meta, use_ttk_buttons = True))
     if delete:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.delete) is bytes:
             layout.append(sg.B('', key=keygen.get(f'{key}table_delete'), size=(1, 1), button_color=('white', 'red'),
                             image_data=themepack.delete, metadata=meta))
         else:
             layout.append(sg.B(themepack.delete, key=keygen.get(f'{key}table_delete'), metadata=meta, use_ttk_buttons = True))
     if search:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.search) is bytes:
             layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B('', key=keygen.get(f'{key}search_button'), bind_return_key=bind_return_key, size=(1, 1), button_color=('white', 'red'),
                                                                                             image_data=themepack.delete, metadata=meta, use_ttk_buttons = True)]
@@ -3046,7 +3045,7 @@ def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None,
 
 
 
-def selector(table_name: str, element: sg.Element = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
+def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
              key: str = None, **kwargs) -> sg.Element:
     """
     Selectors in pysimplesql are special elements that allow the user to change records in the database application.
@@ -3054,23 +3053,23 @@ def selector(table_name: str, element: sg.Element = sg.LBox, size: Tuple[int, in
     want to select. This convenience function makes making selectors very quick and as easy as using a normal
     PySimpleGUI element.
 
-    :param table_name: The table name in the database that this selector will act on
+    :param table: The table name in the database that this selector will act on
     :param element: The type of element you would like to use as a selector (defaults to a Listbox)
     :param size: The desired size of this selector element
     :param filter: Can be used to reference different `Form`s in the same layout.  Use a matching filter when creating
                    the `Form` with the filter parameter.
     :param key: (optional) The key to give to this selector. If no key is provided, it will default to table:selector
-                using the table specified in the table_name parameter. This is also passed through the keygen, so if
+                using the table specified in the table parameter. This is also passed through the keygen, so if
                 selectors all use the default name, they will be made unique. I.e. Journal:selector!1, Journal:selector!2, etc.
     :param kwargs: Any additional arguments supplied will be passed on to the PySimpleGUI element
 
     """
     global keygen
 
-    key = f'{table_name}:selector' if key is None else key
+    key = f'{table}:selector' if key is None else key
     key=keygen.get(key)
 
-    meta = {'type': TYPE_SELECTOR, 'table': table_name, 'Form': None, 'filter': filter}
+    meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
         layout = element(values=(), size=size or _default_element_size, key=key,
                     select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
@@ -3145,21 +3144,21 @@ class TableHeadings(list):
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
-    def add_column(self, column_name: str, heading_column: str, width: int, visible: bool = True) -> None:
+    def add_column(self, column: str, heading_column: str, width: int, visible: bool = True) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
         Note that the primary key column does not need to be included, as primary keys are stored internally in the
         `TableRow` class.
 
         :param heading_column: The name of this columns heading (title)
-        :param column_name: The name of the column in the database the heading column is for
+        :param column: The name of the column in the database the heading column is for
         :param width: The width for this column to display within the Table element
         :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
                         if any. This is also useful if the `Data.rows` `ResultSet` has some information that you don't
                         want to display.
         :returns: None
         """
-        self.append({'heading': heading_column, 'column_name': column_name})
+        self.append({'heading': heading_column, 'column': column})
         self._width_map.append(width)
         self._visible_map.append(visible)
 
@@ -3171,13 +3170,13 @@ class TableHeadings(list):
         """
         return [c['heading'] for c in self]
 
-    def column_names(self):
+    def columns(self):
         """
         Return a list of column names
 
         :returns: a list of column names
         """
-        return [c['column_name'] for c in self if c['column_name'] is not None]
+        return [c['column'] for c in self if c['column'] is not None]
 
 
     def visible_map(self) -> List[Union[bool,int]]:
@@ -3221,7 +3220,7 @@ class TableHeadings(list):
         for i, x in zip(range(len(self)), self):
             # Clear the direction markers
             x['heading'] = x['heading'].replace(asc, '').replace(desc, '')
-            if x['column_name'] == sort_column and sort_column is not None:
+            if x['column'] == sort_column and sort_column is not None:
                 if sort_order != ResultSet.SORT_NONE:
                     x['heading'] += asc if sort_order == ResultSet.SORT_ASC else desc
             element.Widget.heading(i, text=x['heading'], anchor='w')
@@ -3238,12 +3237,12 @@ class TableHeadings(list):
         """
         if self._sort_enable:
             for i in range(len(self)):
-                if self[i]['column_name'] is not None:
-                    element.widget.heading(i, command=functools.partial(fn, self[i]['column_name']))
+                if self[i]['column'] is not None:
+                    element.widget.heading(i, command=functools.partial(fn, self[i]['column']))
         self.update_headings(element)
 
-    def insert(self, idx, heading_column:str, column_name:str=None, *args, **kwargs):
-        super().insert(idx,{'heading': heading_column, 'column_name': column_name})
+    def insert(self, idx, heading_column:str, column:str=None, *args, **kwargs):
+        super().insert(idx,{'heading': heading_column, 'column': column})
 
 # ======================================================================================================================
 # THEMEPACKS
@@ -3490,7 +3489,7 @@ class Column:
 
     def cast(self, value: any) -> any:
         """
-        Cast a value to the appropriate data type as defined by the column info for column_name.
+        Cast a value to the appropriate data type as defined by the column info for the column.
         This can be useful for comparing values between the database and the GUI.
 
         :param value: The value you would like to cast
@@ -3544,9 +3543,9 @@ class ColumnInfo(List):
         :language: python
         :caption: Example code
     """
-    def __init__(self, driver:SQLDriver, table_name:str):
+    def __init__(self, driver: SQLDriver, table: str):
         self.driver = driver
-        self.table_name = table_name
+        self.table = table
 
         # List of required SQL types to check against when user sets custom values
         self._sql_types = [
@@ -3626,8 +3625,8 @@ class ColumnInfo(List):
 
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
-                table_name = self.driver.quote_table(self.table_name)
-                q = f'SELECT {default} FROM {table_name};' # TODO: may need AS column_name to support all databases?
+                table = self.driver.quote_table(self.table)
+                q = f'SELECT {default} FROM {table};' # TODO: may need AS column to support all databases?
                 rows = self.driver.execute(q)
                 if rows.exception is None:
                     default = rows.fetchone()[default]
@@ -3773,21 +3772,18 @@ class ResultRow():
 
     def __lt__(self, other, key):
         return self.row[key] < other.row[key]
+
     def __iter__(self):
         return iter(self.row)
+
     def keys(self):
         return self.row.keys()
+
     def items(self):
         return self.row.items()
+
     def values(self):
         return self.row.values()
-
-    def __next__(self):
-        if self._iter_index == len(self.rows):
-            raise StopIteration
-        else:
-            self._iter_index += 1
-            return self.rows[self._iter_index - 1]
 
     def copy(self):
         # return a copy of this row
@@ -3812,22 +3808,23 @@ class ResultSet:
     SORT_ASC = 1
     SORT_DESC = 2
 
-    def __init__(self, rows:List[Dict[str, any]]=[], lastrowid:int=None, exception:str=None, column_info:ColumnInfo=None) -> None:
+    def __init__(self, rows: List[Dict[str, any]] = [], lastrowid: int = None, exception: str = None,
+                 column_info: ColumnInfo = None) -> None:
         """
         Create a new ResultSet instance
 
         :param rows: a list of dicts representing a row of data, with each key being a column name
         :param lastrowid: The primary key of an inserted item
         :exception: If an exception was encountered during the query, it will be passed along here
-        :column_info: a `ColumnInfo` object can be supplied so that information can be accessed about the column information
+        :column_info: a `ColumnInfo` object can be supplied so that column information can be accessed
         """
-        self.rows = [ResultRow(r,i) for r,i in zip(rows,range(len(rows)))]
+        self.rows = [ResultRow(r, i) for r, i in zip(rows, range(len(rows)))]
         self.lastrowid = lastrowid
         self._iter_index = 0
         self.exception = exception
         self.column_info = column_info
         self.sort_column = None
-        self.sort_reverse = False # ASC or DESC
+        self.sort_reverse = False  # ASC or DESC
 
     def __iter__(self):
         return (row for row in self.rows)
@@ -3873,10 +3870,10 @@ class ResultSet:
         """
         return self
 
-    def insert(self, row:dict, idx:int = None) -> None:
+    def insert(self, row: dict, idx: int = None) -> None:
         """
-        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist in memory, but not in the database.
-        When a save action is performed, virtua rows will be added into the database.
+        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist in memory, but not in the
+        database. When a save action is performed, virtua rows will be added into the database.
 
         :param row: A dict representation of a row of data
         :param idx: The index where the row should be inserted (default to last index)
@@ -3894,7 +3891,7 @@ class ResultSet:
         # Purge virtual rows from the list
         self.rows = [row for row in self.rows if not row.virtual]
 
-    def sort_by_column(self,column:str, table:str, reverse=False) -> None:
+    def sort_by_column(self, column: str, table: str, reverse = False) -> None:
         """
         Sort the `ResultSet` by column.
         Using the mapped relationships of the database, foreign keys will automatically sort based on the
@@ -3916,7 +3913,7 @@ class ResultSet:
         for rel in rels:
             if column == rel.fk_column:
                 rows = rel.frm[rel.parent_table].rows # change the rows used for sort criteria
-                target_col = rel.pk_column # change our target column to look in
+                target_col = rel.pk_column  # change our target column to look in
                 target_val = rel.frm[rel.parent_table].description_column # and return the value in this column
                 break
         try:
@@ -4068,7 +4065,7 @@ class SQLDriver:
     def execute_script(self, script:str, silent:bool=False):
         raise NotImplementedError
 
-    def table_names(self):
+    def get_tables(self):
         raise NotImplementedError
 
     def column_info(self, table):
@@ -4088,8 +4085,8 @@ class SQLDriver:
     # Note that this is not always a reliable way, as manual inserts which assign a primary key value don't always
     # update the sequencer for the given database.  This is just a default way to "get things working", but the best
     # bet is to override this in the derived class and get the value right from the sequencer.
-    def next_pk(self, table_name: str, pk_column_name: str) -> int:
-        max_pk = self.max_pk(table_name, pk_column_name)
+    def next_pk(self, table: str, pk_column: str) -> int:
+        max_pk = self.max_pk(table, pk_column)
         if max_pk is not None:
             return max_pk + 1
         else: return 1
@@ -4134,13 +4131,13 @@ class SQLDriver:
 
         return f'{r_obj.join} {parent} ON {child}.{fk}={parent}.{pk}'
 
-    def min_pk(self, table_name: str, pk_column_name: str) -> int:
-        rows = self.execute(f"SELECT MIN({pk_column_name}) FROM {table_name}")
-        return rows.fetchone()[f'MAX({pk_column_name})']
+    def min_pk(self, table: str, pk_column: str) -> int:
+        rows = self.execute(f"SELECT MIN({pk_column}) FROM {table}")
+        return rows.fetchone()[f'MAX({pk_column})']
 
-    def max_pk(self, table_name: str, pk_column_name: str) -> int:
-        rows = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
-        return rows.fetchone()[f'MAX({pk_column_name})']
+    def max_pk(self, table: str, pk_column: str) -> int:
+        rows = self.execute(f"SELECT MAX({pk_column}) FROM {table}")
+        return rows.fetchone()[f'MAX({pk_column})']
 
     def generate_join_clause(self, data: Data) -> str:
         """
@@ -4377,7 +4374,7 @@ class Sqlite(SQLDriver):
             # Close the connection
             self.con.close()
 
-    def table_names(self):
+    def get_tables(self):
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.execute(q, silent=True)
         return [row['name'] for row in cur]
@@ -4410,7 +4407,7 @@ class Sqlite(SQLDriver):
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         relationships = []
-        tables = self.table_names()
+        tables = self.get_tables()
         for from_table in tables:
             rows = self.execute(f"PRAGMA foreign_key_list({from_table})", silent=True)
 
@@ -4446,8 +4443,8 @@ class Flatfile(Sqlite):
     database file.  Each timem records are saved, the contents of the internal SQlite database are written back out
     to the file. This makes working with flatfile data as easy and consistent as any other database.
     """
-    def __init__(self, file_path:str, delimiter:str=',', quotechar:str='"', header_row_num:int = 0,
-                 table_name:str = None, pk_col:str=None) -> None:
+    def __init__(self, file_path: str, delimiter: str = ',', quotechar: str = '"', header_row_num: int = 0,
+                 table: str = None, pk_col: str = None) -> None:
         """
         Create a new Flatfile driver instance
 
@@ -4455,7 +4452,7 @@ class Flatfile(Sqlite):
         :param delimiter: The delimiter for the flatfile. Defaults to ','.  Tabs ('\t') are another popular option
         :param quotechar: The quoting character specified by the flatfile. Defaults to '"'
         :param header_row_num: The row containing the header column names.  Defaults to 0
-        :param table_name: The name to give this table in pysimplesql. Default is 'Flatfile'
+        :param table: The name to give this table in pysimplesql. Default is 'Flatfile'
         :param pk_col: The column name that acts as a primary key for the dataset. See below how to use this parameter:
                        - If no pk_col parameter is supplied, then a generic primary key column named 'pk' will be generated
                          with AUTO INCREMENT and PRIMARY KEY set.  This is a virtual column and will not be written back
@@ -4480,7 +4477,7 @@ class Flatfile(Sqlite):
         self.header_row_num = header_row_num
         self.pk_col = pk_col if pk_col is not None else 'pk'
         self.pk_col_is_virtual = False
-        self.table_name = table_name if table_name is not None else 'Flatfile'
+        self.table = table if table is not None else 'Flatfile'
         self.con.row_factory = sqlite3.Row
         self.pre_header = [] # Store any text up to the header line so they can be restored
 
@@ -4510,7 +4507,7 @@ class Flatfile(Sqlite):
             if col != self.columns[-1]:
                 q_cols += ', '
 
-        query = f'CREATE TABLE {self.table_name} ({q_cols})'
+        query = f'CREATE TABLE {self.table} ({q_cols})'
         self.execute(query)
 
         # Load the CSV data into the table
@@ -4525,7 +4522,7 @@ class Flatfile(Sqlite):
             if self.pk_col_is_virtual:
                 self.columns.remove(self.pk_col)
 
-            query = f'INSERT INTO {self.table_name} ({", ".join(self.columns)}) VALUES ({", ".join(["?" for col in self.columns])})'
+            query = f'INSERT INTO {self.table} ({", ".join(self.columns)}) VALUES ({", ".join(["?" for col in self.columns])})'
             for row in reader:
                 self.execute(query, row)
 
@@ -4622,7 +4619,7 @@ class Mysql(SQLDriver):
         return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
 
 
-    def table_names(self):
+    def get_tables(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
         rows = self.execute(query, [self.database], silent=True)
         return [row['table_name'] for row in rows]
@@ -4654,7 +4651,7 @@ class Mysql(SQLDriver):
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
-        tables=self.table_names()
+        tables= self.get_tables()
         relationships = []
         for from_table in tables:
             query = "SELECT * FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
@@ -4675,7 +4672,7 @@ class Mysql(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def execute_script(self,script):
+    def execute_script(self, script):
         with open(script, 'r') as file:
             logger.info(f'Loading script {script} into database.')
             # TODO
@@ -4715,9 +4712,9 @@ class Postgres(SQLDriver):
                 q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)'"
                 rows = self.execute(q, silent=True)
                 row=rows.fetchone()
-                table_name = row['table_name']
-                pk_column_name = row['column_name']
-                max_pk = self.max_pk(table_name, pk_column_name)
+                table = row['table_name']
+                pk_column = row['column_name']
+                max_pk = self.max_pk(table, pk_column)
 
                 # update the sequence
                 seq = self.quote_table(seq)
@@ -4766,7 +4763,7 @@ class Postgres(SQLDriver):
         # save_records() due to the RETURNING stement of the query
         return ResultSet([dict(row) for row in rows], exception=exception, column_info=column_info)
 
-    def table_names(self):
+    def get_tables(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
         #query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
         rows = self.execute(query, silent=True)
@@ -4786,7 +4783,7 @@ class Postgres(SQLDriver):
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
-        tables=self.table_names()
+        tables= self.get_tables()
         relationships = []
         for from_table in tables:
             query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, "
@@ -4814,23 +4811,23 @@ class Postgres(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def min_pk(self, table_name: str, pk_column_name: str) -> int:
-        table_name = self.quote_table(table_name)
-        pk_column_name = self.quote_column(pk_column_name)
-        rows = self.execute(f'SELECT COALESCE(MIN({pk_column_name}), 0) AS min_pk FROM {table_name};', silent=True)
+    def min_pk(self, table: str, pk_column: str) -> int:
+        table = self.quote_table(table)
+        pk_column = self.quote_column(pk_column)
+        rows = self.execute(f'SELECT COALESCE(MIN({pk_column}), 0) AS min_pk FROM {table};', silent=True)
         return rows.fetchone()[f'min_pk']
 
-    def max_pk(self, table_name: str, pk_column_name: str) -> int:
-        table_name = self.quote_table(table_name)
-        pk_column_name = self.quote_column(pk_column_name)
-        rows = self.execute(f'SELECT COALESCE(MAX({pk_column_name}), 0) AS max_pk FROM {table_name};', silent=True)
+    def max_pk(self, table: str, pk_column: str) -> int:
+        table = self.quote_table(table)
+        pk_column = self.quote_column(pk_column)
+        rows = self.execute(f'SELECT COALESCE(MAX({pk_column}), 0) AS max_pk FROM {table};', silent=True)
         return rows.fetchone()[f'max_pk']
 
-    def next_pk(self, table_name: str, pk_column_name: str) -> int:
+    def next_pk(self, table: str, pk_column: str) -> int:
         # Working with case-sensitive tables is painful in Postgres.  First, the sequence must be quoted in a manner
         # similar to tables, then the quoted sequence name has to be also surrounded in single quotes to be treated
         # literally and prevent folding of the casing.
-        seq = f'{table_name}_{pk_column_name}_seq' # build the default sequence name
+        seq = f'{table}_{pk_column}_seq' # build the default sequence name
         seq = self.quote_table(seq) # quote it like a table
 
         q=f"SELECT nextval('{seq}');" # wrap the quoted string in singe quotes.  Phew!
