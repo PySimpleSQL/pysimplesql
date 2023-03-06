@@ -50,7 +50,6 @@ Naming conventions can fall under 4 categories:
     element_key -  a window element key
 ------------------------------------------------------------------------------------------------------------------------
 """
-# TODO: Make a list of controls to enable/disable along with edit_protect.  This would be a pretty cool feature
 
 # The first two imports are for docstrings
 from __future__ import annotations
@@ -277,12 +276,12 @@ class Relationship:
                     return r.fk_column
         return None
 
-    def __init__(self, join:str, child_table:str, fk_column:Union[str,int], parent_table:str, pk_column:Union[str,int],
-                 update_cascade:bool, driver:SQLDriver, frm:Form) -> None:
+    def __init__(self, join_type: str, child_table: str, fk_column: Union[str, int], parent_table: str,
+                 pk_column: Union[str, int], update_cascade: bool, driver: SQLDriver, frm: Form) -> None:
         """
         Initialize a new Relationship instance
 
-        :param join: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
+        :param join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
         :param child_table: The table name of the child table
         :param fk_column: The child table's foreign key column
         :param parent_table: The table name of the parent table
@@ -291,7 +290,7 @@ class Relationship:
         :param frm: A Form instance
         :returns: None
         """
-        self.join = join
+        self.join_type = join_type
         self.child_table = child_table
         self.fk_column = fk_column
         self.parent_table = parent_table
@@ -312,7 +311,7 @@ class Relationship:
         Return a more descriptive string for debugging
         """
         ret = f'Relationship (' \
-              f'\n\tjoin={self.join},' \
+              f'\n\tjoin={self.join_type},' \
               f'\n\tchild_table={self.child_table},' \
               f'\n\tfk_column={self.fk_column},' \
               f'\n\tparent_table={self.parent_table},' \
@@ -337,8 +336,8 @@ class ElementMap(dict):
         :param element: A PySimpleGUI Element
         :param data: A `Data` object
         :param column: The name of the column to bind to the element
-        :param where_column: Used for ke, value shorthand TODO: expand on this
-        :param where_value: Used for ey, value shorthand TODO: expand on this
+        :param where_column: Used for key, value shorthand
+        :param where_value: Used for key, value shorthand
         :returns: None
         """
         super().__init__()
@@ -372,8 +371,8 @@ class Data:
     instances=[] # Track our own instances
 
     def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
-                 query: Optional[str] = '', order: Optional[str] = '', filtered: bool = True, prompt_save: bool = True,
-                 autosave=False) -> None:
+                 query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
+                 prompt_save: bool = True, autosave=False) -> None:
         """
         Initialize a new `Data` instance
 
@@ -384,7 +383,7 @@ class Data:
         :param description_column: The name of the column used for display to users (normally in a combobox or listbox)
         :param query: You can optionally set an inital query here. If none is provided, it will default to
                "SELECT * FROM {query}"
-        :param order: The sort order of the returned query. If none is provided it will default to
+        :param order_clause: The sort order of the returned query. If none is provided it will default to
                "ORDER BY {description_column} ASC"
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                be generated. False will display all records in query.
@@ -392,15 +391,14 @@ class Data:
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
         :returns: None
         """
-        # todo finish the order processing!
         Data.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
         if query == '':
             query = self.driver.default_query(table)
         # No order was passed in, so we will generate generic one
-        if order == '':
-            order = self.driver.default_order(description_column)
+        if order_clause == '':
+            order_clause = self.driver.default_order(description_column)
 
         self.key: str = data_key
         self.frm: Form = frm_reference
@@ -409,9 +407,9 @@ class Data:
         self.pk_column: str = pk_column
         self.description_column: str = description_column
         self.query: str = query
-        self.order: str = order  # TODO: refactor to order_clause
-        self.join: str = ''  # TODO: refactor to join_clause
-        self.where: str = ''  # In addition to the generated where clause! TODO: refactor to where_clause
+        self.order_clause: str = order_clause
+        self.join_clause: str = ''
+        self.where_clause: str = ''  # In addition to the generated where clause!
         self.dependents: list = []
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: ResultSet
@@ -579,7 +577,7 @@ class Data:
         :returns: None
         """
         logger.debug(f'Setting {self.table} join clause to {clause}')
-        self.join = clause
+        self.join_clause = clause
 
     def set_where_clause(self, clause:str) -> None:
         """
@@ -591,7 +589,7 @@ class Data:
         :returns: None
         """
         logger.debug(f'Setting {self.table} where clause to {clause}')
-        self.where = clause
+        self.where_clause = clause
 
     def set_order_clause(self, clause:str) -> None:
         """
@@ -603,7 +601,7 @@ class Data:
         :returns: None
         """
         logger.debug(f'Setting {self.table} order clause to {clause}')
-        self.order = clause
+        self.order_clause = clause
 
     def update_column_info(self,column_info:ColumnInfo=None) -> None:
         """
@@ -762,7 +760,7 @@ class Data:
             join = self.driver.generate_join_clause(self)
             where = self.driver.generate_where_clause(self)
 
-        query = self.query + ' ' + join + ' ' + where + ' ' + self.order
+        query = self.query + ' ' + join + ' ' + where + ' ' + self.order_clause
         # We want to store our sort settings before we wipe out the current ResultSet
         try:
             sort_settings = self.rows.store_sort_settings()
@@ -1127,15 +1125,15 @@ class Data:
                        skip_prompt_save=True)  # already saved
         self.frm.update_elements(self.table)
 
-    def save_record(self, display_message:bool=True, update_elements:bool=True) -> None:
+    def save_record(self, display_message:bool=True, update_elements:bool=True) -> int:
         """
         Save the currently selected record
-        Saves any changes made via the GUI back to the database.  The before_save and after_save `Data.callbacks` will call
-        your own functions for error checking if needed!
+        Saves any changes made via the GUI back to the database.  The before_save and after_save `Data.callbacks` will
+        call your own functions for error checking if needed!
 
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
         :param update_elements: Update the GUI elements after saving
-        :returns: None
+        :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
         logger.debug(f'Saving records for table {self.table}...')
         # Ensure that there is actually something to save
@@ -1724,7 +1722,8 @@ class Form:
         :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in SQL)
         :returns: None
         """
-        self.relationships.append(Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver, self))
+        self.relationships.append(
+            Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver, self))
 
     def get_relationships_for_table(self, table:str) -> List[Relationship]:
         """
@@ -4129,7 +4128,7 @@ class SQLDriver:
         fk = self.quote_column(r_obj.fk_column)
         pk = self.quote_column(r_obj.pk_column)
 
-        return f'{r_obj.join} {parent} ON {child}.{fk}={parent}.{pk}'
+        return f'{r_obj.join_type} {parent} ON {child}.{fk}={parent}.{pk}'
 
     def min_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MIN({pk_column}) FROM {table}")
@@ -4152,7 +4151,7 @@ class SQLDriver:
         for r in data.frm.relationships:
             if data.table == r.child_table:
                 join += f' {self.relationship_to_join_clause(r)}'
-        return join if data.join == '' else data.join
+        return join if data.join_clause == '' else data.join_clause
 
 
     def generate_where_clause(self, data: Data) -> str:
@@ -4177,30 +4176,31 @@ class SQLDriver:
 
         if where == '':
             # There was no where clause from Relationships..
-            where = data.where
+            where = data.where_clause
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            where = where + ' ' + data.where.replace('WHERE', 'AND')
+            where = where + ' ' + data.where_clause.replace('WHERE', 'AND')
 
         return where
 
-    def generate_query(self, data: Data, join: bool = True, where: bool = True, order: bool = True) -> str:
+    def generate_query(self, data: Data, join_clause: bool = True, where_clause: bool = True,
+                       order_clause: bool = True) -> str:
         """
         Generate a query string using the relationships that have been set
 
-        :param join: True if you want the join clause auto-generated, False if not
-        :type join: bool
-        :param where: True if you want the where clause auto-generated, False if not
-        :type where: bool
-        :param order: True if you want the order by clause auto-generated, False if not
-        :type order: bool
+        :param join_clause: True if you want the join clause auto-generated, False if not
+        :type join_clause: bool
+        :param where_clause: True if you want the where clause auto-generated, False if not
+        :type where_clause: bool
+        :param order_clause: True if you want the order by clause auto-generated, False if not
+        :type order_clause: bool
         :returns: a query string for use with sqlite3
         :rtype: str
         """
         q = data.query
-        q += f' {data.join if join else ""}'
-        q += f' {data.where if where else ""}'
-        q += f' {data.order if order else ""}'
+        q += f' {data.join_clause if join_clause else ""}'
+        q += f' {data.where_clause if where_clause else ""}'
+        q += f' {data.order_clause if order_clause else ""}'
         return q
 
     def delete_record(self, data: Data, cascade=True): # TODO: get ON DELETE CASCADE from db
