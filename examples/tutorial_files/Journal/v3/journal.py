@@ -29,7 +29,7 @@ INSERT INTO Mood VALUES (4,"Emotional");
 INSERT INTO Mood VALUES (5,"Content");
 INSERT INTO Mood VALUES (6,"Curious");
 """
-frm=ss.Form('journal.db', sql_commands=sql) #<=== ONE SIMPLE CHANGE!!!
+frm= ss.Form('journal.db')  #<=== ONE SIMPLE CHANGE!!!
 # Now we just gave the new databasase a name - "journal.db" in this case.  If journal.db is not present
 # when this code is run, then a new one is created using the commands supplied to the sql_commands keyword argument.
 # If journal.db does exist, then it is used and the sql_commands are not run at all.

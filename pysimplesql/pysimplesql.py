@@ -32,7 +32,7 @@ Naming conventions can fall under 4 categories:
     q, query - An SQL query string
     domain - the data type of the data (INTEGER, TEXT, etc.)
 
-- Data related
+ - ResulSet related #
     resultset, rows - a collection of rows from  querying the database
     row - a group of related data in the resultset
     field - the value found where a row intersects a column
@@ -40,10 +40,13 @@ Naming conventions can fall under 4 categories:
 - pysimplesql related
     frm - a `Form` object
     data - a `Data` object
+    data_key - the key (name) of a data object
+    dataset - A collection of `Data` objects
 
 - PySimpleGUI related
     win, window - A PySimpleGUI Window object
     element - a Window element
+    element_key -  a window element key
 ------------------------------------------------------------------------------------------------------------------------
 """
 # TODO: Make a list of controls to enable/disable along with edit_protect.  This would be a pretty cool feature
@@ -112,7 +115,7 @@ TFORM_DECODE:int = 0
 # -----------
 # Custom events (requires 'function' dictionary key)
 EVENT_FUNCTION:int          = 0
-# Query-level events (requires 'table' dictionary key)
+# Data-level events (requires 'table' dictionary key)
 EVENT_FIRST:int             = 1
 EVENT_PREVIOUS:int          = 2
 EVENT_NEXT:int              = 3
@@ -268,7 +271,7 @@ class Relationship:
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
         """
-        for qry in frm.queries:
+        for _ in frm.dataset:
             for r in cls.instances:
                 if r.child_table == frm[table].table and r.update_cascade:
                     return r.fk_column
@@ -320,18 +323,19 @@ class Relationship:
 
 class ElementMap(dict):
     """
-    Map a PySimpleGUI element to a specific `Query` column.  This is what makes the GUI automatically update to
+    Map a PySimpleGUI element to a specific `Data` column.  This is what makes the GUI automatically update to
     the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
     using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the
-    Table.column naming convention is used, This method can be used to manually map any element to any `Query` column
+    Table.column naming convention is used, This method can be used to manually map any element to any `Data` column
     regardless of naming convention.
 
     """
-    def __init__(self, element: sg.Element, query: Query, column: str, where_column: str = None, where_value: str = None) -> None:
+    def __init__(self, element: sg.Element, data: Data, column: str, where_column: str = None,
+                 where_value: str = None) -> None:
         """
         Create a new ElementMap instance
         :param element: A PySimpleGUI Element
-        :param query: A `Query` object
+        :param data: A `Data` object
         :param column: The name of the column to bind to the element
         :param where_column: Used for ke, value shorthand TODO: expand on this
         :param where_value: Used for ey, value shorthand TODO: expand on this
@@ -339,8 +343,8 @@ class ElementMap(dict):
         """
         super().__init__()
         self['element'] = element
-        self['query'] = query
-        self['table_name'] = query.table
+        self['data'] = data
+        self['table_name'] = data.table
         self['column'] = column
         self['where_column'] = where_column
         self['where_value'] = where_value
@@ -356,24 +360,24 @@ class ElementMap(dict):
         self[key] = value
 
 
-class Query:
+class Data:
     """
-    This class is used for an internal representation of database queries/tables. `Query` instances are added by the
+    This class is used for an internal representation of database dataset/tables. `Data` instances are added by the
     following `Form` methods: `Form.add_table` `Form.auto_add_tables`
-    A `Query` is synonymous for a SQL Table (though you can technically have multiple `Query` objects referencing the
-    same table, with each `Query` object having its own sorting, where clause, etc.)
-    Note: While users will interact with Query objects often in pysimplesql, they typically aren't created manually by
+    A `Data` is synonymous for a SQL Table (though you can technically have multiple `Data` objects referencing the
+    same table, with each `Data` object having its own sorting, where clause, etc.)
+    Note: While users will interact with Data objects often in pysimplesql, they typically aren't created manually by
     the user.
     """
     instances=[] # Track our own instances
 
-    def __init__(self, name:str, frm_reference:Form, table:str, pk_column:str, description_column:str,
-                 query:Optional[str]= '', order:Optional[str]= '', filtered:bool=True, prompt_save:bool=True,
-                 autosave=False) -> Query:
+    def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
+                 query: Optional[str] = '', order: Optional[str] = '', filtered: bool = True, prompt_save: bool = True,
+                 autosave=False) -> None:
         """
-        Initialize a new `Query` instance
+        Initialize a new `Data` instance
 
-        :param name: The name you are assigning to this query (I.e. 'qry_people')
+        :param data_key: The name you are assigning to this `Data` object (I.e. 'people')
         :param frm_reference: This is a reference to the @ Form object, for convenience
         :param table: Name of the table
         :param pk_column: The name of the column containing the primary key for this table
@@ -386,10 +390,10 @@ class Query:
                be generated. False will display all records in query.
         :param prompt_save: (optional) Prompt to save changes when dirty records are present
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
-        :returns: A `Query` instance
+        :returns: None
         """
         # todo finish the order processing!
-        Query.instances.append(self)
+        Data.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
         if query == '':
@@ -398,13 +402,13 @@ class Query:
         if order == '':
             order = self.driver.default_order(description_column)
 
-        self.name:str = name
+        self.key:str = data_key
         self.frm:Form = frm_reference
         self._current_index:int = 0
-        self.table:str = table # TODO: refactor to table_name
+        self.table:str = table
         self.pk_column:str = pk_column
         self.description_column:str = description_column
-        self.query:str = query # TODO: refactor to query_str
+        self.query:str = query #
         self.order:str = order # TODO: refactor to order_clause
         self.join:str = ''  # TODO: refactor to join_clause
         self.where:str = '' # In addition to the generated where clause! TODO: refactor to where_clause
@@ -444,7 +448,7 @@ class Query:
         """
         Purge the tracked instances related to frm
 
-        :param frm: the `Form` to purge query instances from
+        :param frm: the `Form` to purge `Data`` instances from
         :param reset_keygen: Reset the keygen after purging?
         :returns: None
         """
@@ -452,13 +456,13 @@ class Query:
         new_instances=[]
         selector_keys=[]
 
-        for i in Query.instances:
-            if i.frm!=frm:
-                new_instances.append(i)
+        for data in Data.instances:
+            if data.frm!=frm:
+                new_instances.append(data)
             else:
-                logger.debug(f'Removing Query {i.name} related to {frm.driver.__class__.__name__}')
+                logger.debug(f'Removing Data {data.key} related to {frm.driver.__class__.__name__}')
                 # we need to get a list of elements to purge from the keygen
-                for s in i.selector:
+                for s in data.selector:
                     selector_keys.append(s['element'].key)
 
 
@@ -469,7 +473,7 @@ class Query:
                 keygen.reset_key(k)
             keygen.reset_from_form(frm)
         # Update the internally tracked instances
-        Query.instances=new_instances
+        Data.instances=new_instances
 
     def set_prompt_save(self,value:bool) -> None:
         """
@@ -493,7 +497,7 @@ class Query:
 
     def set_callback(self, callback:str, fctn:Callable[[Form, sg.Window], bool]) -> None:
         """
-        Set Query callbacks. A runtime error will be thrown if the callback is not supported.
+        Set Data callbacks. A runtime error will be thrown if the callback is not supported.
 
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the
@@ -536,7 +540,7 @@ class Query:
 
     def set_transform(self, fn:callable) -> None:
         """
-        Set a transform on the data for this `Query`.
+        Set a transform on the data for this `Data`.
 
         Here you can set custom a custom transform to both decode data from the
         database and encode data written to the database. This allows you to have dates stored as timestamps in the database,
@@ -551,23 +555,23 @@ class Query:
         """
         self.transform = fn
 
-    def set_query(self, query_str:str) -> None:
+    def set_query(self, query:str) -> None:
         """
-        Set the query string for the `Query`.
+        Set the query string for the `Data`.
 
         This is more for advanced users.  It defaults to "SELECT * FROM {table}; You can override the default with this method
 
-        :param query_str: The query string you would like to associate with the table
+        :param query: The query string you would like to associate with the table
         :returns: None
         """
-        logger.debug(f'Setting {self.table} query to {query_str}')
-        self.query = query_str
+        logger.debug(f'Setting {self.table} query to {query}')
+        self.query = query
 
 
 
     def set_join_clause(self, clause:str) -> None:
         """
-        Set the `Query` object's join string.
+        Set the `Data` object's join string.
 
         This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
 
@@ -579,7 +583,7 @@ class Query:
 
     def set_where_clause(self, clause:str) -> None:
         """
-        Set the `Query` object's where clause.
+        Set the `Data` object's where clause.
 
         This is ADDED TO the auto-generated where clause from Relationship data
 
@@ -591,7 +595,7 @@ class Query:
 
     def set_order_clause(self, clause:str) -> None:
         """
-        Set the `Query` object's order clause.
+        Set the `Data` object's order clause.
 
         This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
 
@@ -603,22 +607,22 @@ class Query:
 
     def update_column_info(self,column_info:ColumnInfo=None) -> None:
         """
-        Generate column names for the query.  This may need done, for example, when a manual query using joins
-        is used.
+        Generate column information for the `Data' object.  This may need done, for example, when a manual query using
+        joins is used.
 
         This is more for advanced users.
         :param column_info: (optional) A `ColumnInfo` instance. Defaults to being generated by the `SQLDriver`
         :returns: None
         """
         # Now we need to set  new column names, as the query could have changed
-        if column_info!=None:
-            self.column_info=column_info
+        if column_info != None:
+            self.column_info = column_info
         else:
             self.column_info = self.driver.column_info(self.table)
 
     def set_description_column(self, column_name:str) -> None:
         """
-        Set the `Query` object's description column.
+        Set the `Data` object's description column.
 
         This is the column that will display in Listboxes, Comboboxes, Tables, etc.
         By default,this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the
@@ -632,10 +636,10 @@ class Query:
 
     def records_changed(self, column_name: str = None, recursive=True) -> bool:
         """
-        Checks if records have been changed by comparing PySimpleGUI control values with the stored Query values
+        Checks if records have been changed by comparing PySimpleGUI control values with the stored Data values
 
         :param column_name: Limit the changed records search to just the supplied column name
-        :param recursive: True to check related `Query` instances
+        :param recursive: True to check related `Data` instances
         :returns: True or False on whether changed records were found
         """
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
@@ -737,15 +741,15 @@ class Query:
                 requery_dependents: bool = True) -> None:
         """
         Requeries the table
-        The `Query` object maintains an internal representation of the actual database table.
-        The requery method will query the actual database and sync the `Query` objects to it
+        The `Data` object maintains an internal representation of the actual database table.
+        The requery method will query the actual database and sync the `Data` objects to it
 
         :param select_first: (optional) If True, the first record will be selected after the requery
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                          be generated. If False all records in the table will be fetched.
-        :param update_elements: (optional) Passed to `Query.first()` to update_elements. Note that the select_first parameter
+        :param update_elements: (optional) Passed to `Data.first()` to update_elements. Note that the select_first parameter
                         must = True to use this parameter.
-        :param requery_dependents: (optional) passed to `Query.first()` to requery_dependents. Note that the select_first
+        :param requery_dependents: (optional) passed to `Data.first()` to requery_dependents. Note that the select_first
                            parameter must = True to use this parameter.
         :returns: None
         """
@@ -788,10 +792,10 @@ class Query:
 
     def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
         """
-        Requery parent `Query` instances as defined by the relationships of the table
+        Requery parent `Data` instances as defined by the relationships of the table
 
         :param child: (optional) If True, will requery self. Default False; used to skip requery when called by parent.
-        :param update_elements: (optional) passed to `Query.requery()` -> `Query.first()` to update_elements.
+        :param update_elements: (optional) passed to `Data.requery()` -> `Data.first()` to update_elements.
         :returns: None
         """
         if child: self.requery(update_elements=update_elements,
@@ -805,8 +809,8 @@ class Query:
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
-        `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
+        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
+        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -826,8 +830,8 @@ class Query:
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
-        `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
+        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
+        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -847,8 +851,8 @@ class Query:
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
-        `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
+        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
+        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -869,8 +873,8 @@ class Query:
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
-        `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
+        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
+        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -891,13 +895,13 @@ class Query:
                skip_prompt_save: bool = False) \
             -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
-        Move to the next record in the `Query` that contains `search_string`.
+        Move to the next record in the `Data` that contains `search_string`.
         Successive calls will search from the current position, and wrap around back to the beginning.
-        The search order from `Query.set_search_order()` will be used.  If the search order is not set by the user,
-        it will default to the description column (see `Query.set_description_column()`.
+        The search order from `Data.set_search_order()` will be used.  If the search order is not set by the user,
+        it will default to the description column (see `Data.set_description_column()`.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
-        `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
+        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
+        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
 
         :param search_string: The search string to look for
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -952,10 +956,10 @@ class Query:
     def set_by_index(self, index: int, update_elements: bool = True, dependents: bool = True,
                      skip_prompt_save: bool = False, omit_elements: List[str] = []) -> None:
         """
-        Move to the record of the table located at the specified index in Query.
+        Move to the record of the table located at the specified index in Data.
          Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Query.first()`, `Query.previous()`, `Query.next()`, `Query.last()`,
-        `Query.search()`, `Query.set_by_pk()`, `Query.set_by_index()`
+        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
+        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
 
         :param index: The index of the record to move to.
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -978,8 +982,8 @@ class Query:
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
         and then the current record selection updated regardless of the new sort order.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Query.first, @Query.previous, @Query.next, @Query.last, @Query.search,
-        @Query.set_by_index
+        which record is currently selected. See @Data.first, @Data.previous, @Data.next, @Data.last, @Data.search,
+        @Data.set_by_index
 
         :param pk: The record to move to containing the primary key
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -1006,7 +1010,7 @@ class Query:
         """
         Get the current value pointed to for `column_name`
         You can also use indexing of the @Form object to get the current value of a column
-        I.e. frm["{Query}].[{column'}]
+        I.e. frm["{Data}].[{column'}]
 
         :param column_name: The column you want to get the value from
         :param default: A value to return if the record is null
@@ -1025,7 +1029,7 @@ class Query:
         """
        Set the current value pointed to for `column_name`
        You can also use indexing of the `Form` object to set the current value of a column
-       I.e. frm[{Query}].[{column}] = 'New value'
+       I.e. frm[{Data}].[{column}] = 'New value'
 
        :param column_name: The column you want to set the value for
        :param value: A value to set the current record's column to
@@ -1065,13 +1069,13 @@ class Query:
             self.current_index = self.current_index # force the current_index to be in bounds! For child reparenting
             return self.rows[self.current_index]
 
-    def add_selector(self, element:sg.Element, query_name:str, where_column:str=None, where_value:str=None) -> None:
+    def add_selector(self, element: sg.Element, data_key: str, where_column: str = None, where_value: str = None) -> None:
         """
         Use an element such as a listbox, combobox or a table as a selector item for this table.
         Note: This is not typically used by the end user, as this is called from the`selector()` convenience function
 
         :param element: the PySinpleGUI element used as a selector element
-        :param query_name: the `Query` name this selector will operate on
+        :param data_key: the `Data` item this selector will operate on
         :param where_column: (optional)
         :param where_value: (optional)
         :returns: None
@@ -1080,12 +1084,12 @@ class Query:
             raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
 
         logger.debug(f'Adding {element.Key} as a selector for the {self.table} table.')
-        d={'element': element, 'query': query_name, 'where_column': where_column, 'where_value': where_value}
+        d={'element': element, 'data_key': data_key, 'where_column': where_column, 'where_value': where_value}
         self.selector.append(d)
 
     def insert_record(self, values:Dict[str:Union[str,int]]=None, skip_prompt_save:bool=False) -> None:
         """
-        Insert a new record virtually in the `Query` object. If values are passed, it will initially set those columns to
+        Insert a new record virtually in the `Data` object. If values are passed, it will initially set those columns to
         the values (I.e. {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the database if present.
 
         :param values: column_name:value pairs
@@ -1126,7 +1130,7 @@ class Query:
     def save_record(self, display_message:bool=True, update_elements:bool=True) -> None:
         """
         Save the currently selected record
-        Saves any changes made via the GUI back to the database.  The before_save and after_save `Query.callbacks` will call
+        Saves any changes made via the GUI back to the database.  The before_save and after_save `Data.callbacks` will call
         your own functions for error checking if needed!
 
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
@@ -1156,12 +1160,12 @@ class Query:
         # Note that while saving, we are working with just the current row of data, unless it's 'keyed' via ?/= 
         current_row = self.get_current_row().copy()
 
-        # Track the keyed queries we have to run.  Set to None so we can tell later if there were keyed elements
+        # Track the keyed dataset we have to run.  Set to None so we can tell later if there were keyed elements
         keyed_queries:list = None # each entry a dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
-            if mapped.query == self:
+            if mapped.data == self:
 
                 # convert the data into the correct data type using the sql_type in ColumnInfo
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
@@ -1187,7 +1191,7 @@ class Query:
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
-                if mapped.query == self and mapped.column == cascade_fk_column:
+                if mapped.data == self and mapped.column == cascade_fk_column:
                     cascade_fk_changed = self.records_changed(column_name=cascade_fk_column, recursive=False)
 
         # Update the database from the stored rows
@@ -1208,7 +1212,7 @@ class Query:
             if current_row.virtual==True:
                 result = self.driver.insert_record(self.table,self.get_current_pk(),self.pk_column,changed_row)
             else:
-                result = self.driver.save_record(self,changed_row)
+                result = self.driver.save_record(self, changed_row)
 
             if result.exception is not None:
                 sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
@@ -1245,7 +1249,7 @@ class Query:
         self.driver.commit()
 
 
-        if update_elements:self.frm.update_elements(self.table)
+        if update_elements: self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:  sg.popup_quick_message('Updates saved successfully!',keep_on_top=True)
 
@@ -1257,12 +1261,12 @@ class Query:
                              -> Dict[str,Union[PROMPT_SAVE_PROCEED,PROMPT_SAVE_DISCARDED,PROMPT_SAVE_NONE]]:
         """
         Recursively save changes, taking into account the relationships of the tables
-        :param results: Used in Form.save_records to collect Query.save_record returns. Pass an empty dict to get list
+        :param results: Used in Form.save_records to collect Data.save_record returns. Pass an empty dict to get list
                of {table_name : result}
-        :param display_message: Passed to Query.save_record. Displays a message "Updates saved successfully", otherwise
+        :param display_message: Passed to Data.save_record. Displays a message "Updates saved successfully", otherwise
                is silent on success
         :param check_prompt_save: Used when called from Form.prompt_save. Updates elements without saving if individual
-               `Query._prompt_save()` is False.
+               `Data._prompt_save()` is False.
         :returns: dict of {table_name : results}
         """
         for rel in self.frm.relationships:
@@ -1300,7 +1304,7 @@ class Query:
 
         children = []
         if cascade:
-            for qry in self.frm.queries:
+            for _ in self.frm.dataset:
                 for r in self.frm.relationships:
                     if r.parent_table == self.table and r.update_cascade:
                         children.append(r.child_table)
@@ -1352,7 +1356,7 @@ class Query:
             
         children = []
         if cascade:
-            for qry in self.frm.queries:
+            for _ in self.frm.dataset:
                 for r in self.frm.relationships:
                     if r.parent_table == self.table and r.update_cascade:
                         children.append(r.child_table)
@@ -1369,7 +1373,7 @@ class Query:
         pk = self.get_current_pk()
 
         # Have the driver duplicate the record
-        res = self.driver.duplicate_record(self,cascade)
+        res = self.driver.duplicate_record(self, cascade)
         if res.exception:
             self.driver.rollback()
             sg.popup(res.exception, keep_on_top=True)
@@ -1397,7 +1401,7 @@ class Query:
 
     def get_description_for_pk(self, pk:int) -> Union[str,int,None]:
         """
-        Get the description from `Query.desctiption_column` from the row where the `Query.pk_column` = `pk`
+        Get the description from `Data.desctiption_column` from the row where the `Data.pk_column` = `pk`
 
         :param pk: The primary key from which to find the description for
         :returns: The value found in the description column, or None if nothing is found
@@ -1412,7 +1416,7 @@ class Query:
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element. Each
 
         :param column_names: A list of column names to create table values for.  Defaults to getting them from the
-                             `Query.rows` `ResultSet`
+                             `Data.rows` `ResultSet`
         :param mark_virtual: Place a marker next to virtual records
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table element values
         """
@@ -1469,7 +1473,7 @@ class Query:
         for rel in rels:
             if column_name == rel.fk_column:
                 return rel.parent_table
-        return self.name  # None could be found, return ourself
+        return self.table  # None could be found, return our own table instead
 
     def quick_editor(self, pk_update_funct:callable=None, funct_param:any=None, skip_prompt_save:bool=False) -> None:
         """
@@ -1489,7 +1493,7 @@ class Query:
         # Reset the keygen to keep consistent naming
         logger.info('Creating Quick Editor window')
         keygen.reset()
-        query_name = self.name
+        data_key = self.key
         layout = []
         headings = self.column_info.names()
         visible = [1] * len(headings); visible[0] = 0
@@ -1498,17 +1502,17 @@ class Query:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            [pysimplesql.selector(query_name, sg.Table, key='quick_edit2', num_rows=10, headings=headings,
+            [pysimplesql.selector(data_key, sg.Table, num_rows=10, headings=headings,
                                   visible_column_map=visible)])
-        layout.append([pysimplesql.actions(query_name, "act_quick_edit2", edit_protect=False)])
+        layout.append([pysimplesql.actions(data_key, edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_info.names():
-            column=f'{query_name}.{col}'
+            column=f'{data_key}.{col}'
             if col!=self.pk_column:
                 layout.append([pysimplesql.field(column)])
 
-        quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
+        quick_win = sg.Window(f'Quick Edit - {data_key}', layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
         driver=Sqlite(sqlite3_database=self.frm.driver.con)
         quick_frm = Form(driver, bind=quick_win)
 
@@ -1516,9 +1520,9 @@ class Query:
         # Select the current entry to start with
         if pk_update_funct is not None:
             if funct_param is None:
-                quick_frm[query_name].set_by_pk(pk_update_funct())
+                quick_frm[data_key].set_by_pk(pk_update_funct())
             else:
-                quick_frm[query_name].set_by_pk(pk_update_funct(funct_param))
+                quick_frm[data_key].set_by_pk(pk_update_funct(funct_param))
 
         while True:
             event, values = quick_win.read()
@@ -1534,7 +1538,7 @@ class Query:
 
     def add_simple_transform(self, transforms:Dict[str,Dict[str,Callable[[str,str],None]]]) -> None:
         """
-        Merge a dictionary of transforms into the `Query._simple_transform` dictionary.
+        Merge a dictionary of transforms into the `Data._simple_transform` dictionary.
 
         Example:
         {'entry_date' : {
@@ -1553,36 +1557,37 @@ class Form:
     """
     @orm class
     Maintains an internal version of the actual database
-    Queries can be accessed by key, I.e. frm['query_name"] to return a `Query` instance
+    `Data` objects can be accessed by key, I.e. frm['data_key']
     """
     instances = []  # Track our instances
     relationships = [] # Track our relationships
 
-    def __init__(self, driver:SQLDriver, bind:sg.Window=None, prefix_queries:str='', parent:Form=None, filter:str=None,
-                 select_first:bool=True, autosave:bool=False) -> Form:
+    def __init__(self, driver: SQLDriver, bind: sg.Window = None, prefix_data_keys: str = '', parent: Form = None,
+                 filter: str = None, select_first: bool = True, autosave: bool = False) -> Form:
         """
         Initialize a new `Form` instance
 
         :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
         :param bind: Bind this window to the `Form`
-        :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
-        :param parent: (optional)Parent `Form` to base queries off of
+        :param prefix_data_keys: (optional) prefix auto generated data_key names with this value. Example 'data_'
+        :param parent: (optional)Parent `Form` to base dataset off of
         :param filter: (optional) Only import elements with the same filter set. Typically set with `field()`, but can
                        also be set manually as a dict with the key 'filter' set in the element's metadata
-        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well.
+        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
+                             as well.
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
         :returns: A `Form` instance
 
         """
         Form.instances.append(self)
 
-        self.driver:SQLDriver = driver
-        self.filter:str = filter
-        self.parent:Form = parent  # TODO: This doesn't seem to really be used yet
-        self.window:sg.Window = None
-        self._edit_protect:bool = False
-        self.queries:Dict[str,Query] = {}
-        self.element_map:List[ElementMap] = []
+        self.driver: SQLDriver = driver
+        self.filter: str = filter
+        self.parent: Form = parent  # TODO: This doesn't seem to really be used yet
+        self.window: sg.Window = None
+        self._edit_protect: bool = False
+        self.dataset: Dict[str, Data] = {}
+        self.element_map: List[ElementMap] = []
         """
         The element map dict is set up as below:
         
@@ -1591,13 +1596,13 @@ class Form:
         :caption: Example code
         """
         self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
-        self.relationships:List[Relationship] = []
-        self.callbacks:Dict[str,Callable[[Form,sg.Window],Union[None,bool]]] = {}
-        self.autosave:bool = autosave
-        self.force_save:bool = False
+        self.relationships: List[Relationship] = []
+        self.callbacks: Dict[str,Callable[[Form, sg.Window], Union[None, bool]]] = {}
+        self.autosave: bool = autosave
+        self.force_save: bool = False
 
-        # Add our default queries and relationships
-        self.auto_add_queries(prefix_queries)
+        # Add our default datasets and relationships
+        self.auto_add_dataset(prefix_data_keys)
         self.auto_add_relationships()
         self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
         if bind!=None:
@@ -1608,9 +1613,9 @@ class Form:
         self.close()
 
 
-    # Override the [] operator to retrieve queries by key
-    def __getitem__(self, key:str) -> Query:
-        return self.queries[key]
+    # Override the [] operator to retrieve dataset by key
+    def __getitem__(self, key:str) -> Data:
+        return self.dataset[key]
 
     def close(self,reset_keygen:bool=True):
         """
@@ -1618,8 +1623,8 @@ class Form:
 
         :param reset_keygen: True to reset the keygen for this `Form`
         """
-        # First delete the queries associated
-        Query.purge_form(self,reset_keygen)
+        # First delete the dataset associated
+        Data.purge_form(self, reset_keygen)
         self.driver.close()
 
     def bind(self, win:sg.Window) -> None:
@@ -1640,14 +1645,14 @@ class Form:
         logger.debug('Binding finished!')
 
 
-    def execute(self, query_string:str) -> ResultSet:
+    def execute(self, query: str) -> ResultSet:
         """
         Convenience function to pass along to `SQLDriver.execute()`
 
-        :param query_string: The query to execute
+        :param query: The query to execute
         :returns: A `ResultSet` object
         """
-        return self.driver.execute(query_string)
+        return self.driver.execute(query)
 
     def commit(self) -> None:
         """
@@ -1687,29 +1692,29 @@ class Form:
         else:
             raise RuntimeError(f'Callback "{callback_name}" not supported. callback: {callback_name} supported: {supported}')
 
-    def add_query(self, name:str, table_name:str, pk_column:str, description_column:str, query_string:str='',
-                  order_clause:str='') -> None:
+    def add_data(self, data_key: str, table: str, pk_column: str, description_column: str, query: str = '',
+                 order_clause: str = '') -> None:
         """
-        Manually add a `Query` to the `Form`
+        Manually add a `Data` object to the `Form`
         When you attach to a database, PySimpleSQL isn't aware of what it contains until this command is run
-        Note that `Form.auto_add_queries()` does this automatically, which is called when a `Form` is created
+        Note that `Form.auto_add_dataset()` does this automatically, which is called when a `Form` is created
 
-        :param name: The name to give this `Query`.  Use frm['query_name'] to access it.
-        :param table_name: The name of the table in the database
+        :param data_key: The key to give this `Data`.  Use frm['data_key'] to access it.
+        :param table: The name of the table in the database
         :param pk_column: The primary key column of the table in the database
         :param description_column: The column to be used to display to users in listboxes, comboboxes, etc.
-        :param query_string: The initial query for the table.  Auto generates "SELECT * FROM {table}" if none is passed
+        :param query: The initial query for the table.  Auto generates "SELECT * FROM {table}" if none is passed
         :param order_clause: The initial sort order for the query
         :returns: None
         """
-        self.queries.update({name: Query(name,self, table_name, pk_column, description_column, query_string, order_clause)})
-        self[name].set_search_order([description_column])  # set a default sort order
+        self.dataset.update({data_key: Data(data_key, self, table, pk_column, description_column, query, order_clause)})
+        self[data_key].set_search_order([description_column])  # set a default sort order
 
     def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str, update_cascade) -> None:
         """
-        Add a foreign key relationship between two queries of the database
-        When you attach a database, PySimpleSQL isn't aware of the relationships contained until queries are
-        added via `Form.add_query`, and the relationship of various tables is set with this function.
+        Add a foreign key relationship between two dataset of the database
+        When you attach a database, PySimpleSQL isn't aware of the relationships contained until dataset are
+        added via `Form.add_data`, and the relationship of various tables is set with this function.
         Note that `Form.auto_add_relationships()` will do this automatically from the schema of the database,
         which also happens automatically when a `Form` is created.
 
@@ -1769,29 +1774,29 @@ class Form:
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
         """
-        for qry in self.queries:
+        for _ in self.dataset:
             for r in self.relationships:
                 if r.child_table == self[table].table and r.update_cascade:
                     return r.fk_column
         return None
     
-    def auto_add_queries(self, prefix_queries:str='') -> None:
+    def auto_add_dataset(self, prefix_data_keys: str = '') -> None:
         """
-        Automatically add `Query` objects from the database by looping through the tables available and creating a
-        `Query` object for each.
+        Automatically add `Data` objects from the database by looping through the tables available and creating a
+        `Data` object for each.
         When you attach to a sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
         This is called automatically when a `Form ` is created.
         Note that `Form.add_table()` can do this manually on a per-table basis.
 
-        :param prefix_queries: Adds a prefix to the auto-generated `Query` names
+        :param prefix_data_keys: Adds a prefix to the auto-generated `Data` keys
         :returns: None
         """
-        logger.info('Automatically generating queries for each table in the sqlite database')
-        # Ensure we clear any current queries so that successive calls will not double the entries
-        self.queries = {}
+        logger.info('Automatically generating dataset for each table in the sqlite database')
+        # Ensure we clear any current dataset so that successive calls will not double the entries
+        self.dataset = {}
         table_names = self.driver.table_names()
-        for table_name in table_names:
-            column_info = self.driver.column_info(table_name)
+        for table in table_names:
+            column_info = self.driver.column_info(table)
 
             # auto generate description column.  Default it to the 2nd column,
             # but can be overwritten below
@@ -1802,16 +1807,16 @@ class Form:
                     break
 
             # Get our pk column
-            pk_column = self.driver.pk_column(table_name)
+            pk_column = self.driver.pk_column(table)
 
-            query_name=prefix_queries+table_name
+            data_key= prefix_data_keys + table
             logger.debug(
-                f'Adding query "{query_name}" on table {table_name} to Form with primary key {pk_column} and description of {description_column}')
-            self.add_query(query_name,table_name, pk_column, description_column)
-            self.queries[query_name].column_info = column_info
+                f'Adding Data "{data_key}" on table {table} to Form with primary key {pk_column} and description of {description_column}')
+            self.add_data(data_key, table, pk_column, description_column)
+            self.dataset[data_key].column_info = column_info
 
     # Make sure to send a list of table names to requery if you want
-    # dependent queries to requery automatically
+    # dependent dataset to requery automatically
     def auto_add_relationships(self) -> None:
         """
         Automatically add a foreign key relationship between tables of the database. This is done by foregn key constrains
@@ -1823,36 +1828,37 @@ class Form:
         :returns: None
         """
         logger.info(f'Automatically adding foreign key relationships')
-        # Ensure we clear any current queries so that successive calls will not double the entries
+        # Ensure we clear any current dataset so that successive calls will not double the entries
         self.relationships = [] # clear any relationships already stored
         relationships = self.driver.relationships()
         for r in relationships:
             logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
             self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['update_cascade'])
 
-    # Map an element to a Query.
+    # Map an element to a Data.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
-    def map_element(self, element:sg.Element, query:Query, column:str, where_column:str=None, where_value:str=None) -> None:
+    def map_element(self, element: sg.Element, data: Data, column: str, where_column: str = None,
+                    where_value: str = None) -> None:
         """
-        Map a PySimpleGUI element to a specific `Query` column.  This is what makes the GUI automatically update to
+        Map a PySimpleGUI element to a specific `Data` column.  This is what makes the GUI automatically update to
         the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
-        using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the
-        Table.column naming convention is used, This method can be used to manually map any element to any `Query` column
-        regardless of naming convention.
+        using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the element
+        metadata is configured properly. This method can be used to manually map any element to any `Data` column
+        regardless of metadata configuration.
 
         :param element: A PySimpleGUI Element
-        :param query: A `Query` object
+        :param data: A `Data` object
         :param column: The name of the column to bind to the element
         :param where_column: Used for ke, value shorthand TODO: expand on this
         :param where_value: Used for ey, value shorthand TODO: expand on this
         :returns: None
         """
         logger.debug(f'Mapping element {element.key}')
-        self.element_map.append(ElementMap(element, query, column, where_column, where_value))
+        self.element_map.append(ElementMap(element, data, column, where_column, where_value))
 
     def auto_map_elements(self, win:sg.Window, keys:List[str]=None) -> None:
         """
-        Automatically map PySimpleGUI Elements to `Query` columns. A special naming convention has to be used for
+        Automatically map PySimpleGUI Elements to `Data` columns. A special naming convention has to be used for
         automatic mapping to happen.  Note that `Form.map_element()` can be used to manually map an Element to a column.
         Automatic mapping reilies on a special naming convention as well as certain data in the Elemen's metadata.
         The convenience functions `field()`, `selector()`, and `actions()` do this automatically and should be used in
@@ -1916,10 +1922,10 @@ class Form:
                     if keyword is not None and keyword != '':
                         check_keyword(keyword)
 
-                if table in self.queries:
-                    if col in self[table].column_info:
+                if data_key in self.dataset:
+                    if col in self[data_key].column_info:
                         # Map this element to table.column
-                        self.map_element(element, self[table], col, where_column, where_value)
+                        self.map_element(element, self[data_key], col, where_column, where_value)
 
             # Map Selector Element
             elif element.metadata['type']==TYPE_SELECTOR:
@@ -1927,15 +1933,15 @@ class Form:
                 if k is None: continue
                 if element.metadata['Form'] != self: continue
                 if '?' in k:
-                    query_info, where_info = k.split('?')
+                    table_info, where_info = k.split('?')
                     where_column,where_value=where_info.split('=')
                 else:
-                    query_info = k;
+                    table_info = k
                     where_info = where_column = where_value = None
-                query= query_info
+                data_key = table_info
 
-                if query in self.queries:
-                    self[query].add_selector(element,query,where_column,where_value)
+                if data_key in self.dataset:
+                    self[data_key].add_selector(element, data_key, where_column, where_value)
 
                     # Enable sorting if TableHeading  is present
                     if type(element) is sg.Table and 'TableHeading' in element.metadata:
@@ -1944,11 +1950,11 @@ class Form:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
                         # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_reverse
                         # 3 we need to run update_elements() to see the changes
-                        def callback_wrapper(column_name, element=element, query=query):
+                        def callback_wrapper(column_name, element=element, data_key=data_key):
                             # store the pk:
-                            pk = self[query].get_current_pk()
-                            sort_order = self[query].rows.sort_cycle(column_name, query)
-                            self[query].set_by_pk(pk, update_elements=True, requery_dependents=False,
+                            pk = self[data_key].get_current_pk()
+                            sort_order = self[data_key].rows.sort_cycle(column_name, data_key)
+                            self[data_key].set_by_pk(pk, update_elements=True, requery_dependents=False,
                                                   skip_prompt_save=True)
                             table_heading.update_headings(element, column_name, sort_order)
 
@@ -2032,29 +2038,30 @@ class Form:
             if element.metadata['Form'] != self:
                 continue
             if element.metadata['type'] == TYPE_EVENT:
-                event_type=element.metadata['event_type']
-                table=element.metadata['table']
+                event_type = element.metadata['event_type']
+                table = element.metadata['table']
                 column = element.metadata['column']
-                function=element.metadata['function']
-                funct=None
+                function = element.metadata['function']
+                funct = None
 
-                event_query=table if table in self.queries else None
+                data_key = table
+                data_key = data_key if data_key in self.dataset else None
                 if event_type==EVENT_FIRST:
-                    if event_query: funct=self[event_query].first
+                    if data_key: funct=self[data_key].first
                 elif event_type==EVENT_PREVIOUS:
-                    if event_query: funct=self[event_query].previous
+                    if data_key: funct=self[data_key].previous
                 elif event_type==EVENT_NEXT:
-                    if event_query: funct=self[event_query].next
+                    if data_key: funct=self[data_key].next
                 elif event_type==EVENT_LAST:
-                    if event_query: funct=self[event_query].last
+                    if data_key: funct=self[data_key].last
                 elif event_type==EVENT_SAVE:
-                    if event_query: funct=self[event_query].save_record
+                    if data_key: funct=self[data_key].save_record
                 elif event_type==EVENT_INSERT:
-                    if event_query: funct=self[event_query].insert_record
+                    if data_key: funct=self[data_key].insert_record
                 elif event_type==EVENT_DELETE:
-                    if event_query: funct=self[event_query].delete_record
+                    if data_key: funct=self[data_key].delete_record
                 elif event_type==EVENT_DUPLICATE:
-                    if event_query: funct=self[event_query].duplicate_record
+                    if data_key: funct=self[data_key].duplicate_record
                 elif event_type==EVENT_EDIT_PROTECT_DB:
                     self.edit_protect() # Enable it!
                     funct=self.edit_protect
@@ -2064,19 +2071,19 @@ class Form:
                     # Build the search box name
                     search_element,command=key.split(':')
                     search_box=f'{search_element}.search_input'
-                    if event_query: funct=functools.partial(self[event_query].search, search_box)
+                    if data_key: funct=functools.partial(self[data_key].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table=table
                     table=self[table].get_related_table_for_column(column)
-                    funct=functools.partial(self[table].quick_editor,self[referring_table].get_current,column)
+                    funct=functools.partial(self[table].quick_editor, self[referring_table].get_current, column)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
                 else:
                     logger.debug(f'Unsupported event_type: {event_type}')
 
                 if funct is not None:
-                    self.map_event(key, funct, event_query)
+                    self.map_event(key, funct, data_key)
 
 
     def edit_protect(self) -> None:
@@ -2112,18 +2119,18 @@ class Form:
     def prompt_save(self, autosave:bool=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
         """
         Prompt to save if any GUI changes are found the affect any table on this form. The helps prevent data entry
-        loss when performing an action that changes the current record of a `Query`.
+        loss when performing an action that changes the current record of a `Data`.
 
         :param autosave: True to autosave when changes are found without prompting the user
         :returns: One of the prompt constant values: PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE
         """
         user_prompted = False # Has the user been prompted yet?
-        for q in self.queries:
-            if self[q]._prompt_save is False:
+        for data_key in self.dataset:
+            if self[data_key]._prompt_save is False:
                 continue
 
-            if self[q].records_changed(recursive=False): # don't check children
-                # we will only show the popup once, regardless of how many queries have changed
+            if self[data_key].records_changed(recursive=False): # don't check children
+                # we will only show the popup once, regardless of how many dataset have changed
                 if not user_prompted:
                     user_prompted = True
                     if autosave or self.autosave:
@@ -2133,8 +2140,8 @@ class Form:
 
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
-                        for q in self.queries.keys():
-                            self[q].rows.purge_virtual()
+                        for data_key in self.dataset:
+                            self[data_key].rows.purge_virtual()
                         self.update_elements()
                         return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
                     break
@@ -2154,28 +2161,28 @@ class Form:
     def save_records(self, table_name:str=None, cascade_only:bool=False, check_prompt_save:bool=False,) \
                     -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
         """
-        Save records of all `Query` objects` associated with this `Form`.
+        Save records of all `Data` objects` associated with this `Form`.
 
-        :param table_name: Name of table to save, as well as any cascaded relationships. Used in `Query.prompt_save()`
+        :param table_name: Name of table to save, as well as any cascaded relationships. Used in `Data.prompt_save()`
         :param cascade_only: Save only tables with cascaded relationships. Default False.
-        :param check_prompt_save: Passed to `Query.save_record_recursive` to check if individual `Query` has prompt_save enabled.
-                                  Used when `Query.save_records()` is called from `Form.prompt_save()`.
+        :param check_prompt_save: Passed to `Data.save_record_recursive` to check if individual `Data` has prompt_save enabled.
+                                  Used when `Data.save_records()` is called from `Form.prompt_save()`.
         :returns: result - can be used with RETURN BITMASKS
         """
-        if check_prompt_save: logger.debug(f'Saving records in all queries that allow prompt_save...')
-        else: logger.debug(f'Saving records in all queries...')
+        if check_prompt_save: logger.debug(f'Saving records in all dataset that allow prompt_save...')
+        else: logger.debug(f'Saving records in all dataset...')
 
         result = 0
         show_message = True
         failed_tables = []
         
         if table_name: tables = [table_name] # if passed single table
-        # for cascade_only, build list of top-level queries that have children
-        elif cascade_only: tables = [q for q in self.queries
-                                     if len(self.get_cascaded_relationships(table=q))
-                                     and self.get_parent(q) is None]
-        # default behavior, build list of top-level queries (ones without a parent)
-        else: tables = [q for q in self.queries.keys() if self.get_parent(q) is None]
+        # for cascade_only, build list of top-level dataset that have children
+        elif cascade_only: tables = [data.table for data in self.dataset.values()
+                                     if len(self.get_cascaded_relationships(table=data.table))
+                                     and self.get_parent(data.table) is None]
+        # default behavior, build list of top-level dataset (ones without a parent)
+        else: tables = [data.table for data in self.dataset.values() if self.get_parent(data.table) is None]
         
         # call save_record_recursive on tables, which saves from last to first.
         result_list = []
@@ -2209,20 +2216,20 @@ class Form:
 
     def set_prompt_save(self, value: bool) -> None:
         """
-        Set the prompt to save action when navigating records for all `Query` objects associated with this `Form`
+        Set the prompt to save action when navigating records for all `Data` objects associated with this `Form`
 
         :param value: a boolean value, True to prompt to save, False for no prompt to save
         :returns: None
         """
-        for q in self.queries:
-            self[q].set_prompt_save(value)
+        for data_key in self.dataset:
+            self[data_key].set_prompt_save(value)
 
-    def update_elements(self, table_name:str=None, edit_protect_only:bool=False, omit_elements:List[str]=[]) -> None:
+    def update_elements(self, data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form` instance only
         Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
 
-        :param table_name: (optional) name of table to update elements for, otherwise updates elements for all queries
+        :param data_key: (optional) datase key to update elements for, otherwise updates elements for all datasets
         :param edit_protect_only: (optional) If true, only update items affected by edit_protect
         :param omit_elements: A list of elements to omit updating
         :returns: None
@@ -2231,43 +2238,43 @@ class Form:
         logger.debug(f'update_elements(): Updating {msg} elements')
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
-        for t in self.queries:
-            if table_name and t != table_name:
+        for data in self.dataset:
+            if data_key is not None and data != data_key: # TODO: not sure this does anything?
                 continue
             # disable mapped elements for this table if there are no records in this table or edit protect mode
-            disable = len(self[t].rows) == 0 or self._edit_protect
-            self.update_element_states(t, disable)
+            disable = len(self[data].rows) == 0 or self._edit_protect
+            self.update_element_states(data, disable)
             
-            for m in (m for m in self.event_map if m['table'] == t):
+            for m in (m for m in self.event_map if m['table'] == data):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 if (':table_delete' in m['event']) or (':table_duplicate' in m['event']):
-                    disable = len(self[t].rows) == 0 or self._edit_protect
+                    disable = len(self[data].rows) == 0 or self._edit_protect
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_first' in m['event']:
-                    disable = len(self[t].rows) < 2 or self[t].current_index == 0
+                    disable = len(self[data].rows) < 2 or self[data].current_index == 0
                     win[m['event']].update(disabled=disable)
                 
                 elif ':table_previous' in m['event']:
-                    disable = len(self[t].rows) < 2 or self[t].current_index == 0
+                    disable = len(self[data].rows) < 2 or self[data].current_index == 0
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_next' in m['event']:
-                    disable = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
+                    disable = len(self[data].rows) < 2 or (self[data].current_index == len(self[data].rows) - 1)
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_last' in m['event']:
-                    disable = len(self[t].rows) < 2 or (self[t].current_index == len(self[t].rows) - 1)
+                    disable = len(self[data].rows) < 2 or (self[data].current_index == len(self[data].rows) - 1)
                     win[m['event']].update(disabled=disable)
 
                 # Disable insert on children with no parent records or edit protect mode
-                parent = self.get_parent(t)
+                parent = self.get_parent(data)
                 if parent is not None:
                     disable = len(self[parent].rows) == 0 or self._edit_protect
                 else:
                     disable = self._edit_protect
                 if ':table_insert' in m['event']:
-                    if m['table'] == t:
+                    if m['table'] == data:
                         win[m['event']].update(disabled=disable)
 
                 # Disable db_save when needed
@@ -2289,9 +2296,9 @@ class Form:
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
         for mapped in self.element_map:
-            # If the optional query parameter was passed, we will only update elements bound to that table
-            if table_name is not None:
-                if mapped.table_name != table_name:
+            # If the optional data_key parameter was passed, we will only update elements bound to that table
+            if data_key is not None:
+                if mapped.table_name != data_key:
                     continue
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
@@ -2299,12 +2306,12 @@ class Form:
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = mapped.element.key + ':marker'
             try:
-                if mapped.query.get_current_row().virtual:
+                if mapped.data.get_current_row().virtual:
                     # get the column name from the key
                     col = mapped.column
                     # get notnull from the column info
-                    if col in mapped.query.column_info.names():
-                        if mapped.query.column_info[col].notnull:
+                    if col in mapped.data.column_info.names():
+                        if mapped.data.column_info[col].notnull:
                             self.window[marker_key].update(visible=True)
                 else:
                     self.window[marker_key].update(visible=False)
@@ -2319,17 +2326,17 @@ class Form:
 
             elif mapped.where_column is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
-                updated_val=mapped.query.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
+                updated_val=mapped.data.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
                 if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
-                    updated_val = checkbox_to_bool(mapped.query[mapped.column])
+                    updated_val = checkbox_to_bool(mapped.data[mapped.column])
 
             elif type(mapped.element) is sg.PySimpleGUI.Combo:
-                # Update elements with foreign queries first
+                # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
                 target_table=None
-                rels = self.get_relationships_for_table(mapped.query) # TODO this should be get_relationships_for_query
+                rels = self.get_relationships_for_table(mapped.data) # TODO this should be get_relationships_for_data?
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -2338,9 +2345,11 @@ class Form:
                         break
 
                 if target_table==None:
-                    logger.info(f"Error! Cound not find a related query for element {mapped.element.key} bound to query {mapped.table_name}, column: {mapped.column}")
-                    # we don't want to update the list in this case, as it was most likely supplied and not tied to a query
-                    updated_val=mapped.query[mapped.column]
+                    logger.info(f"Error! Cound not find related data for element {mapped.element.key} bound to Data key"
+                                f"{mapped.table_name}, column: {mapped.column}")
+
+                    # we don't want to update the list in this case, as it was most likely supplied and not tied to data
+                    updated_val=mapped.data[mapped.column]
 
                 # Populate the combobox entries
                 else:
@@ -2350,18 +2359,18 @@ class Form:
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
-                        if row[target_table.pk_column] == mapped.query[rel.fk_column]:
+                        if row[target_table.pk_column] == mapped.data[rel.fk_column]:
                             for entry in lst:
-                                if entry.get_pk() == mapped.query[rel.fk_column]:
+                                if entry.get_pk() == mapped.data[rel.fk_column]:
                                     updated_val = entry
                                     break
                             break
                     mapped.element.update(values=lst)
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
-                values = mapped.query.table_values()
+                values = mapped.data.table_values()
                 # Select the current one
-                pk = mapped.query.get_current_pk()
+                pk = mapped.data.get_current_pk()
 
                 found = False
                 if len(values):
@@ -2384,12 +2393,12 @@ class Form:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
                 mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out at least
-                updated_val = mapped.query[mapped.column]
+                updated_val = mapped.data[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
-                updated_val = checkbox_to_bool(mapped.query[mapped.column])
+                updated_val = checkbox_to_bool(mapped.data[mapped.column])
             elif type(mapped.element) is sg.PySimpleGUI.Image:
-                val = mapped.query[mapped.column]
+                val = mapped.data[mapped.column]
 
                 try:
                     val=eval(val)
@@ -2413,27 +2422,27 @@ class Form:
         # We can update the selector elements
         # We do it down here because it's not a mapped element...
         # Check for selector events
-        for q, table in self.queries.items():
-            if table_name is not None:
-                if q != table_name:
+        for key, data in self.dataset.items():
+            if data_key is not None:
+                if key != data_key:
                     continue
-            if len(table.selector):
-                for e in table.selector:
+            if len(data.selector):
+                for e in data.selector:
                     logger.debug(f'update_elements: SELECTOR FOUND')
                     # skip updating this element if requested
                     if e['element'] in omit_elements: continue
 
                     element=e['element']
                     logger.debug(f'{type(element)}')
-                    pk_column = table.pk_column
-                    description_column = table.description_column
+                    pk_column = data.pk_column
+                    description_column = data.description_column
                     if element.key in self.callbacks:
                         self.callbacks[element.key]()
 
                     if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
                         logger.debug(f'update_elements: List/Combo selector found...')
                         lst = []
-                        for r in table.rows:
+                        for r in data.rows:
                             if e['where_column'] is not None:
                                 if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
                                     lst.append(ElementRow(r[pk_column], r[description_column]))
@@ -2453,7 +2462,7 @@ class Form:
 
                     elif type(element) == sg.PySimpleGUI.Slider:
                         # We need to re-range the element depending on the number of records
-                        l = len(table.rows)
+                        l = len(data.rows)
                         element.update(value=table._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
@@ -2464,11 +2473,11 @@ class Form:
                         except KeyError:
                             column_names = None # default to all columns
 
-                        values = table.table_values(column_names, mark_virtual=True)
+                        values = data.table_values(column_names, mark_virtual=True)
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
-                        pk = table.get_current_pk()
+                        pk = data.get_current_pk()
 
                         found = False
                         if len(values):
@@ -2497,24 +2506,24 @@ class Form:
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
         """
-        Requeries all `Query` objects associated with this `Form`
-        This effectively re-loads the data from the database into `Query` objects
+        Requeries all `Data` objects associated with this `Form`
+        This effectively re-loads the data from the database into `Data` objects
 
-        :param select_first: passed to `Query.requery()` -> `Query.first()`. If True, the first record will be selected
+        :param select_first: passed to `Data.requery()` -> `Data.first()`. If True, the first record will be selected
                              after the requery
-        :param filtered: passed to `Query.requery()`. If True, the relationships will be considered and an appropriate
+        :param filtered: passed to `Data.requery()`. If True, the relationships will be considered and an appropriate
                         WHERE clause will be generated. False will display all records from the table.
-        :param update_elements: passed to `Query.requery()` -> `Query.first()` to `Form.update_elements()`. Note that the
+        :param update_elements: passed to `Data.requery()` -> `Data.first()` to `Form.update_elements()`. Note that the
                        select_first parameter must = True to use this parameter.
-        :param requery_dependents: passed to `Query.requery()` -> `Query.first()` to `Form.requery_dependents()`. Note that the
-                           select_first parameter must = True to use this parameter.
+        :param requery_dependents: passed to `Data.requery()` -> `Data.first()` to `Form.requery_dependents()`. Note that
+                                   the select_first parameter must = True to use this parameter.
         :returns: None
         """
         # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
-        logger.info('Requerying all queries')
-        for k in self.queries.keys():
-            if self.get_parent(k) is None:
-                self[k].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
+        logger.info('Requerying all datasets')
+        for data_key in self.dataset.keys():
+            if self.get_parent(data_key) is None:
+                self[data_key].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
                                 requery_dependents=requery_dependents)
 
     def process_events(self, event:str, values:list) -> bool:
@@ -2541,7 +2550,7 @@ class Form:
                     return True
 
             # Check for  selector events
-            for k, table in self.queries.items():
+            for k, table in self.dataset.items():
                 if len(table.selector):
                     for e in table.selector:
                         element=e['element']
@@ -2625,17 +2634,17 @@ def process_events(event:str, values:list) -> bool:
         if i.process_events(event, values): handled=True
     return handled
 
-def update_elements(query:str=None, edit_protect_only:bool=False) -> None:
+def update_elements(data_key: str = None, edit_protect_only: bool = False) -> None:
     """
     Updated the GUI elements to reflect values from the database for ALL Form instances
     Not to be confused with `Form.update_elements()`, which updates GUI elements for individual `Form` instances.
 
-    :param query: (optional) name of `Query` to update elements for, otherwise updates elements for all queries
+    :param data_key: (optional) key of `Data` to update elements for, otherwise updates elements for all datasets
     :param edit_protect_only: (optional) If true, only update items affected by edit_protect
     :returns: None
     """
     for i in Form.instances:
-        i.update_elements(query, edit_protect_only)
+        i.update_elements(data_key, edit_protect_only)
 
 def bind(win:sg.Window) -> None:
     """
@@ -2648,11 +2657,11 @@ def bind(win:sg.Window) -> None:
     for i in Form.instances:
         i.bind(win)
 
-def simple_transform(query,row,encode):
+def simple_transform(data:Data, row, encode):
     """
     Convenience transform function that makes it easier to add transforms to your records.
     """
-    for col, function in query._simple_transform.items():
+    for col, function in data._simple_transform.items():
         if col in row:
             msg = f'Transforming {col} from {row[col]}'
             if encode == pysimplesql.TFORM_DECODE:
@@ -2663,9 +2672,9 @@ def simple_transform(query,row,encode):
 
 def eat_events(win:sg.Window) -> None:
     """
-    Eat extra events emitted by PySimpleGUI.Query.update().
+    Eat extra events emitted by PySimpleGUI.Data.update().
 
-    Call this function directly after update() is run on a Query element. The reason is that updating the selection or values
+    Call this function directly after update() is run on a Data element. The reason is that updating the selection or values
     will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
     TODO: Determine if this is fixed yet in PySimpleSQL (still not fixed as of 3/2/23)
 
@@ -2978,7 +2987,7 @@ def actions(table_name:str, key=None, default:bool=True, edit_protect:bool=None,
         else:
             layout.append(sg.B(themepack.save, key=keygen.get(f'{key}db_save'), metadata=meta, use_ttk_buttons = True))
 
-    # Query-level events
+    # Data-level events
     if navigation:
         # first
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table_name, 'column': None, 'function': None, 'Form': None, 'filter': filter}
@@ -3086,7 +3095,7 @@ def selector(table_name: str, element: sg.Element = sg.LBox, size: Tuple[int, in
             required_kwargs = ['headings', 'visible_column_map', 'num_rows']
             for kwarg in required_kwargs:
                 if kwarg not in kwargs:
-                    raise RuntimeError(f'Query selectors must use the {kwarg} keyword argument.')
+                    raise RuntimeError(f'Data selectors must use the {kwarg} keyword argument.')
 
         # Create other kwargs that are required
         kwargs['enable_events'] = True
@@ -3146,7 +3155,7 @@ class TableHeadings(list):
         :param column_name: The name of the column in the database the heading column is for
         :param width: The width for this column to display within the Table element
         :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
-                        if any. This is also useful if the `Query.rows` `ResultSet` has some information that you don't
+                        if any. This is also useful if the `Data.rows` `ResultSet` has some information that you don't
                         want to display.
         :returns: None
         """
@@ -3602,12 +3611,12 @@ class ColumnInfo(List):
         """
         return self[idx].name
 
-    def default_row_dict(self, q_obj:Query) -> dict:
+    def default_row_dict(self, data: Data) -> dict:
         """
         Return a dictionary of a table row with all defaults assigned. This is useful for inserting new records to
         prefill the GUI elements
 
-        :param q_obj: a pysimplesql Query object
+        :param data: a pysimplesql Data object
         :returns: dict
         """
         d = {}
@@ -3636,7 +3645,7 @@ class ColumnInfo(List):
 
                 # If our default is callable, call it.  Otherwise, assign it
                 # Make sure to skip primary keys, and onlu consider text that is in the description column
-                if (sql_type not in ['TEXT','VARCHAR','CHAR'] and c.name != q_obj.description_column) and c.pk==False:
+                if (sql_type not in ['TEXT','VARCHAR','CHAR'] and c.name != data.description_column) and c.pk==False:
                     default = null_default() if callable(null_default) else null_default
             else:
                 # Load the default from the database
@@ -3645,7 +3654,7 @@ class ColumnInfo(List):
                     default = c.default.strip('"\'')  # strip leading and trailing quotes
 
             d[c.name]= default
-        if q_obj.transform is not None: q_obj.transform(q_obj, d, TFORM_DECODE)
+        if data.transform is not None: data.transform(data, d, TFORM_DECODE)
         return d
 
     def set_null_default(self, sql_type:str, value:object) -> None:
@@ -4133,7 +4142,7 @@ class SQLDriver:
         rows = self.execute(f"SELECT MAX({pk_column_name}) FROM {table_name}")
         return rows.fetchone()[f'MAX({pk_column_name})']
 
-    def generate_join_clause(self, q_obj:Query) -> str:
+    def generate_join_clause(self, data: Data) -> str:
         """
         Automatically generates a join clause from the Relationships that have been set
 
@@ -4143,15 +4152,15 @@ class SQLDriver:
         :rtype: str
         """
         join = ''
-        for r in q_obj.frm.relationships:
-            if q_obj.table == r.child_table:
+        for r in data.frm.relationships:
+            if data.table == r.child_table:
                 join += f' {self.relationship_to_join_clause(r)}'
-        return join if q_obj.join == '' else q_obj.join
+        return join if data.join == '' else data.join
 
 
-    def generate_where_clause(self, q_obj:Query) -> str:
+    def generate_where_clause(self, data: Data) -> str:
         """
-        Generates a where clause from the Relationships that have been set, as well as the Query's where clause
+        Generates a where clause from the Relationships that have been set, as well as the Data's where clause
 
         This is not typically used by end users
 
@@ -4159,11 +4168,11 @@ class SQLDriver:
         :rtype: str
         """
         where = ''
-        for r in q_obj.frm.relationships:
-            if q_obj.table == r.child_table:
+        for r in data.frm.relationships:
+            if data.table == r.child_table:
                 if r.update_cascade:
-                    table = q_obj.table
-                    parent_pk = q_obj.frm[r.parent_table].get_current(r.pk_column)
+                    table = data.table
+                    parent_pk = data.frm[r.parent_table].get_current(r.pk_column)
                     if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
                     clause=f' WHERE {table}.{r.fk_column}={str(parent_pk)}'
                     if where!='': clause=clause.replace('WHERE','AND')
@@ -4171,14 +4180,14 @@ class SQLDriver:
 
         if where == '':
             # There was no where clause from Relationships..
-            where = q_obj.where
+            where = data.where
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            where = where + ' ' + q_obj.where.replace('WHERE', 'AND')
+            where = where + ' ' + data.where.replace('WHERE', 'AND')
 
         return where
 
-    def generate_query(self, q_obj:Query, join:bool=True, where:bool=True, order:bool=True) -> str:
+    def generate_query(self, data: Data, join: bool = True, where: bool = True, order: bool = True) -> str:
         """
         Generate a query string using the relationships that have been set
 
@@ -4191,44 +4200,44 @@ class SQLDriver:
         :returns: a query string for use with sqlite3
         :rtype: str
         """
-        q = q_obj.query
-        q += f' {q_obj.join if join else ""}'
-        q += f' {q_obj.where if where else ""}'
-        q += f' {q_obj.order if order else ""}'
+        q = data.query
+        q += f' {data.join if join else ""}'
+        q += f' {data.where if where else ""}'
+        q += f' {data.order if order else ""}'
         return q
 
-    def delete_record(self, q_obj:Query, cascade=True): # TODO: get ON DELETE CASCADE from db
+    def delete_record(self, data: Data, cascade=True): # TODO: get ON DELETE CASCADE from db
         # Delete child records first!
         if cascade:
-            for qry in q_obj.frm.queries:
-                for r in q_obj.frm.relationships:
-                    if r.parent_table == q_obj.table:
+            for _ in data.frm.dataset:
+                for r in data.frm.relationships:
+                    if r.parent_table == data.table:
                         child = self.quote_table(r.child_table)
                         fk_column = self.quote_column(r.fk_column)
-                        q = f'DELETE FROM {child} WHERE {fk_column}={q_obj.get_current(q_obj.pk_column)}'
+                        q = f'DELETE FROM {child} WHERE {fk_column}={data.get_current(data.pk_column)}'
                         self.execute(q)
                         logger.debug(f'Delete query executed: {q}')
-                        q_obj.frm[r.child_table].requery(False)
+                        data.frm[r.child_table].requery(False)
 
-        table = self.quote_table(q_obj.table)
-        pk_column = self.quote_column(q_obj.pk_column)
-        q = f'DELETE FROM {table} WHERE {pk_column}={q_obj.get_current(q_obj.pk_column)};'
+        table = self.quote_table(data.table)
+        pk_column = self.quote_column(data.pk_column)
+        q = f'DELETE FROM {table} WHERE {pk_column}={data.get_current(data.pk_column)};'
         self.execute(q)
 
-    def duplicate_record(self, q_obj:Query, cascade:bool) -> ResultSet:
+    def duplicate_record(self, data: Data, cascade: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        description = self.quote_value(f"Copy of {q_obj.get_description_for_pk(q_obj.get_current_pk())}")
-        table = self.quote_table(q_obj.table)
-        pk_column = self.quote_column(q_obj.pk_column)
-        description_column = self.quote_column(q_obj.description_column)
+        description = self.quote_value(f"Copy of {data.get_description_for_pk(data.get_current_pk())}")
+        table = self.quote_table(data.table)
+        pk_column = self.quote_column(data.pk_column)
+        description_column = self.quote_column(data.description_column)
 
         query= []
         query.append('DROP TABLE IF EXISTS tmp;')
-        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {table} WHERE {pk_column}={q_obj.get_current(q_obj.pk_column)}')
-        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(q_obj.table, q_obj.pk_column)}')
+        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {table} WHERE {pk_column}={data.get_current(data.pk_column)}')
+        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(data.table, data.pk_column)}')
         query.append(f'UPDATE tmp SET {description_column} = {description}')
         query.append(f'INSERT INTO {table} SELECT * FROM tmp')
         for q in query:
@@ -4242,17 +4251,17 @@ class SQLDriver:
         child_duplicated = []
         # Next, duplicate the child records!
         if cascade:
-            for qry in q_obj.frm.queries:
-                for r in q_obj.frm.relationships:
-                    if r.parent_table == q_obj.table and r.update_cascade and (r.child_table not in child_duplicated):
+            for _ in data.frm.dataset:
+                for r in data.frm.relationships:
+                    if r.parent_table == data.table and r.update_cascade and (r.child_table not in child_duplicated):
                         child = self.quote_table(r.child_table)
                         fk = self.quote_column(r.fk_column)
-                        pk_column = self.quote_column(q_obj.frm[r.child_table].pk_column)
+                        pk_column = self.quote_column(data.frm[r.child_table].pk_column)
                         fk_column = self.quote_column(r.fk_column)
 
                         query = []
                         query.append('DROP TABLE IF EXISTS tmp;')
-                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}={q_obj.get_current(q_obj.pk_column)}')
+                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}={data.get_current(data.pk_column)}')
                         query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(r.child_table, r.pk_column)}')
                         query.append(f'UPDATE tmp SET {fk_column} = {pk}')
                         query.append(f'INSERT INTO {child} SELECT * FROM tmp')
@@ -4265,15 +4274,15 @@ class SQLDriver:
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
-    def save_record(self, q_obj:Query, changed_row:dict, where_clause:str = None) -> ResultSet:
-        pk = q_obj.get_current_pk()
-        pk_column = q_obj.pk_column
+    def save_record(self, data: Data, changed_row: dict, where_clause: str = None) -> ResultSet:
+        pk = data.get_current_pk()
+        pk_column = data.pk_column
 
         # Remove the pk column and any virtual columns
-        changed_row = {k: v for k,v in changed_row.items() if k!= pk_column and k not in q_obj.column_info.get_virtual_names()}
+        changed_row = {k: v for k,v in changed_row.items() if k != pk_column and k not in data.column_info.get_virtual_names()}
 
         # quote appropriately
-        table = self.quote_table(q_obj.table)
+        table = self.quote_table(data.table)
         pk_column = self.quote_column(pk_column)
 
         # Create the WHERE clause
@@ -4523,16 +4532,16 @@ class Flatfile(Sqlite):
         self.commit()
 
 
-    def save_record(self, q_obj: Query, changed_row: dict, where_clause: str = None) -> ResultSet:
+    def save_record(self, data: Data, changed_row: dict, where_clause: str = None) -> ResultSet:
         # Have SQlite save this record
-        result = super().save_record(q_obj, changed_row ,where_clause)
+        result = super().save_record(data, changed_row, where_clause)
 
         if result.exception is None:
             # No it is safe to write our data back out to the CSV file
 
-            # Update the Query object's ResultSet with the changes, so then
+            # Update the Data object's ResultSet with the changes, so then
             # the entire ResultSet can be written back to file sequentially
-            q_obj.rows[q_obj.current_index] = changed_row
+            data.rows[data.current_index] = changed_row
 
             # open the CSV file for writing
             with open(self.file_path, 'w', newline='\n') as csvfile:
@@ -4548,7 +4557,7 @@ class Flatfile(Sqlite):
 
                 # write the ResultSet out.  Use our columns to exclude the possible virtual pk
                 rows = []
-                for r in q_obj.rows:
+                for r in data.rows:
                     rows.append([r[c] for c in self.columns])
 
 
@@ -4851,5 +4860,5 @@ class Postgres(SQLDriver):
 # ALIASES
 # ======================================================================================================================
 Database=Form
-Table=Query
+Table=Data
 record = field # for reverse capability

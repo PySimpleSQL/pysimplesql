@@ -337,8 +337,9 @@ frm.bind(win) # automatically bind the window to the database
 ```
 
 frm.bind() likewise can be peeled back to it's own components and could have been written like this:
+
 ```python
-frm.auto_add_queries()
+frm.auto_add_dataset()
 frm.auto_add_relationships()
 frm.auto_map_controls(win)
 frm.auto_map_events(win)
@@ -349,43 +350,45 @@ frm.update_elements()
 And finally, that brings us to the lowest-level functions for binding the database.
 This is how you can MANUALLY map tables, relationships, controls and events to the database.
 The above auto_map_* methods could have been manually achieved as follows:
+
 ```python
-# Add the queries you want pysimplesql to handle.  The function frm.auto_add_tables() will add all queries found in the database 
-# by default.  However, you may only need to work with a couple of queries in the database, and this is how you would do that
-frm.add_query('Restaurant','pkRestaurant','name') # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
-frm.add_query('Item','pkItem','name') # Note: While I personally prefer to use the pk{Query} and fk{Query} naming
-frm.add_query('Type','pkType','name') #       conventions, it's not necessary for pySimpleSQL
-frm.add_query('Menu','pkMenu','name') #       These could have just as well been restaurantID and itemID for example
+# Add the dataset you want pysimplesql to handle.  The function frm.auto_add_tables() will add all dataset found in the database 
+# by default.  However, you may only need to work with a couple of dataset in the database, and this is how you would do that
+frm.add_data('Restaurant', 'pkRestaurant',
+             'name', )  # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
+frm.add_data('Item', 'pkItem', 'name', )  # Note: While I personally prefer to use the pk{Data} and fk{Data} naming
+frm.add_data('Type', 'pkType', 'name', )  # conventions, it's not necessary for pySimpleSQL
+frm.add_data('Menu', 'pkMenu', 'name', )  # These could have just as well been restaurantID and itemID for example
 
 # Set up relationships
 # Notice below that the first relationship has the last parameter to True.  This is what the ON UPDATE CASCADE constraint accomplishes.
 # Basically what it means is that then the Restaurant table is requeried, the associated Item table will automatically requery right after.
 # This is what allows the GUI to seamlessly update all of the control elements when records are changed!
 # The other relationships have that parameter set to False - they still have a relationship, but they don't need requeried automatically
-frm.add_relationship('LEFT JOIN', 'Item', 'fkRestaurant', 'Restaurant', 'pkRestaurant', True) 
+frm.add_relationship('LEFT JOIN', 'Item', 'fkRestaurant', 'Restaurant', 'pkRestaurant', True)
 frm.add_relationship('LEFT JOIN', 'Restaurant', 'fkType', 'Type', 'pkType', False)
 frm.add_relationship('LEFT JOIN', 'Item', 'fkMenu', 'Menu', 'pkMenu', False)
 
 # Map our controls
-# Note that you can map any control to any Query/field combination that you would like.
-# The {Query}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
-frm.map_control(win['Restaurant.name'],'Restaurant','name')
-frm.map_control(win['Restaurant.location'],'Restaurant','location')
-frm.map_control(win['Restaurant.fkType'],'Type','pkType')
-frm.map_control(win['Item.name'],'Item','name')
-frm.map_control(win['Item.fkRestaurant'],'Item','fkRestaurant')
-frm.map_control(win['Item.fkMenu'],'Item','fkMenu')
-frm.map_control(win['Item.price'],'Item','price')
-frm.map_control(win['Item.description'],'Item','description')
+# Note that you can map any control to any Data/field combination that you would like.
+# The {Data}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
+frm.map_control(win['Restaurant.name'], 'Restaurant', 'name')
+frm.map_control(win['Restaurant.location'], 'Restaurant', 'location')
+frm.map_control(win['Restaurant.fkType'], 'Type', 'pkType')
+frm.map_control(win['Item.name'], 'Item', 'name')
+frm.map_control(win['Item.fkRestaurant'], 'Item', 'fkRestaurant')
+frm.map_control(win['Item.fkMenu'], 'Item', 'fkMenu')
+frm.map_control(win['Item.price'], 'Item', 'price')
+frm.map_control(win['Item.description'], 'Item', 'description')
 
 # Map out our events
 # In the above example, this was all done in the background, as we used convenience functions to add record navigation buttons.
 # However, we could have made our own buttons and mapped them to events.  Below is such an example
-frm.map_event('Edit.Restaurant.First',db['Restaurant'].First) # button control with the key of 'Edit.Restaurant.First'
-                                                             # mapped to the Query.First method
-frm.map_event('Edit.Restaurant.Previous',db['Restaurant'].Previous)
-frm.map_event('Edit.Restaurant.Next',db['Restaurant'].Next)
-frm.map_event('Edit.Restaurant.Last',db['Restaurant'].Last)
+frm.map_event('Edit.Restaurant.First', db['Restaurant'].First)  # button control with the key of 'Edit.Restaurant.First'
+# mapped to the Data.First method
+frm.map_event('Edit.Restaurant.Previous', db['Restaurant'].Previous)
+frm.map_event('Edit.Restaurant.Next', db['Restaurant'].Next)
+frm.map_event('Edit.Restaurant.Last', db['Restaurant'].Last)
 # and so on...
 # In fact, you can use the event mapper however you want to, mapping control names to any function you would like!
 # Event mapping will be covered in more detail later...

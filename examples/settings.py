@@ -17,11 +17,11 @@ CREATE TABLE "Settings"(
 INSERT INTO SETTINGS VALUES (1,'company_name','My company','Enter your company name here.');
 INSERT INTO SETTINGS VALUES (2,'debug_mode',True,'Check if you would like debug mode enabled.');
 INSERT INTO SETTINGS VALUES (3,'antialiasing', True,'Would you like to render with antialiasing?');
-INSERT INTO SETTINGS VALUES (4, 'query_retries', 3,'Retry queries this many times before aborting.');
+INSERT INTO SETTINGS VALUES (4, 'query_retries', 3,'Retry dataset this many times before aborting.');
 """
 
 driver=ss.Sqlite('Settings.db', sql_commands=sql)
-frm = ss.Form(driver)      # <=== load the database
+frm = ss.Form(driver)  # <=== load the database
 # Note: we are not binding this Form to a window yet, as the window has not yet been created.
 # Creating the form now will help us get values for the tooltips during layout creation below!.
 
@@ -69,7 +69,7 @@ while True:
 win.close()
 
 """
-This example showed how to easily access key,value information stored in queries.  A classic example of this is with
+This example showed how to easily access key,value information stored in dataset.  A classic example of this is with
 storing settings for your own program
 
 Learnings from this example:
@@ -77,6 +77,6 @@ Learnings from this example:
 - creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
 - Creating a form without binding to a window, then later binding the form to a window with a separate statement
 - using ss.record() and ss.actions() functions for easy GUI element creation
-- using the extended key naming syntax for keyed records (Query.value_column?key_column=key_value)
-- using the Query.get_keyed_value() method for keyed data retrieval
+- using the extended key naming syntax for keyed records (Data.value_column?key_column=key_value)
+- using the Data.get_keyed_value() method for keyed data retrieval
 """

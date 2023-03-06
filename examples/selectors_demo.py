@@ -27,13 +27,13 @@ INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Blue","The ocea
 
 description = """
 Many different types of PySimpleGUI elements can be used as Selector controls to select database records.
-Navigation buttons, the Search box, ListBoxes, ComboBoxes, Sliders and queries can all be set to control
+Navigation buttons, the Search box, ListBoxes, ComboBoxes, Sliders and dataset can all be set to control
 record navigation. Multiple selectors can be used simultaneously and they will all work together in harmony. Try each selector
 on this frm and watch it all just work!
 """
 
 # PySimpleGUI™ layout code
-headings=['id','Name     ','Example                                          ','Primary Color?'] # Query column widths can be set by the spacing of the headings!
+headings=['id','Name     ','Example                                          ','Primary Color?'] # Data column widths can be set by the spacing of the headings!
 visible=[0,1,1,1] # Hide the primary key column in the table
 record_columns=[
     [ss.field('Colors.name', label='Color name:')],
@@ -58,7 +58,7 @@ layout = [
 
 win=sg.Window('Record Selector Demo', layout, finalize=True)
 driver = ss.Sqlite(':memory:', sql_commands=sql)
-frm=ss.Form(driver, bind=win) #<=== Here is the magic!
+frm= ss.Form(driver, bind=win)  #<=== Here is the magic!
 
 frm['Colors'].set_search_order(['name','example']) # the search box will search in both the name and example columns
 while True:

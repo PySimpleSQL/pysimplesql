@@ -30,7 +30,7 @@ win = sg.Window('Test', layout=layout, finalize=True)
 driver = ss.Flatfile('test.csv', header_row_num=10)
 
 # Use a pysimplesql Form to bind the window to the driver
-frm=ss.Form(driver, bind=win)
+frm= ss.Form(driver, bind=win)
 
 # This is optional. Forces the saving of unchanged records.  This will allow us to use our sortable headers to arrange
 # the data to our liking, then hit save without making any actual changes to the data and have the newly sorted

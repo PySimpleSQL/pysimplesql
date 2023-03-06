@@ -31,7 +31,7 @@ elephant_postgres = {
 }
 
 driver=ss.Postgres(**elephant_postgres)
-frm=ss.Form(driver, bind=win)   #<=== Here is the magic!
+frm= ss.Form(driver, bind=win)  #<=== Here is the magic!
 # Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 
@@ -63,7 +63,7 @@ Without comments, this could have been done in about30 lines of code! Seriously 
 usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
-- Using Query.set_search_order() to set the search order of the query for search operations.
+- Using Data.set_search_order() to set the search order of the query for search operations.
 - creating a default/empty database with an external sql script with the sql_script keyword argument to ss.Form()
 - using Form.record() and Form.selector() functions for easy GUI element creation
 - using the label keyword argument to Form.record() to define a custom label

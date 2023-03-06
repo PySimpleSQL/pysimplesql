@@ -30,7 +30,7 @@ INSERT INTO Mood VALUES (4,"Emotional");
 INSERT INTO Mood VALUES (5,"Content");
 INSERT INTO Mood VALUES (6,"Curious");
 """
-frm=ss.Form(':memory:', sql_commands=sql) #<=== Here is the magic!
+frm= ss.Form(':memory:')  #<=== Here is the magic!
 # Note:  ':memory:' is a special address for in-memory databases
 
 # -------------------------

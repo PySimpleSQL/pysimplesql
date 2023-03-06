@@ -78,7 +78,7 @@ win=sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.themep
 # Connnect to a database
 driver=ss.Sqlite(':memory:', sql_commands=sql)
 # Create our frm
-frm=ss.Form(driver, bind=win)
+frm= ss.Form(driver, bind=win)
 
 # Use a callback to validate the zip code
 frm['Addresses'].set_callback('before_save',validate_zip)
@@ -110,11 +110,11 @@ Without comments and embedded SQL script, this could have been done in well unde
 usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
-- Using Query.set_search_order() to set the search order of the table for search operations.
+- Using Data.set_search_order() to set the search order of the table for search operations.
 - embedding sql commands in code for table creation
 - creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
 - using ss.record() and ss.selector() functions for easy GUI element creation
 - using the label keyword argument to ss.record() to define a custom label
 - using Tables as ss.selector() element types
-- changing the sort order of database queries
+- changing the sort order of database dataset
 """

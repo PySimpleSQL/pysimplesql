@@ -47,7 +47,7 @@ layout=[
 win=sg.Window('Journal example', layout, finalize=True)
 
 driver = ss.Sqlite(':memory:',sql_commands=sql) # Create a new database connection
-frm=ss.Form(driver, bind=win) #<=== Here is the magic!
+frm= ss.Form(driver, bind=win)  #<=== Here is the magic!
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched
@@ -94,15 +94,15 @@ addition from the original journal_internal.py!
 
 Learnings from this example:
 - Using transforms to manipulate data presented to the GUI, and to manipiulate GUI data going back to the database
-- Using Query.set_search_order() to set the search order of the table for search operations.
+- Using Data.set_search_order() to set the search order of the table for search operations.
 - embedding sql commands in code for table creation
 - creating a default/empty database with sql commands
 - using ss.record() and ss.selector() functions for easy GUI element creation
 - using Tables as ss.selector() element types
-- eating events when calling Query.update
-- changing the sort order of database queries
+- eating events when calling Data.update
+- changing the sort order of database dataset
 - before_update callbacks
 - GUI element callbacks
 - forcing elements to update with fresh data with frm.update_elements()
-- retreiving the description field from a table if the primary key is known with Query.get_description_for_pk()
+- retreiving the description field from a table if the primary key is known with Data.get_description_for_pk()
 """

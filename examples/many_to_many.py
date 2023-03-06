@@ -14,7 +14,7 @@ CREATE TABLE "Person"(
     "name" TEXT DEFAULT "New Person"
 );
 CREATE TABLE "FavoriteColor"(
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT, --M2M queries still need a primary key
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT, --M2M dataset still need a primary key
     "person_id" INTEGER NOT NULL DEFAULT 1,
     "color_id" INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (person_id) REFERENCES Person(id),
@@ -73,7 +73,7 @@ layout=[
 # Initialize our window and database, then bind them together
 win = sg.Window('Many-to-many table test', layout, finalize=True)
 driver=ss.Sqlite(':memory:', sql_commands=sql)
-frm = ss.Form(driver, bind=win)      # <=== load the database into the Form
+frm = ss.Form(driver, bind=win)  # <=== load the database into the Form
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
 
