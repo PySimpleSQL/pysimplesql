@@ -991,7 +991,18 @@ class Data:
         :returns: None
         """
         logger.debug(f'Setting table {self.table} record by primary key {pk}')
-        if skip_prompt_save is False: self.prompt_save()
+
+        # see if sg.Table has potential changes
+        if len(omit_elements):
+            changed = self.records_changed(recursive=False)
+
+        if skip_prompt_save is False:
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+            result = self.prompt_save()
+            self.frm.skip_update_elements = False
+
+        if changed and result == PROMPT_SAVE_PROCEED:
+            omit_elements = [] # clear omit_elements, because table needs to be updated
 
         i = 0
         for r in self.rows:
@@ -1597,6 +1608,11 @@ class Form:
         self.callbacks: Dict[str,Callable[[Form, sg.Window], Union[None, bool]]] = {}
         self.autosave: bool = autosave
         self.force_save: bool = False
+        
+        # In an Data.action (first, last, next, previous, search, set_by_index, set_by_pk),
+        # if record has changes, we can toggle True before prompt_save, the False afterwords.
+        # We are alreadying going to requery_dependents/update_elements, so don't do it twice.
+        self.skip_update_elements = False
 
         # Add our default datasets and relationships
         self.auto_add_dataset(prefix_data_keys)
@@ -2232,6 +2248,9 @@ class Form:
         :param omit_elements: A list of elements to omit updating
         :returns: None
         """
+        if self.skip_update_elements:
+            return
+
         msg='edit protect' if edit_protect_only else 'PySimpleGUI'
         logger.debug(f'update_elements(): Updating {msg} elements')
         win = self.window
