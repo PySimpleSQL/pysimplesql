@@ -816,7 +816,11 @@ class Data:
         :returns: None
         """
         logger.debug(f'Moving to the first record of table {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
+        if skip_prompt_save is False:
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+            self.prompt_save()
+            self.frm.skip_update_elements = False
+
         self.current_index = 0
         if requery_dependents: self.requery_dependents(update_elements=update_elements)
         if update_elements: self.frm.update_elements(self.table)
@@ -837,7 +841,11 @@ class Data:
         :returns: None
         """
         logger.debug(f'Moving to the last record of table {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
+        if skip_prompt_save is False:
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+            self.prompt_save()
+            self.frm.skip_update_elements = False
+            
         self.current_index = len(self.rows) - 1
         if requery_dependents: self.requery_dependents()
         if update_elements: self.frm.update_elements(self.table)
@@ -859,7 +867,11 @@ class Data:
         """
         if self.current_index < len(self.rows) - 1:
             logger.debug(f'Moving to the next record of table {self.table}')
-            if skip_prompt_save is False: self.prompt_save()
+            if skip_prompt_save is False:
+                self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+                self.prompt_save()
+                self.frm.skip_update_elements = False
+
             self.current_index += 1
             if requery_dependents: self.requery_dependents()
             if update_elements: self.frm.update_elements(self.table)
@@ -881,7 +893,10 @@ class Data:
         """
         if self.current_index > 0:
             logger.debug(f'Moving to the previous record of table {self.table}')
-            if skip_prompt_save is False: self.prompt_save()
+            if skip_prompt_save is False:
+                self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+                self.prompt_save()
+                self.frm.skip_update_elements = False
             self.current_index -= 1
             if requery_dependents: self.requery_dependents()
             if update_elements: self.frm.update_elements(self.table)
@@ -919,7 +934,11 @@ class Data:
             if not self.callbacks['before_search'](self.frm, self.frm.window):
                 return SEARCH_ABORTED
 
-        if skip_prompt_save is False: self.prompt_save() # TODO: Should this be before the before_search callback?
+        if skip_prompt_save is False: # TODO: Should this be before the before_search callback?
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+            self.prompt_save()
+            self.frm.skip_update_elements = False
+
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows): logger.debug(f'DEBUG: {self.search_order} {self.rows[0].keys()}')
         for o in self.search_order:
@@ -967,7 +986,18 @@ class Data:
         :returns: None
         """
         logger.debug(f'Moving to the record at index {index} on {self.table}')
-        if skip_prompt_save is False: self.prompt_save()
+        
+        if skip_prompt_save is False:
+            # see if sg.Table has potential changes
+            changed = False
+            if len(omit_elements):
+                changed = self.records_changed(recursive=False)
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+            result = self.prompt_save()
+            self.frm.skip_update_elements = False
+
+            if changed and result == PROMPT_SAVE_PROCEED:
+                omit_elements = [] # clear omit_elements, because table needs to be updated
 
         self.current_index = index
         if dependents: self.requery_dependents()
@@ -991,7 +1021,18 @@ class Data:
         :returns: None
         """
         logger.debug(f'Setting table {self.table} record by primary key {pk}')
-        if skip_prompt_save is False: self.prompt_save()
+
+        if skip_prompt_save is False:
+            # see if sg.Table has potential changes
+            changed = False
+            if len(omit_elements):
+                changed = self.records_changed(recursive=False)
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
+            result = self.prompt_save()
+            self.frm.skip_update_elements = False
+
+            if changed and result == PROMPT_SAVE_PROCEED:
+                omit_elements = [] # clear omit_elements, because table needs to be updated
 
         i = 0
         for r in self.rows:
@@ -1098,7 +1139,9 @@ class Data:
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
         if skip_prompt_save is False:
+            self.frm.skip_update_elements = True # don't update self/dependents if we are going to below anyway
             self.prompt_save()
+            self.frm.skip_update_elements = False
 
         # Get a new dict for a new row with default values already filled in
         new_values = self.column_info.default_row_dict(self)
@@ -1486,7 +1529,7 @@ class Data:
         global keygen
         global themepack
 
-        if skip_prompt_save is False: self.prompt_save()
+        if skip_prompt_save is False: self.frm.prompt_save()
         # Reset the keygen to keep consistent naming
         logger.info('Creating Quick Editor window')
         keygen.reset()
@@ -1531,6 +1574,7 @@ class Data:
                 logger.debug(f'This event ({event}) is not yet handled.')
         quick_win.close()
         self.requery()
+        self.frm.update_elements()
 
     def add_simple_transform(self, transforms:Dict[str,Dict[str,Callable[[str,str],None]]]) -> None:
         """
@@ -1596,6 +1640,11 @@ class Form:
         self.callbacks: Dict[str,Callable[[Form, sg.Window], Union[None, bool]]] = {}
         self.autosave: bool = autosave
         self.force_save: bool = False
+        
+        # In an Data.action (first, last, next, previous, search, set_by_index, set_by_pk),
+        # if record has changes, we can toggle True before prompt_save, the False afterwords.
+        # We are alreadying going to requery_dependents/update_elements, so don't do it twice.
+        self.skip_update_elements = False
 
         # Add our default datasets and relationships
         self.auto_add_dataset(prefix_data_keys)
@@ -2234,6 +2283,9 @@ class Form:
         :param omit_elements: A list of elements to omit updating
         :returns: None
         """
+        if self.skip_update_elements:
+            return
+
         msg='edit protect' if edit_protect_only else 'PySimpleGUI'
         logger.debug(f'update_elements(): Updating {msg} elements')
         win = self.window
@@ -2664,7 +2716,7 @@ def simple_transform(data:Data, row, encode):
     for col, function in data._simple_transform.items():
         if col in row:
             msg = f'Transforming {col} from {row[col]}'
-            if encode == pysimplesql.TFORM_DECODE:
+            if encode == TFORM_DECODE:
                 row[col] = function['decode'](row,col)
             else:
                 row[col] = function['encode'](row,col)
