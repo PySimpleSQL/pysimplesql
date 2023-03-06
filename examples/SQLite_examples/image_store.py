@@ -1,7 +1,14 @@
 import PySimpleGUI as sg
 import pysimplesql as ss            # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 from io import BytesIO
-from PIL import Image               # note: must pip3 install Pillow
+import logging
+logger=logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+try:
+    from PIL import Image               # note: must pip3 install Pillow
+except ModuleNotFoundError:
+    sg.popup(" The Pillow library is not in stalled.  Please install with `pip3 install Pillow`")
+    exit(0)
 
 # ---------------
 # IMAGE THUMBNAIL
@@ -27,7 +34,7 @@ sql="""
 CREATE TABLE Image(
     "pkImage"   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name"      TEXT DEFAULT "New Image",
-    "data"      BLOB
+    "imageData"      BLOB
 );
 """
 
@@ -36,10 +43,14 @@ CREATE TABLE Image(
 #-------------------------
 layout=[
     [sg.Image(key='preview',size=(300,300))],
+    [sg.HSep()],
     [ss.record('Image.name')],
-    [ss.record('Image.data', no_label=True, visible=False)], # Hide this record - it is only here to recieve data to insert into the database
-    [sg.Input(key='image_path'), sg.FileBrowse(target='image_path',file_types=(('PNG Images','*.png'),))],
-    [ss.actions('actImage', 'Image', edit_protect=False)]
+    # Display some text if there are no records.  We will start with it being hidden
+    [sg.T("*** No records available.  Use the insert button below to get started. ***", key='no_records', text_color = 'black', visible = False)],
+    [ss.record('Image.imageData', no_label=True, visible=False)], # Hide this record - it is only here to recieve data to insert into the database
+    [sg.Input(key='image_path'), sg.FileBrowse(target='image_path',file_types=(('PNG Images','*.png'),),key='file_browse')],
+    [sg.HSep()],
+    [ss.actions('Image', edit_protect=False)]
 ]
 
 win=sg.Window('Image storage/retreival demo',layout=layout,finalize=True)
@@ -59,7 +70,7 @@ def encode_image():
     with open(win['image_path'].get(), 'rb') as file:
         blobdata=file.read()
         blobdata=thumbnail(blobdata) # <==uncomment for thumbnail sizing during the saving process
-        win['Image.data'].update(blobdata)
+        win['Image.imageData'].update(blobdata)
     # clear the file input
     win['image_path'].update('')
     return True
@@ -69,21 +80,32 @@ db['Image'].set_callback('before_save',encode_image)
 
 
 # Second callback updates the sg.Image element with the image data
-def display_image(db,win):
-    blob=db['Image']['data']
+def update_display(frm:ss.Form, win:sg.Window):
+    # Handle case where there are no records
+    if len(frm['Image'].rows) == 0:
+        visible = True
+    else:
+        visible = False
+    win['no_records'].update(visible=visible)
+    win['Image.name'].update(visible=not visible)
+    win['Image.name:label'].update(visible=not visible)
+    win['image_path'].update(visible=not visible)
+    win['file_browse'].update(visible = not visible)
+
+    blob=db['Image']['imageData']
     if blob:
         blob=bytes(eval(blob)) # <==Secret Sauce
-        #blob=thumbnail(blob) # <==uncomment for thumbnail sizing during the display process
+        blob=thumbnail(blob) # <==uncomment for thumbnail sizing during the display process
         win['preview'].update(data=blob, size=(320, 240))
     else:
         # clear the image (there is no image data present)
         win['preview'].update('', size=(320, 240))
 
 #set a callback to display the image
-db.set_callback('update_elements',display_image)
+db.set_callback('update_elements',update_display)
 
-# Update the image right off the bat for our first run.  The update_elements callback will take care of this the rest of the time
-display_image(db,win)
+# Update the display right off the bat for our first run.  The update_elements callback will take care of this the rest of the time
+update_display(db,win)
 while True:
     event,values=win.read()
     if event==sg.WINDOW_CLOSED or event == 'Exit':

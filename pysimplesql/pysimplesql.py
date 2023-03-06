@@ -2858,7 +2858,7 @@ def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None
         layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': record}, **kwargs)
     else:
         layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': record}, **kwargs)
-    layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size)
+    layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size, key=f'{key}:label')
     layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
     if no_label:
         layout = [[layout_marker, layout_element]]
