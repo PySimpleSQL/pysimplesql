@@ -6,12 +6,46 @@ While **pysimplesql** works with and was inspired by the excellent PySimpleGUIâ„
 
 ## Rapidly build and deploy database applications in Python
 **pysimplesql** binds PySimpleGUI to various databases for rapid, effortless database application development. Makes a great
-replacement for MS Access or Libre Office Base! Have the full power and language features of Python while having the
+replacement for MS Access or LibreOffice Base! Have the full power and language features of Python while having the
 power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
 line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
-"""
-#!/usr/bin/python3
 
+------------------------------------------------------------------------------------------------------------------------
+NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE
+------------------------------------------------------------------------------------------------------------------------
+There is a lot of confusion with database terminology, as many terms are used interchangably in some cercumstances, but
+not in others.  The Internet has post after post debating this topic.  See one example here:
+https://dba.stackexchange.com/questions/65609/column-vs-field-have-i-been-using-these-terms-incorrectly
+To avoid confusion in the source code, specific naming conventions will be used whenever possible/
+
+Naming conventions can fall under 4 categories:
+- referencing the actual database (variables, functions, etc. that relate to the database)
+- referencing the data (variables, functions, etc. that relate to the data)
+- referencing pysimplesql
+- referencing PySimpleGUI
+
+- Database related
+    driver - a `SQLDriver` derived class
+    table - the database table
+    row - a group of related data in a table
+    column - the database column
+    q, query - An SQL query string
+    domain - the data type of the data (INTEGER, TEXT, etc.)
+
+- Data related
+    resultset, rows - a collection of rows from  querying the database
+    row - a group of related data in the resultset
+    field - the value found where a row intersects a column
+
+- pysimplesql related
+    frm - a `Form` object
+    data - a `Data` object
+
+- PySimpleGUI related
+    win, window - A PySimpleGUI Window object
+    element - a Window element
+------------------------------------------------------------------------------------------------------------------------
+"""
 # TODO: Make a list of controls to enable/disable along with edit_protect.  This would be a pretty cool feature
 
 # The first two imports are for docstrings
