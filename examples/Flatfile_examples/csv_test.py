@@ -15,10 +15,10 @@ headings.add_column('email', 'EMail', width=25)
 
 layout = [
     [ss.selector('Flatfile', sg.Table, num_rows=10, headings=headings)],
-    [ss.record('Flatfile.name')],
-    [ss.record('Flatfile.address')],
-    [ss.record('Flatfile.phone')],
-    [ss.record('Flatfile.email')],
+    [ss.field('Flatfile.name')],
+    [ss.field('Flatfile.address')],
+    [ss.field('Flatfile.phone')],
+    [ss.field('Flatfile.email')],
     [ss.actions('Flatfile', edit_protect=False)]
 ]
 

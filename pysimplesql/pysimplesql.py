@@ -1441,7 +1441,7 @@ class Query:
         """
         The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.  This is very useful for putting
         a button next to a combobox or listbox so that the available values can be added/edited/deleted easily.
-        Note: This is not typically used by the end user, as it can be configured from the `record()` convenience function
+        Note: This is not typically used by the end user, as it can be configured from the `field()` convenience function
 
         :param: pk_update_funct: (optional) A function to call to determine the pk to select by default when the quick editor loads
         :param: funct_param: (optional) A parameter to pass to the `pk_update_funct`
@@ -1472,7 +1472,7 @@ class Query:
         for col in self.column_info.names():
             column=f'{query_name}.{col}'
             if col!=self.pk_column:
-                layout.append([pysimplesql.record(column)])
+                layout.append([pysimplesql.field(column)])
 
         quick_win = sg.Window(f'Quick Edit - {query_name}', layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
         driver=Sqlite(sqlite3_database=self.frm.driver.con)
@@ -1533,7 +1533,7 @@ class Form:
         :param bind: Bind this window to the `Form`
         :param prefix_queries: (optional) prefix auto generated query names with this value. Example 'qry_'
         :param parent: (optional)Parent `Form` to base queries off of
-        :param filter: (optional) Only import elements with the same filter set. Typically set with `record()`, but can
+        :param filter: (optional) Only import elements with the same filter set. Typically set with `field()`, but can
                        also be set manually as a dict with the key 'filter' set in the element's metadata
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children as well.
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
@@ -1821,7 +1821,7 @@ class Form:
         Automatically map PySimpleGUI Elements to `Query` columns. A special naming convention has to be used for
         automatic mapping to happen.  Note that `Form.map_element()` can be used to manually map an Element to a column.
         Automatic mapping reilies on a special naming convention as well as certain data in the Elemen's metadata.
-        The convenience functions `record()`, `selector()`, and `actions()` do this automatically and shoule be used in
+        The convenience functions `field()`, `selector()`, and `actions()` do this automatically and should be used in
         almost all cases to make elements that conform to this standard, but this information will allow you to do this
         manually if needed.
         For individual fields, Element keys must be named 'Table.column'. Additionally the metadata must contain a dict
@@ -2756,7 +2756,7 @@ class Convenience():
     conform to pysimplesql standards so that your database application is up and running quickly, and with all the great
     automatic functionality pysimplesql has to offer.
     See the documentation for the following convenience functions:
-    `set_label_size()`, `set_element_size()`, `set_mline_size()`, `record()`, `selector()`, `actions()`, `TableHeadings`
+    `set_label_size()`, `set_element_size()`, `set_mline_size()`, `field()`, `selector()`, `actions()`, `TableHeadings`
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
@@ -2769,7 +2769,7 @@ _default_mline_size = (30, 7)
 
 def set_label_size(w:int, h:int) -> None:
     """
-    Sets the default label (text) size when `record()` is used". A label is static text that is displayed near the
+    Sets the default label (text) size when `field()` is used". A label is static text that is displayed near the
     element to describe what it is.
 
     :param w: the width desired
@@ -2781,7 +2781,7 @@ def set_label_size(w:int, h:int) -> None:
 
 def set_element_size(w:int, h:int) -> None:
     """
-    Sets the default element size when `record()` is used.  The size parameter of `record()` will override this
+    Sets the default element size when `field()` is used.  The size parameter of `field()` will override this
 
     :param w: the width desired
     :param h: the height desired
@@ -2792,7 +2792,7 @@ def set_element_size(w:int, h:int) -> None:
 
 def set_mline_size(w:int, h:int) -> None:
     """
-    Sets the default multi-line text size when `record()` is used.  The size parameter of `record()` will override this
+    Sets the default multi-line text size when `field()` is used.  The size parameter of `field()` will override this
 
     :param w: the width desired
     :param h: the height desired
@@ -2803,9 +2803,8 @@ def set_mline_size(w:int, h:int) -> None:
 
 
 
-def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None, label: str = '',
-           no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None,
-           key=None, **kwargs) -> sg.Column:
+def field(field: str, element: sg.Element = sg.I, size: Tuple[int, int] = None, label: str = '', no_label: bool = False,
+          label_above: bool = False, quick_editor: bool = True, filter=None, key=None, **kwargs) -> sg.Column:
     """
     Convenience function for adding PySimpleGUI elements to the Window so they are properly configured for pysimplesql
     The automatic functionality of pysimplesql relies on accompanying metadata so that the `Form.auto_add_elements()`
@@ -2814,7 +2813,7 @@ def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None
     Note: The element key will default to the record name if none is supplied.
     See `set_label_size()`, `set_element_size()` and `set_mline_size()` for setting default sizes of these elements.
 
-    :param record: The database record in the form of table.column I.e. 'Journal.entry'
+    :param field: The database record in the form of table.column I.e. 'Journal.entry'
     :param element: (optional) The element type desired (defaults to PySimpleGUI.Input)
     :param size: Overrides the default element size that was set with `set_element_size()` for this element only
     :param label: The text/label will automatically be generated from the column name. If a different text/label is
@@ -2834,16 +2833,16 @@ def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None
     global themepack
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-    if '?' in record:
-        table_info, where_info = record.split('?')
+    if '?' in field:
+        table_info, where_info = field.split('?')
         label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     else:
-        table_info = record
+        table_info = field
         where_info = None
         label_text = table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     table, column = table_info.split('.')
 
-    key = keygen.get(record) if 'key' not in kwargs else kwargs['key']
+    key = keygen.get(field) if 'key' not in kwargs else kwargs['key']
     # Now we can safely get rid of the key in kwargs so that it doesn't get passed twice
     if 'key' in kwargs: del kwargs['key']
 
@@ -2855,9 +2854,9 @@ def record(record: str, element: sg.Element = sg.I, size: Tuple[int, int] = None
         first_param=''
 
     if element.__name__ == 'Multiline':
-        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': record}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': field}, **kwargs)
     else:
-        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': record}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': field}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size, key=f'{key}:label')
     layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
     if no_label:
@@ -4819,3 +4818,4 @@ class Postgres(SQLDriver):
 # ======================================================================================================================
 Database=Form
 Table=Query
+record = field # for reverse capability

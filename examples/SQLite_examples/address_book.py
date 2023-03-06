@@ -64,14 +64,14 @@ headings.add_column('fkState', 'State:', 5)
 
 layout=[
     [ss.selector("Addresses", sg.Table, headings=headings, num_rows=10)],
-    [ss.record("Addresses.fkGroupName", sg.Combo, size=(30, 10), auto_size_text=False)],
-    [ss.record("Addresses.firstName", label="First name:")],
-    [ss.record("Addresses.lastName", label="Last name:")],
-    [ss.record("Addresses.address1", label="Address 1:")],
-    [ss.record("Addresses.address2", label="Address 2:")],
-    [ss.record("Addresses.city", size=(23, 1), label="City/State:"),
-     ss.record("Addresses.fkState", element=sg.Combo, size=(3, 10), no_label=True, quick_editor=False)],
-    [sg.Text("Zip:"+" "*63), ss.record("Addresses.zip", size=(6, 1), no_label=True)],
+    [ss.field("Addresses.fkGroupName", sg.Combo, size=(30, 10), auto_size_text=False)],
+    [ss.field("Addresses.firstName", label="First name:")],
+    [ss.field("Addresses.lastName", label="Last name:")],
+    [ss.field("Addresses.address1", label="Address 1:")],
+    [ss.field("Addresses.address2", label="Address 2:")],
+    [ss.field("Addresses.city", size=(23, 1), label="City/State:"),
+     ss.field("Addresses.fkState", element=sg.Combo, size=(3, 10), no_label=True, quick_editor=False)],
+    [sg.Text("Zip:"+" "*63), ss.field("Addresses.zip", size=(6, 1), no_label=True)],
     [ss.actions("Addresses", edit_protect=False, duplicate=True)]
 ]
 win=sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.themepack.ttk_theme)

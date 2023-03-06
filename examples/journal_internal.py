@@ -54,10 +54,10 @@ headings.add_column('mood_id', 'Mood', width=20)
 layout=[
     [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
     [ss.actions('Journal', edit_protect=False)],
-    [ss.record('Journal.entry_date')],
-    [ss.record('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
-    [ss.record('Journal.title')],
-    [ss.record('Journal.entry', sg.MLine, size=(71, 20))]
+    [ss.field('Journal.entry_date')],
+    [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
+    [ss.field('Journal.title')],
+    [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
 win=sg.Window('Journal (internal) example', layout, finalize=True)
 driver=ss.Sqlite(':memory:', sql_commands=sql)

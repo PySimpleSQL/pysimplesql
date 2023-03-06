@@ -49,20 +49,20 @@ INSERT INTO "FavoriteColor" VALUES (9,3,4);
 person_layout=[
     [ss.selector('Person', size=(48, 10), key='sel_person')],
     [ss.actions('act_person', 'Person', edit_protect=False, search=False)],
-    [ss.record('Person.name', label_above=True)]
+    [ss.field('Person.name', label_above=True)]
 ]
 color_layout=[
     [ss.selector('Color', size=(48, 10), key='sel_color')],
     [ss.actions('Color', 'act_color', edit_protect=False, search=False)],
-    [ss.record('Color.name', label_above=True)]
+    [ss.field('Color.name', label_above=True)]
 ]
 headings=['ID (this will be hidden)','Person            ','Favorite Color     ']
 vis=[0,1,1]
 favorites_layout=[
     [ss.selector('FavoriteColor', sg.Table, key='sel_favorite', num_rows=10, headings=headings, visible_column_map=vis)],
     [ss.actions('act_favorites', 'FavoriteColor', edit_protect=False, search=False)],
-    [ss.record('FavoriteColor.person_id', element=sg.Combo, size=(30, 10), label='Person:', auto_size_text=False)],
-    [ss.record('FavoriteColor.color_id', element=sg.Combo, size=(30, 10), label='Color:', auto_size_text=False)]
+    [ss.field('FavoriteColor.person_id', element=sg.Combo, size=(30, 10), label='Person:', auto_size_text=False)],
+    [ss.field('FavoriteColor.color_id', element=sg.Combo, size=(30, 10), label='Color:', auto_size_text=False)]
 ]
 layout=[
     [sg.Frame('Person Editor', layout=person_layout)],

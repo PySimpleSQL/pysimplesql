@@ -76,19 +76,19 @@ logging.basicConfig(
 
 # Define our layout. We will use the Form.record convenience function to create the controls
 layout = [
-    [ss.record('Restaurant.name')],
-    [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
+    [ss.field('Restaurant.name')],
+    [ss.field('Restaurant.location')],
+    [ss.field('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
     [ss.selector('Item', size=(35, 10), key='selector1')],
     [
         sg.Col(
             layout=[
-                [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
-                [ss.record('Item.price')],
-                [ss.record('Item.description', sg.MLine, size=(30, 7))]
+                [ss.field('Item.name')],
+                [ss.field('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
+                [ss.field('Item.price')],
+                [ss.field('Item.description', sg.MLine, size=(30, 7))]
             ]
         )
     ],
@@ -236,11 +236,12 @@ backwards and unravel things to explain what is available to you for more contro
 
 #### **pysimplesql** elements:
 Referencing the example above, look at the following:
+
 ```python
-[ss.record('Restaurant.name')],
+[ss.field('Restaurant.name')],
 
 # could have been written like this using PySImpleGUI elements:
-[sg.Text('Name:',size=(15,1)),sg.Input('',key='Restaurant.name',size=(30,1), metadata={'type': TYPE_RECORD})]
+[sg.Text('Name:', size=(15, 1)), sg.Input('', key='Restaurant.name', size=(30, 1), metadata={'type': TYPE_RECORD})]
 ```
 As you can see, the @pysimplesql.record() convenience function simplifies making record controls that adhere to the
 **pysimplesql** naming convention of Table.column. Also notice that **pysimplesql**  makes use of the PySimpleGUI 
@@ -251,7 +252,7 @@ parameter as well, overriding the default Input() element.
 See this code which creates a combobox instead:
 
 ```python
-[ss.record('Restaurant.fkType', sg.Combo)]
+[ss.field('Restaurant.fkType', sg.Combo)]
 ```
 Furthering that, the functions @pysimplesql.set_text_size() and @pysimplesql.set_control_size() can be used before calls 
 to @pysimplesql.record() to have custom sizing of the control elements.  Even with these defaults set, the size parameter 
@@ -264,19 +265,19 @@ Place those two functions just above the layout definition shown in the example 
 ss.set_label_size(10, 1)
 ss.set_control_size(90, 1)
 layout = [
-    [ss.record('Restaurant.name')],
-    [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, auto_size_text=False)]
+    [ss.field('Restaurant.name')],
+    [ss.field('Restaurant.location')],
+    [ss.field('Restaurant.fkType', sg.Combo, auto_size_text=False)]
 ]
 sub_layout = [
     [ss.selector('Item', key='selector1')],
     [
         sg.Col(
             layout=[
-                [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, auto_size_text=False)],
-                [ss.record('Item.price')],
-                [ss.record('Item.description', sg.MLine, size=(30, 7))]
+                [ss.field('Item.name')],
+                [ss.field('Item.fkMenu', sg.Combo, auto_size_text=False)],
+                [ss.field('Item.price')],
+                [ss.field('Item.description', sg.MLine, size=(30, 7))]
             ]
         )
     ],
@@ -297,19 +298,19 @@ and 'Items' sections with their own sizing
 ss.set_label_size(10, 1)
 ss.set_control_size(90, 1)
 layout = [
-    [ss.record('Restaurant.name')],
-    [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
+    [ss.field('Restaurant.name')],
+    [ss.field('Restaurant.location')],
+    [ss.field('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
     [ss.selector('Item', size=(35, 10), key='selector1')],
     [
         sg.Col(
             layout=[
-                [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
-                [ss.record('Item.price')],
-                [ss.record('Item.description', sg.MLine, size=(30, 7))]
+                [ss.field('Item.name')],
+                [ss.field('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
+                [ss.field('Item.price')],
+                [ss.field('Item.description', sg.MLine, size=(30, 7))]
             ]
         )
     ],
@@ -450,7 +451,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    [ss.record(table, 'name', label='Fruit Name')],
+    [ss.field(table, 'name', label='Fruit Name')],
     # pysimplesql.record() convenience function for easy record creation!
     [ss.actions(, table]  # pysimplesql.actions() convenience function for easy navigation controls!
 ]
@@ -504,7 +505,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    [ss.record(table, 'name', label='Fruit Name')],
+    [ss.field(table, 'name', label='Fruit Name')],
     # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [sg.Button('<<', key=f'btnFirst', size=(1, 1), metadata=meta = {'type': ss.TYPE_EVENT, 'event_type': ss.EVENT_FIRST,
@@ -557,7 +558,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
+    ss.field(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [
         sg.Button('<<', key=f'btnFirst', size=(1, 1)),
@@ -611,7 +612,7 @@ INSERT INTO "Fruit" ("name") VALUES ("Kiwi");
 # PySimpleGUI™ layout code to create your own navigation buttons
 table = 'Fruit'  # This is the table in the database that you want to navigate
 layout = [
-    ss.record(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
+    ss.field(table, 'name', label='Fruit Name'),  # pysimplesql.record() convenience function for easy record creation!
     # Below we will create navigation buttons manually, naming the key so that the automatic event mapper will map the events
     [
         sg.Button('<<', key=f'btnFirst', size=(1, 1)),

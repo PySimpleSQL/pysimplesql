@@ -44,10 +44,10 @@ CREATE TABLE Image(
 layout=[
     [sg.Image(key='preview',size=(300,300))],
     [sg.HSep()],
-    [ss.record('Image.name')],
+    [ss.field('Image.name')],
     # Display some text if there are no records.  We will start with it being hidden
     [sg.T("*** No records available.  Use the insert button below to get started. ***", key='no_records', text_color = 'black', visible = False)],
-    [ss.record('Image.imageData', no_label=True, visible=False)], # Hide this record - it is only here to recieve data to insert into the database
+    [ss.field('Image.imageData', no_label=True, visible=False)], # Hide this record - it is only here to recieve data to insert into the database
     [sg.Input(key='image_path'), sg.FileBrowse(target='image_path',file_types=(('PNG Images','*.png'),),key='file_browse')],
     [sg.HSep()],
     [ss.actions('Image', edit_protect=False)]

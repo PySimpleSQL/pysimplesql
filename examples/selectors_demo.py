@@ -36,9 +36,9 @@ on this frm and watch it all just work!
 headings=['id','Name     ','Example                                          ','Primary Color?'] # Query column widths can be set by the spacing of the headings!
 visible=[0,1,1,1] # Hide the primary key column in the table
 record_columns=[
-    [ss.record('Colors.name', label='Color name:')],
-    [ss.record('Colors.example', label='Example usage: ')],
-    [ss.record('Colors.primary_color', element=sg.CBox, label='Primary Color?')],
+    [ss.field('Colors.name', label='Color name:')],
+    [ss.field('Colors.example', label='Example usage: ')],
+    [ss.field('Colors.primary_color', element=sg.CBox, label='Primary Color?')],
 ]
 selectors=[
     [ss.selector('Colors', element=sg.Table, key='tableSelector', headings=headings, visible_column_map=visible,

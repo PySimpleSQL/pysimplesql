@@ -17,19 +17,19 @@ def disable(db,win):
 
 # Define our layout. We will use the ss.record convenience function to create the controls
 layout = [
-    [ss.record('Restaurant.name')],
-    [ss.record('Restaurant.location')],
-    [ss.record('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
+    [ss.field('Restaurant.name')],
+    [ss.field('Restaurant.location')],
+    [ss.field('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
 ]
 sub_layout = [
     [ss.selector('Item', size=(35, 10), key='selector1')],
     [
         sg.Col(
             layout=[
-                [ss.record('Item.name')],
-                [ss.record('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
-                [ss.record('Item.price')],
-                [ss.record('Item.description', sg.MLine, size=(30, 7))]
+                [ss.field('Item.name')],
+                [ss.field('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
+                [ss.field('Item.price')],
+                [ss.field('Item.description', sg.MLine, size=(30, 7))]
             ]
         )
     ],
