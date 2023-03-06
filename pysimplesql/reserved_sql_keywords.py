@@ -1650,7 +1650,6 @@ SQLITE = set(
         "IS",
         "ISNULL",
         "JOIN",
-        "KEY",
         "LEFT",
         "LIKE",
         "LIMIT",

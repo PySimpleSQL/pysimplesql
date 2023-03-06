@@ -1780,7 +1780,7 @@ class Form:
     def auto_add_dataset(self, prefix_data_keys: str = '') -> None:
         """
         Automatically add `Data` objects from the database by looping through the tables available and creating a
-        `Data` object for each.
+        `Data` object for each. Each dataset key is an optional prefix plus the name of the table.
         When you attach to a sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
         This is called automatically when a `Form ` is created.
         Note that `Form.add_table()` can do this manually on a per-table basis.
@@ -1898,11 +1898,12 @@ class Form:
             # Map Record Element
             if element.metadata['type']==TYPE_RECORD:
                 # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-                record = element.metadata['record']
-                if '?' in record:
-                    table_info, where_info = record.split('?')
+                data_key = element.metadata['data_key']
+                field = element.metadata['field']
+                if '?' in field:
+                    table_info, where_info = field.split('?')
                 else:
-                    table_info = record;
+                    table_info = field;
                     where_info = None
                 try:
                     table, col = table_info.split('.')
@@ -1917,12 +1918,14 @@ class Form:
                 # make sure we don't use reserved keywords that could end up in a query
                 for keyword in [table, col, where_column, where_value]:
                     if keyword is not None and keyword != '':
-                        check_keyword(keyword)
+                        self.driver.check_keyword(keyword)
 
-                if data_key in self.dataset:
-                    if col in self[data_key].column_info:
-                        # Map this element to table.column
-                        self.map_element(element, self[data_key], col, where_column, where_value)
+                # Data objects are named after the tables they represent (with an optional prefix)
+                # TODO: How to handle the prefix?
+                if table in self.dataset:
+                    if col in self[table].column_info:
+                        # Map this element to Data.column
+                        self.map_element(element, self[table], col, where_column, where_value)
 
             # Map Selector Element
             elif element.metadata['type']==TYPE_SELECTOR:
@@ -2692,21 +2695,6 @@ def checkbox_to_bool(value):
     """
     return str(value).lower() in ['y','yes','t','true','1']
 
-class ReservedKeywordError(Exception):
-    pass
-def check_keyword(keyword:str) -> None:
-    """
-    Check keyword to see if it is a reserved word.  If it is raise a ReservedKeywordError
-
-    :param keyword: the value to check against reserved words
-    :returns: None
-    """
-    global RESERVED
-
-    if keyword.upper() in RESERVED['all']:
-        raise ReservedKeywordError(f"`{keyword}` is a reserved keyword and cannot be used for table or column names.")
-
-
 class KeyGen():
     """
     The keygen system provides a mechanism to generate unique keys for use as PySimpleGUI element keys.
@@ -2895,9 +2883,9 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
         first_param=''
 
     if element.__name__ == 'Multiline':
-        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': field}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
     else:
-        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'record': field}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size, key=f'{key}:label')
     layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
     if no_label:
@@ -4007,6 +3995,8 @@ class ResultSet:
                 ret = ResultSet.SORT_NONE
         return ret
 
+class ReservedKeywordError(Exception):
+    pass
 
 class SQLDriver:
     """"
@@ -4036,6 +4026,7 @@ class SQLDriver:
         # Be sure to call super().__init__() in derived class!
         self.con = None
         self.name = name
+        self._check_reserved_keywords = True
 
         # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
         # in the SQL string should be quoted and represented as placeholders. Override these in the derived class as
@@ -4048,6 +4039,16 @@ class SQLDriver:
         self.quote_table_char = table_quote                # override this in derived __init__() (defaults to no quotes)
         self.quote_column_char = column_quote              # override this in derived __init__() (defaults to no quotes)
         self.quote_value_char = value_quote                # override this in derived __init__() (defaults to single quotes)
+
+    def check_reserved_keywords(self, value: bool) -> None:
+        """
+        SQLDrivers can check to make sure that field names respect their own reserved keywords.  By default, all
+        SQLDrivers will check for their respective keywords.  You can choose to disable this feature with this method.
+
+        :param value: True to check for reserved keywords in field names, false to skip this check
+        :return: None
+        """
+        self._check_reserved_keywords = value
 
     def connect(self, *args, **kwargs):
         """
@@ -4089,7 +4090,26 @@ class SQLDriver:
         if max_pk is not None:
             return max_pk + 1
         else: return 1
-        
+
+    def check_keyword(self, keyword: str, key: str = None) -> None:
+        """
+        Check keyword to see if it is a reserved word.  If it is raise a ReservedKeywordError. Checks to see if the
+        database name is in keys and uses the database name for the key if it exists, otherwise defaults to 'all' in the
+        RESERVED set. Override this with the specific key for the database if needed for best results.
+
+        :param keyword: the value to check against reserved words
+        :param key: The key in the RESERVED set to check in
+        :returns: None
+        """
+        if self.check_reserved_keywords == False: return
+
+        if key is None:
+            # First try using the name of the driver
+            key = self.name.lower() if self.name.lower() in RESERVED else 'all'
+
+        if keyword.upper() in RESERVED[key] or keyword.upper in RESERVED['common']:
+            raise ReservedKeywordError(
+                f"`{keyword}` is a reserved keyword and cannot be used for table or column names.")
 
     # ---------------------------------------------------------------------
     # MAY need to be implemented
@@ -4313,7 +4333,7 @@ class SQLDriver:
 # ----------------------------------------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
     def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
-        super().__init__(name='SQLite3', placeholder='?')
+        super().__init__(name='SQLite', placeholder='?')
 
         new_database = False
         if db_path is not None:
@@ -4688,7 +4708,7 @@ class Mysql(SQLDriver):
 # ----------------------------------------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
     def __init__(self,host,user,password,database,sql_script=None, sql_commands=None, sync_sequences=True):
-        super().__init__(name='PostgreSQL', table_quote='"')
+        super().__init__(name='Postgres', table_quote='"')
 
         self.host = host
         self.user = user

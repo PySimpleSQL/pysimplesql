@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 def validate_zip():
     zip=win['Addresses.zip'].get()
     if len(zip)!=5:
-        sg.popup('Check your zip code and try again!',title="Zip code validation failed!")
+        sg.popup('Check your zip code and try again!' ,title = "Zip code validation failed!")
         return False
     return True
 # -------------------------------------
