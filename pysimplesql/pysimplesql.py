@@ -1486,7 +1486,7 @@ class Data:
         global keygen
         global themepack
 
-        if skip_prompt_save is False: self.prompt_save()
+        if skip_prompt_save is False: self.frm.prompt_save()
         # Reset the keygen to keep consistent naming
         logger.info('Creating Quick Editor window')
         keygen.reset()
@@ -1531,6 +1531,7 @@ class Data:
                 logger.debug(f'This event ({event}) is not yet handled.')
         quick_win.close()
         self.requery()
+        self.frm.update_elements()
 
     def add_simple_transform(self, transforms:Dict[str,Dict[str,Callable[[str,str],None]]]) -> None:
         """
@@ -2661,7 +2662,7 @@ def simple_transform(data:Data, row, encode):
     for col, function in data._simple_transform.items():
         if col in row:
             msg = f'Transforming {col} from {row[col]}'
-            if encode == pysimplesql.TFORM_DECODE:
+            if encode == TFORM_DECODE:
                 row[col] = function['decode'](row,col)
             else:
                 row[col] = function['encode'](row,col)
