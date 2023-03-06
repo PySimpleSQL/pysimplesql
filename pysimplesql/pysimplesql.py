@@ -1421,7 +1421,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not len(self.rows):
+        if not len(self.rows) or self.get_current_row().virtual:
             return
 
         # callback
