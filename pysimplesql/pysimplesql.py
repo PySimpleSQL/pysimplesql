@@ -2380,7 +2380,7 @@ class Form:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
                 updated_val=mapped.data.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
                 if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
-                    updated_val = checkbox_to_bool(mapped.data[mapped.column])
+                    updated_val = checkbox_to_bool(updated_val)
 
             elif type(mapped.element) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign dataset first
