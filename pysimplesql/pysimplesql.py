@@ -1358,6 +1358,12 @@ class Data:
         answer = sg.popup_yes_no(msg, title='Confirm Delete',  keep_on_top=True)
         if answer == 'No':
             return True
+        
+        if self.get_current_row().virtual:
+            self.rows.purge_virtual()
+            self.frm.update_elements(self.table)
+            self.requery_dependents()
+            return
 
         # Delete child records first!
         self.driver.delete_record(self, True)
