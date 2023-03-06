@@ -5,28 +5,29 @@
 While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
 
 ## Rapidly build and deploy database applications in Python
-**pysimplesql** binds PySimpleGUI to various databases for rapid, effortless database application development. Makes a great
-replacement for MS Access or LibreOffice Base! Have the full power and language features of Python while having the
-power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not one single
-line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations that warrant it.
+**pysimplesql** binds PySimpleGUI to various databases for rapid, effortless database application development. Makes a
+great replacement for MS Access or LibreOffice Base! Have the full power and language features of Python while having the
+power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not
+one single line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations
+that warrant it.
 
 ------------------------------------------------------------------------------------------------------------------------
 NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE
 ------------------------------------------------------------------------------------------------------------------------
-There is a lot of confusion with database terminology, as many terms are used interchangably in some cercumstances, but
+There is a lot of ambiguity with database terminology, as many terms are used interchangeably in some circumstances, but
 not in others.  The Internet has post after post debating this topic.  See one example here:
 https://dba.stackexchange.com/questions/65609/column-vs-field-have-i-been-using-these-terms-incorrectly
-To avoid confusion in the source code, specific naming conventions will be used whenever possible/
+To avoid confusion in the source code, specific naming conventions will be used whenever possible
 
 Naming conventions can fall under 4 categories:
 - referencing the actual database (variables, functions, etc. that relate to the database)
-- referencing the data (variables, functions, etc. that relate to the data)
+- referencing the dataset (variables, functions, etc. that relate to the data)
 - referencing pysimplesql
 - referencing PySimpleGUI
 
 - Database related
     driver - a `SQLDriver` derived class
-    table - the database table
+    table - the database table name
     row - a group of related data in a table
     column - the database column
     q, query - An SQL query string
@@ -90,9 +91,8 @@ except ModuleNotFoundError:
     failed_modules += 1
 
 if failed_modules == len(supported_databases):
-    RuntimeError(f"You muse have at least one of the following databases installed to use PySimpleSQL:\n{', '.join(supported_databases)} ")
-
-
+    RuntimeError(f"You muse have at least one of the following databases installed to use PySimpleSQL:"
+                 f"\n{', '.join(supported_databases)} ")
 
 
 logger = logging.getLogger(__name__)
@@ -100,9 +100,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------
 # Types for automatic mapping
 #----------------------------
-TYPE_RECORD:int   =1
-TYPE_SELECTOR:int =2
-TYPE_EVENT:int    =3
+TYPE_RECORD: int = 1
+TYPE_SELECTOR: int = 2
+TYPE_EVENT: int = 3
 
 # -----------------
 # Transform actions
@@ -114,50 +114,50 @@ TFORM_DECODE:int = 0
 # Event types
 # -----------
 # Custom events (requires 'function' dictionary key)
-EVENT_FUNCTION:int          = 0
+EVENT_FUNCTION:int = 0
 # Data-level events (requires 'table' dictionary key)
-EVENT_FIRST:int             = 1
-EVENT_PREVIOUS:int          = 2
-EVENT_NEXT:int              = 3
-EVENT_LAST:int              = 4
-EVENT_SEARCH:int            = 5
-EVENT_INSERT:int            = 6
-EVENT_DELETE:int            = 7
-EVENT_DUPLICATE:int         = 13
-EVENT_SAVE:int              = 8
-EVENT_QUICK_EDIT:int        = 9
+EVENT_FIRST: int = 1
+EVENT_PREVIOUS: int = 2
+EVENT_NEXT: int = 3
+EVENT_LAST: int = 4
+EVENT_SEARCH: int = 5
+EVENT_INSERT: int = 6
+EVENT_DELETE: int = 7
+EVENT_DUPLICATE: int = 13
+EVENT_SAVE: int = 8
+EVENT_QUICK_EDIT: int = 9
 # Form-level events
-EVENT_SEARCH_DB:int         = 10
-EVENT_SAVE_DB:int           = 11
-EVENT_EDIT_PROTECT_DB:int   = 12
+EVENT_SEARCH_DB: int = 10
+EVENT_SAVE_DB: int = 11
+EVENT_EDIT_PROTECT_DB: int = 12
 
 # ----------------
 # GENERIC BITMASKS
 # ----------------
 # Can be used with other bitmask values
-SHOW_MESSAGE:int  = 4096
+SHOW_MESSAGE: int = 4096
 
 # ---------------------------
 # PROMPT_SAVE RETURN BITMASKS
 # ---------------------------
-PROMPT_SAVE_DISCARDED:int = 1
-PROMPT_SAVE_PROCEED:int   = 2
-PROMPT_SAVE_NONE:int      = 4
+PROMPT_SAVE_DISCARDED: int = 1
+PROMPT_SAVE_PROCEED: int = 2
+PROMPT_SAVE_NONE: int = 4
 
 # ---------------------------
 # RECORD SAVE RETURN BITMASKS
 # ---------------------------
-SAVE_FAIL:int    = 1 # Save failed due to callback
-SAVE_SUCCESS:int = 2 # Save was successful
-SAVE_NONE:int    = 4 # There was nothing to save
+SAVE_FAIL: int = 1  # Save failed due to callback
+SAVE_SUCCESS: int = 2  # Save was successful
+SAVE_NONE: int = 4  # There was nothing to save
 
 # ----------------------
 # SEARCH RETURN BITMASKS
 # ----------------------
-SEARCH_FAILED:int   = 1 # No result was found
-SEARCH_RETURNED:int = 2 # A result was found
-SEARCH_ABORTED:int  = 4 # The search was aborted, likely during a callback
-SEARCH_ENDED:int    = 8 # We have reached the end of the search
+SEARCH_FAILED: int = 1  # No result was found
+SEARCH_RETURNED: int = 2  # A result was found
+SEARCH_ABORTED: int = 4  # The search was aborted, likely during a callback
+SEARCH_ENDED: int = 8  # We have reached the end of the search
 
 
 # TODO: Combine TableRow and ElementRow into one class for simplicity
@@ -2298,7 +2298,7 @@ class Form:
         for mapped in self.element_map:
             # If the optional data_key parameter was passed, we will only update elements bound to that table
             if data_key is not None:
-                if mapped.table_name != data_key:
+                if mapped.table_name != self[data_key].table:
                     continue
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
