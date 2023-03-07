@@ -106,14 +106,14 @@ TYPE_EVENT: int = 3
 # -----------------
 # Transform actions
 # -----------------
-TFORM_ENCODE:int = 1
-TFORM_DECODE:int = 0
+TFORM_ENCODE: int = 1
+TFORM_DECODE: int = 0
 
 # -----------
 # Event types
 # -----------
 # Custom events (requires 'function' dictionary key)
-EVENT_FUNCTION:int = 0
+EVENT_FUNCTION: int = 0
 # DataSet-level events (requires 'table' dictionary key)
 EVENT_FIRST: int = 1
 EVENT_PREVIOUS: int = 2
@@ -452,11 +452,11 @@ class DataSet:
         :returns: None
         """
         global keygen
-        new_instances=[]
-        selector_keys=[]
+        new_instances = []
+        selector_keys = []
 
         for dataset in DataSet.instances:
-            if dataset.frm!=frm:
+            if dataset.frm != frm:
                 new_instances.append(dataset)
             else:
                 logger.debug(f'Removing DataSet {dataset.key} related to {frm.driver.__class__.__name__}')
@@ -1635,9 +1635,9 @@ class Form:
         :language: python
         :caption: Example code
         """
-        self.event_map = [] # Array of dicts, {'event':, 'function':, 'table':}
+        self.event_map = []  # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships: List[Relationship] = []
-        self.callbacks: Dict[str,Callable[[Form, sg.Window], Union[None, bool]]] = {}
+        self.callbacks: Dict[str, Callable[[Form, sg.Window], Union[None, bool]]] = {}
         self.autosave: bool = autosave
         self.force_save: bool = False
         
@@ -2449,7 +2449,7 @@ class Form:
                 updated_val = mapped.dataset[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
-                updated_val = checkbox_to_bool(updated_val)
+                updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
             elif type(mapped.element) is sg.PySimpleGUI.Image:
                 val = mapped.dataset[mapped.column]
 
