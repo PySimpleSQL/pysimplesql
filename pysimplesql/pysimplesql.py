@@ -6,10 +6,10 @@ While **pysimplesql** works with and was inspired by the excellent PySimpleGUIâ„
 
 ## Rapidly build and deploy database applications in Python
 **pysimplesql** binds PySimpleGUI to various databases for rapid, effortless database application development. Makes a
-great replacement for MS Access or LibreOffice Base! Have the full power and language features of Python while having the
-power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control (not
-one single line of SQL needs written to use **pysimplesql**), but also allows for very low level control for situations
-that warrant it.
+great replacement for MS Access or LibreOffice Base! Have the full power and language features of Python while having
+the power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control
+(not one single line of SQL needs written to use **pysimplesql**), but also allows for very low level control for
+situations that warrant it.
 
 ------------------------------------------------------------------------------------------------------------------------
 NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE
@@ -98,7 +98,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------
 # Types for automatic mapping
-#----------------------------
+# ---------------------------
 TYPE_RECORD: int = 1
 TYPE_SELECTOR: int = 2
 TYPE_EVENT: int = 3
@@ -165,7 +165,7 @@ class TableRow(list):
     This is a convenience class used by Tables to associate a primary key with a row of information
     Note: This is typically not used by the end user.
     """
-    def __init__(self, pk:int, *args, **kwargs):
+    def __init__(self, pk: int, *args, **kwargs):
         self.pk = pk
         super().__init__(*args, **kwargs)
 
@@ -179,12 +179,13 @@ class TableRow(list):
         # Add some extra information that could be useful for debugging
         return f'TableRow(pk={self.pk}): {super().__repr__()}'
 
+
 class ElementRow:
     """
     This is a convenience class used by listboxes and comboboxes to to associate a primary key with a row of information
     Note: This is typically not used by the end user.
     """
-    def __init__(self, pk:int, val:Union[str,int]):
+    def __init__(self, pk: int, val: Union[str, int]) -> None:
         self.pk = pk
         self.val = val
 
@@ -218,7 +219,7 @@ class Relationship:
     Note: This class is not typically used the end user,
     """
     # TODO: Relationships are table-based only.  Audit code to ensure that we aren't dealing with data_keys
-    #store our own instances
+    # store our own instances
     instances = []
 
     @classmethod
@@ -264,11 +265,12 @@ class Relationship:
         return None
 
     @classmethod
-    def get_cascade_fk_column(cls, table: str, frm:Form) -> Union[str, None]:
+    def get_cascade_fk_column(cls, table: str, frm: Form) -> Union[str, None]:
         """
         Return the cascade fk that filters for the passed-in table
 
         :param table: The table name of the child
+        :param frm: A `Form` object
         :returns: The name of the cascade-fk, or None
         """
         for _ in frm.datasets:
@@ -317,9 +319,10 @@ class Relationship:
               f'\n\tfk_column={self.fk_column},' \
               f'\n\tparent_table={self.parent_table},' \
               f'\n\tpk_column={self.pk_column}' \
-        f'\n)'
+              f'\n)'
 
         return ret
+
 
 class ElementMap(dict):
     """
@@ -349,8 +352,7 @@ class ElementMap(dict):
         self['where_column'] = where_column
         self['where_value'] = where_value
 
-
-    def __getattr__(self, key:str):
+    def __getattr__(self, key: str):
         try:
             return self[key]
         except KeyError:
@@ -369,7 +371,7 @@ class DataSet:
     Note: While users will interact with DataSet objects often in pysimplesql, they typically aren't created manually by
     the user.
     """
-    instances=[] # Track our own instances
+    instances =[]  # Track our own instances
 
     def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
                  query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
@@ -416,8 +418,8 @@ class DataSet:
         self.rows: ResultSet
         self.search_order: List[str] = []
         self.selector: List[str] = []
-        self.callbacks: Dict[str :Callable[[Form, sg.Window], bool]] = {}
-        self.transform: Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None] = None
+        self.callbacks: Dict[str: Callable[[Form, sg.Window], bool]] = {}
+        self.transform: Optional[Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None]] = None
         self.filtered: bool = filtered
         self._prompt_save: bool = prompt_save
         self._simple_transform: dict = {}  # TODO: typehint after researching
@@ -471,18 +473,18 @@ class DataSet:
                 keygen.reset_key(k)
             keygen.reset_from_form(frm)
         # Update the internally tracked instances
-        DataSet.instances=new_instances
+        DataSet.instances = new_instances
 
-    def set_prompt_save(self,value:bool) -> None:
+    def set_prompt_save(self, value: bool) -> None:
         """
         Set the prompt to save action when navigating records
 
         :param value: a boolean value, True to prompt to save, False for no prompt to save
         :returns: None
         """
-        self._prompt_save=value
+        self._prompt_save = value
 
-    def set_search_order(self, order:List[str]) -> None:
+    def set_search_order(self, order: List[str]) -> None:
         """
         Set the search order when using the search box.
 
@@ -493,7 +495,7 @@ class DataSet:
         """
         self.search_order = order
 
-    def set_callback(self, callback:str, fctn:Callable[[Form, sg.Window], bool]) -> None:
+    def set_callback(self, callback: str, fctn: Callable[[Form, sg.Window], bool]) -> None:
         """
         Set DataSet callbacks. A runtime error will be thrown if the callback is not supported.
 
@@ -536,7 +538,7 @@ class DataSet:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
-    def set_transform(self, fn:callable) -> None:
+    def set_transform(self, fn: callable) -> None:
         """
         Set a transform on the data for this `DataSet`.
 
@@ -553,11 +555,11 @@ class DataSet:
         """
         self.transform = fn
 
-    def set_query(self, query:str) -> None:
+    def set_query(self, query: str) -> None:
         """
         Set the query string for the `DataSet`.
 
-        This is more for advanced users.  It defaults to "SELECT * FROM {table}; You can override the default with this method
+        This is more for advanced users.  It defaults to "SELECT * FROM {table}; This can override the default
 
         :param query: The query string you would like to associate with the table
         :returns: None
@@ -565,13 +567,11 @@ class DataSet:
         logger.debug(f'Setting {self.table} query to {query}')
         self.query = query
 
-
-
-    def set_join_clause(self, clause:str) -> None:
+    def set_join_clause(self, clause: str) -> None:
         """
         Set the `DataSet` object's join string.
 
-        This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
+        This is more for advanced users, as it will automatically generate from the database Relationships otherwise.
 
         :param clause: The join clause, such as "LEFT JOIN That on This.pk=That.fk"
         :returns: None
@@ -579,7 +579,7 @@ class DataSet:
         logger.debug(f'Setting {self.table} join clause to {clause}')
         self.join_clause = clause
 
-    def set_where_clause(self, clause:str) -> None:
+    def set_where_clause(self, clause: str) -> None:
         """
         Set the `DataSet` object's where clause.
 
@@ -591,11 +591,11 @@ class DataSet:
         logger.debug(f'Setting {self.table} where clause to {clause} for DataSet {self.key}')
         self.where_clause = clause
 
-    def set_order_clause(self, clause:str) -> None:
+    def set_order_clause(self, clause: str) -> None:
         """
         Set the `DataSet` object's order clause.
 
-        This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
+        This is more for advanced users, as it will automatically generate from the database Relationships otherwise.
 
         :param clause: The order clause, such as "Order by name ASC"
         :returns: None
@@ -603,17 +603,17 @@ class DataSet:
         logger.debug(f'Setting {self.table} order clause to {clause}')
         self.order_clause = clause
 
-    def update_column_info(self,column_info:ColumnInfo=None) -> None:
+    def update_column_info(self, column_info: ColumnInfo = None) -> None:
         """
-        Generate column information for the `DataSet' object.  This may need done, for example, when a manual query using
-        joins is used.
+        Generate column information for the `DataSet' object.  This may need done, for example, when a manual query
+        using joins is used.
 
         This is more for advanced users.
         :param column_info: (optional) A `ColumnInfo` instance. Defaults to being generated by the `SQLDriver`
         :returns: None
         """
         # Now we need to set  new column names, as the query could have changed
-        if column_info != None:
+        if column_info is not None:
             self.column_info = column_info
         else:
             self.column_info = self.driver.column_info(self.table)
@@ -651,7 +651,7 @@ class DataSet:
         for mapped in self.frm.element_map:
             # Compare the DB version to the GUI version
             if mapped.table == self.table:
-                ## if passed custom column name
+                # if passed custom column name
                 if column is not None and mapped.column != column:
                     continue
                 
@@ -662,7 +662,7 @@ class DataSet:
                 # Get the element value and cast it so we can compare it to the database version
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
-                # Get the table value.  If this is a keyed element, we need figure out the appropriate table column to use
+                # Get the table value.  If this is a keyed element, we need figure out the appropriate table column
                 if mapped.where_column is not None:
                     for row in self.rows:
                         if row[mapped.where_column] == mapped.where_value:
@@ -673,7 +673,6 @@ class DataSet:
                 if type(mapped.element) is sg.PySimpleGUI.Checkbox:
                     table_val = checkbox_to_bool(table_val)
                     element_val = checkbox_to_bool(element_val)
-
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None: table_val = ''
@@ -700,8 +699,7 @@ class DataSet:
                     if dirty: break
         return dirty
 
-
-    def prompt_save(self, autosave:bool=False) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
+    def prompt_save(self, autosave: bool = False) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
 
@@ -734,7 +732,6 @@ class DataSet:
         else:
             return PROMPT_SAVE_NONE
 
-
     def requery(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                 requery_dependents: bool = True) -> None:
         """
@@ -745,16 +742,16 @@ class DataSet:
         :param select_first: (optional) If True, the first record will be selected after the requery
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                          be generated. If False all records in the table will be fetched.
-        :param update_elements: (optional) Passed to `DataSet.first()` to update_elements. Note that the select_first parameter
-                        must = True to use this parameter.
-        :param requery_dependents: (optional) passed to `DataSet.first()` to requery_dependents. Note that the select_first
-                           parameter must = True to use this parameter.
+        :param update_elements: (optional) Passed to `DataSet.first()` to update_elements. Note that the select_first
+                        parameter must equal True to use this parameter.
+        :param requery_dependents: (optional) passed to `DataSet.first()` to requery_dependents. Note that the
+                           select_first parameter must = True to use this parameter.
         :returns: None
         """
         join = ''
         where = ''
         
-        if self.filtered == False: filtered=False
+        if not self.filtered: filtered = False
 
         if filtered:
             join = self.driver.generate_join_clause(self)
@@ -765,7 +762,7 @@ class DataSet:
         try:
             sort_settings = self.rows.store_sort_settings()
         except AttributeError:
-            sort_settings = [None, ResultSet.SORT_NONE] # default for first query
+            sort_settings = [None, ResultSet.SORT_NONE]  # default for first query
 
         rows = self.driver.execute(query)
         self.rows = rows
@@ -779,14 +776,13 @@ class DataSet:
                 self.transform(self, row, TFORM_DECODE)
 
             # Strip trailing white space, as this is what sg[element].get() does, so we can have an equal comparison
-            # Not the prettiest solution..  Will look into this more on the  PySimpleGUI end and make a ticket to follow up
-            for k,v in row.items():
+            # Not the prettiest solution..  Will look into this more on the PySimpleGUI end and make a follow up ticket
+            for k, v in row.items():
                 if type(v) is str: row[k] = v.rstrip()
-
 
         if select_first:
             self.first(update_elements=update_elements, requery_dependents=requery_dependents,
-                       skip_prompt_save=True)  # We don't want to prompt save in this situation, since there was a requery of the data
+                       skip_prompt_save=True)  # We don't want to prompt save in this situation, requery already done
 
     def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
         """
@@ -797,13 +793,14 @@ class DataSet:
         :returns: None
         """
         if child: self.requery(update_elements=update_elements,
-                               requery_dependents=False)  # dependents=False: we don't another recursive dependent requery
+                               requery_dependents=False)  # dependents=False: no recursive dependent requery
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.update_cascade:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
                 self.frm[rel.child_table].requery_dependents(child=True, update_elements=update_elements)
 
-    def first(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False) -> None:
+    def first(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False) \
+             -> None:
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -1202,7 +1199,7 @@ class DataSet:
         current_row = self.get_current_row().copy()
 
         # Track the keyed queries we have to run.  Set to None so we can tell later if there were keyed elements
-        keyed_queries:list = None  # entry dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
+        keyed_queries: Optional[List] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
@@ -1603,7 +1600,7 @@ class Form:
     relationships = [] # Track our relationships
 
     def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
-                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False) -> Form:
+                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1616,7 +1613,7 @@ class Form:
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
                              as well.
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
-        :returns: A `Form` instance
+        :returns: None
 
         """
         Form.instances.append(self)
@@ -1624,7 +1621,7 @@ class Form:
         self.driver: SQLDriver = driver
         self.filter: str = filter
         self.parent: Form = parent  # TODO: This doesn't seem to really be used yet
-        self.window: sg.Window = None
+        self.window: Optional[sg.Window] = None
         self._edit_protect: bool = False
         self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
@@ -1801,7 +1798,7 @@ class Form:
         rel = list(set(rel))
         return rel
 
-    def get_parent(self, table:str) -> Union[str,None]:
+    def get_parent(self, table: str) -> Union[str, None]:
         """
         Return the parent table for the passed-in table
         :param table: The table (str) to get relationships for
@@ -1951,7 +1948,7 @@ class Form:
                 if '?' in field:
                     table_info, where_info = field.split('?')
                 else:
-                    table_info = field;
+                    table_info = field
                     where_info = None
                 try:
                     table, col = table_info.split('.')
@@ -1996,14 +1993,15 @@ class Form:
                         table_heading:TableHeadings = element.metadata['TableHeading']
                         # We need a whole chain of things to happen when a heading is clicked on:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
-                        # 2 we need to run TableHeading.update_headings() with the Table element, sort_column and sort_reverse
-                        # 3 we need to run update_elements() to see the changes
+                        # 2 and run TableHeading.update_headings() with the Table element, sort_column, sort_reverse
+                        # 3 and run update_elements() to see the changes
+
                         def callback_wrapper(column, element=element, data_key=data_key):
                             # store the pk:
                             pk = self[data_key].get_current_pk()
                             sort_order = self[data_key].rows.sort_cycle(column, data_key)
                             self[data_key].set_by_pk(pk, update_elements=True, requery_dependents=False,
-                                                  skip_prompt_save=True)
+                                                     skip_prompt_save=True)
                             table_heading.update_headings(element, column, sort_order)
 
                         table_heading.enable_sorting(element, callback_wrapper)
@@ -2543,7 +2541,7 @@ class Form:
 
                         logger.debug(f'Selector:: index:{index} found:{found}')
                         # update element
-                        element.update(values=values,select_rows=index)
+                        element.update(values=values, select_rows = index)
                         # set vertical scroll bar to follow selected element
                         element.set_vscroll_position(pk_position)
 
@@ -2555,21 +2553,20 @@ class Form:
             logger.info('Running the update_elements callback...')
             self.callbacks['update_elements'](self, self.window)
 
-
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
         """
         Requeries all `DataSet` objects associated with this `Form`
         This effectively re-loads the data from the database into `DataSet` objects
 
-        :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If True, the first record will be selected
-                             after the requery
+        :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If True, the first record will be
+                             selected after the requery
         :param filtered: passed to `DataSet.requery()`. If True, the relationships will be considered and an appropriate
                         WHERE clause will be generated. False will display all records from the table.
-        :param update_elements: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.update_elements()`. Note that the
-                       select_first parameter must = True to use this parameter.
-        :param requery_dependents: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.requery_dependents()`. Note that
-                                   the select_first parameter must = True to use this parameter.
+        :param update_elements: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.update_elements()`. Note
+                       that the select_first parameter must = True to use this parameter.
+        :param requery_dependents: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.requery_dependents()`.
+                                   Note that the select_first parameter must = True to use this parameter.
         :returns: None
         """
         # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
@@ -2577,9 +2574,9 @@ class Form:
         for data_key in self.datasets:
             if self.get_parent(data_key) is None:
                 self[data_key].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
-                                requery_dependents=requery_dependents)
+                                       requery_dependents=requery_dependents)
 
-    def process_events(self, event:str, values:list) -> bool:
+    def process_events(self, event: str, values: list) -> bool:
         """
         Process mapped events for this specific `Form` instance.
 
@@ -2606,25 +2603,25 @@ class Form:
             for data_key, dataset in self.datasets.items():
                 if len(dataset.selector):
                     for e in dataset.selector:
-                        element=e['element']
+                        element:sg.Element = e['element']
                         if element.key == event and len(dataset.rows) > 0:
-                            changed=False # assume that a change will not take place
+                            changed = False  # assume that a change will not take place
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
                                 dataset.set_by_pk(row.get_pk())
-                                changed=True
+                                changed = True
                             elif type(element) == sg.PySimpleGUI.Slider:
                                 dataset.set_by_index(int(values[event]) - 1)
-                                changed=True
+                                changed = True
                             elif type(element) == sg.PySimpleGUI.Combo:
                                 row = values[event]
                                 dataset.set_by_pk(row.get_pk())
-                                changed=True
+                                changed = True
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
                                 dataset.set_by_pk(pk, True, omit_elements=[element])  # no need to update the selector!
-                                changed=True
+                                changed = True
                             if changed:
                                 if 'record_changed' in dataset.callbacks.keys():
                                     dataset.callbacks['record_changed'](self, self.window)
@@ -2643,22 +2640,23 @@ class Form:
         for mapped in self.element_map:
             if mapped.table != table:
                 continue
-            element=mapped.element
+            element = mapped.element
             if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
                     element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
-                #if element.Key in self.window.key_dict.keys():
+                # if element.Key in self.window.key_dict.keys():
                 logger.debug(f'Updating element {element.Key} to disabled: {disable}, visible: {visible}')
                 if disable is not None:
                     element.update(disabled=disable)
                 if visible is not None:
                     element.update(visible=visible)
 
+
 # ======================================================================================================================
 # MAIN PYSIMPLESQL UTILITY FUNCTIONS
 # ======================================================================================================================
 # These functions exist as utilities to the pysimplesql module
 # This is a dummy class for documenting utility functions
-class Utility():
+class Utility:
     """
     Utility functions are a collection of functions and classes that directly improve on aspects of the pysimplesql
     module.
@@ -2670,7 +2668,8 @@ class Utility():
     """
     pass
 
-def process_events(event:str, values:list) -> bool:
+
+def process_events(event: str, values: list) -> bool:
     """
         Process mapped events for ALL Form instances.
 
@@ -2682,10 +2681,11 @@ def process_events(event:str, values:list) -> bool:
         :param values: the values returned by PySimpleGUI.read()
         :returns: True if an event was handled, False otherwise
         """
-    handled=False
+    handled = False
     for i in Form.instances:
         if i.process_events(event, values): handled=True
     return handled
+
 
 def update_elements(data_key: str = None, edit_protect_only: bool = False) -> None:
     """
@@ -2699,7 +2699,7 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
     for i in Form.instances:
         i.update_elements(data_key, edit_protect_only)
 
-def bind(win:sg.Window) -> None:
+def bind(win: sg.Window) -> None:
     """
     Bind ALL forms to window
     Not to be confused with `Form.bind()`, which binds specific forms to the window.
