@@ -1643,7 +1643,7 @@ class Form:
         
         # In an DataSet.action (first, last, next, previous, search, set_by_index, set_by_pk),
         # if record has changes, we can toggle True before prompt_save, the False afterwords.
-        # We are alreadying going to requery_dependents/update_elements, so don't do it twice.
+        # We are already going to requery_dependents/update_elements, so don't do it twice.
         self.skip_update_elements = False
 
         # Add our default datasets and relationships
@@ -1657,12 +1657,11 @@ class Form:
     def __del__(self):
         self.close()
 
-
     # Override the [] operator to retrieve dataset by key
-    def __getitem__(self, key:str) -> DataSet:
+    def __getitem__(self, key: str) -> DataSet:
         return self.datasets[key]
 
-    def close(self,reset_keygen:bool=True):
+    def close(self,reset_keygen: bool  =True):
         """
         Safely close out the `Form`
 
@@ -1675,8 +1674,8 @@ class Form:
     def bind(self, win:sg.Window) -> None:
         """
         Bind the PySimpleGUI Window to the Form for the purpose of GUI element, event and relationship mapping.
-        This can happen automatically on `Form` creation with the bind parameter and is not typically called by the end user.
-        This function literally just groups all of the auto_* methods.  See `Form.auto_add_tables()`,
+        This can happen automatically on `Form` creation with the bind parameter and is not typically called by the end
+        user. This function literally just groups all the auto_* methods.  See `Form.auto_add_tables()`,
         `Form.auto_add_relationships()`, `Form.auto_map_elements()`, `Form.auto_map_events()`
 
         :param win: The PySimpleGUI window
