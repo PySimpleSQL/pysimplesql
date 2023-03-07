@@ -706,12 +706,14 @@ class DataSet:
                         break
         return dirty
 
-    def prompt_save(self, autosave: bool = False)  \
+    def prompt_save(self, autosave: bool = False, update_elements: bool = True)  \
             -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
 
         :param autosave: True to autosave when changes are found without prompting the user
+        :param update_elements: (optional) Passed to `Form.save_records()` -> `Form.save_records_recursive()` to update_elements.
+                        Additionally used to discard changes if user reply's 'No' to prompt.
         :returns: A prompt return value of one of the following: `PROMPT_PROCEED`, `PROMPT_DISCARDED`, or `PROMPT_NONE`
         """
         # Return False if there is nothing to check or _prompt_save is False
@@ -730,12 +732,12 @@ class DataSet:
                 save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
             if save_changes == 'Yes':
                 # save this records cascaded relationships, last to first
-                if self.frm.save_records(table=self.table) & SAVE_FAIL:
+                if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
                 self.rows.purge_virtual()
-                if vrows:
+                if vrows and update_elements:
                     self.frm.update_elements(self.table)
                 return PROMPT_SAVE_DISCARDED
         else:
@@ -827,9 +829,7 @@ class DataSet:
         """
         logger.debug(f'Moving to the first record of table {self.table}')
         if skip_prompt_save is False:
-            self.frm.skip_update_elements = True  # don't update self/dependents if we are going to below anyway
-            self.prompt_save()
-            self.frm.skip_update_elements = False
+            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
         self.current_index = 0
         if requery_dependents:
@@ -854,9 +854,7 @@ class DataSet:
         """
         logger.debug(f'Moving to the last record of table {self.table}')
         if skip_prompt_save is False:
-            self.frm.skip_update_elements = True  # don't update self/dependents if we are going to below anyway
-            self.prompt_save()
-            self.frm.skip_update_elements = False
+            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
             
         self.current_index = len(self.rows) - 1
         if requery_dependents:
@@ -882,9 +880,7 @@ class DataSet:
         if self.current_index < len(self.rows) - 1:
             logger.debug(f'Moving to the next record of table {self.table}')
             if skip_prompt_save is False:
-                self.frm.skip_update_elements = True   # don't update self/dependents if we are going to below anyway
-                self.prompt_save()
-                self.frm.skip_update_elements = False
+                self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
             self.current_index += 1
             if requery_dependents:
@@ -910,9 +906,8 @@ class DataSet:
         if self.current_index > 0:
             logger.debug(f'Moving to the previous record of table {self.table}')
             if skip_prompt_save is False:
-                self.frm.skip_update_elements = True   # don't update self/dependents if we are going to below anyway
-                self.prompt_save()
-                self.frm.skip_update_elements = False
+                self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+
             self.current_index -= 1
             if requery_dependents:
                 self.requery_dependents()
@@ -953,9 +948,7 @@ class DataSet:
                 return SEARCH_ABORTED
 
         if skip_prompt_save is False:  # TODO: Should this be before the before_search callback?
-            self.frm.skip_update_elements = True  # don't update self/dependents if we are going to below anyway
-            self.prompt_save()
-            self.frm.skip_update_elements = False
+            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows):
@@ -1010,15 +1003,9 @@ class DataSet:
         
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
-            changed = False
-            if len(omit_elements):
-                changed = self.records_changed(recursive=False)
-            self.frm.skip_update_elements = True  # don't update self/dependents if we are going to below anyway
-            result = self.prompt_save()
-            self.frm.skip_update_elements = False
-
-            if changed and result == PROMPT_SAVE_PROCEED:
-                omit_elements = []  # clear omit_elements, because table needs to be updated
+            if len(omit_elements) and self.records_changed(recursive=False):
+                omit_elements = [] # most likely will need to update, either to discard virtual or update after save
+            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
         self.current_index = index
         if dependents:
@@ -1047,15 +1034,9 @@ class DataSet:
 
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
-            changed = False
-            if len(omit_elements):
-                changed = self.records_changed(recursive=False)
-            self.frm.skip_update_elements = True  # don't update self/dependents if we are going to below anyway
-            result = self.prompt_save()
-            self.frm.skip_update_elements = False
-
-            if changed and result == PROMPT_SAVE_PROCEED:
-                omit_elements = []  # clear omit_elements, because table needs to be updated
+            if len(omit_elements) and self.records_changed(recursive=False):
+                omit_elements = [] # most likely will need to update, either to discard virtual or update after save
+            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
         i = 0
         for r in self.rows:
@@ -1166,9 +1147,7 @@ class DataSet:
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
         if skip_prompt_save is False:
-            self.frm.skip_update_elements = True  # don't update self/dependents if we are going to below anyway
-            self.prompt_save()
-            self.frm.skip_update_elements = False
+            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
         # Get a new dict for a new row with default values already filled in
         new_values = self.column_info.default_row_dict(self)
@@ -1313,7 +1292,8 @@ class DataSet:
             if current_row.virtual:
                 self.requery(select_first=False,
                              update_elements=False)  # Requery so that the new  row honors the order clause
-                self.set_by_pk(pk, skip_prompt_save=True)  # Then move to the record
+                if update_elements:
+                    self.set_by_pk(pk, skip_prompt_save=True)  # Then move to the record
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1332,8 +1312,8 @@ class DataSet:
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
-    def save_record_recursive(self, results: SaveResultsDict, display_message = False, check_prompt_save: bool = False)\
-    -> SaveResultsDict:
+    def save_record_recursive(self, results: SaveResultsDict, display_message = False, check_prompt_save: bool = False,\
+                              update_elements: bool = True) -> SaveResultsDict:
         """
         Recursively save changes, taking into account the relationships of the tables
         :param results: Used in Form.save_records to collect DataSet.save_record returns. Pass an empty dict to get list
@@ -1349,14 +1329,16 @@ class DataSet:
                 self.frm[rel.child_table].save_record_recursive(
                     results=results,
                     display_message=display_message,
-                    check_prompt_save=check_prompt_save
+                    check_prompt_save=check_prompt_save,
+                    update_elements=update_elements
                     )
         if check_prompt_save and self._prompt_save is False:
-            self.frm.update_elements(self.table)
+            if update_elements:
+                self.frm.update_elements(self.table)
             results[self.table] = PROMPT_SAVE_NONE
             return results
         else:
-            result = self.save_record(display_message=display_message)
+            result = self.save_record(display_message=display_message,update_elements=update_elements)
             results[self.table] = result
             return results
 
@@ -1680,11 +1662,6 @@ class Form:
         self.callbacks: CallbacksDict = {}
         self.autosave: bool = autosave
         self.force_save: bool = False
-        
-        # In an DataSet.action (first, last, next, previous, search, set_by_index, set_by_pk),
-        # if record has changes, we can toggle True before prompt_save, the False afterwords.
-        # We are already going to requery_dependents/update_elements, so don't do it twice.
-        self.skip_update_elements = False
 
         # Add our default datasets and relationships
         self.auto_add_dataset(prefix_data_keys)
@@ -2247,8 +2224,8 @@ class Form:
         """
         self.force_save = force
 
-    def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False) \
-            -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
+    def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False, \
+            update_elements: bool = True) -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
         """
         Save records of all `DataSet` objects` associated with this `Form`.
 
@@ -2256,6 +2233,7 @@ class Form:
         :param cascade_only: Save only tables with cascaded relationships. Default False.
         :param check_prompt_save: Passed to `DataSet.save_record_recursive` to check if individual `DataSet` has prompt_save enabled.
                                   Used when `DataSet.save_records()` is called from `Form.prompt_save()`.
+        :param update_elements: (optional) Passed to `Form.save_record_recursive()` to update_elements.
         :returns: result - can be used with RETURN BITMASKS
         """
         if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
@@ -2276,7 +2254,8 @@ class Form:
         # call save_record_recursive on tables, which saves from last to first.
         result_list = []
         for q in tables:
-            res = self[q].save_record_recursive(results={},display_message=False,check_prompt_save=check_prompt_save)
+            res = self[q].save_record_recursive(results={},display_message=False,check_prompt_save=check_prompt_save, \
+                                                update_elements=update_elements)
             result_list.append(res)
         
         # flatten list of result dicts
@@ -2323,8 +2302,6 @@ class Form:
         :param omit_elements: A list of elements to omit updating
         :returns: None
         """
-        if self.skip_update_elements:
-            return
 
         msg='edit protect' if edit_protect_only else 'PySimpleGUI'
         logger.debug(f'update_elements(): Updating {msg} elements')
