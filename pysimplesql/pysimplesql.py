@@ -1400,7 +1400,10 @@ class DataSet:
             return
 
         # Delete child records first!
-        self.driver.delete_record(self, True)
+        result = self.driver.delete_record(self, True)
+        
+        if result.exception is not None:
+            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
 
         # callback
         if 'after_delete' in self.callbacks.keys():
@@ -4322,10 +4325,12 @@ class SQLDriver:
     def delete_record(self, dataset: DataSet, cascade=True): # TODO: get ON DELETE CASCADE from db
         # Delete child records first!
         if cascade:
+            child_deleted = []
             for _ in dataset.frm.datasets:
                 for r in dataset.frm.relationships:
-                    if r.parent_table == dataset.table and r.update_cascade:
+                    if r.parent_table == dataset.table and r.update_cascade and (r.child_table not in child_deleted):
                         child = self.quote_table(r.child_table)
+                        child_deleted.append(child)
                         fk_column = self.quote_column(r.fk_column)
                         q = f'DELETE FROM {child} WHERE {fk_column}={dataset.get_current(dataset.pk_column)}'
                         self.execute(q)
@@ -4335,7 +4340,7 @@ class SQLDriver:
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
         q = f'DELETE FROM {table} WHERE {pk_column}={dataset.get_current(dataset.pk_column)};'
-        self.execute(q)
+        return self.execute(q)
 
     def duplicate_record(self, dataset: DataSet, cascade: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
@@ -4459,7 +4464,6 @@ class Sqlite(SQLDriver):
 
     def connect(self, database):
         self.con = sqlite3.connect(database)
-#        self.con.execute('PRAGMA foreign_keys = ON') # For testing foreign_key ON DELETE CASCADE
 
     def execute(self, query, values=None, silent=False, column_info = None):
         if not silent:logger.info(f'Executing query: {query} {values}')
