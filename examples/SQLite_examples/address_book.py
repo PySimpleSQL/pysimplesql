@@ -110,7 +110,7 @@ Without comments and embedded SQL script, this could have been done in well unde
 usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
-- Using Data.set_search_order() to set the search order of the table for search operations.
+- Using DataSet.set_search_order() to set the search order of the table for search operations.
 - embedding sql commands in code for table creation
 - creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
 - using ss.record() and ss.selector() functions for easy GUI element creation

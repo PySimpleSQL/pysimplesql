@@ -77,6 +77,6 @@ Learnings from this example:
 - creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
 - Creating a form without binding to a window, then later binding the form to a window with a separate statement
 - using ss.record() and ss.actions() functions for easy GUI element creation
-- using the extended key naming syntax for keyed records (Data.value_column?key_column=key_value)
-- using the Data.get_keyed_value() method for keyed data retrieval
+- using the extended key naming syntax for keyed records (DataSet.value_column?key_column=key_value)
+- using the DataSet.get_keyed_value() method for keyed data retrieval
 """

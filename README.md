@@ -354,11 +354,12 @@ The above auto_map_* methods could have been manually achieved as follows:
 ```python
 # Add the dataset you want pysimplesql to handle.  The function frm.auto_add_tables() will add all dataset found in the database 
 # by default.  However, you may only need to work with a couple of dataset in the database, and this is how you would do that
-frm.add_data('Restaurant', 'pkRestaurant',
-             'name', )  # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
-frm.add_data('Item', 'pkItem', 'name', )  # Note: While I personally prefer to use the pk{Data} and fk{Data} naming
-frm.add_data('Type', 'pkType', 'name', )  # conventions, it's not necessary for pySimpleSQL
-frm.add_data('Menu', 'pkMenu', 'name', )  # These could have just as well been restaurantID and itemID for example
+frm.add_dataset('Restaurant', 'pkRestaurant',
+                'name', )  # add the table Restaurant, with it's primary key field, and descriptive field (for comboboxes)
+frm.add_dataset('Item', 'pkItem',
+                'name', )  # Note: While I personally prefer to use the pk{DataSet} and fk{DataSet} naming
+frm.add_dataset('Type', 'pkType', 'name', )  # conventions, it's not necessary for pySimpleSQL
+frm.add_dataset('Menu', 'pkMenu', 'name', )  # These could have just as well been restaurantID and itemID for example
 
 # Set up relationships
 # Notice below that the first relationship has the last parameter to True.  This is what the ON UPDATE CASCADE constraint accomplishes.
@@ -370,8 +371,8 @@ frm.add_relationship('LEFT JOIN', 'Restaurant', 'fkType', 'Type', 'pkType', Fals
 frm.add_relationship('LEFT JOIN', 'Item', 'fkMenu', 'Menu', 'pkMenu', False)
 
 # Map our controls
-# Note that you can map any control to any Data/field combination that you would like.
-# The {Data}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
+# Note that you can map any control to any DataSet/field combination that you would like.
+# The {DataSet}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
 frm.map_control(win['Restaurant.name'], 'Restaurant', 'name')
 frm.map_control(win['Restaurant.location'], 'Restaurant', 'location')
 frm.map_control(win['Restaurant.fkType'], 'Type', 'pkType')
@@ -385,7 +386,7 @@ frm.map_control(win['Item.description'], 'Item', 'description')
 # In the above example, this was all done in the background, as we used convenience functions to add record navigation buttons.
 # However, we could have made our own buttons and mapped them to events.  Below is such an example
 frm.map_event('Edit.Restaurant.First', db['Restaurant'].First)  # button control with the key of 'Edit.Restaurant.First'
-# mapped to the Data.First method
+# mapped to the DataSet.First method
 frm.map_event('Edit.Restaurant.Previous', db['Restaurant'].Previous)
 frm.map_event('Edit.Restaurant.Next', db['Restaurant'].Next)
 frm.map_event('Edit.Restaurant.Last', db['Restaurant'].Last)

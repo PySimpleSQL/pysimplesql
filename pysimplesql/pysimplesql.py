@@ -21,28 +21,28 @@ To avoid confusion in the source code, specific naming conventions will be used 
 
 Naming conventions can fall under 4 categories:
 - referencing the actual database (variables, functions, etc. that relate to the database)
-- referencing the dataset (variables, functions, etc. that relate to the data)
+- referencing the `DataSet` (variables, functions, etc. that relate to the `DataSet`)
 - referencing pysimplesql
 - referencing PySimpleGUI
 
-- Database related
+- Database related:
     driver - a `SQLDriver` derived class
-    table - the database table name
-    row - a group of related data in a table
-    column - the database column
+    t, table, tables - the database table name(s)
+    r, row, rows - A group of related data in a table
+    c, col, cols, column, columns -  A set of values of a particular type
     q, query - An SQL query string
     domain - the data type of the data (INTEGER, TEXT, etc.)
 
- - ResulSet related #
-    resultset, rows - a collection of rows from  querying the database
-    row - a group of related data in the resultset
+ - `DataSet` related:
+    r, row, rows, resultset - A row, or collection of rows from  querying the database
+    c, col, cols, column, columns -  A set of values of a particular type
+    Record - A collection of fields that make up a row
     field - the value found where a row intersects a column
 
 - pysimplesql related
     frm - a `Form` object
-    data - a `Data` object
-    data_key - the key (name) of a data object
-    dataset - A collection of `Data` objects
+    dataset, datasets - a `DataSet` object, or colllection of `DataSet` objects
+    data_key - the key (name) of a dataset object
 
 - PySimpleGUI related
     win, window - A PySimpleGUI Window object
@@ -114,7 +114,7 @@ TFORM_DECODE:int = 0
 # -----------
 # Custom events (requires 'function' dictionary key)
 EVENT_FUNCTION:int = 0
-# Data-level events (requires 'table' dictionary key)
+# DataSet-level events (requires 'table' dictionary key)
 EVENT_FIRST: int = 1
 EVENT_PREVIOUS: int = 2
 EVENT_NEXT: int = 3
@@ -217,6 +217,7 @@ class Relationship:
     See the following for more information: `Form.add_relationship` and `Form.auto_add_relationships`
     Note: This class is not typically used the end user,
     """
+    # TODO: Relationships are table-based only.  Audit code to ensure that we aren't dealing with data_keys
     #store our own instances
     instances = []
 
@@ -270,7 +271,7 @@ class Relationship:
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
         """
-        for _ in frm.dataset:
+        for _ in frm.datasets:
             for r in cls.instances:
                 if r.child_table == frm[table].table and r.update_cascade:
                     return r.fk_column
@@ -322,19 +323,19 @@ class Relationship:
 
 class ElementMap(dict):
     """
-    Map a PySimpleGUI element to a specific `Data` column.  This is what makes the GUI automatically update to
+    Map a PySimpleGUI element to a specific `DataSet` column.  This is what makes the GUI automatically update to
     the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
     using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the
-    Table.column naming convention is used, This method can be used to manually map any element to any `Data` column
+    Table.column naming convention is used, This method can be used to manually map any element to any `DataSet` column
     regardless of naming convention.
 
     """
-    def __init__(self, element: sg.Element, data: Data, column: str, where_column: str = None,
+    def __init__(self, element: sg.Element, dataset: DataSet, column: str, where_column: str = None,
                  where_value: str = None) -> None:
         """
         Create a new ElementMap instance
         :param element: A PySimpleGUI Element
-        :param data: A `Data` object
+        :param dataset: A `DataSet` object
         :param column: The name of the column to bind to the element
         :param where_column: Used for key, value shorthand
         :param where_value: Used for key, value shorthand
@@ -342,8 +343,8 @@ class ElementMap(dict):
         """
         super().__init__()
         self['element'] = element
-        self['data'] = data
-        self['table'] = data.table
+        self['dataset'] = dataset
+        self['table'] = dataset.table
         self['column'] = column
         self['where_column'] = where_column
         self['where_value'] = where_value
@@ -359,13 +360,13 @@ class ElementMap(dict):
         self[key] = value
 
 
-class Data:
+class DataSet:
     """
-    This class is used for an internal representation of database dataset/tables. `Data` instances are added by the
-    following `Form` methods: `Form.add_table` `Form.auto_add_tables`
-    A `Data` is synonymous for a SQL Table (though you can technically have multiple `Data` objects referencing the
-    same table, with each `Data` object having its own sorting, where clause, etc.)
-    Note: While users will interact with Data objects often in pysimplesql, they typically aren't created manually by
+    This class is used for an internal representation of database tables. `DataSet` instances are added by the
+    `Form` methods: `Form.add_table` `Form.auto_add_tables` # TODO refactor:rename these
+    A `DataSet` is synonymous for a SQL Table (though you can technically have multiple `DataSet` objects referencing
+    the same table, with each `DataSet` object having its own sorting, where clause, etc.)
+    Note: While users will interact with DataSet objects often in pysimplesql, they typically aren't created manually by
     the user.
     """
     instances=[] # Track our own instances
@@ -374,9 +375,9 @@ class Data:
                  query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
                  prompt_save: bool = True, autosave=False) -> None:
         """
-        Initialize a new `Data` instance
+        Initialize a new `DataSet` instance
 
-        :param data_key: The name you are assigning to this `Data` object (I.e. 'people')
+        :param data_key: The name you are assigning to this `DataSet` object (I.e. 'people')
         :param frm_reference: This is a reference to the @ Form object, for convenience
         :param table: Name of the table
         :param pk_column: The name of the column containing the primary key for this table
@@ -391,7 +392,7 @@ class Data:
         :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
         :returns: None
         """
-        Data.instances.append(self)
+        DataSet.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
         if query == '':
@@ -446,7 +447,7 @@ class Data:
         """
         Purge the tracked instances related to frm
 
-        :param frm: the `Form` to purge `Data`` instances from
+        :param frm: the `Form` to purge `DataSet`` instances from
         :param reset_keygen: Reset the keygen after purging?
         :returns: None
         """
@@ -454,13 +455,13 @@ class Data:
         new_instances=[]
         selector_keys=[]
 
-        for data in Data.instances:
-            if data.frm!=frm:
-                new_instances.append(data)
+        for dataset in DataSet.instances:
+            if dataset.frm!=frm:
+                new_instances.append(dataset)
             else:
-                logger.debug(f'Removing Data {data.key} related to {frm.driver.__class__.__name__}')
+                logger.debug(f'Removing DataSet {dataset.key} related to {frm.driver.__class__.__name__}')
                 # we need to get a list of elements to purge from the keygen
-                for s in data.selector:
+                for s in dataset.selector:
                     selector_keys.append(s['element'].key)
 
 
@@ -471,7 +472,7 @@ class Data:
                 keygen.reset_key(k)
             keygen.reset_from_form(frm)
         # Update the internally tracked instances
-        Data.instances=new_instances
+        DataSet.instances=new_instances
 
     def set_prompt_save(self,value:bool) -> None:
         """
@@ -495,7 +496,7 @@ class Data:
 
     def set_callback(self, callback:str, fctn:Callable[[Form, sg.Window], bool]) -> None:
         """
-        Set Data callbacks. A runtime error will be thrown if the callback is not supported.
+        Set DataSet callbacks. A runtime error will be thrown if the callback is not supported.
 
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the
@@ -538,16 +539,16 @@ class Data:
 
     def set_transform(self, fn:callable) -> None:
         """
-        Set a transform on the data for this `Data`.
+        Set a transform on the data for this `DataSet`.
 
         Here you can set custom a custom transform to both decode data from the
-        database and encode data written to the database. This allows you to have dates stored as timestamps in the database,
-        yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL
-        actually reads from or writes to the database.
+        database and encode data written to the database. This allows you to have dates stored as timestamps in the
+        database yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only
+        while PySimpleSQL actually reads from or writes to the database.
 
-        :param fn: A callable function to preform encode/decode. This function should take three arguments: query, row (which will
-        be populated by a dictionary of the row data), and an encode parameter (1 to endode, 0 to decode - see constants
-        `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at a time.
+        :param fn: A callable function to preform encode/decode. This function should take three arguments: query, row
+        (which will be populated by a dictionary of the row data), and an encode parameter (1 to endode, 0 to decode -
+        see constants `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at a time.
         See the example `journal_with_data_manipulation.py` for a usage example.
         :returns: None
         """
@@ -555,7 +556,7 @@ class Data:
 
     def set_query(self, query:str) -> None:
         """
-        Set the query string for the `Data`.
+        Set the query string for the `DataSet`.
 
         This is more for advanced users.  It defaults to "SELECT * FROM {table}; You can override the default with this method
 
@@ -569,7 +570,7 @@ class Data:
 
     def set_join_clause(self, clause:str) -> None:
         """
-        Set the `Data` object's join string.
+        Set the `DataSet` object's join string.
 
         This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
 
@@ -581,19 +582,19 @@ class Data:
 
     def set_where_clause(self, clause:str) -> None:
         """
-        Set the `Data` object's where clause.
+        Set the `DataSet` object's where clause.
 
         This is ADDED TO the auto-generated where clause from Relationship data
 
         :param clause: The where clause, such as "WHERE pkThis=100"
         :returns: None
         """
-        logger.debug(f'Setting {self.table} where clause to {clause}')
+        logger.debug(f'Setting {self.table} where clause to {clause} for DataSet {self.key}')
         self.where_clause = clause
 
     def set_order_clause(self, clause:str) -> None:
         """
-        Set the `Data` object's order clause.
+        Set the `DataSet` object's order clause.
 
         This is more for advanced users, as it will automatically generate from the Relationships that have been set otherwise.
 
@@ -605,7 +606,7 @@ class Data:
 
     def update_column_info(self,column_info:ColumnInfo=None) -> None:
         """
-        Generate column information for the `Data' object.  This may need done, for example, when a manual query using
+        Generate column information for the `DataSet' object.  This may need done, for example, when a manual query using
         joins is used.
 
         This is more for advanced users.
@@ -620,7 +621,7 @@ class Data:
 
     def set_description_column(self, column: str) -> None:
         """
-        Set the `Data` object's description column.
+        Set the `DataSet` object's description column.
 
         This is the column that will display in Listboxes, Comboboxes, Tables, etc.
         By default,this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the
@@ -634,10 +635,10 @@ class Data:
 
     def records_changed(self, column: str = None, recursive=True) -> bool:
         """
-        Checks if records have been changed by comparing PySimpleGUI control values with the stored Data values
+        Checks if records have been changed by comparing PySimpleGUI control values with the stored DataSet values
 
         :param column: Limit the changed records search to just the supplied column name
-        :param recursive: True to check related `Data` instances
+        :param recursive: True to check related `DataSet` instances
         :returns: True or False on whether changed records were found
         """
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
@@ -739,15 +740,15 @@ class Data:
                 requery_dependents: bool = True) -> None:
         """
         Requeries the table
-        The `Data` object maintains an internal representation of the actual database table.
-        The requery method will query the actual database and sync the `Data` objects to it
+        The `DataSet` object maintains an internal representation of the actual database table.
+        The requery method will query the actual database and sync the `DataSet` object to it
 
         :param select_first: (optional) If True, the first record will be selected after the requery
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                          be generated. If False all records in the table will be fetched.
-        :param update_elements: (optional) Passed to `Data.first()` to update_elements. Note that the select_first parameter
+        :param update_elements: (optional) Passed to `DataSet.first()` to update_elements. Note that the select_first parameter
                         must = True to use this parameter.
-        :param requery_dependents: (optional) passed to `Data.first()` to requery_dependents. Note that the select_first
+        :param requery_dependents: (optional) passed to `DataSet.first()` to requery_dependents. Note that the select_first
                            parameter must = True to use this parameter.
         :returns: None
         """
@@ -790,10 +791,10 @@ class Data:
 
     def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
         """
-        Requery parent `Data` instances as defined by the relationships of the table
+        Requery parent `DataSet` instances as defined by the relationships of the table
 
         :param child: (optional) If True, will requery self. Default False; used to skip requery when called by parent.
-        :param update_elements: (optional) passed to `Data.requery()` -> `Data.first()` to update_elements.
+        :param update_elements: (optional) passed to `DataSet.requery()` -> `DataSet.first()` to update_elements.
         :returns: None
         """
         if child: self.requery(update_elements=update_elements,
@@ -807,8 +808,8 @@ class Data:
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
-        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -832,8 +833,8 @@ class Data:
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
-        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -857,8 +858,8 @@ class Data:
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
-        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -883,8 +884,8 @@ class Data:
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
-        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -908,13 +909,13 @@ class Data:
                skip_prompt_save: bool = False) \
             -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
-        Move to the next record in the `Data` that contains `search_string`.
+        Move to the next record in the `DataSet` that contains `search_string`.
         Successive calls will search from the current position, and wrap around back to the beginning.
-        The search order from `Data.set_search_order()` will be used.  If the search order is not set by the user,
-        it will default to the description column (see `Data.set_description_column()`.
+        The search order from `DataSet.set_search_order()` will be used.  If the search order is not set by the user,
+        it will default to the description column (see `DataSet.set_description_column()`.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
-        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param search_string: The search string to look for
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -973,10 +974,10 @@ class Data:
     def set_by_index(self, index: int, update_elements: bool = True, dependents: bool = True,
                      skip_prompt_save: bool = False, omit_elements: List[str] = []) -> None:
         """
-        Move to the record of the table located at the specified index in Data.
+        Move to the record of the table located at the specified index in DataSet.
          Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `Data.first()`, `Data.previous()`, `Data.next()`, `Data.last()`,
-        `Data.search()`, `Data.set_by_pk()`, `Data.set_by_index()`
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param index: The index of the record to move to.
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -1010,8 +1011,8 @@ class Data:
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
         and then the current record selection updated regardless of the new sort order.
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See @Data.first, @Data.previous, @Data.next, @Data.last, @Data.search,
-        @Data.set_by_index
+        which record is currently selected. See @DataSet.first, @DataSet.previous, @DataSet.next, @DataSet.last, @DataSet.search,
+        @DataSet.set_by_index
 
         :param pk: The record to move to containing the primary key
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -1049,7 +1050,7 @@ class Data:
         """
         Get the current value for the supplid column
         You can also use indexing of the @Form object to get the current value of a column
-        I.e. frm[{Data}].[{column}]
+        I.e. frm[{DataSet}].[{column}]
 
         :param column: The column you want to get the value from
         :param default: A value to return if the record is null
@@ -1068,7 +1069,7 @@ class Data:
         """
        Set the current value for the supplied columbn
        You can also use indexing of the `Form` object to set the current value of a column
-       I.e. frm[{Data}].[{column}] = 'New value'
+       I.e. frm[{DataSet}].[{column}] = 'New value'
 
        :param column: The column you want to set the value for
        :param value: A value to set the current record's column to
@@ -1077,7 +1078,7 @@ class Data:
         logger.debug(f'Setting current record for {self.table}.{column} = {value}')
         self.get_current_row()[column] = value
 
-    def get_keyed_value(self,value_column:str, key_column:str, key_value:Union[str,int]) -> Union[str,int]:
+    def get_keyed_value(self, value_column: str, key_column: str, key_value: Union[str, int]) -> Union[str, int]:
         """
         Return `value_column` where` key_column`=`key_value`.  Useful for datastores with key/value pairs
 
@@ -1114,7 +1115,7 @@ class Data:
         Note: This is not typically used by the end user, as this is called from the`selector()` convenience function
 
         :param element: the PySinpleGUI element used as a selector element
-        :param data_key: the `Data` item this selector will operate on
+        :param data_key: the `DataSet` item this selector will operate on
         :param where_column: (optional)
         :param where_value: (optional)
         :returns: None
@@ -1128,7 +1129,7 @@ class Data:
 
     def insert_record(self, values: Dict[str:Union[str,int]] = None, skip_prompt_save: bool = False) -> None:
         """
-        Insert a new record virtually in the `Data` object. If values are passed, it will initially set those columns to
+        Insert a new record virtually in the `DataSet` object. If values are passed, it will initially set those columns to
         the values (I.e. {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the database if present.
 
         :param values: column:value pairs
@@ -1171,7 +1172,7 @@ class Data:
     def save_record(self, display_message:bool=True, update_elements:bool=True) -> int:
         """
         Save the currently selected record
-        Saves any changes made via the GUI back to the database.  The before_save and after_save `Data.callbacks` will
+        Saves any changes made via the GUI back to the database.  The before_save and after_save `DataSet.callbacks` will
         call your own functions for error checking if needed!
 
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
@@ -1201,14 +1202,14 @@ class Data:
         # Note that while saving, we are working with just the current row of data, unless it's 'keyed' via ?/= 
         current_row = self.get_current_row().copy()
 
-        # Track the keyed dataset we have to run.  Set to None so we can tell later if there were keyed elements
+        # Track the keyed queries we have to run.  Set to None so we can tell later if there were keyed elements
         keyed_queries:list = None  # entry dict: {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
-            if mapped.data == self:
+            if mapped.dataset == self:
 
-                # convert the data into the correct data type using the sql_type in ColumnInfo
+                # convert the data into the correct data type using the domain in ColumnInfo
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
                 # Looked for keyed elements first
@@ -1232,7 +1233,7 @@ class Data:
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
-                if mapped.data == self and mapped.column == cascade_fk_column:
+                if mapped.dataset == self and mapped.column == cascade_fk_column:
                     cascade_fk_changed = self.records_changed(column=cascade_fk_column, recursive=False)
 
         # Update the database from the stored rows
@@ -1302,12 +1303,12 @@ class Data:
                              -> Dict[str,Union[PROMPT_SAVE_PROCEED,PROMPT_SAVE_DISCARDED,PROMPT_SAVE_NONE]]:
         """
         Recursively save changes, taking into account the relationships of the tables
-        :param results: Used in Form.save_records to collect Data.save_record returns. Pass an empty dict to get list
+        :param results: Used in Form.save_records to collect DataSet.save_record returns. Pass an empty dict to get list
                of {table : result}
-        :param display_message: Passed to Data.save_record. Displays a message "Updates saved successfully", otherwise
+        :param display_message: Passed to DataSet.save_record. Displays a message "Updates saved successfully", otherwise
                is silent on success
         :param check_prompt_save: Used when called from Form.prompt_save. Updates elements without saving if individual
-               `Data._prompt_save()` is False.
+               `DataSet._prompt_save()` is False.
         :returns: dict of {table : results}
         """
         for rel in self.frm.relationships:
@@ -1345,7 +1346,7 @@ class Data:
 
         children = []
         if cascade:
-            for _ in self.frm.dataset:
+            for _ in self.frm.datasets:
                 for r in self.frm.relationships:
                     if r.parent_table == self.table and r.update_cascade:
                         children.append(r.child_table)
@@ -1397,7 +1398,7 @@ class Data:
             
         children = []
         if cascade:
-            for _ in self.frm.dataset:
+            for _ in self.frm.datasets:
                 for r in self.frm.relationships:
                     if r.parent_table == self.table and r.update_cascade:
                         children.append(r.child_table)
@@ -1442,7 +1443,7 @@ class Data:
 
     def get_description_for_pk(self, pk:int) -> Union[str,int,None]:
         """
-        Get the description from `Data.desctiption_column` from the row where the `Data.pk_column` = `pk`
+        Get the description from `DataSet.desctiption_column` from the row where the `DataSet.pk_column` = `pk`
 
         :param pk: The primary key from which to find the description for
         :returns: The value found in the description column, or None if nothing is found
@@ -1457,7 +1458,7 @@ class Data:
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element. Each
 
         :param columns: A list of column names to create table values for.  Defaults to getting them from the
-                             `Data.rows` `ResultSet`
+                             `DataSet.rows` `ResultSet`
         :param mark_virtual: Place a marker next to virtual records
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table element values
         """
@@ -1578,7 +1579,7 @@ class Data:
 
     def add_simple_transform(self, transforms:Dict[str,Dict[str,Callable[[str,str],None]]]) -> None:
         """
-        Merge a dictionary of transforms into the `Data._simple_transform` dictionary.
+        Merge a dictionary of transforms into the `DataSet._simple_transform` dictionary.
 
         Example:
         {'entry_date' : {
@@ -1597,7 +1598,7 @@ class Form:
     """
     @orm class
     Maintains an internal version of the actual database
-    `Data` objects can be accessed by key, I.e. frm['data_key']
+    `DataSet` objects can be accessed by key, I.e. frm['data_key']
     """
     instances = []  # Track our instances
     relationships = [] # Track our relationships
@@ -1626,7 +1627,7 @@ class Form:
         self.parent: Form = parent  # TODO: This doesn't seem to really be used yet
         self.window: sg.Window = None
         self._edit_protect: bool = False
-        self.dataset: Dict[str, Data] = {}
+        self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
         """
         The element map dict is set up as below:
@@ -1641,7 +1642,7 @@ class Form:
         self.autosave: bool = autosave
         self.force_save: bool = False
         
-        # In an Data.action (first, last, next, previous, search, set_by_index, set_by_pk),
+        # In an DataSet.action (first, last, next, previous, search, set_by_index, set_by_pk),
         # if record has changes, we can toggle True before prompt_save, the False afterwords.
         # We are alreadying going to requery_dependents/update_elements, so don't do it twice.
         self.skip_update_elements = False
@@ -1659,8 +1660,8 @@ class Form:
 
 
     # Override the [] operator to retrieve dataset by key
-    def __getitem__(self, key:str) -> Data:
-        return self.dataset[key]
+    def __getitem__(self, key:str) -> DataSet:
+        return self.datasets[key]
 
     def close(self,reset_keygen:bool=True):
         """
@@ -1669,7 +1670,7 @@ class Form:
         :param reset_keygen: True to reset the keygen for this `Form`
         """
         # First delete the dataset associated
-        Data.purge_form(self, reset_keygen)
+        DataSet.purge_form(self, reset_keygen)
         self.driver.close()
 
     def bind(self, win:sg.Window) -> None:
@@ -1737,14 +1738,14 @@ class Form:
         else:
             raise RuntimeError(f'Callback "{callback_name}" not supported. callback: {callback_name} supported: {supported}')
 
-    def add_data(self, data_key: str, table: str, pk_column: str, description_column: str, query: str = '',
-                 order_clause: str = '') -> None:
+    def add_dataset(self, data_key: str, table: str, pk_column: str, description_column: str, query: str = '',
+                    order_clause: str = '') -> None:
         """
-        Manually add a `Data` object to the `Form`
+        Manually add a `DataSet` object to the `Form`
         When you attach to a database, PySimpleSQL isn't aware of what it contains until this command is run
         Note that `Form.auto_add_dataset()` does this automatically, which is called when a `Form` is created
 
-        :param data_key: The key to give this `Data`.  Use frm['data_key'] to access it.
+        :param data_key: The key to give this `DataSet`.  Use frm['data_key'] to access it.
         :param table: The name of the table in the database
         :param pk_column: The primary key column of the table in the database
         :param description_column: The column to be used to display to users in listboxes, comboboxes, etc.
@@ -1752,7 +1753,7 @@ class Form:
         :param order_clause: The initial sort order for the query
         :returns: None
         """
-        self.dataset.update({data_key: Data(data_key, self, table, pk_column, description_column, query, order_clause)})
+        self.datasets.update({data_key: DataSet(data_key, self, table, pk_column, description_column, query, order_clause)})
         self[data_key].set_search_order([description_column])  # set a default sort order
 
     def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str, update_cascade) -> None:
@@ -1820,7 +1821,7 @@ class Form:
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
         """
-        for _ in self.dataset:
+        for _ in self.datasets:
             for r in self.relationships:
                 if r.child_table == self[table].table and r.update_cascade:
                     return r.fk_column
@@ -1828,18 +1829,18 @@ class Form:
     
     def auto_add_dataset(self, prefix_data_keys: str = '') -> None:
         """
-        Automatically add `Data` objects from the database by looping through the tables available and creating a
-        `Data` object for each. Each dataset key is an optional prefix plus the name of the table.
+        Automatically add `DataSet` objects from the database by looping through the tables available and creating a
+        `DataSet` object for each. Each dataset key is an optional prefix plus the name of the table.
         When you attach to a sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
         This is called automatically when a `Form ` is created.
         Note that `Form.add_table()` can do this manually on a per-table basis.
 
-        :param prefix_data_keys: Adds a prefix to the auto-generated `Data` keys
+        :param prefix_data_keys: Adds a prefix to the auto-generated `DataSet` keys
         :returns: None
         """
         logger.info('Automatically generating dataset for each table in the sqlite database')
         # Ensure we clear any current dataset so that successive calls will not double the entries
-        self.dataset = {}
+        self.datasets = {}
         tables = self.driver.get_tables()
         for table in tables:
             column_info = self.driver.column_info(table)
@@ -1857,9 +1858,9 @@ class Form:
 
             data_key= prefix_data_keys + table
             logger.debug(
-                f'Adding Data "{data_key}" on table {table} to Form with primary key {pk_column} and description of {description_column}')
-            self.add_data(data_key, table, pk_column, description_column)
-            self.dataset[data_key].column_info = column_info
+                f'Adding DataSet "{data_key}" on table {table} to Form with primary key {pk_column} and description of {description_column}')
+            self.add_dataset(data_key, table, pk_column, description_column)
+            self.datasets[data_key].column_info = column_info
 
     # Make sure to send a list of table names to requery if you want
     # dependent dataset to requery automatically
@@ -1881,30 +1882,30 @@ class Form:
             logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
             self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['update_cascade'])
 
-    # Map an element to a Data.
+    # Map an element to a DataSet.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
-    def map_element(self, element: sg.Element, data: Data, column: str, where_column: str = None,
+    def map_element(self, element: sg.Element, dataset: DataSet, column: str, where_column: str = None,
                     where_value: str = None) -> None:
         """
-        Map a PySimpleGUI element to a specific `Data` column.  This is what makes the GUI automatically update to
+        Map a PySimpleGUI element to a specific `DataSet` column.  This is what makes the GUI automatically update to
         the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
         using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the element
-        metadata is configured properly. This method can be used to manually map any element to any `Data` column
+        metadata is configured properly. This method can be used to manually map any element to any `DataSet` column
         regardless of metadata configuration.
 
         :param element: A PySimpleGUI Element
-        :param data: A `Data` object
+        :param dataset: A `DataSet` object
         :param column: The name of the column to bind to the element
         :param where_column: Used for ke, value shorthand TODO: expand on this
         :param where_value: Used for ey, value shorthand TODO: expand on this
         :returns: None
         """
         logger.debug(f'Mapping element {element.key}')
-        self.element_map.append(ElementMap(element, data, column, where_column, where_value))
+        self.element_map.append(ElementMap(element, dataset, column, where_column, where_value))
 
     def auto_map_elements(self, win:sg.Window, keys:List[str]=None) -> None:
         """
-        Automatically map PySimpleGUI Elements to `Data` columns. A special naming convention has to be used for
+        Automatically map PySimpleGUI Elements to `DataSet` columns. A special naming convention has to be used for
         automatic mapping to happen.  Note that `Form.map_element()` can be used to manually map an Element to a column.
         Automatic mapping reilies on a special naming convention as well as certain data in the Elemen's metadata.
         The convenience functions `field()`, `selector()`, and `actions()` do this automatically and should be used in
@@ -1969,11 +1970,11 @@ class Form:
                     if keyword is not None and keyword != '':
                         self.driver.check_keyword(keyword)
 
-                # Data objects are named after the tables they represent (with an optional prefix)
+                # DataSet objects are named after the tables they represent (with an optional prefix)
                 # TODO: How to handle the prefix?
-                if table in self.dataset:
+                if table in self.datasets: # TODO: check in DataSet.table
                     if col in self[table].column_info:
-                        # Map this element to Data.column
+                        # Map this element to DataSet.column
                         self.map_element(element, self[table], col, where_column, where_value)
 
             # Map Selector Element
@@ -1989,7 +1990,7 @@ class Form:
                     where_info = where_column = where_value = None
                 data_key = table_info
 
-                if data_key in self.dataset:
+                if data_key in self.datasets:
                     self[data_key].add_selector(element, data_key, where_column, where_value)
 
                     # Enable sorting if TableHeading  is present
@@ -2094,7 +2095,7 @@ class Form:
                 funct = None
 
                 data_key = table
-                data_key = data_key if data_key in self.dataset else None
+                data_key = data_key if data_key in self.datasets else None
                 if event_type==EVENT_FIRST:
                     if data_key: funct=self[data_key].first
                 elif event_type==EVENT_PREVIOUS:
@@ -2168,13 +2169,13 @@ class Form:
     def prompt_save(self, autosave:bool=False) -> Union[PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE]:
         """
         Prompt to save if any GUI changes are found the affect any table on this form. The helps prevent data entry
-        loss when performing an action that changes the current record of a `Data`.
+        loss when performing an action that changes the current record of a `DataSet`.
 
         :param autosave: True to autosave when changes are found without prompting the user
         :returns: One of the prompt constant values: PROMPT_PROCEED, PROMPT_DISCARDED, PROMPT_NONE
         """
         user_prompted = False # Has the user been prompted yet?
-        for data_key in self.dataset:
+        for data_key in self.datasets:
             if self[data_key]._prompt_save is False:
                 continue
 
@@ -2189,7 +2190,7 @@ class Form:
 
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
-                        for data_key in self.dataset:
+                        for data_key in self.datasets:
                             self[data_key].rows.purge_virtual()
                         self.update_elements()
                         return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
@@ -2210,16 +2211,16 @@ class Form:
     def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False) \
             -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
         """
-        Save records of all `Data` objects` associated with this `Form`.
+        Save records of all `DataSet` objects` associated with this `Form`.
 
-        :param table: Name of table to save, as well as any cascaded relationships. Used in `Data.prompt_save()`
+        :param table: Name of table to save, as well as any cascaded relationships. Used in `DataSet.prompt_save()`
         :param cascade_only: Save only tables with cascaded relationships. Default False.
-        :param check_prompt_save: Passed to `Data.save_record_recursive` to check if individual `Data` has prompt_save enabled.
-                                  Used when `Data.save_records()` is called from `Form.prompt_save()`.
+        :param check_prompt_save: Passed to `DataSet.save_record_recursive` to check if individual `DataSet` has prompt_save enabled.
+                                  Used when `DataSet.save_records()` is called from `Form.prompt_save()`.
         :returns: result - can be used with RETURN BITMASKS
         """
-        if check_prompt_save: logger.debug(f'Saving records in all dataset that allow prompt_save...')
-        else: logger.debug(f'Saving records in all dataset...')
+        if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
+        else: logger.debug(f'Saving records in all datasets...')
 
         result = 0
         show_message = True
@@ -2227,11 +2228,11 @@ class Form:
         
         if table: tables = [table] # if passed single table
         # for cascade_only, build list of top-level dataset that have children
-        elif cascade_only: tables = [data.table for data in self.dataset.values()
-                                     if len(self.get_cascaded_relationships(table=data.table))
-                                     and self.get_parent(data.table) is None]
+        elif cascade_only: tables = [dataset.table for dataset in self.datasets.values()
+                                     if len(self.get_cascaded_relationships(table=dataset.table))
+                                     and self.get_parent(dataset.table) is None]
         # default behavior, build list of top-level dataset (ones without a parent)
-        else: tables = [data.table for data in self.dataset.values() if self.get_parent(data.table) is None]
+        else: tables = [dataset.table for dataset in self.datasets.values() if self.get_parent(dataset.table) is None]
         
         # call save_record_recursive on tables, which saves from last to first.
         result_list = []
@@ -2265,20 +2266,20 @@ class Form:
 
     def set_prompt_save(self, value: bool) -> None:
         """
-        Set the prompt to save action when navigating records for all `Data` objects associated with this `Form`
+        Set the prompt to save action when navigating records for all `DataSet` objects associated with this `Form`
 
         :param value: a boolean value, True to prompt to save, False for no prompt to save
         :returns: None
         """
-        for data_key in self.dataset:
+        for data_key in self.datasets:
             self[data_key].set_prompt_save(value)
 
-    def update_elements(self, data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
+    def update_elements(self, target_data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form` instance only
         Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
 
-        :param data_key: (optional) datase key to update elements for, otherwise updates elements for all datasets
+        :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
         :param edit_protect_only: (optional) If true, only update items affected by edit_protect
         :param omit_elements: A list of elements to omit updating
         :returns: None
@@ -2290,43 +2291,44 @@ class Form:
         logger.debug(f'update_elements(): Updating {msg} elements')
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
-        for data in self.dataset:
-            if data_key is not None and data != data_key: # TODO: not sure this does anything?
+
+        for data_key in self.datasets:
+            if target_data_key is not None and data_key != target_data_key:
                 continue
             # disable mapped elements for this table if there are no records in this table or edit protect mode
-            disable = len(self[data].rows) == 0 or self._edit_protect
-            self.update_element_states(data, disable)
+            disable = len(self[data_key].rows) == 0 or self._edit_protect
+            self.update_element_states(data_key, disable)
             
-            for m in (m for m in self.event_map if m['table'] == data):
+            for m in (m for m in self.event_map if m['table'] == self[data_key].table):
                 # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
                 if (':table_delete' in m['event']) or (':table_duplicate' in m['event']):
-                    disable = len(self[data].rows) == 0 or self._edit_protect
+                    disable = len(self[data_key].rows) == 0 or self._edit_protect
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_first' in m['event']:
-                    disable = len(self[data].rows) < 2 or self[data].current_index == 0
+                    disable = len(self[data_key].rows) < 2 or self[data_key].current_index == 0
                     win[m['event']].update(disabled=disable)
                 
                 elif ':table_previous' in m['event']:
-                    disable = len(self[data].rows) < 2 or self[data].current_index == 0
+                    disable = len(self[data_key].rows) < 2 or self[data_key].current_index == 0
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_next' in m['event']:
-                    disable = len(self[data].rows) < 2 or (self[data].current_index == len(self[data].rows) - 1)
+                    disable = len(self[data_key].rows) < 2 or (self[data_key].current_index == len(self[data_key].rows) - 1)
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_last' in m['event']:
-                    disable = len(self[data].rows) < 2 or (self[data].current_index == len(self[data].rows) - 1)
+                    disable = len(self[data_key].rows) < 2 or (self[data_key].current_index == len(self[data_key].rows) - 1)
                     win[m['event']].update(disabled=disable)
 
                 # Disable insert on children with no parent records or edit protect mode
-                parent = self.get_parent(data)
+                parent = self.get_parent(data_key)
                 if parent is not None:
                     disable = len(self[parent].rows) == 0 or self._edit_protect
                 else:
                     disable = self._edit_protect
                 if ':table_insert' in m['event']:
-                    if m['table'] == data:
+                    if m['table'] == self[data_key].table:
                         win[m['event']].update(disabled=disable)
 
                 # Disable db_save when needed
@@ -2348,22 +2350,23 @@ class Form:
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
         for mapped in self.element_map:
-            # If the optional data_key parameter was passed, we will only update elements bound to that table
-            if data_key is not None:
-                if mapped.table != self[data_key].table:
+            # If the optional target_data_key parameter was passed, we will only update elements bound to that table
+            if target_data_key is not None:
+                if mapped.table != self[target_data_key].table:
                     continue
+
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = mapped.element.key + ':marker'
             try:
-                if mapped.data.get_current_row().virtual:
+                if mapped.dataset.get_current_row().virtual:
                     # get the column name from the key
                     col = mapped.column
                     # get notnull from the column info
-                    if col in mapped.data.column_info.names():
-                        if mapped.data.column_info[col].notnull:
+                    if col in mapped.dataset.column_info.names():
+                        if mapped.dataset.column_info[col].notnull:
                             self.window[marker_key].update(visible=True)
                 else:
                     self.window[marker_key].update(visible=False)
@@ -2378,9 +2381,9 @@ class Form:
 
             elif mapped.where_column is not None:
                 # We are looking for a key,value pair or similar.  Lets sift through and see what to put
-                updated_val=mapped.data.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
+                updated_val=mapped.dataset.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
                 if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
-                    updated_val = checkbox_to_bool(mapped.data[mapped.column])
+                    updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
 
             elif type(mapped.element) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign dataset first
@@ -2388,7 +2391,7 @@ class Form:
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
                 target_table=None
-                rels = self.get_relationships_for_table(mapped.data) # TODO this should be get_relationships_for_data?
+                rels = self.get_relationships_for_table(mapped.dataset) # TODO this should be get_relationships_for_data?
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -2397,11 +2400,11 @@ class Form:
                         break
 
                 if target_table==None:
-                    logger.info(f"Error! Cound not find related data for element {mapped.element.key} bound to Data key"
+                    logger.info(f"Error! Cound not find related data for element {mapped.element.key} bound to DataSet key"
                                 f"{mapped.table}, column: {mapped.column}")
 
                     # we don't want to update the list in this case, as it was most likely supplied and not tied to data
-                    updated_val=mapped.data[mapped.column]
+                    updated_val=mapped.dataset[mapped.column]
 
                 # Populate the combobox entries
                 else:
@@ -2411,18 +2414,18 @@ class Form:
     
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
-                        if row[target_table.pk_column] == mapped.data[rel.fk_column]:
+                        if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
                             for entry in lst:
-                                if entry.get_pk() == mapped.data[rel.fk_column]:
+                                if entry.get_pk() == mapped.dataset[rel.fk_column]:
                                     updated_val = entry
                                     break
                             break
                     mapped.element.update(values=lst)
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings can't be changed.
-                values = mapped.data.table_values()
+                values = mapped.dataset.table_values()
                 # Select the current one
-                pk = mapped.data.get_current_pk()
+                pk = mapped.dataset.get_current_pk()
 
                 found = False
                 if len(values):
@@ -2445,12 +2448,12 @@ class Form:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
                 mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out
-                updated_val = mapped.data[mapped.column]
+                updated_val = mapped.dataset[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
-                updated_val = checkbox_to_bool(mapped.data[mapped.column])
+                updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
             elif type(mapped.element) is sg.PySimpleGUI.Image:
-                val = mapped.data[mapped.column]
+                val = mapped.dataset[mapped.column]
 
                 try:
                     val=eval(val)
@@ -2474,27 +2477,27 @@ class Form:
         # We can update the selector elements
         # We do it down here because it's not a mapped element...
         # Check for selector events
-        for key, data in self.dataset.items():
-            if data_key is not None:
-                if key != data_key:
+        for data_key, dataset in self.datasets.items():
+            if target_data_key is not None:
+                if target_data_key != data_key:
                     continue
-            if len(data.selector):
-                for e in data.selector:
+            if len(dataset.selector):
+                for e in dataset.selector:
                     logger.debug(f'update_elements: SELECTOR FOUND')
                     # skip updating this element if requested
                     if e['element'] in omit_elements: continue
 
                     element:sg.Element = e['element']
                     logger.debug(f'{type(element)}')
-                    pk_column = data.pk_column
-                    description_column = data.description_column
+                    pk_column = dataset.pk_column
+                    description_column = dataset.description_column
                     if element.key in self.callbacks:
                         self.callbacks[element.key]()
 
                     if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
                         logger.debug(f'update_elements: List/Combo selector found...')
                         lst = []
-                        for r in data.rows:
+                        for r in dataset.rows:
                             if e['where_column'] is not None:
                                 if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
                                     lst.append(ElementRow(r[pk_column], r[description_column]))
@@ -2503,19 +2506,19 @@ class Form:
                             else:
                                 lst.append(ElementRow(r[pk_column], r[description_column]))
 
-                        element.update(values=lst, set_to_index=data.current_index)
+                        element.update(values=lst, set_to_index=dataset.current_index)
 
                         # set vertical scroll bar to follow selected element (for listboxes only)
                         if type(element) == sg.PySimpleGUI.Listbox:
                             try:
-                                element.set_vscroll_position(data.current_index / len(lst))
+                                element.set_vscroll_position(dataset.current_index / len(lst))
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
 
                     elif type(element) == sg.PySimpleGUI.Slider:
                         # We need to re-range the element depending on the number of records
-                        l = len(data.rows)
-                        element.update(value=data._current_index + 1, range=(1, l))
+                        l = len(dataset.rows)
+                        element.update(value=dataset._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
                         logger.debug(f'update_elements: Table selector found...')
@@ -2525,11 +2528,11 @@ class Form:
                         except KeyError:
                             columns = None # default to all columns
 
-                        values = data.table_values(columns, mark_virtual=True)
+                        values = dataset.table_values(columns, mark_virtual=True)
 
                         # Get the primary key to select.  We have to use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
-                        pk = data.get_current_pk()
+                        pk = dataset.get_current_pk()
 
                         found = False
                         if len(values):
@@ -2558,22 +2561,22 @@ class Form:
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
         """
-        Requeries all `Data` objects associated with this `Form`
-        This effectively re-loads the data from the database into `Data` objects
+        Requeries all `DataSet` objects associated with this `Form`
+        This effectively re-loads the data from the database into `DataSet` objects
 
-        :param select_first: passed to `Data.requery()` -> `Data.first()`. If True, the first record will be selected
+        :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If True, the first record will be selected
                              after the requery
-        :param filtered: passed to `Data.requery()`. If True, the relationships will be considered and an appropriate
+        :param filtered: passed to `DataSet.requery()`. If True, the relationships will be considered and an appropriate
                         WHERE clause will be generated. False will display all records from the table.
-        :param update_elements: passed to `Data.requery()` -> `Data.first()` to `Form.update_elements()`. Note that the
+        :param update_elements: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.update_elements()`. Note that the
                        select_first parameter must = True to use this parameter.
-        :param requery_dependents: passed to `Data.requery()` -> `Data.first()` to `Form.requery_dependents()`. Note that
+        :param requery_dependents: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.requery_dependents()`. Note that
                                    the select_first parameter must = True to use this parameter.
         :returns: None
         """
         # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
         logger.info('Requerying all datasets')
-        for data_key in self.dataset.keys():
+        for data_key in self.datasets:
             if self.get_parent(data_key) is None:
                 self[data_key].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
                                 requery_dependents=requery_dependents)
@@ -2602,31 +2605,31 @@ class Form:
                     return True
 
             # Check for  selector events
-            for k, table in self.dataset.items():
-                if len(table.selector):
-                    for e in table.selector:
+            for data_key, dataset in self.datasets.items():
+                if len(dataset.selector):
+                    for e in dataset.selector:
                         element=e['element']
-                        if element.key == event and len(table.rows) > 0:
+                        if element.key == event and len(dataset.rows) > 0:
                             changed=False # assume that a change will not take place
                             if type(element) == sg.PySimpleGUI.Listbox:
                                 row = values[element.Key][0]
-                                table.set_by_pk(row.get_pk())
+                                dataset.set_by_pk(row.get_pk())
                                 changed=True
                             elif type(element) == sg.PySimpleGUI.Slider:
-                                table.set_by_index(int(values[event]) - 1)
+                                dataset.set_by_index(int(values[event]) - 1)
                                 changed=True
                             elif type(element) == sg.PySimpleGUI.Combo:
                                 row = values[event]
-                                table.set_by_pk(row.get_pk())
+                                dataset.set_by_pk(row.get_pk())
                                 changed=True
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
-                                table.set_by_pk(pk, True, omit_elements=[element])  # no need to update the selector!
+                                dataset.set_by_pk(pk, True, omit_elements=[element])  # no need to update the selector!
                                 changed=True
                             if changed:
-                                if 'record_changed' in table.callbacks.keys():
-                                    table.callbacks['record_changed'](self, self.window)
+                                if 'record_changed' in dataset.callbacks.keys():
+                                    dataset.callbacks['record_changed'](self, self.window)
                             return changed
         return False
 
@@ -2691,7 +2694,7 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
     Updated the GUI elements to reflect values from the database for ALL Form instances
     Not to be confused with `Form.update_elements()`, which updates GUI elements for individual `Form` instances.
 
-    :param data_key: (optional) key of `Data` to update elements for, otherwise updates elements for all datasets
+    :param data_key: (optional) key of `DataSet` to update elements for, otherwise updates elements for all datasets
     :param edit_protect_only: (optional) If true, only update items affected by edit_protect
     :returns: None
     """
@@ -2709,11 +2712,11 @@ def bind(win:sg.Window) -> None:
     for i in Form.instances:
         i.bind(win)
 
-def simple_transform(data:Data, row, encode):
+def simple_transform(dataset:DataSet, row, encode):
     """
     Convenience transform function that makes it easier to add transforms to your records.
     """
-    for col, function in data._simple_transform.items():
+    for col, function in dataset._simple_transform.items():
         if col in row:
             msg = f'Transforming {col} from {row[col]}'
             if encode == TFORM_DECODE:
@@ -2724,9 +2727,9 @@ def simple_transform(data:Data, row, encode):
 
 def eat_events(win:sg.Window) -> None:
     """
-    Eat extra events emitted by PySimpleGUI.Data.update().
+    Eat extra events emitted by PySimpleGUI.DataSet.update().
 
-    Call this function directly after update() is run on a Data element. The reason is that updating the selection or values
+    Call this function directly after update() is run on a DataSet element. The reason is that updating the selection or values
     will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
     TODO: Determine if this is fixed yet in PySimpleSQL (still not fixed as of 3/2/23)
 
@@ -3025,7 +3028,7 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
         else:
             layout.append(sg.B(themepack.save, key=keygen.get(f'{key}db_save'), metadata=meta, use_ttk_buttons = True))
 
-    # Data-level events
+    # DataSet-level events
     if navigation:
         # first
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
@@ -3133,7 +3136,7 @@ def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, i
             required_kwargs = ['headings', 'visible_column_map', 'num_rows']
             for kwarg in required_kwargs:
                 if kwarg not in kwargs:
-                    raise RuntimeError(f'Data selectors must use the {kwarg} keyword argument.')
+                    raise RuntimeError(f'DataSet selectors must use the {kwarg} keyword argument.')
 
         # Create other kwargs that are required
         kwargs['enable_events'] = True
@@ -3193,7 +3196,7 @@ class TableHeadings(list):
         :param column: The name of the column in the database the heading column is for
         :param width: The width for this column to display within the Table element
         :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
-                        if any. This is also useful if the `Data.rows` `ResultSet` has some information that you don't
+                        if any. This is also useful if the `DataSet.rows` `ResultSet` has some information that you don't
                         want to display.
         :returns: None
         """
@@ -3490,14 +3493,14 @@ class Column:
     The `Column` class is a generic column class.  It holds a dict containing the column name, type  whether the
     column is notnull, whether the column is a primary key and the default value, if any. `Column`s are typically
     stored in a `ColumnInfo` collection. There are multiple ways to get information from a `Column`, including subscript
-    notation, and via properties. The available column info via these methods are name, sql_type, notnull, default and pk
+    notation, and via properties. The available column info via these methods are name, domain, notnull, default and pk
     See example:
     .. literalinclude:: ../doc_examples/Column.1.py
         :language: python
         :caption: Example code
     """
-    def __init__(self, name:str, sql_type:str, notnull:bool, default:None, pk:bool, virtual:bool = False):
-        self._column={'name': name, 'sql_type': sql_type, 'notnull': notnull, 'default': default, 'pk': pk, 'virtual': virtual}
+    def __init__(self, name: str, domain: str, notnull: bool, default: None, pk: bool, virtual: bool = False):
+        self._column={'name': name, 'domain': domain, 'notnull': notnull, 'default': default, 'pk': pk, 'virtual': virtual}
 
     def __str__(self):
         return f"Column: {self._column}"
@@ -3532,13 +3535,13 @@ class Column:
         This can be useful for comparing values between the database and the GUI.
 
         :param value: The value you would like to cast
-        :returns: The value, cast to a type as defined by the sql_type datatype
+        :returns: The value, cast to a type as defined by the domain
         """
-        # convert the data into the correct data type using the sql_type in ColumnInfo
-        sql_type = self.sql_type
+        # convert the data into the correct data type using the domain in ColumnInfo
+        domain = self.domain
 
         # String type casting
-        if sql_type in ['TEXT', 'VARCHAR', 'CHAR']:
+        if domain in ['TEXT', 'VARCHAR', 'CHAR']:
             if type(value) is int:
                 value = str(value)
             elif type(value) is bool:
@@ -3547,21 +3550,21 @@ class Column:
                 value = str(value)
 
         # Integer type casting
-        elif sql_type in ['INT', 'INTEGER', 'BOOLEAN']:
+        elif domain in ['INT', 'INTEGER', 'BOOLEAN']:
             try:
                 value = int(value)
             except:
                 value = str(value)
 
         # float type casting
-        elif sql_type in ['REAL', 'DOUBLE', 'DECIMAL', 'FLOAT']:
+        elif domain in ['REAL', 'DOUBLE', 'DECIMAL', 'FLOAT']:
             try:
                 value = float(value)
             except:
                 value = str(value)
 
         # date/time casting
-        elif sql_type in ['TIME', 'DATE', 'DATETIME', 'TIMESTAMP']: # TODO: i'm sure there is a lot of work to do here
+        elif domain in ['TIME', 'DATE', 'DATETIME', 'TIMESTAMP']: # TODO: i'm sure there is a lot of work to do here
             try:
                 value = datetime(value)
             except:
@@ -3587,7 +3590,7 @@ class ColumnInfo(List):
         self.table = table
 
         # List of required SQL types to check against when user sets custom values
-        self._sql_types = [
+        self._domains = [
             'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME', 'DATE',
             'DATETIME', 'TIMESTAMP'
         ]
@@ -3649,18 +3652,18 @@ class ColumnInfo(List):
         """
         return self[idx].name
 
-    def default_row_dict(self, data: Data) -> dict:
+    def default_row_dict(self, dataset: DataSet) -> dict:
         """
         Return a dictionary of a table row with all defaults assigned. This is useful for inserting new records to
         prefill the GUI elements
 
-        :param data: a pysimplesql Data object
+        :param dataset: a pysimplesql DataSet object
         :returns: dict
         """
         d = {}
         for c in self:
             default = c.default
-            sql_type = c.sql_type
+            domain = c.domain
 
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
@@ -3676,37 +3679,37 @@ class ColumnInfo(List):
             # The stored default is a literal value, lets try to use it:
             if default is None:
                 try:
-                    null_default = self.null_defaults[sql_type]
+                    null_default = self.null_defaults[domain]
                 except KeyError:
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
 
                 # If our default is callable, call it.  Otherwise, assign it
                 # Make sure to skip primary keys, and onlu consider text that is in the description column
-                if (sql_type not in ['TEXT','VARCHAR','CHAR'] and c.name != data.description_column) and c.pk==False:
+                if (domain not in ['TEXT','VARCHAR','CHAR'] and c.name != dataset.description_column) and c.pk==False:
                     default = null_default() if callable(null_default) else null_default
             else:
                 # Load the default from the database
-                if sql_type in ['TEXT', 'VARCHAR', 'CHAR']:
+                if domain in ['TEXT', 'VARCHAR', 'CHAR']:
                     # strip quotes from default strings as they seem to get passed with some database-stored defaults
                     default = c.default.strip('"\'')  # strip leading and trailing quotes
 
             d[c.name]= default
-        if data.transform is not None: data.transform(data, d, TFORM_DECODE)
+        if dataset.transform is not None: dataset.transform(dataset, d, TFORM_DECODE)
         return d
 
-    def set_null_default(self, sql_type:str, value:object) -> None:
+    def set_null_default(self, domain: str, value: object) -> None:
         """
         Set a Null default for a single SQL type
 
-        :param sql_type: The SQL type to set the default for ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
+        :param domain: The SQL type to set the default for ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
         :param value: The new value to set the SQL type to. This can be a literal or even a callable
         :returns: None
         """
-        if sql_type not in self._sql_types:
-            RuntimeError(f'Unsupported SQL Type: {sql_type}. Supported types are: {self._sql_types}')
+        if domain not in self._domains:
+            RuntimeError(f'Unsupported SQL Type: {domain}. Supported types are: {self._domains}')
 
-        self.null_defaults[sql_type] = value
+        self.null_defaults[domain] = value
 
     def set_null_defaults(self, null_defaults:dict) -> None:
         """
@@ -3718,8 +3721,8 @@ class ColumnInfo(List):
         :returns: None
         """
         # Check if the null_defaults dict has all of the required keys:
-        if not all(key in null_defaults for key in self._sql_types):
-            RuntimeError(f'The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._sql_types}')
+        if not all(key in null_defaults for key in self._domains):
+            RuntimeError(f'The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._domains}')
 
         self.null_defaults = null_defaults
     def get_virtual_names(self) -> List[str]:
@@ -4210,7 +4213,7 @@ class SQLDriver:
         rows = self.execute(f"SELECT MAX({pk_column}) FROM {table}")
         return rows.fetchone()[f'MAX({pk_column})']
 
-    def generate_join_clause(self, data: Data) -> str:
+    def generate_join_clause(self, dataset: DataSet) -> str:
         """
         Automatically generates a join clause from the Relationships that have been set
 
@@ -4220,15 +4223,15 @@ class SQLDriver:
         :rtype: str
         """
         join = ''
-        for r in data.frm.relationships:
-            if data.table == r.child_table:
+        for r in dataset.frm.relationships:
+            if dataset.table == r.child_table:
                 join += f' {self.relationship_to_join_clause(r)}'
-        return join if data.join_clause == '' else data.join_clause
+        return join if dataset.join_clause == '' else dataset.join_clause
 
 
-    def generate_where_clause(self, data: Data) -> str:
+    def generate_where_clause(self, dataset: DataSet) -> str:
         """
-        Generates a where clause from the Relationships that have been set, as well as the Data's where clause
+        Generates a where clause from the Relationships that have been set, as well as the DataSet's where clause
 
         This is not typically used by end users
 
@@ -4236,11 +4239,11 @@ class SQLDriver:
         :rtype: str
         """
         where = ''
-        for r in data.frm.relationships:
-            if data.table == r.child_table:
+        for r in dataset.frm.relationships:
+            if dataset.table == r.child_table:
                 if r.update_cascade:
-                    table = data.table
-                    parent_pk = data.frm[r.parent_table].get_current(r.pk_column)
+                    table = dataset.table
+                    parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
                     if parent_pk == '': parent_pk = 'NULL' # passed so that children without a cascade-filtering parent arn't displayed
                     clause=f' WHERE {table}.{r.fk_column}={str(parent_pk)}'
                     if where!='': clause=clause.replace('WHERE','AND')
@@ -4248,14 +4251,14 @@ class SQLDriver:
 
         if where == '':
             # There was no where clause from Relationships..
-            where = data.where_clause
+            where = dataset.where_clause
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            where = where + ' ' + data.where_clause.replace('WHERE', 'AND')
+            where = where + ' ' + dataset.where_clause.replace('WHERE', 'AND')
 
         return where
 
-    def generate_query(self, data: Data, join_clause: bool = True, where_clause: bool = True,
+    def generate_query(self, dataset: DataSet, join_clause: bool = True, where_clause: bool = True,
                        order_clause: bool = True) -> str:
         """
         Generate a query string using the relationships that have been set
@@ -4269,44 +4272,44 @@ class SQLDriver:
         :returns: a query string for use with sqlite3
         :rtype: str
         """
-        q = data.query
-        q += f' {data.join_clause if join_clause else ""}'
-        q += f' {data.where_clause if where_clause else ""}'
-        q += f' {data.order_clause if order_clause else ""}'
+        q = dataset.query
+        q += f' {dataset.join_clause if join_clause else ""}'
+        q += f' {dataset.where_clause if where_clause else ""}'
+        q += f' {dataset.order_clause if order_clause else ""}'
         return q
 
-    def delete_record(self, data: Data, cascade=True): # TODO: get ON DELETE CASCADE from db
+    def delete_record(self, dataset: DataSet, cascade=True): # TODO: get ON DELETE CASCADE from db
         # Delete child records first!
         if cascade:
-            for _ in data.frm.dataset:
-                for r in data.frm.relationships:
-                    if r.parent_table == data.table:
+            for _ in dataset.frm.datasets:
+                for r in dataset.frm.relationships:
+                    if r.parent_table == dataset.table:
                         child = self.quote_table(r.child_table)
                         fk_column = self.quote_column(r.fk_column)
-                        q = f'DELETE FROM {child} WHERE {fk_column}={data.get_current(data.pk_column)}'
+                        q = f'DELETE FROM {child} WHERE {fk_column}={dataset.get_current(dataset.pk_column)}'
                         self.execute(q)
                         logger.debug(f'Delete query executed: {q}')
-                        data.frm[r.child_table].requery(False)
+                        dataset.frm[r.child_table].requery(False)
 
-        table = self.quote_table(data.table)
-        pk_column = self.quote_column(data.pk_column)
-        q = f'DELETE FROM {table} WHERE {pk_column}={data.get_current(data.pk_column)};'
+        table = self.quote_table(dataset.table)
+        pk_column = self.quote_column(dataset.pk_column)
+        q = f'DELETE FROM {table} WHERE {pk_column}={dataset.get_current(dataset.pk_column)};'
         self.execute(q)
 
-    def duplicate_record(self, data: Data, cascade: bool) -> ResultSet:
+    def duplicate_record(self, dataset: DataSet, cascade: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        description = self.quote_value(f"Copy of {data.get_description_for_pk(data.get_current_pk())}")
-        table = self.quote_table(data.table)
-        pk_column = self.quote_column(data.pk_column)
-        description_column = self.quote_column(data.description_column)
+        description = self.quote_value(f"Copy of {dataset.get_description_for_pk(dataset.get_current_pk())}")
+        table = self.quote_table(dataset.table)
+        pk_column = self.quote_column(dataset.pk_column)
+        description_column = self.quote_column(dataset.description_column)
 
         query= []
         query.append('DROP TABLE IF EXISTS tmp;')
-        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {table} WHERE {pk_column}={data.get_current(data.pk_column)}')
-        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(data.table, data.pk_column)}')
+        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {table} WHERE {pk_column}={dataset.get_current(dataset.pk_column)}')
+        query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)}')
         query.append(f'UPDATE tmp SET {description_column} = {description}')
         query.append(f'INSERT INTO {table} SELECT * FROM tmp')
         for q in query:
@@ -4320,17 +4323,17 @@ class SQLDriver:
         child_duplicated = []
         # Next, duplicate the child records!
         if cascade:
-            for _ in data.frm.dataset:
-                for r in data.frm.relationships:
-                    if r.parent_table == data.table and r.update_cascade and (r.child_table not in child_duplicated):
+            for _ in dataset.frm.datasets:
+                for r in dataset.frm.relationships:
+                    if r.parent_table == dataset.table and r.update_cascade and (r.child_table not in child_duplicated):
                         child = self.quote_table(r.child_table)
                         fk = self.quote_column(r.fk_column)
-                        pk_column = self.quote_column(data.frm[r.child_table].pk_column)
+                        pk_column = self.quote_column(dataset.frm[r.child_table].pk_column)
                         fk_column = self.quote_column(r.fk_column)
 
                         query = []
                         query.append('DROP TABLE IF EXISTS tmp;')
-                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}={data.get_current(data.pk_column)}')
+                        query.append(f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}={dataset.get_current(dataset.pk_column)}')
                         query.append(f'UPDATE tmp SET {pk_column} = {self.next_pk(r.child_table, r.pk_column)}')
                         query.append(f'UPDATE tmp SET {fk_column} = {pk}')
                         query.append(f'INSERT INTO {child} SELECT * FROM tmp')
@@ -4343,15 +4346,15 @@ class SQLDriver:
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
-    def save_record(self, data: Data, changed_row: dict, where_clause: str = None) -> ResultSet:
-        pk = data.get_current_pk()
-        pk_column = data.pk_column
+    def save_record(self, dataset: DataSet, changed_row: dict, where_clause: str = None) -> ResultSet:
+        pk = dataset.get_current_pk()
+        pk_column = dataset.pk_column
 
         # Remove the pk column and any virtual columns
-        changed_row = {k: v for k,v in changed_row.items() if k != pk_column and k not in data.column_info.get_virtual_names()}
+        changed_row = {k: v for k,v in changed_row.items() if k != pk_column and k not in dataset.column_info.get_virtual_names()}
 
         # quote appropriately
-        table = self.quote_table(data.table)
+        table = self.quote_table(dataset.table)
         pk_column = self.quote_column(pk_column)
 
         # Create the WHERE clause
@@ -4461,11 +4464,11 @@ class Sqlite(SQLDriver):
         for row in rows:
             name = row['name']
             names.append(name)
-            sql_type = row['type']
+            domain = row['type']
             notnull = row['notnull']
             default = row['dflt_value']
             pk = row['pk']
-            col_info.append(Column(name = name, sql_type = sql_type, notnull=notnull, default=default, pk=pk))
+            col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
 
         return col_info
 
@@ -4601,16 +4604,16 @@ class Flatfile(Sqlite):
         self.commit()
 
 
-    def save_record(self, data: Data, changed_row: dict, where_clause: str = None) -> ResultSet:
+    def save_record(self, dataset: DataSet, changed_row: dict, where_clause: str = None) -> ResultSet:
         # Have SQlite save this record
-        result = super().save_record(data, changed_row, where_clause)
+        result = super().save_record(dataset, changed_row, where_clause)
 
         if result.exception is None:
             # No it is safe to write our data back out to the CSV file
 
-            # Update the Data object's ResultSet with the changes, so then
+            # Update the DataSet object's ResultSet with the changes, so then
             # the entire ResultSet can be written back to file sequentially
-            data.rows[data.current_index] = changed_row
+            dataset.rows[dataset.current_index] = changed_row
 
             # open the CSV file for writing
             with open(self.file_path, 'w', newline='\n') as csvfile:
@@ -4626,7 +4629,7 @@ class Flatfile(Sqlite):
 
                 # write the ResultSet out.  Use our columns to exclude the possible virtual pk
                 rows = []
-                for r in data.rows:
+                for r in dataset.rows:
                     rows.append([r[c] for c in self.columns])
 
 
@@ -4706,11 +4709,11 @@ class Mysql(SQLDriver):
         for row in rows:
             name = row['Field']
             # Capitalize and get rid of the extra information of the row type I.e. varchar(255) becomes VARCHAR
-            sql_type = row['Type'].split('(')[0].upper()
+            domain = row['Type'].split('(')[0].upper()
             notnull = True if row['Null'] == 'NO' else False
             default = row['Default']
             pk = True if row['Key'] == 'PRI' else False
-            col_info.append(Column(name=name, sql_type=sql_type, notnull=notnull, default=default, pk=pk))
+            col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
 
         return col_info
 
@@ -4929,5 +4932,5 @@ class Postgres(SQLDriver):
 # ALIASES
 # ======================================================================================================================
 Database=Form
-Table=Data
+Table=DataSet
 record = field # for reverse capability

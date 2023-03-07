@@ -2,7 +2,7 @@ import PySimpleGUI as sg
 import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)  # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logging.basicConfig(level=logging.DEBUG)  # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # -------------------------------------
 # CREATE A SIMPLE DATABASE TO WORK WITH
@@ -93,7 +93,7 @@ Without comments and embedded SQL script, this could have been done in well unde
 database-backed usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
-- Using Data.set_search_order() to set the search order of the query for search operations.
+- Using DataSet.set_search_order() to set the search order of the query for search operations.
 - embedding sql commands in code for table creation
 - creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
 - using Form.record() and Form.selector() functions for easy GUI element creation

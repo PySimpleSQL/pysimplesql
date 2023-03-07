@@ -33,7 +33,7 @@ on this frm and watch it all just work!
 """
 
 # PySimpleGUI™ layout code
-headings=['id','Name     ','Example                                          ','Primary Color?'] # Data column widths can be set by the spacing of the headings!
+headings=['id','Name     ','Example                                          ','Primary Color?'] # DataSet column widths can be set by the spacing of the headings!
 visible=[0,1,1,1] # Hide the primary key column in the table
 record_columns=[
     [ss.field('Colors.name', label='Color name:')],
