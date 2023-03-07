@@ -2159,7 +2159,7 @@ class Form:
                 elif event_type==EVENT_SEARCH:
                     # Build the search box name
                     search_element,command=key.split(':')
-                    search_box=f'{search_element}.search_input'
+                    search_box=f'{search_element}:search_input'
                     if data_key: funct=functools.partial(self[data_key].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
