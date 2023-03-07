@@ -2316,9 +2316,14 @@ class Form:
             self.update_element_states(data_key, disable)
             
             for m in (m for m in self.event_map if m['table'] == self[data_key].table):
-                # Disable delete/duplicate and mapped elements for this table if there are no records in this table or edit protect mode
-                if (':table_delete' in m['event']) or (':table_duplicate' in m['event']):
+                # Disable delete and mapped elements for this table if there are no records in this table or edit protect mode
+                if ':table_delete' in m['event']:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
+                    win[m['event']].update(disabled=disable)
+
+                # Disable duplicate if no rows, edit protect, or current row virtual
+                if ':table_duplicate' in m['event']:
+                    disable = len(self[data_key].rows) == 0 or self._edit_protect or self[data_key].get_current_row().virtual
                     win[m['event']].update(disabled=disable)
                     
                 elif ':table_first' in m['event']:
