@@ -146,17 +146,17 @@ PROMPT_SAVE_NONE: int = 4
 # ---------------------------
 # RECORD SAVE RETURN BITMASKS
 # ---------------------------
-SAVE_FAIL: int = 1  # Save failed due to callback
+SAVE_FAIL: int = 1     # Save failed due to callback
 SAVE_SUCCESS: int = 2  # Save was successful
-SAVE_NONE: int = 4  # There was nothing to save
+SAVE_NONE: int = 4     # There was nothing to save
 
 # ----------------------
 # SEARCH RETURN BITMASKS
 # ----------------------
-SEARCH_FAILED: int = 1  # No result was found
+SEARCH_FAILED: int = 1    # No result was found
 SEARCH_RETURNED: int = 2  # A result was found
-SEARCH_ABORTED: int = 4  # The search was aborted, likely during a callback
-SEARCH_ENDED: int = 8  # We have reached the end of the search
+SEARCH_ABORTED: int = 4   # The search was aborted, likely during a callback
+SEARCH_ENDED: int = 8     # We have reached the end of the search
 
 
 # TODO: Combine TableRow and ElementRow into one class for simplicity
@@ -416,15 +416,15 @@ class DataSet:
         self.rows: ResultSet
         self.search_order: List[str] = []
         self.selector: List[str] = []
-        self.callbacks: Dict[str:Callable[[Form,sg.Window],bool]] = {}
-        self.transform: Callable[[ResultRow,Union[TFORM_ENCODE, TFORM_DECODE]], None] = None
+        self.callbacks: Dict[str :Callable[[Form, sg.Window], bool]] = {}
+        self.transform: Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None] = None
         self.filtered: bool = filtered
         self._prompt_save: bool = prompt_save
         self._simple_transform: dict = {}  # TODO: typehint after researching
         self.autosave: bool = autosave
 
     # Override the [] operator to retrieve columns by key
-    def __getitem__(self, key:str):
+    def __getitem__(self, key: str):
         return self.get_current(key)
 
     # Make current_index a property so that bounds can be respected
@@ -434,7 +434,7 @@ class DataSet:
 
     @current_index.setter
     # Keeps the current_index in bounds
-    def current_index(self, val:int):
+    def current_index(self, val: int):
         if val > len(self.rows) - 1:
             self._current_index = len(self.rows) - 1
         elif val < 0:
@@ -443,7 +443,7 @@ class DataSet:
             self._current_index = val
 
     @classmethod
-    def purge_form(cls,frm:Form, reset_keygen:bool) -> None:
+    def purge_form(cls, frm: Form, reset_keygen: bool) -> None:
         """
         Purge the tracked instances related to frm
 
@@ -463,7 +463,6 @@ class DataSet:
                 # we need to get a list of elements to purge from the keygen
                 for s in dataset.selector:
                     selector_keys.append(s['element'].key)
-
 
         # Reset the keygen for selectors and elements from this Form
         # This is probably a little hack-ish, perhaps I should relocate the keygen?
