@@ -4324,7 +4324,7 @@ class SQLDriver:
         if cascade:
             for _ in dataset.frm.datasets:
                 for r in dataset.frm.relationships:
-                    if r.parent_table == dataset.table:
+                    if r.parent_table == dataset.table and r.update_cascade:
                         child = self.quote_table(r.child_table)
                         fk_column = self.quote_column(r.fk_column)
                         q = f'DELETE FROM {child} WHERE {fk_column}={dataset.get_current(dataset.pk_column)}'
@@ -4459,6 +4459,7 @@ class Sqlite(SQLDriver):
 
     def connect(self, database):
         self.con = sqlite3.connect(database)
+#        self.con.execute('PRAGMA foreign_keys = ON') # For testing foreign_key ON DELETE CASCADE
 
     def execute(self, query, values=None, silent=False, column_info = None):
         if not silent:logger.info(f'Executing query: {query} {values}')
