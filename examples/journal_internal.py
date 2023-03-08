@@ -56,8 +56,7 @@ layout = [
     [ss.actions('Journal')],
     [ss.field('Journal.entry_date'),
          # Add a CalendarButton to your date fields
-         sg.CalendarButton("Select Date", close_when_date_chosen=True, target="Journal.entry_date",
-                                                                                # ^ match your ss.Field
+         sg.CalendarButton("Select Date", close_when_date_chosen=True, target="Journal.entry_date", # <- target matches your ss.field
                            format="%Y-%m-%d", size=(10, 1),key='datepicker')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.field('Journal.title')],
