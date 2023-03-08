@@ -31,7 +31,7 @@ layout.append([ss.actions('Restaurant', 'act_restaurant')])
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
 # Set up our driver
-driver=ss.Sqlite(':memory:', sql_script='example.sql')
+driver=ss.Sqlite(':memory:', sql_script='restaurants.sql')
 # Create our Form
 frm = ss.Form(driver, bind_window=win)  # <=== load the database
 # NOTE: ":memory:" is a special database URL for in-memory databases

@@ -4966,7 +4966,7 @@ class Postgres(SQLDriver):
 # --------------------------
 SaveResultsDict = Dict[str, int]
 CallbacksDict = Dict[str, Callable[[Form, sg.Window], Union[None, bool]]]
-PromptSaveValue = Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
+PromptSaveValue = int #Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
 
 
 class SimpleTransform(TypedDict):
