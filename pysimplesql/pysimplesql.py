@@ -1372,7 +1372,7 @@ class DataSet:
         
         children = list(set(children))
         if len(children):
-            msg = f'Are you sure you want to delete this record? Keep in mind that children records in - {children} - will be deleted as well!'
+            msg = f"Are you sure you want to delete this record? Keep in mind that child records (in {', '.join(children)}) will be deleted as well!"
         else:
             msg = 'Are you sure you want to delete this record?'
         answer = sg.popup_yes_no(msg, title='Confirm Delete',  keep_on_top=True)
@@ -1400,12 +1400,9 @@ class DataSet:
         else:
             self.driver.commit()
 
-
-        self.current_index = self.current_index  # force the current_index to be in bounds! todo should this be done in requery?
-        self.requery_dependents()
-
         self.requery(select_first=False)
-        self.frm.update_elements()
+        self.requery_dependents()
+        self.frm.update_elements(self.table)
         
     def duplicate_record(self, cascade:bool=True) -> None: # TODO check return type, returns True within
         """
@@ -1433,12 +1430,22 @@ class DataSet:
         
         children = list(set(children))
         if len(children):
-            msg = f'Are you sure you want to duplicate this record? Keep in mind that children records in - {children} - will be duplicated as well!'
+            answer = sg.Window('Confirm Duplicate', [
+                [sg.T(f"This record has child records (in {', '.join(children)}).")],
+                [sg.T(f"Which do you want to duplicate?")],
+                [sg.Button(button_text=f"Duplicate ONLY this record.", key='parent')],
+                [sg.Button(button_text=f"Duplicate BOTH this record and children.", key='cascade')],
+                [sg.Button(button_text=f"Cancel", key='cancel')],
+                ]).read(close=True)
+            if answer[0] == 'parent':
+                cascade = False
+            elif answer[0] == 'cancel':
+                return True
         else:
             msg = 'Are you sure you want to duplicate this record?'
-        answer = sg.popup_yes_no(msg, title='Confirm Duplicate', keep_on_top=True)
-        if answer == 'No':
-            return True
+            answer = sg.popup_yes_no(msg, title='Confirm Duplicate', keep_on_top=True)
+            if answer == 'No':
+                return True
         # Store our current pk, so we can move to it if the duplication fails
         pk = self.get_current_pk()
 
@@ -1460,14 +1467,9 @@ class DataSet:
             self.driver.commit()
         self.driver.commit()
         
-        # move to new pk
-        self.frm[r.child_table].requery(False)
-        self.requery()
+        # requery and move to new pk
+        self.requery(select_first=False)
         self.set_by_pk(pk)
-        self.requery_dependents()
-
-        self.frm.update_elements()
-        self.frm.window.refresh()
 
     def get_description_for_pk(self, pk:int) -> Union[str,int,None]:
         """
