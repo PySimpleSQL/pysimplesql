@@ -75,10 +75,21 @@ frm['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
 
-# To edit-protect a Calendar button (or any button), call map_elment()
+# ------------------------------------------
+# How to Edit Protect your sg.CalendarButton
+# ------------------------------------------
+
+# The sg.CalendarButton was not auto-mapped during Form creation.
+# We need to do it manually, using `frm.map_element`.
+# Typically, to manually map an sg.Input, you would pass the sg.Element, DataSet, and column it refers to,
+# but when edit-protecting a Calendar button (or any button), pass None as the column.
+
 frm.map_element(win['datepicker'], frm['Journal'], column=None)
 #               ['Key of Button']                          ^ must be None
-frm.edit_protect() # disable edit-protect to start
+
+# By default, action() includes an edit_protect() call, that disables edits in the window.
+# You can toggle it off with:
+frm.edit_protect() # toggle on/off
 
 # ---------
 # MAIN LOOP
@@ -108,4 +119,5 @@ Learnings from this example:
 - using the label keyword argument to Form.record() to define a custom label
 - using Tables as Form.selector() element types
 - changing the sort order of database dataset
+- Edit-Protecting a sg.CalendarButton
 """

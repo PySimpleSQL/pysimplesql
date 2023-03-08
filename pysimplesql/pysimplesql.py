@@ -652,6 +652,10 @@ class DataSet:
         dirty = False
         # First check the current record to see if it's dirty
         for mapped in self.frm.element_map:
+            # skip mapped items with no column
+            if mapped.column is None:
+                continue
+
             # Compare the DB version to the GUI version
             if mapped.table == self.table:
                 # if passed custom column name
@@ -1220,6 +1224,10 @@ class DataSet:
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
+            # skip mapped items with no column
+            if mapped.column is None:
+                continue
+            
             if mapped.dataset == self:
 
                 # convert the data into the correct data type using the domain in ColumnInfo
@@ -2380,6 +2388,10 @@ class Form:
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
         for mapped in self.element_map:
+            # if a column-less element is added
+            if mapped.column is None:
+                continue
+
             # If the optional target_data_key parameter was passed, we will only update elements bound to that table
             if target_data_key is not None:
                 if mapped.table != self[target_data_key].table:
@@ -2387,8 +2399,6 @@ class Form:
 
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
-            # if a column-less element is added
-            if mapped.column is None: continue
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = mapped.element.key + ':marker'
