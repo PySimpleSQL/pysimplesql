@@ -1919,9 +1919,9 @@ class Form:
 
         :param element: A PySimpleGUI Element
         :param dataset: A `DataSet` object
-        :param column: The name of the column to bind to the element
-        :param where_column: Used for ke, value shorthand TODO: expand on this
-        :param where_value: Used for ey, value shorthand TODO: expand on this
+        :param column: The name of the column to bind to the element. Pass None if mapping a button to table to enable edit_protect
+        :param where_column: Used for key, value shorthand TODO: expand on this
+        :param where_value: Used for key, value shorthand TODO: expand on this
         :returns: None
         """
         logger.debug(f'Mapping element {element.key}')
@@ -2386,6 +2386,8 @@ class Form:
 
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
+            # if a column-less element is added
+            if mapped.column is None: continue
 
             # Show the Required Record marker if the column has notnull set and this is a virtual row
             marker_key = mapped.element.key + ':marker'
@@ -2675,7 +2677,7 @@ class Form:
                 continue
             element = mapped.element
             if type(element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.MLine, sg.PySimpleGUI.Combo,
-                                 sg.PySimpleGUI.Checkbox]:
+                                 sg.PySimpleGUI.Checkbox, sg.PySimpleGUI.Button]:
                 # if element.Key in self.window.key_dict.keys():
                 logger.debug(f'Updating element {element.Key} to disabled: {disable}, visible: {visible}')
                 if disable is not None:

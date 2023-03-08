@@ -53,8 +53,12 @@ headings.add_column('mood_id', 'Mood', width=20)
 
 layout = [
     [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
-    [ss.actions('Journal', edit_protect=False)],
-    [ss.field('Journal.entry_date')],
+    [ss.actions('Journal')],
+    [ss.field('Journal.entry_date'),
+         # Add a CalendarButton to your date fields
+         sg.CalendarButton("Select Date", close_when_date_chosen=True, target="Journal.entry_date",
+                                                                                # ^ match your ss.Field
+                           format="%Y-%m-%d", size=(10, 1),key='datepicker')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
@@ -71,6 +75,11 @@ frm['Journal'].set_order_clause('ORDER BY entry_date ASC')
 frm['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
+
+# To edit-protect a Calendar button (or any button), call map_elment()
+frm.map_element(win['datepicker'], frm['Journal'], column=None)
+#               ['Key of Button']                          ^ must be None
+frm.edit_protect() # disable edit-protect to start
 
 # ---------
 # MAIN LOOP
