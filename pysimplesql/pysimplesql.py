@@ -1919,7 +1919,8 @@ class Form:
 
         :param element: A PySimpleGUI Element
         :param dataset: A `DataSet` object
-        :param column: The name of the column to bind to the element. Pass None if mapping a button to table to enable edit_protect
+        :param column: The name of the column to bind to the element.
+                       Pass None if mapping a `sg.Button` to a `DataSet` to enable edit_protect.
         :param where_column: Used for key, value shorthand TODO: expand on this
         :param where_value: Used for key, value shorthand TODO: expand on this
         :returns: None
