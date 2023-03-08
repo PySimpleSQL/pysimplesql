@@ -53,8 +53,10 @@ headings.add_column('mood_id', 'Mood', width=20)
 
 layout = [
     [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
-    [ss.actions('Journal', edit_protect=False)],
-    [ss.field('Journal.entry_date')],
+    [ss.actions('Journal')],
+    [ss.field('Journal.entry_date'),
+             sg.CalendarButton("Select Date", close_when_date_chosen=True, target="Journal.entry_date", # <- target matches your field() name
+                               format="%Y-%m-%d", size=(10, 1),key='datepicker')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
@@ -72,6 +74,16 @@ frm['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
 
+# ------------------------------------------
+# How to Edit Protect your sg.CalendarButton
+# ------------------------------------------
+# By default, action() includes an edit_protect() call, that disables edits in the window.
+# You can toggle it off with:
+frm.edit_protect() # toggle on/off. Comment this out to edit protect elements when the window is created.
+# Set initial CalendarButton state to the same as pysimplesql elements
+win['datepicker'].update(disabled=frm.get_edit_protect())
+# Then watch for the 'edit_protect' event in your Main Loop
+
 # ---------
 # MAIN LOOP
 # ---------
@@ -80,6 +92,8 @@ while True:
 
     if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
+    if "edit_protect" in event:
+        win['datepicker'].update(disabled=frm.get_edit_protect())
     elif event == sg.WIN_CLOSED or event == 'Exit':
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
         break
