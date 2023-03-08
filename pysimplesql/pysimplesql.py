@@ -2918,7 +2918,7 @@ def set_mline_size(w:int, h:int) -> None:
 
 
 def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = None, label: str = '',
-          no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None, key=None,
+          no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None,
           **kwargs) -> sg.Column:
     """
     Convenience function for adding PySimpleGUI elements to the Window, so they are properly configured for pysimplesql
