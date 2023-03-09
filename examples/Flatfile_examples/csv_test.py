@@ -40,6 +40,9 @@ frm.set_force_save(True)
 # Make it so that the name, address and email can be part of the search
 frm['Flatfile'].set_search_order(['name', 'address', 'email'])
 
+# Let's use a fun language pack
+ss.language_pack = ss.lp_90s
+
 # As you can see, using a Flatfile is just like using any database with pysimplesql!
 while True:
     event, values = win.read()
