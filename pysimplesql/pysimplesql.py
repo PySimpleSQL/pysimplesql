@@ -2473,7 +2473,7 @@ class Form:
                 eat_events(self.window)
                 continue
 
-            elif type(mapped.element) is sg.PySimpleGUI.InputText or type(mapped.element) is sg.PySimpleGUI.Multiline:
+            elif type(mapped.element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.Multiline, sg.PySimpleGUI.Text]:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
                 mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out
@@ -2674,8 +2674,8 @@ class Form:
             if mapped.table != table:
                 continue
             element = mapped.element
-            if type(element) is sg.PySimpleGUI.InputText or type(element) is sg.PySimpleGUI.MLine or type(
-                    element) is sg.PySimpleGUI.Combo or type(element) is sg.PySimpleGUI.Checkbox:
+            if type(element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.MLine, sg.PySimpleGUI.Combo,
+                                 sg.PySimpleGUI.Checkbox]:
                 # if element.Key in self.window.key_dict.keys():
                 logger.debug(f'Updating element {element.Key} to disabled: {disable}, visible: {visible}')
                 if disable is not None:
