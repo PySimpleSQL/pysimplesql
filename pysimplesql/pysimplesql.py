@@ -2410,7 +2410,8 @@ class Form:
                             if mapped.dataset.column_info[col].notnull:
                                 self.window[marker_key].update(visible=True, text_color = themepack.marker_required_color)
                     else:
-                        self.window[marker_key].update(visible=False)
+                        if self.window is not None:
+                            self.window[marker_key].update(visible=False)
                 except AttributeError:
                     self.window[marker_key].update(visible=False)
 
