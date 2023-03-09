@@ -729,7 +729,7 @@ class DataSet:
             if autosave or self.autosave:
                 save_changes = 'Yes'
             else:
-                save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+                save_changes = sg.popup_yes_no(lang.dataset_prompt_save)
             if save_changes == 'Yes':
                 # save this record's cascaded relationships, last to first
                 if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
@@ -1192,7 +1192,7 @@ class DataSet:
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message:
-                sg.popup_quick_message('There were no updates to save.', keep_on_top=True)
+                sg.popup_quick_message(lang.dataset_save_empty, keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
@@ -1202,13 +1202,13 @@ class DataSet:
                 if update_elements:
                     self.frm.update_elements(self.table)
                 if display_message:
-                    sg.popup('Updates not saved.', keep_on_top=True)
+                    sg.popup(lang.dataset_save_callback_false, keep_on_top=True)
                 return SAVE_FAIL + SHOW_MESSAGE
 
         # Check right away to see if any records have changed, no need to proceed any further than we have to
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
             if display_message:
-                sg.popup_quick_message('There were no changes to save!', keep_on_top=True)
+                sg.popup_quick_message(lang.dataset_save_none, keep_on_top=True)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
@@ -1265,7 +1265,7 @@ class DataSet:
                     self.transform(self, q['changed_row'], TFORM_ENCODE)
                 result = self.driver.save_record(self, q['changed_row'], q['where_clause'])
                 if result.exception is not None:
-                    sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+                    sg.popup(lang.dataset_save_keyed_fail.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case, since it's handled here
         else:
@@ -1275,7 +1275,7 @@ class DataSet:
                 result = self.driver.save_record(self, changed_row)
 
             if result.exception is not None:
-                sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+                sg.popup(lang.dataset_save_fail.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
                 self.driver.rollback()
                 return SAVE_FAIL  # Do not show the message in this case, since it's handled here
 
@@ -1312,7 +1312,7 @@ class DataSet:
             self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:
-            sg.popup_quick_message('Updates saved successfully!', keep_on_top=True)
+            sg.popup_quick_message(lang.dataset_save_success, keep_on_top=True)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
@@ -1371,11 +1371,12 @@ class DataSet:
                         children.append(r.child_table)
         
         children = list(set(children))
+        msg_children = ', '.join(children)
         if len(children):
-            msg = f"Are you sure you want to delete this record? Keep in mind that child records (in {', '.join(children)}) will be deleted as well!"
+            msg = lang.delete_cascade.format_map(LangFrmt(children=msg_children))
         else:
-            msg = 'Are you sure you want to delete this record?'
-        answer = sg.popup_yes_no(msg, title='Confirm Delete',  keep_on_top=True)
+            msg = lang.delete_single
+        answer = sg.popup_yes_no(msg, title=lang.delete_title,  keep_on_top=True)
         if answer == 'No':
             return True
         
@@ -1389,7 +1390,7 @@ class DataSet:
         result = self.driver.delete_record(self, True)
         
         if result.exception is not None:
-            sg.popup(f"Query Failed! {result.exception}", keep_on_top=True)
+            sg.popup(lang.delete_failed.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
 
         # callback
         if 'after_delete' in self.callbacks.keys():
@@ -1429,33 +1430,34 @@ class DataSet:
                         children.append(r.child_table)
         
         children = list(set(children))
+        msg_children = ', '.join(children)
         if len(children):
-            answer = sg.Window('Confirm Duplicate', [
-                [sg.T(f"This record has child records (in {', '.join(children)}).")],
-                [sg.T(f"Which do you want to duplicate?")],
-                [sg.Button(button_text=f"Duplicate ONLY this record.", key='parent')],
-                [sg.Button(button_text=f"Duplicate BOTH this record and children.", key='cascade')],
-                [sg.Button(button_text=f"Cancel", key='cancel')],
+            answer = sg.Window(lang.duplicate_child_title, [
+                [sg.T(lang.duplicate_child_line1.format_map(LangFrmt(children=msg_children)))],
+                [sg.T(lang.duplicate_child_line2)],
+                [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent')],
+                [sg.Button(button_text=lang.duplicate_child_button_dupboth, key='cascade')],
+                [sg.Button(button_text=lang.button_cancel, key='cancel')],
                 ]).read(close=True)
             if answer[0] == 'parent':
                 cascade = False
-            elif answer[0] == 'cancel':
+            elif answer[0] in ['cancel', None]:
                 return True
         else:
-            msg = 'Are you sure you want to duplicate this record?'
-            answer = sg.popup_yes_no(msg, title='Confirm Duplicate', keep_on_top=True)
+            msg = lang.duplicate_single
+            answer = sg.popup_yes_no(msg, title=lang.duplicate_single_title, keep_on_top=True)
             if answer == 'No':
                 return True
         # Store our current pk, so we can move to it if the duplication fails
         pk = self.get_current_pk()
 
         # Have the driver duplicate the record
-        res = self.driver.duplicate_record(self, cascade)
-        if res.exception:
+        result = self.driver.duplicate_record(self, cascade)
+        if result.exception:
             self.driver.rollback()
-            sg.popup(res.exception, keep_on_top=True)
+            sg.popup(lang.duplicate_failed.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
         else:
-            pk = res.lastrowid
+            pk = result.lastrowid
                         
         # callback
         if 'after_duplicate' in self.callbacks.keys():
@@ -1582,7 +1584,7 @@ class DataSet:
             if col!=self.pk_column:
                 layout.append([field(column)])
 
-        quick_win = sg.Window(f'Quick Edit - {data_key}', layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
+        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFrmt(data_key=data_key)), layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
         driver=Sqlite(sqlite3_database=self.frm.driver.con)
         quick_frm = Form(driver, bind_window=quick_win)
 
@@ -2210,7 +2212,7 @@ class Form:
                     if autosave or self.autosave:
                         save_changes = 'Yes'
                     else:
-                        save_changes = sg.popup_yes_no('You have unsaved changes! Would you like to save them first?')
+                        save_changes = sg.popup_yes_no(lang.form_prompt_save)
 
                     if save_changes != 'Yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
@@ -2278,15 +2280,15 @@ class Form:
 
         # Build a descriptive message, since the save spans many tables potentially
         msg = ''
-        tables = ', '.join(failed_tables)
+        msg_tables = ', '.join(failed_tables)
         if result & SAVE_FAIL:
             if result & SAVE_SUCCESS:
-                msg = f"Some updates saved successfully; "
-            msg += f"There was a problem saving updates to the following tables: {tables}"
+                msg = lang.form_save_partial
+            msg += lang.form_save_problem.format_map(LangFrmt(tables=msg_tables))
         elif result & SAVE_SUCCESS:
-            msg = 'Updates saved successfully.'
+            msg = lang.form_save_success
         else:
-            msg = 'There was nothing to update.'
+            msg = lang.form_save_none
         if show_message: sg.popup_quick_message(msg, keep_on_top=True)
         return result
 
@@ -2781,6 +2783,10 @@ def checkbox_to_bool(value):
     :returns: bool
     """
     return str(value).lower() in ['y','yes','t','true','1']
+
+class LangFrmt(dict):
+    def __missing__(self, key):
+        return None
 
 class KeyGen:
     """
@@ -3472,10 +3478,42 @@ class LanguagePack:
     LanguagePacks are user-definable collections of strings that allow for localization of strings and messages presented
     to the end user. Creating your own is easy as well! In fact, a LanguagePack can be as simple as one line if you just
     want to change one aspect of the default LanguagePack. Example:
-        lp_en = {'search': 'SEARCH'} # I want the search button to display this text in English in all caps
+        lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
     """
     default = {
-        'search_button' : 'Search'
+        # DataSet prompt_save
+        'dataset_prompt_save' : 'You have unsaved changes! Would you like to save them first?',
+        # DataSet save_record
+        'dataset_save_empty' : 'There were no updates to save.',
+        'dataset_save_callback_false' : 'Updates not saved.',
+        'dataset_save_none' : 'There were no changes to save!',
+        'dataset_save_success' : 'Updates saved successfully!',
+        'dataset_save_keyed_fail' : 'Query Failed! {exception}',
+        'dataset_save_fail' : 'Query Failed! {exception}',
+        # DataSet delete_record
+        'delete_cascade' : 'Are you sure you want to delete this record? Keep in mind that child records ({children}) will be deleted as well!',
+        'delete_single' : 'Are you sure you want to delete this record?',
+        'delete_title' : 'Confirm Delete',
+        'delete_failed' : 'Query Failed! {exception}',
+        # Dataset duplicate_record
+        'duplicate_child_title' : 'Confirm Duplicate',
+        'duplicate_child_line1' : 'This record has child records (in {children}).',
+        'duplicate_child_line2' : 'Which do you want to duplicate?',
+        'duplicate_child_button_dupparent' : 'Duplicate ONLY this record.',
+        'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and children.',
+        'button_cancel' : 'Cancel',
+        'duplicate_single_title' : 'Confirm Duplicate',
+        'duplicate_single' : 'Are you sure you want to duplicate this record?',
+        'duplicate_failed' : 'Query Failed! {exception}',
+        # Form prompt_save
+        'form_prompt_save' : 'You have unsaved changes! Would you like to save them first?',
+        # Form save_records
+        'form_save_partial' : 'Some updates saved successfully;',
+        'form_save_problem' : 'There was a problem saving updates to the following tables: {tables}',
+        'form_save_success' : 'Updates saved successfully.',
+        'form_save_none' : 'There was nothing to update.',
+        # Quick Editor
+        'quick_edit_title' : 'Quick Edit - {data_key}'
     }
     """Default LanguagePack"""
 
@@ -3491,7 +3529,7 @@ class LanguagePack:
         self.lp_dict = lp_dict
 
     def __getattr__(self, key):
-        # Try to get the key from the internal tp_dict first.  If it fails, then check the default dict.
+        # Try to get the key from the internal lp_dict first.  If it fails, then check the default dict.
         try:
             return self.lp_dict[key]
         except KeyError:
