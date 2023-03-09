@@ -3551,7 +3551,7 @@ class LanguagePack:
         # general buttons
         'button_cancel' : 'Cancel',
         'button_ok' : 'Ok',
-        'button_yes' : 'Hell Yes',
+        'button_yes' : 'Yes',
         'button_no' : 'No',
         # DataSet prompt_save
         'dataset_prompt_save' : 'You have unsaved changes! Would you like to save them first?', #lp_popup_yes_no
