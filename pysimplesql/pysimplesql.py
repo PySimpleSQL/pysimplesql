@@ -706,7 +706,7 @@ class DataSet:
                         break
         return dirty
 
-    def prompt_save(self, autosave: bool = False, update_elements: bool = True)  \
+    def prompt_save(self, autosave: bool = False, update_elements: bool = True, recursive: bool = True)  \
             -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
@@ -714,6 +714,8 @@ class DataSet:
         :param autosave: True to autosave when changes are found without prompting the user
         :param update_elements: (optional) Passed to `Form.save_records()` -> `Form.save_records_recursive()` to
                         update_elements. Additionally used to discard changes if user reply's 'No' to prompt.
+        :param recursive: Passed to `Query.records_changed`. True to check related `DataSet` instances.
+                        Called as as False in TableHeadings sorting.
         :returns: A prompt return value of one of the following: `PROMPT_PROCEED`, `PROMPT_DISCARDED`, or `PROMPT_NONE`
         """
         # Return False if there is nothing to check or _prompt_save is False
@@ -724,7 +726,7 @@ class DataSet:
         # See if any rows are virtual
         vrows = len([row for row in self.rows if row.virtual])
         # Check if any records have changed
-        changed = self.records_changed() or vrows
+        changed = self.records_changed(recursive=recursive) or vrows
         if changed:
             if autosave or self.autosave:
                 save_changes = 'Yes'
@@ -2030,6 +2032,7 @@ class Form:
                         def callback_wrapper(column, element=element, data_key=data_key):
                             # store the pk:
                             pk = self[data_key].get_current_pk()
+                            self[data_key].prompt_save(recursive=False)
                             sort_order = self[data_key].rows.sort_cycle(column, data_key)
                             self[data_key].set_by_pk(pk, update_elements=True, requery_dependents=False,
                                                      skip_prompt_save=True)
