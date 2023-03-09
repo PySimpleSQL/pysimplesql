@@ -37,6 +37,9 @@ frm= ss.Form(driver, bind_window=win)
 # data saved back to the flatfile.
 frm.set_force_save(True)
 
+# Make it so that the name, address and email can be part of the search
+frm['Flatfile'].set_search_order(['name', 'address', 'email'])
+
 # As you can see, using a Flatfile is just like using any database with pysimplesql!
 while True:
     event, values = win.read()
