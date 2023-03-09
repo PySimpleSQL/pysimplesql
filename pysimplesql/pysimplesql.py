@@ -3515,6 +3515,227 @@ themepack = ThemePack()
 # LANGUAGEPACKS
 # ======================================================================================================================
 # Change the look language text used throughout the program.
+
+# Note: I had Chat GPT generate the following with the prompt:
+# I'm working on language localization for my python application.  Can you look at this dict and make a spanish version? Please keep strings in brackets {} unaltered
+# Not sure how accurate the reaults are, but here they are.  I did this for Spanish, German and French - as well as a few fun ones!
+lp_es = {
+    # DataSet prompt_save
+    'dataset_prompt_save' : '¡Tiene cambios sin guardar! ¿Desea guardarlos primero?',
+    # DataSet save_record
+    'dataset_save_empty' : 'No había actualizaciones para guardar.',
+    'dataset_save_callback_false' : 'No se guardaron las actualizaciones.',
+    'dataset_save_none' : '¡No había cambios para guardar!',
+    'dataset_save_success' : '¡Actualizaciones guardadas correctamente!',
+    'dataset_save_keyed_fail' : '¡Error en la consulta! {exception}',
+    'dataset_save_fail' : '¡Error en la consulta! {exception}',
+    # DataSet delete_record
+    'delete_cascade' : '¿Está seguro de que desea eliminar este registro? ¡Tenga en cuenta que también se eliminarán los registros secundarios ({children})!',
+    'delete_single' : '¿Está seguro de que desea eliminar este registro?',
+    'delete_title' : 'Confirmar Eliminación',
+    'delete_failed' : '¡Error en la consulta! {exception}',
+    # Dataset duplicate_record
+    'duplicate_child_title' : 'Confirmar Duplicación',
+    'duplicate_child_line1' : 'Este registro tiene registros secundarios (en {children}).',
+    'duplicate_child_line2' : '¿Cuál desea duplicar?',
+    'duplicate_child_button_dupparent' : 'Duplicar solo este registro.',
+    'duplicate_child_button_dupboth' : 'Duplicar tanto este registro como sus hijos.',
+    'button_cancel' : 'Cancelar',
+    'duplicate_single_title' : 'Confirmar Duplicación',
+    'duplicate_single' : '¿Está seguro de que desea duplicar este registro?',
+    'duplicate_failed' : '¡Error en la consulta! {exception}',
+    # Form prompt_save
+    'form_prompt_save' : '¡Tiene cambios sin guardar! ¿Desea guardarlos primero?',
+    # Form save_records
+    'form_save_partial' : 'Algunas actualizaciones se guardaron correctamente;',
+    'form_save_problem' : 'Hubo un problema al guardar las actualizaciones en las siguientes tablas: {tables}',
+    'form_save_success' : '¡Actualizaciones guardadas correctamente!',
+    'form_save_none' : 'No había nada que actualizar.',
+    # Quick Editor
+    'quick_edit_title' : 'Edición Rápida - {data_key}'
+}
+
+de = {
+    # DataSet prompt_save
+    'dataset_prompt_save' : 'Sie haben ungespeicherte Änderungen! Möchten Sie sie zuerst speichern?',
+    # DataSet save_record
+    'dataset_save_empty' : 'Es gab keine Updates zum Speichern.',
+    'dataset_save_callback_false' : 'Updates nicht gespeichert.',
+    'dataset_save_none' : 'Es gab keine Änderungen zum Speichern!',
+    'dataset_save_success' : 'Updates erfolgreich gespeichert!',
+    'dataset_save_keyed_fail' : 'Abfrage fehlgeschlagen! {exception}',
+    'dataset_save_fail' : 'Abfrage fehlgeschlagen! {exception}',
+    # DataSet delete_record
+    'delete_cascade' : 'Sind Sie sicher, dass Sie diesen Datensatz löschen möchten? Beachten Sie, dass untergeordnete Datensätze ({children}) ebenfalls gelöscht werden!',
+    'delete_single' : 'Sind Sie sicher, dass Sie diesen Datensatz löschen möchten?',
+    'delete_title' : 'Löschen bestätigen',
+    'delete_failed' : 'Abfrage fehlgeschlagen! {exception}',
+    # Dataset duplicate_record
+    'duplicate_child_title' : 'Duplikat bestätigen',
+    'duplicate_child_line1' : 'Dieser Datensatz hat untergeordnete Datensätze (in {children}).',
+    'duplicate_child_line2' : 'Welchen möchten Sie duplizieren?',
+    'duplicate_child_button_dupparent' : 'Nur diesen Datensatz duplizieren.',
+    'duplicate_child_button_dupboth' : 'Sowohl diesen Datensatz als auch untergeordnete Datensätze duplizieren.',
+    'button_cancel' : 'Abbrechen',
+    'duplicate_single_title' : 'Duplikat bestätigen',
+    'duplicate_single' : 'Sind Sie sicher, dass Sie diesen Datensatz duplizieren möchten?',
+    'duplicate_failed' : 'Abfrage fehlgeschlagen! {exception}',
+    # Form prompt_save
+    'form_prompt_save' : 'Sie haben ungespeicherte Änderungen! Möchten Sie sie zuerst speichern?',
+    # Form save_records
+    'form_save_partial' : 'Einige Updates wurden erfolgreich gespeichert;',
+    'form_save_problem' : 'Es gab ein Problem beim Speichern von Updates in den folgenden Tabellen: {tables}',
+    'form_save_success' : 'Updates erfolgreich gespeichert.',
+    'form_save_none' : 'Es gab nichts zu aktualisieren.',
+    # Quick Editor
+    'quick_edit_title' : 'Schnellbearbeitung - {data_key}'
+}
+
+fr = {
+    # DataSet prompt_save
+    'dataset_prompt_save' : 'Vous avez des modifications non enregistrées ! Voulez-vous les enregistrer d\'abord ?',
+    # DataSet save_record
+    'dataset_save_empty' : 'Il n\'y a pas d\'éléments à enregistrer.',
+    'dataset_save_callback_false' : 'Les mises à jour n\'ont pas été enregistrées.',
+    'dataset_save_none' : 'Il n\'y a pas de modifications à enregistrer !',
+    'dataset_save_success' : 'Mises à jour enregistrées avec succès !',
+    'dataset_save_keyed_fail' : 'La requête a échoué ! {exception}',
+    'dataset_save_fail' : 'La requête a échoué ! {exception}',
+    # DataSet delete_record
+    'delete_cascade' : 'Êtes-vous sûr de vouloir supprimer cet enregistrement ? Gardez à l\'esprit que les enregistrements enfants ({children}) seront également supprimés !',
+    'delete_single' : 'Êtes-vous sûr de vouloir supprimer cet enregistrement ?',
+    'delete_title' : 'Confirmer la suppression',
+    'delete_failed' : 'La requête a échoué ! {exception}',
+    # Dataset duplicate_record
+    'duplicate_child_title' : 'Confirmer la duplication',
+    'duplicate_child_line1' : 'Cet enregistrement a des enregistrements enfants (dans {children}).',
+    'duplicate_child_line2' : 'Lequel voulez-vous dupliquer ?',
+    'duplicate_child_button_dupparent' : 'Dupliquer UNIQUEMENT cet enregistrement.',
+    'duplicate_child_button_dupboth' : 'Dupliquer à la fois cet enregistrement et les enfants.',
+    'button_cancel' : 'Annuler',
+    'duplicate_single_title' : 'Confirmer la duplication',
+    'duplicate_single' : 'Êtes-vous sûr de vouloir dupliquer cet enregistrement ?',
+    'duplicate_failed' : 'La requête a échoué ! {exception}',
+    # Form prompt_save
+    'form_prompt_save' : 'Vous avez des modifications non enregistrées ! Voulez-vous les enregistrer d\'abord ?',
+    # Form save_records
+    'form_save_partial' : 'Certaines mises à jour ont été enregistrées avec succès ;',
+    'form_save_problem' : 'Un problème est survenu lors de l\'enregistrement des mises à jour dans les tables suivantes : {tables}',
+    'form_save_success' : 'Mises à jour enregistrées avec succès.',
+    'form_save_none' : 'Il n\'y avait rien à mettre à jour.',
+    # Quick Editor
+    'quick_edit_title' : 'Édition rapide - {data_key}'
+}
+
+lp_90s = {
+    # DataSet prompt_save
+    'dataset_prompt_save' : 'Yo, dude! You got some unsaved changes! You wanna save \'em first, bro?',
+    # DataSet save_record
+    'dataset_save_empty' : 'Sorry, dude. No updates to save, man.',
+    'dataset_save_callback_false' : 'Whoa, man! Couldn\'t save the updates, bro.',
+    'dataset_save_none' : 'Chill out, dude! Ain\'t no changes to save, man!',
+    'dataset_save_success' : 'Awesome, dude! Updates saved successfully, bro!',
+    'dataset_save_keyed_fail' : 'Bummer, dude! Query failed! {exception}',
+    'dataset_save_fail' : 'Bummer, dude! Query failed! {exception}',
+    # DataSet delete_record
+    'delete_cascade' : 'Hey, dude! You sure you wanna delete this record? Keep in mind that child records ({children}) will be deleted too, bro!',
+    'delete_single' : 'Hey, dude! You sure you wanna delete this record?',
+    'delete_title' : 'Confirm Delete, dude!',
+    'delete_failed' : 'Bummer, dude! Query failed! {exception}',
+    # Dataset duplicate_record
+    'duplicate_child_title' : 'Confirm Duplicate, bro!',
+    'duplicate_child_line1' : 'This record has child records (in {children}), dude!',
+    'duplicate_child_line2' : 'Which one you wanna duplicate, bro?',
+    'duplicate_child_button_dupparent' : 'Duplicate ONLY this record, dude.',
+    'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and the children, man.',
+    'button_cancel' : 'Nah, man!',
+    'duplicate_single_title' : 'Confirm Duplicate, dude!',
+    'duplicate_single' : 'Hey, bro! You sure you wanna duplicate this record?',
+    'duplicate_failed' : 'Bummer, dude! Query failed! {exception}',
+    # Form prompt_save
+    'form_prompt_save' : 'Yo, dude! You got some unsaved changes! You wanna save \'em first, bro?',
+    # Form save_records
+    'form_save_partial' : 'Rad, dude! Some updates saved successfully, man;',
+    'form_save_problem' : 'Whoa, man! Had some trouble saving updates to the following tables: {tables}',
+    'form_save_success' : 'Awesome, dude! Updates saved successfully, bro!',
+    'form_save_none' : 'Chill out, dude! Nothing to update, man.',
+    # Quick Editor
+    'quick_edit_title' : 'Quick Edit - {data_key}, bro!'
+}
+
+lp_80s = {
+    # DataSet prompt_save
+    'dataset_prompt_save' : 'Hey, dude! You got some unsaved changes! Do you wanna save \'em first?',
+    # DataSet save_record
+    'dataset_save_empty' : 'Like, totally bummer, dude! No updates to save, man.',
+    'dataset_save_callback_false' : 'Radical, dude! Couldn\'t save the updates, bro.',
+    'dataset_save_none' : 'Far out, man! Ain\'t no changes to save, dude!',
+    'dataset_save_success' : 'Cowabunga, dude! Updates saved successfully, man!',
+    'dataset_save_keyed_fail' : 'Gag me with a spoon, dude! Query failed! {exception}',
+    'dataset_save_fail' : 'Gag me with a spoon, dude! Query failed! {exception}',
+    # DataSet delete_record
+    'delete_cascade' : 'Hey, dude! Are you sure you wanna delete this record? Keep in mind that child records ({children}) will be deleted too!',
+    'delete_single' : 'Hey, dude! Are you sure you wanna delete this record?',
+    'delete_title' : 'Confirm Delete, dude!',
+    'delete_failed' : 'Gag me with a spoon, dude! Query failed! {exception}',
+    # Dataset duplicate_record
+    'duplicate_child_title' : 'Confirm Duplicate, dude!',
+    'duplicate_child_line1' : 'This record has child records (in {children}), man!',
+    'duplicate_child_line2' : 'Which one do you wanna duplicate, dude?',
+    'duplicate_child_button_dupparent' : 'Duplicate ONLY this record, bro.',
+    'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and the children, man.',
+    'button_cancel' : 'No way, dude!',
+    'duplicate_single_title' : 'Confirm Duplicate, dude!',
+    'duplicate_single' : 'Hey, bro! You sure you wanna duplicate this record?',
+    'duplicate_failed' : 'Gag me with a spoon, dude! Query failed! {exception}',
+    # Form prompt_save
+    'form_prompt_save' : 'Hey, dude! You got some unsaved changes! Do you wanna save \'em first?',
+    # Form save_records
+    'form_save_partial' : 'Awesome, dude! Some updates saved successfully, man;',
+    'form_save_problem' : 'Like, totally bummer, dude! Had some trouble saving updates to the following tables: {tables}',
+    'form_save_success' : 'Cowabunga, dude! Updates saved successfully, man!',
+    'form_save_none' : 'Far out, man! Nothing to update, dude.',
+    # Quick Editor
+    'quick_edit_title' : 'Quick Edit - {data_key}, dude!'
+}
+
+lp_70s = {
+    # DataSet prompt_save
+    'dataset_prompt_save' : 'Yo man, you got some unsaved changes! You wanna save \'em first or what?',
+    # DataSet save_record
+    'dataset_save_empty' : 'Far out, man! Ain\'t no updates to save.',
+    'dataset_save_callback_false' : 'Bummer, dude! Couldn\'t save the updates.',
+    'dataset_save_none' : 'Right on, man! Ain\'t no changes to save, dude!',
+    'dataset_save_success' : 'Awesome, man! Updates saved successfully!',
+    'dataset_save_keyed_fail' : 'Heavy, dude! Query failed! {exception}',
+    'dataset_save_fail' : 'Heavy, dude! Query failed! {exception}',
+    # DataSet delete_record
+    'delete_cascade' : 'Hey man, you sure you wanna delete this record? Keep in mind that child records ({children}) will be deleted too!',
+    'delete_single' : 'Hey man, you sure you wanna delete this record?',
+    'delete_title' : 'Confirm Delete, dude!',
+    'delete_failed' : 'Heavy, dude! Query failed! {exception}',
+    # Dataset duplicate_record
+    'duplicate_child_title' : 'Confirm Duplicate, dude!',
+    'duplicate_child_line1' : 'This record has child records (in {children}), man!',
+    'duplicate_child_line2' : 'Which one you wanna duplicate, dude?',
+    'duplicate_child_button_dupparent' : 'Duplicate ONLY this record, bro.',
+    'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and the children, man.',
+    'button_cancel' : 'No way, dude!',
+    'duplicate_single_title' : 'Confirm Duplicate, dude!',
+    'duplicate_single' : 'Hey man, you sure you wanna duplicate this record?',
+    'duplicate_failed' : 'Heavy, dude! Query failed! {exception}',
+    # Form prompt_save
+    'form_prompt_save' : 'Yo man, you got some unsaved changes! You wanna save \'em first or what?',
+    # Form save_records
+    'form_save_partial' : 'Awesome, dude! Some updates saved successfully, man;',
+    'form_save_problem' : 'Bummer, man! Had some trouble saving updates to the following tables: {tables}',
+    'form_save_success' : 'Right on, man! Updates saved successfully, dude!',
+    'form_save_none' : 'Far out, man! Nothing to update, dude.',
+    # Quick Editor
+    'quick_edit_title' : 'Quick Edit - {data_key}, dude!'
+}
+
+
 class LanguagePack:
     """
     LanguagePacks are user-definable collections of strings that allow for localization of strings and messages presented
