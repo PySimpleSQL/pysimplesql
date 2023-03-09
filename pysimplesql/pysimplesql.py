@@ -729,7 +729,7 @@ class DataSet:
             if autosave or self.autosave:
                 save_changes = 'yes'
             else:
-                save_changes = lp_popup_yes_no(lang.dataset_prompt_save, lang.dataset_prompt_save_title)
+                save_changes = self.frm.popup.yes_no(lang.dataset_prompt_save_title, lang.dataset_prompt_save)
             if save_changes == 'yes':
                 # save this record's cascaded relationships, last to first
                 if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
@@ -1192,7 +1192,7 @@ class DataSet:
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message:
-                lp_popup_info(lang.dataset_save_empty)
+                self.frm.popup.info(lang.dataset_save_empty)
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
@@ -1202,13 +1202,13 @@ class DataSet:
                 if update_elements:
                     self.frm.update_elements(self.table)
                 if display_message:
-                    lp_popup(lang.dataset_save_callback_false_title, lang.dataset_save_callback_false)
+                    self.frm.popup.ok(lang.dataset_save_callback_false_title, lang.dataset_save_callback_false)
                 return SAVE_FAIL + SHOW_MESSAGE
 
         # Check right away to see if any records have changed, no need to proceed any further than we have to
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
             if display_message:
-                lp_popup_info(lang.dataset_save_none)
+                self.frm.popup.info(lang.dataset_save_none)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
@@ -1265,8 +1265,8 @@ class DataSet:
                     self.transform(self, q['changed_row'], TFORM_ENCODE)
                 result = self.driver.save_record(self, q['changed_row'], q['where_clause'])
                 if result.exception is not None:
-                    lp_popup(lang.dataset_save_keyed_fail.format_map(LangFrmt(exception=result.exception)),
-                          lang.dataset_save_keyed_fail_title)
+                    self.frm.popup.ok(lang.dataset_save_keyed_fail_title,
+                                      lang.dataset_save_keyed_fail.format_map(LangFormat(exception=result.exception)))
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case, since it's handled here
         else:
@@ -1276,8 +1276,8 @@ class DataSet:
                 result = self.driver.save_record(self, changed_row)
 
             if result.exception is not None:
-                lp_popup(lang.dataset_save_fail.format_map(LangFrmt(exception=result.exception)),
-                      lang.dataset_save_fail_title)
+                self.frm.popup.ok(lang.dataset_save_fail_title, 
+                                  lang.dataset_save_fail.format_map(LangFormat(exception=result.exception)))
                 self.driver.rollback()
                 return SAVE_FAIL  # Do not show the message in this case, since it's handled here
 
@@ -1314,7 +1314,7 @@ class DataSet:
             self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:
-            lp_popup_info(lang.dataset_save_success)
+            self.frm.popup.info(lang.dataset_save_success)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
@@ -1375,10 +1375,10 @@ class DataSet:
         children = list(set(children))
         msg_children = ', '.join(children)
         if len(children):
-            msg = lang.delete_cascade.format_map(LangFrmt(children=msg_children))
+            msg = lang.delete_cascade.format_map(LangFormat(children=msg_children))
         else:
             msg = lang.delete_single
-        answer = lp_popup_yes_no(msg, lang.delete_title)
+        answer = self.frm.popup.yes_no(lang.delete_title, msg)
         if answer == 'no':
             return True
         
@@ -1392,8 +1392,8 @@ class DataSet:
         result = self.driver.delete_record(self, True)
         
         if result.exception is not None:
-            lp_popup(lang.delete_failed.format_map(LangFrmt(exception=result.exception)),
-                  lang.delete_failed_title)
+            self.frm.popup.ok(lang.delete_failed_title, 
+                              lang.delete_failed.format_map(LangFormat(exception=result.exception)))
 
         # callback
         if 'after_delete' in self.callbacks.keys():
@@ -1434,7 +1434,7 @@ class DataSet:
         
         children = list(set(children))
         msg_children = ', '.join(children)
-        msg = lang.duplicate_child.format_map(LangFrmt(children=msg_children)).splitlines()
+        msg = lang.duplicate_child.format_map(LangFormat(children=msg_children)).splitlines()
         layout = [[sg.T(line)] for line in msg]
         if len(children):
             answer = sg.Window(lang.duplicate_child_title, [
@@ -1449,7 +1449,7 @@ class DataSet:
                 return True
         else:
             msg = lang.duplicate_single
-            answer = lp_popup_yes_no(msg, lang.duplicate_single_title)
+            answer = self.frm.popup.yes_no(lang.duplicate_single_title, msg)
             if answer == 'no':
                 return True
         # Store our current pk, so we can move to it if the duplication fails
@@ -1459,8 +1459,8 @@ class DataSet:
         result = self.driver.duplicate_record(self, cascade)
         if result.exception:
             self.driver.rollback()
-            lp_popup(lang.duplicate_failed.format_map(LangFrmt(exception=result.exception)),
-                  lang.duplicate_failed_title)
+            self.frm.popup.ok(lang.duplicate_failed_title, 
+                              lang.duplicate_failed.format_map(LangFormat(exception=result.exception)))
         else:
             pk = result.lastrowid
                         
@@ -1589,7 +1589,7 @@ class DataSet:
             if col!=self.pk_column:
                 layout.append([field(column)])
 
-        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFrmt(data_key=data_key)), layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
+        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFormat(data_key=data_key)), layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
         driver=Sqlite(sqlite3_database=self.frm.driver.con)
         quick_frm = Form(driver, bind_window=quick_win)
 
@@ -1666,6 +1666,7 @@ class Form:
         self._edit_protect: bool = False
         self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
+        self.popup = Popup()
         """
         The element map dict is set up as below:
         
@@ -2217,10 +2218,8 @@ class Form:
                     if autosave or self.autosave:
                         save_changes = 'yes'
                     else:
-                        save_changes = lp_popup_yes_no(lang.form_prompt_save, 
-                                                        lang.form_prompt_save_title)
-                        print(save_changes)
-
+                        save_changes = self.popup.yes_no(lang.form_prompt_save_title, 
+                                                         lang.form_prompt_save)
                     if save_changes != 'yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         for data_key in self.datasets:
@@ -2291,12 +2290,12 @@ class Form:
         if result & SAVE_FAIL:
             if result & SAVE_SUCCESS:
                 msg = lang.form_save_partial
-            msg += lang.form_save_problem.format_map(LangFrmt(tables=msg_tables))
+            msg += lang.form_save_problem.format_map(LangFormat(tables=msg_tables))
         elif result & SAVE_SUCCESS:
             msg = lang.form_save_success
         else:
             msg = lang.form_save_none
-        if show_message: lp_popup_info(msg)
+        if show_message: self.popup.info(msg)
         return result
 
     def set_prompt_save(self, value: bool) -> None:
@@ -2791,59 +2790,78 @@ def checkbox_to_bool(value):
     """
     return str(value).lower() in ['y','yes','t','true','1']
 
-def lp_popup(msg, title):
+class Popup:
     """
-    Internal use only. Creates sg.Window with LanguagePack OK button
+    Popup helper class. Has popup functions for internal use. Stores last popup as last_popup
     """
-    msg = msg.splitlines()
-    layout = [[sg.T(line)] for line in msg]
-    popup_win = sg.Window(title, [
-                layout,
-                [sg.Button(button_text=lang.button_ok, key='ok', use_ttk_buttons = True)],
-                ], line_width = sg.MESSAGE_BOX_LINE_WIDTH, keep_on_top=True, modal=True, finalize=True, ttk_theme=themepack.ttk_theme)
-    
-    while True:
-        event, values = popup_win.read()
-        if event in [sg.WIN_CLOSED,'Exit','ok']:
-            break
-    popup_win.close()
+    def __init__(self):
+        """
+        Create a new Popup instance
+        :returns: None
+        """
+        self.last_info = None
 
-def lp_popup_yes_no(msg, title):
-    """
-    Internal use only. Creates sg.Window with LanguagePack Yes/No button
-    """
-    msg = msg.splitlines()
-    layout = [[sg.T(line)] for line in msg]
-    popup_win = sg.Window(title, [
-                layout,
-                [sg.Button(button_text=lang.button_yes, key='yes', use_ttk_buttons = True),
-                 sg.Button(button_text=lang.button_no, key='no', use_ttk_buttons = True)],
-                ], keep_on_top=True, modal=True, finalize=True, ttk_theme=themepack.ttk_theme)
-    
-    while True:
-        event, values = popup_win.read()
-        if event in [sg.WIN_CLOSED,'Exit','no','yes']:
-            result = event
-            break
-    popup_win.close()
-    return result
+    def ok(self, title, msg):
+        """
+        Internal use only. Creates sg.Window with LanguagePack OK button
+        """
+        msg = msg.splitlines()
+        layout = [[sg.T(line)] for line in msg]
+        layout.append(sg.Button(button_text = lang.button_ok, key = 'ok', use_ttk_buttons = True))
+        popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
+                              ttk_theme = themepack.ttk_theme)
 
-def lp_popup_info(msg):
-    """
-    Internal use only. Creates sg.Window with no buttons, auto-closing after seconds as defined in themepack
-    """
-    msg = msg.splitlines()
-    layout = [sg.T(line) for line in msg]
-    popup_win = sg.Window(title=lang.info_popup_title, layout=[layout], no_titlebar=False, keep_on_top=True, modal=True,
-                          finalize=True, auto_close = True, auto_close_duration = themepack.info_popup_auto_close_seconds, alpha_channel = themepack.info_popup_alpha_channel,)
-    while True:
-        event, values = popup_win.read()
-        if event in [sg.WIN_CLOSED,'Exit']:
-            result = event
-            break
-    popup_win.close()
+        while True:
+            event, values = popup_win.read()
+            if event in [sg.WIN_CLOSED,'Exit','ok']:
+                break
+        popup_win.close()
 
-class LangFrmt(dict):
+    def yes_no(self, title, msg):
+        """
+        Internal use only. Creates sg.Window with LanguagePack Yes/No button
+        """
+        msg = msg.splitlines()
+        layout = [[sg.T(line)] for line in msg]
+        layout.append(sg.Button(button_text = lang.button_yes, key = 'yes', use_ttk_buttons = True))
+        layout.append(sg.Button(button_text = lang.button_no, key = 'no', use_ttk_buttons = True))
+        popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
+                              ttk_theme = themepack.ttk_theme)
+        
+        while True:
+            event, values = popup_win.read()
+            if event in [sg.WIN_CLOSED,'Exit','no','yes']:
+                result = event
+                break
+        popup_win.close()
+        return result
+
+    def info(self, msg):
+        """
+        Internal use only. Creates sg.Window with no buttons, auto-closing after seconds as defined in themepack
+        """
+        title = lang.info_popup_title
+        self.last_info = [title,msg]
+        msg = msg.splitlines()
+        layout = [sg.T(line) for line in msg]
+        popup_win = sg.Window(title = title, layout = [layout], no_titlebar = False, auto_close = True,
+                              keep_on_top = True, modal = True, finalize = True, 
+                              auto_close_duration = themepack.info_popup_auto_close_seconds,
+                              alpha_channel = themepack.info_popup_alpha_channel,)
+        while True:
+            event, values = popup_win.read()
+            if event in [sg.WIN_CLOSED,'Exit']:
+                break
+        popup_win.close()
+        
+    def get_last_info(self) -> List[str]:
+        """
+        Get last info popup. Useful for integrating into a status bar.
+        :returns: a single list of [type,title, msg]
+        """
+        return self.last_info
+
+class LangFormat(dict):
     def __missing__(self, key):
         return None
 
@@ -3413,7 +3431,7 @@ tp_text = {
     'marker_required_color': 'red2',
     'sort_asc_marker': '\u25BC',
     'sort_desc_marker': '\u25B2',
-    'info_popup_auto_close_seconds' : 2,
+    'info_popup_auto_close_seconds' : 1,
     'info_popup_alpha_channel' : .85
 }
 
@@ -3435,7 +3453,7 @@ tp_large = {
     'marker_required_color': 'red2',
     'sort_asc_marker': '\u25BC',
     'sort_desc_marker': '\u25B2',
-    'info_popup_auto_close_seconds' : 2,
+    'info_popup_auto_close_seconds' : 1,
     'info_popup_alpha_channel' : .85
 }
 
@@ -3471,7 +3489,7 @@ class ThemePack:
         'marker_required_color': 'red2',
         'sort_asc_marker': '\u25BC',
         'sort_desc_marker': '\u25B2',
-        'info_popup_auto_close_seconds' : 2,
+        'info_popup_auto_close_seconds' : 1,
         'info_popup_alpha_channel' : .85
     }
     """Default Themepack"""
