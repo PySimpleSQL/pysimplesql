@@ -55,8 +55,8 @@ layout = [
     [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
     [ss.actions('Journal')],
     [ss.field('Journal.entry_date'), sg.CalendarButton("Select Date", close_when_date_chosen=True,
-                                                       target="Journal.entry_date", # <- target matches your field() name
-                                                       format="%Y-%m-%d", size=(10, 1),key='datepicker')],
+                                                       target="Journal.entry_date",  # <- target matches field() name
+                                                       format="%Y-%m-%d", size=(10, 1), key='datepicker')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
@@ -79,7 +79,7 @@ frm['Journal'].requery()
 # ------------------------------------------
 # By default, action() includes an edit_protect() call, that disables edits in the window.
 # You can toggle it off with:
-frm.edit_protect() # Comment this out to edit protect elements when the window is created.
+frm.edit_protect()  # Comment this out to edit protect elements when the window is created.
 # Set initial CalendarButton state to the same as pysimplesql elements
 win['datepicker'].update(disabled=frm.get_edit_protect())
 # Then watch for the 'edit_protect' event in your Main Loop
