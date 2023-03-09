@@ -2956,9 +2956,8 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
         label_text = table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
     table, column = table_info.split('.')
 
-    key = keygen.get(field) if 'key' not in kwargs else kwargs['key']
-    # Now we can safely get rid of the key in kwargs so that it doesn't get passed twice
-    if 'key' in kwargs: del kwargs['key']
+    key = field if key is None else key
+    key = keygen.get(key)
 
 
     if 'values' in kwargs:
