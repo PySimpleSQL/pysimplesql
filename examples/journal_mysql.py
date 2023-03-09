@@ -61,16 +61,18 @@ win['datepicker'].update(disabled=frm.get_edit_protect())
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
-        logger.info(f'PySimpleDB event handler handled the event {event}!')
-    if "edit_protect" in event:
-        win['datepicker'].update(disabled=frm.get_edit_protect())
-    elif event == sg.WIN_CLOSED or event == 'Exit':
+
+    if event == sg.WIN_CLOSED or event == 'Exit':
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
         break
+    elif "edit_protect" in event:
+        win['datepicker'].update(disabled=frm.get_edit_protect())
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-win.close()
+
 
 """
 I hope that you enjoyed this simple demo of a Journal database.  
