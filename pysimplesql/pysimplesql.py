@@ -2029,10 +2029,11 @@ class Form:
 
                         def callback_wrapper(column, element=element, data_key=data_key):
                             # store the pk:
+                            omit_elements = [win[key] for key in win.key_dict.keys() if win[key] != element]
                             pk = self[data_key].get_current_pk()
                             sort_order = self[data_key].rows.sort_cycle(column, data_key)
                             self[data_key].set_by_pk(pk, update_elements=True, requery_dependents=False,
-                                                     skip_prompt_save=True)
+                                                     skip_prompt_save=True, omit_elements=omit_elements)
                             table_heading.update_headings(element, column, sort_order)
 
                         table_heading.enable_sorting(element, callback_wrapper)
