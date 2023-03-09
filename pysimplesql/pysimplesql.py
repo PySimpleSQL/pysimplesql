@@ -2031,8 +2031,11 @@ class Form:
                             # store the pk:
                             pk = self[data_key].get_current_pk()
                             sort_order = self[data_key].rows.sort_cycle(column, data_key)
-                            self[data_key].set_by_pk(pk, update_elements=True, requery_dependents=False,
+                            # We only need to update the selectors not all elements, so first set by the primary key,
+                            # then update_selectors()
+                            self[data_key].set_by_pk(pk, update_elements=False, requery_dependents=False,
                                                      skip_prompt_save=True)
+                            self.update_selectors(data_key)
                             table_heading.update_headings(element, column, sort_order)
 
                         table_heading.enable_sorting(element, callback_wrapper)
@@ -2305,7 +2308,8 @@ class Form:
     def update_elements(self, target_data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form` instance only
-        Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
+        Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances. This
+        method also executes `update_selectors()`, which updates selector elements.
 
         :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
         :param edit_protect_only: (optional) If true, only update items affected by edit_protect
@@ -2399,7 +2403,7 @@ class Form:
                         # get notnull from the column info
                         if col in mapped.dataset.column_info.names():
                             if mapped.dataset.column_info[col].notnull:
-                                self.window[marker_key].update(visible=True)
+                                self.window[marker_key].update(visible=True, text_color = themepack.marker_required_color)
                     else:
                         self.window[marker_key].update(visible=False)
                 except AttributeError:
@@ -2503,6 +2507,23 @@ class Form:
             if updated_val is not None:
                 mapped.element.update(updated_val)
 
+        self.update_selectors(target_data_key, omit_elements)
+
+        # Run callbacks
+        if 'update_elements' in self.callbacks.keys():
+            # Running user update function
+            logger.info('Running the update_elements callback...')
+            self.callbacks['update_elements'](self, self.window)
+
+    def update_selectors(self, target_data_key: str = None, omit_elements: List[str] = []) -> None:
+        """
+        Updated the GUI elements to reflect values from the database for this `Form` instance only
+        Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
+
+        :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
+        :param omit_elements: A list of elements to omit updating
+        :returns: None
+        """
         # ---------
         # SELECTORS
         # ---------
@@ -2513,13 +2534,14 @@ class Form:
             if target_data_key is not None:
                 if target_data_key != data_key:
                     continue
+
             if len(dataset.selector):
                 for e in dataset.selector:
                     logger.debug(f'update_elements: SELECTOR FOUND')
                     # skip updating this element if requested
                     if e['element'] in omit_elements: continue
 
-                    element:sg.Element = e['element']
+                    element: sg.Element = e['element']
                     logger.debug(f'{type(element)}')
                     pk_column = dataset.pk_column
                     description_column = dataset.description_column
@@ -2531,7 +2553,8 @@ class Form:
                         lst = []
                         for r in dataset.rows:
                             if e['where_column'] is not None:
-                                if str(r[e['where_column']]) == str(e['where_value']): # TODO: This is kind of a hackish way to check for equality...
+                                if str(r[e['where_column']]) == str(e[
+                                                                        'where_value']):  # TODO: This is kind of a hackish way to check for equality...
                                     lst.append(ElementRow(r[pk_column], r[description_column]))
                                 else:
                                     pass
@@ -2558,7 +2581,7 @@ class Form:
                         try:
                             columns = element.metadata['TableHeading'].columns()
                         except KeyError:
-                            columns = None # default to all columns
+                            columns = None  # default to all columns
 
                         values = dataset.table_values(columns, mark_virtual=True)
 
@@ -2568,26 +2591,20 @@ class Form:
 
                         found = False
                         if len(values):
-                            index = [[v.pk for v in values].index(pk)] # set to index by pk
+                            index = [[v.pk for v in values].index(pk)]  # set to index by pk
                             pk_position = index[0] / len(values)  # calculate pk percentage position
                             found = True
-                        else: # if empty
+                        else:  # if empty
                             index = []
                             pk_position = 0
 
                         logger.debug(f'Selector:: index:{index} found:{found}')
                         # update element
-                        element.update(values=values, select_rows = index)
+                        element.update(values=values, select_rows=index)
                         # set vertical scroll bar to follow selected element
                         element.set_vscroll_position(pk_position)
 
                         eat_events(self.window)
-
-        # Run callbacks
-        if 'update_elements' in self.callbacks.keys():
-            # Running user update function
-            logger.info('Running the update_elements callback...')
-            self.callbacks['update_elements'](self, self.window)
 
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
@@ -2978,7 +2995,7 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
     else:
         layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size, key=f'{key}:label')
-    layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
+    layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color=sg.theme_background_color(), visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
     if element.__name__ == 'Text': # don't show markers for sg.Text
         if no_label:
             layout = [[layout_element]]
@@ -4098,7 +4115,8 @@ class ResultSet:
 
         :returns: None
         """
-        self.rows = sorted(self.rows, key=lambda x: x.original_index)
+        self.rows = sorted(self.rows, key=lambda x: x.original_index if x.original_index is not None else float('inf'))
+
 
     def sort(self, table:str) -> None:
         """

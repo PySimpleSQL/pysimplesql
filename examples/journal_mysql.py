@@ -100,8 +100,8 @@ CREATE TABLE Mood(
 CREATE TABLE Journal(
     `id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
     `title` VARCHAR(255) DEFAULT 'New Entry',
-    `entry_date` DATE DEFAULT (CURRENT_DATE), 
-    `mood_id` INTEGER,
+    `entry_date` DATE NOT NULL DEFAULT (CURRENT_DATE), 
+    `mood_id` INTEGER NOT NULL,
     `entry` TEXT,
     INDEX (`mood_id`),
     FOREIGN KEY (`mood_id`) REFERENCES `Mood`(`id`)
