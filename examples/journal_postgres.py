@@ -23,14 +23,14 @@ layout=[
 ]
 win=sg.Window('Journal example - PostgreSQL', layout, finalize=True)
 
-elephant_postgres = {
-    'host':'queenie.db.elephantsql.com',
-    'user':'yunaahtj',
-    'password':'OMX8u8CDKNVTrldLbnBFsUjxkArTg4Wj',
-    'database':'yunaahtj'
+postgresdb = {
+    'host': '65.19.141.77',
+    'user': 'pysimplesql_user',
+    'password': 'pysimplesql',
+    'database': 'pysimplesql_examples'
 }
 
-driver=ss.Postgres(**elephant_postgres)
+driver=ss.Postgres(**postgresdb)
 frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
 # Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!

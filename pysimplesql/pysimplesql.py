@@ -3641,11 +3641,20 @@ class Column:
             except ValueError:
                 value = str(value)
 
-        # date/time casting
-        elif domain in ['TIME', 'DATE', 'DATETIME', 'TIMESTAMP']: # TODO: i'm sure there is a lot of work to do here
+        # Date casting
+        elif domain == 'DATE':
             try:
-                value = datetime(value)
-            except ValueError: # TODO: research if this is the correct exception
+                value = datetime.strptime(value, '%Y-%m-%d').date()
+            except TypeError:
+                logger.debug(f'Unable to cast {value} to a datetime.date object.  Casting to string instead.')
+                value = str(value)
+
+        # other date/time casting
+        elif domain in ['TIME', 'DATETIME', 'TIMESTAMP']: # TODO: i'm sure there is a lot of work to do here
+            try:
+                value = datetime.date(value)
+            except TypeError:
+                logger.debug(f'Unable to case datetime/time/timestamp.  Casting to string instead.')
                 value = str(value)
         return value
 
@@ -4840,6 +4849,18 @@ class Mysql(SQLDriver):
         rows = self.execute(query, silent=True)
         return rows[0]['UPDATE_RULE']
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+# MARIA DRIVER
+# ----------------------------------------------------------------------------------------------------------------------
+# MariaDB is a fork of MySQL and backward compatible.  It technically does not need its own driver, but that could
+# change in the future, plus having its own named class makes it more clear for the end user.
+class Maria(Mysql):
+    def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
+        super().__init__(host, user, password, database, sql_script, sql_commands)
+        self.name = "MariaDB"
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # POSTGRES DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
@@ -5007,7 +5028,6 @@ class Postgres(SQLDriver):
 
     def execute_script(self, script):
         pass
-
 
 # --------------------------
 # TYPEDDICTS AND TYPEALIASES
