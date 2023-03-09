@@ -1435,7 +1435,7 @@ class DataSet:
         children = list(set(children))
         msg_children = ', '.join(children)
         msg = lang.duplicate_child.format_map(LangFormat(children=msg_children)).splitlines()
-        layout = [[sg.T(line)] for line in msg]
+        layout = [[sg.T(line, font='bold')] for line in msg]
         if len(children):
             answer = sg.Window(lang.duplicate_child_title, [
                 layout,
@@ -2806,10 +2806,10 @@ class Popup:
         Internal use only. Creates sg.Window with LanguagePack OK button
         """
         msg = msg.splitlines()
-        layout = [[sg.T(line)] for line in msg]
-        layout.append(sg.Button(button_text = lang.button_ok, key = 'ok', use_ttk_buttons = True))
+        layout = [[sg.T(line, font='bold')] for line in msg]
+        layout.append(sg.Button(button_text = lang.button_ok, key = 'ok', use_ttk_buttons = True, pad=5))
         popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
-                              ttk_theme = themepack.ttk_theme)
+                              ttk_theme = themepack.ttk_theme, element_justification = "center")
 
         while True:
             event, values = popup_win.read()
@@ -2822,11 +2822,11 @@ class Popup:
         Internal use only. Creates sg.Window with LanguagePack Yes/No button
         """
         msg = msg.splitlines()
-        layout = [[sg.T(line)] for line in msg]
-        layout.append(sg.Button(button_text = lang.button_yes, key = 'yes', use_ttk_buttons = True))
-        layout.append(sg.Button(button_text = lang.button_no, key = 'no', use_ttk_buttons = True))
+        layout = [[sg.T(line, font='bold')] for line in msg]
+        layout.append(sg.Button(button_text = lang.button_yes, key = 'yes', use_ttk_buttons = True, pad=5))
+        layout.append(sg.Button(button_text = lang.button_no, key = 'no', use_ttk_buttons = True, pad=5))
         popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
-                              ttk_theme = themepack.ttk_theme)
+                              ttk_theme = themepack.ttk_theme, element_justification = "center")
         
         while True:
             event, values = popup_win.read()
@@ -2843,11 +2843,12 @@ class Popup:
         title = lang.info_popup_title
         self.last_info = [title,msg]
         msg = msg.splitlines()
-        layout = [sg.T(line) for line in msg]
+        layout = [sg.T(line, font='bold') for line in msg]
         popup_win = sg.Window(title = title, layout = [layout], no_titlebar = False, auto_close = True,
                               keep_on_top = True, modal = True, finalize = True, 
                               auto_close_duration = themepack.info_popup_auto_close_seconds,
-                              alpha_channel = themepack.info_popup_alpha_channel,)
+                              alpha_channel = themepack.info_popup_alpha_channel,
+                              element_justification = "center")
         while True:
             event, values = popup_win.read()
             if event in [sg.WIN_CLOSED,'Exit']:
@@ -3564,57 +3565,89 @@ class LanguagePack:
         lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
     """
     default = {
-        # popup window title with no buttons:
-        'info_popup_title' : 'Info',
-        # general buttons
-        'button_cancel' : 'Cancel',
-        'button_ok' : 'Ok',
-        'button_yes' : 'Yes',
-        'button_no' : 'No',
-        # DataSet prompt_save
-        'dataset_prompt_save' : 'You have unsaved changes! Would you like to save them first?', #lp_popup_yes_no
-        'dataset_prompt_save_title' : 'Attention: Unsaved Changes',
-
-        # DataSet save_record
-        'dataset_save_empty' : 'There were no updates to save.',
-
-        'dataset_save_callback_false' : 'Updates not saved.', # popup
-        'dataset_save_callback_false_title' : 'Callback Prevented Save',
-
-        'dataset_save_none' : 'There were no changes to save!',
-        'dataset_save_success' : 'Updates saved successfully!',
         
-        'dataset_save_keyed_fail' : 'Query Failed! {exception}', #popup
-        'dataset_save_keyed_fail_title' : 'Problem Saving',
+        # ------------------------
+        # Buttons
+        # ------------------------
+        'button_cancel' : ' Cancel ',
+        'button_ok' : '  Ok  ',
+        'button_yes' : ' Yes ',
+        'button_no' : '  No  ',
 
-        'dataset_save_fail' : 'Query Failed! {exception}', #popup
-        'dataset_save_fail_title' : 'Problem Saving',
-        # DataSet delete_record
-        'delete_cascade' : 'Are you sure you want to delete this record? \nKeep in mind that child records ({children}) will be deleted as well!',
-        'delete_single' : 'Are you sure you want to delete this record?',
-        'delete_title' : 'Confirm Delete',
+        # ------------------------
+        # Info Popup Title - universal
+        # ------------------------
+        'info_popup_title' : 'Info',
 
-        'delete_failed' : 'Query Failed! {exception}', #popup
-        'delete_failed_title' : 'Problem Deleting',
-        # Dataset duplicate_record
-        'duplicate_child_title' : 'Confirm Duplicate',
-        'duplicate_child' : 'This record has child records (in {children}).\nWhich do you want to duplicate?',
-        'duplicate_child_button_dupparent' : 'Duplicate ONLY this record.',
-        'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and children.',
-        'duplicate_single_title' : 'Confirm Duplicate',
-        'duplicate_single' : 'Are you sure you want to duplicate this record?',
+        # ------------------------
+        # Info Popups - no buttons
+        # ------------------------
+            # Form save_records
+            # ------------------------
+            'form_save_partial' : 'Some updates saved successfully;',
+            'form_save_problem' : 'There was a problem saving updates to the following tables: {tables}',
+            'form_save_success' : 'Updates saved successfully.',
+            'form_save_none' : 'There was nothing to update.',
+            # DataSet save_record
+            # ------------------------
+            'dataset_save_empty' : 'There were no updates to save.',
+            'dataset_save_none' : 'There were no changes to save!',
+            'dataset_save_success' : 'Updates saved successfully!',
 
-        'duplicate_failed' : 'Query Failed! {exception}', #popup
-        'duplicate_failed_title' : 'Problem Duplicating',
-        # Form prompt_save
-        'form_prompt_save' : 'You have unsaved changes! Would you like to save them first?', # lp_popup_yes_no
-        'form_prompt_save_title' : 'Attention: Unsaved Changes',
-        # Form save_records
-        'form_save_partial' : 'Some updates saved successfully;',
-        'form_save_problem' : 'There was a problem saving updates to the following tables: {tables}',
-        'form_save_success' : 'Updates saved successfully.',
-        'form_save_none' : 'There was nothing to update.',
+        # ------------------------
+        # Yes No Popups
+        # ------------------------
+            # Form prompt_save
+            # ------------------------
+            'form_prompt_save_title' : 'Attention: Unsaved Changes',
+            'form_prompt_save' : 'You have unsaved changes! \nWould you like to save them first?',
+            # DataSet prompt_save
+            # ------------------------
+            'dataset_prompt_save_title' : 'Attention: Unsaved Changes',
+            'dataset_prompt_save' : 'You have unsaved changes! \nWould you like to save them first?',
+
+        # ------------------------
+        # Ok Popups
+        # ------------------------
+            # DataSet save_record
+            'dataset_save_callback_false_title' : 'Callback Prevented Save',
+            'dataset_save_callback_false' : 'Updates not saved.',
+            
+            'dataset_save_keyed_fail_title' : 'Problem Saving',
+            'dataset_save_keyed_fail' : 'Query Failed! {exception}',
+
+            'dataset_save_fail_title' : 'Problem Saving',
+            'dataset_save_fail' : 'Query Failed! {exception}',
+
+        # ------------------------
+        # Custom Popups
+        # ------------------------
+            # DataSet delete_record
+            # ------------------------
+            'delete_title' : 'Confirm Delete',
+            'delete_cascade' : 'Are you sure you want to delete this record? \nKeep in mind that child records\n({children})\nwill be deleted as well!',
+            'delete_single' : 'Are you sure you want to delete this record?',
+            # Failed Ok Popup
+            'delete_failed_title' : 'Problem Deleting',
+            'delete_failed' : 'Query Failed! {exception}',
+
+            # Dataset duplicate_record
+            # ------------------------
+            # Popup when record has children
+            'duplicate_child_title' : 'Confirm Duplicate',
+            'duplicate_child' : 'This record has child records (in {children}).\nWhich do you want to duplicate?',
+            'duplicate_child_button_dupparent' : 'Duplicate ONLY this record.',
+            'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and children.',
+            # Popup when record is single
+            'duplicate_single_title' : 'Confirm Duplicate',
+            'duplicate_single' : 'Are you sure you want to duplicate this record?',
+            # Failed Ok Popup
+            'duplicate_failed_title' : 'Problem Duplicating',
+            'duplicate_failed' : 'Query Failed! {exception}',
+
+        # ------------------------
         # Quick Editor
+        # ------------------------
         'quick_edit_title' : 'Quick Edit - {data_key}'
     }
     """Default LanguagePack"""
