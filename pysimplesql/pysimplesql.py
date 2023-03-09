@@ -727,10 +727,10 @@ class DataSet:
         changed = self.records_changed() or vrows
         if changed:
             if autosave or self.autosave:
-                save_changes = 'Yes'
+                save_changes = 'yes'
             else:
-                save_changes = sg.popup_yes_no(lang.dataset_prompt_save)
-            if save_changes == 'Yes':
+                save_changes = lp_popup_yes_no(lang.dataset_prompt_save, lang.dataset_prompt_save_title)
+            if save_changes == 'yes':
                 # save this record's cascaded relationships, last to first
                 if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
                     return PROMPT_SAVE_DISCARDED
@@ -1192,7 +1192,7 @@ class DataSet:
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message:
-                sg.popup_quick_message(lang.dataset_save_empty, keep_on_top=True)
+                lp_popup_info(lang.dataset_save_empty)
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
@@ -1202,13 +1202,13 @@ class DataSet:
                 if update_elements:
                     self.frm.update_elements(self.table)
                 if display_message:
-                    sg.popup(lang.dataset_save_callback_false, keep_on_top=True)
+                    lp_popup(lang.dataset_save_callback_false_title, lang.dataset_save_callback_false)
                 return SAVE_FAIL + SHOW_MESSAGE
 
         # Check right away to see if any records have changed, no need to proceed any further than we have to
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
             if display_message:
-                sg.popup_quick_message(lang.dataset_save_none, keep_on_top=True)
+                lp_popup_info(lang.dataset_save_none)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
@@ -1265,7 +1265,8 @@ class DataSet:
                     self.transform(self, q['changed_row'], TFORM_ENCODE)
                 result = self.driver.save_record(self, q['changed_row'], q['where_clause'])
                 if result.exception is not None:
-                    sg.popup(lang.dataset_save_keyed_fail.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
+                    lp_popup(lang.dataset_save_keyed_fail.format_map(LangFrmt(exception=result.exception)),
+                          lang.dataset_save_keyed_fail_title)
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case, since it's handled here
         else:
@@ -1275,7 +1276,8 @@ class DataSet:
                 result = self.driver.save_record(self, changed_row)
 
             if result.exception is not None:
-                sg.popup(lang.dataset_save_fail.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
+                lp_popup(lang.dataset_save_fail.format_map(LangFrmt(exception=result.exception)),
+                      lang.dataset_save_fail_title)
                 self.driver.rollback()
                 return SAVE_FAIL  # Do not show the message in this case, since it's handled here
 
@@ -1312,7 +1314,7 @@ class DataSet:
             self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:
-            sg.popup_quick_message(lang.dataset_save_success, keep_on_top=True)
+            lp_popup_info(lang.dataset_save_success)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
@@ -1376,8 +1378,8 @@ class DataSet:
             msg = lang.delete_cascade.format_map(LangFrmt(children=msg_children))
         else:
             msg = lang.delete_single
-        answer = sg.popup_yes_no(msg, title=lang.delete_title,  keep_on_top=True)
-        if answer == 'No':
+        answer = lp_popup_yes_no(msg, lang.delete_title)
+        if answer == 'no':
             return True
         
         if self.get_current_row().virtual:
@@ -1390,7 +1392,8 @@ class DataSet:
         result = self.driver.delete_record(self, True)
         
         if result.exception is not None:
-            sg.popup(lang.delete_failed.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
+            lp_popup(lang.delete_failed.format_map(LangFrmt(exception=result.exception)),
+                  lang.delete_failed_title)
 
         # callback
         if 'after_delete' in self.callbacks.keys():
@@ -1431,10 +1434,11 @@ class DataSet:
         
         children = list(set(children))
         msg_children = ', '.join(children)
+        msg = lang.duplicate_child.format_map(LangFrmt(children=msg_children)).splitlines()
+        layout = [[sg.T(line)] for line in msg]
         if len(children):
             answer = sg.Window(lang.duplicate_child_title, [
-                [sg.T(lang.duplicate_child_line1.format_map(LangFrmt(children=msg_children)))],
-                [sg.T(lang.duplicate_child_line2)],
+                layout,
                 [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent')],
                 [sg.Button(button_text=lang.duplicate_child_button_dupboth, key='cascade')],
                 [sg.Button(button_text=lang.button_cancel, key='cancel')],
@@ -1445,8 +1449,8 @@ class DataSet:
                 return True
         else:
             msg = lang.duplicate_single
-            answer = sg.popup_yes_no(msg, title=lang.duplicate_single_title, keep_on_top=True)
-            if answer == 'No':
+            answer = lp_popup_yes_no(msg, lang.duplicate_single_title)
+            if answer == 'no':
                 return True
         # Store our current pk, so we can move to it if the duplication fails
         pk = self.get_current_pk()
@@ -1455,7 +1459,8 @@ class DataSet:
         result = self.driver.duplicate_record(self, cascade)
         if result.exception:
             self.driver.rollback()
-            sg.popup(lang.duplicate_failed.format_map(LangFrmt(exception=result.exception)), keep_on_top=True)
+            lp_popup(lang.duplicate_failed.format_map(LangFrmt(exception=result.exception)),
+                  lang.duplicate_failed_title)
         else:
             pk = result.lastrowid
                         
@@ -2210,11 +2215,13 @@ class Form:
                 if not user_prompted:
                     user_prompted = True
                     if autosave or self.autosave:
-                        save_changes = 'Yes'
+                        save_changes = 'yes'
                     else:
-                        save_changes = sg.popup_yes_no(lang.form_prompt_save)
+                        save_changes = lp_popup_yes_no(lang.form_prompt_save, 
+                                                        lang.form_prompt_save_title)
+                        print(save_changes)
 
-                    if save_changes != 'Yes':
+                    if save_changes != 'yes':
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         for data_key in self.datasets:
                             self[data_key].rows.purge_virtual()
@@ -2289,7 +2296,7 @@ class Form:
             msg = lang.form_save_success
         else:
             msg = lang.form_save_none
-        if show_message: sg.popup_quick_message(msg, keep_on_top=True)
+        if show_message: lp_popup_info(msg)
         return result
 
     def set_prompt_save(self, value: bool) -> None:
@@ -2783,6 +2790,58 @@ def checkbox_to_bool(value):
     :returns: bool
     """
     return str(value).lower() in ['y','yes','t','true','1']
+
+def lp_popup(msg, title):
+    """
+    Internal use only. Creates sg.Window with LanguagePack OK button
+    """
+    msg = msg.splitlines()
+    layout = [[sg.T(line)] for line in msg]
+    popup_win = sg.Window(title, [
+                layout,
+                [sg.Button(button_text=lang.button_ok, key='ok', use_ttk_buttons = True)],
+                ], line_width = sg.MESSAGE_BOX_LINE_WIDTH, keep_on_top=True, modal=True, finalize=True, ttk_theme=themepack.ttk_theme)
+    
+    while True:
+        event, values = popup_win.read()
+        if event in [sg.WIN_CLOSED,'Exit','ok']:
+            break
+    popup_win.close()
+
+def lp_popup_yes_no(msg, title):
+    """
+    Internal use only. Creates sg.Window with LanguagePack Yes/No button
+    """
+    msg = msg.splitlines()
+    layout = [[sg.T(line)] for line in msg]
+    popup_win = sg.Window(title, [
+                layout,
+                [sg.Button(button_text=lang.button_yes, key='yes', use_ttk_buttons = True),
+                 sg.Button(button_text=lang.button_no, key='no', use_ttk_buttons = True)],
+                ], keep_on_top=True, modal=True, finalize=True, ttk_theme=themepack.ttk_theme)
+    
+    while True:
+        event, values = popup_win.read()
+        if event in [sg.WIN_CLOSED,'Exit','no','yes']:
+            result = event
+            break
+    popup_win.close()
+    return result
+
+def lp_popup_info(msg):
+    """
+    Internal use only. Creates sg.Window with no buttons, auto-closing after seconds as defined in themepack
+    """
+    msg = msg.splitlines()
+    layout = [sg.T(line) for line in msg]
+    popup_win = sg.Window(title=lang.info_popup_title, layout=[layout], no_titlebar=False, keep_on_top=True, modal=True,
+                          finalize=True, auto_close = True, auto_close_duration = themepack.info_popup_auto_close_seconds, alpha_channel = themepack.info_popup_alpha_channel,)
+    while True:
+        event, values = popup_win.read()
+        if event in [sg.WIN_CLOSED,'Exit']:
+            result = event
+            break
+    popup_win.close()
 
 class LangFrmt(dict):
     def __missing__(self, key):
@@ -3353,7 +3412,9 @@ tp_text = {
     'marker_required': '\u2731',
     'marker_required_color': 'red2',
     'sort_asc_marker': '\u25BC',
-    'sort_desc_marker': '\u25B2'
+    'sort_desc_marker': '\u25B2',
+    'info_popup_auto_close_seconds' : 2,
+    'info_popup_alpha_channel' : .85
 }
 
 tp_large = {
@@ -3373,7 +3434,9 @@ tp_large = {
     'marker_required': '\u2731',
     'marker_required_color': 'red2',
     'sort_asc_marker': '\u25BC',
-    'sort_desc_marker': '\u25B2'
+    'sort_desc_marker': '\u25B2',
+    'info_popup_auto_close_seconds' : 2,
+    'info_popup_alpha_channel' : .85
 }
 
 class ThemePack:
@@ -3407,7 +3470,9 @@ class ThemePack:
         'marker_required': '\u2731',
         'marker_required_color': 'red2',
         'sort_asc_marker': '\u25BC',
-        'sort_desc_marker': '\u25B2'
+        'sort_desc_marker': '\u25B2',
+        'info_popup_auto_close_seconds' : 2,
+        'info_popup_alpha_channel' : .85
     }
     """Default Themepack"""
 
@@ -3481,36 +3546,51 @@ class LanguagePack:
         lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
     """
     default = {
+        # popup window title with no buttons:
+        'info_popup_title' : 'Info',
         # general buttons
         'button_cancel' : 'Cancel',
         'button_ok' : 'Ok',
-        'button_yes' : 'Yes',
+        'button_yes' : 'Hell Yes',
         'button_no' : 'No',
         # DataSet prompt_save
-        'dataset_prompt_save' : 'You have unsaved changes! Would you like to save them first?',
+        'dataset_prompt_save' : 'You have unsaved changes! Would you like to save them first?', #lp_popup_yes_no
+        'dataset_prompt_save_title' : 'Attention: Unsaved Changes',
+
         # DataSet save_record
         'dataset_save_empty' : 'There were no updates to save.',
-        'dataset_save_callback_false' : 'Updates not saved.',
+
+        'dataset_save_callback_false' : 'Updates not saved.', # popup
+        'dataset_save_callback_false_title' : 'Callback Prevented Save',
+
         'dataset_save_none' : 'There were no changes to save!',
         'dataset_save_success' : 'Updates saved successfully!',
-        'dataset_save_keyed_fail' : 'Query Failed! {exception}',
-        'dataset_save_fail' : 'Query Failed! {exception}',
+        
+        'dataset_save_keyed_fail' : 'Query Failed! {exception}', #popup
+        'dataset_save_keyed_fail_title' : 'Problem Saving',
+
+        'dataset_save_fail' : 'Query Failed! {exception}', #popup
+        'dataset_save_fail_title' : 'Problem Saving',
         # DataSet delete_record
-        'delete_cascade' : 'Are you sure you want to delete this record? Keep in mind that child records ({children}) will be deleted as well!',
+        'delete_cascade' : 'Are you sure you want to delete this record? \nKeep in mind that child records ({children}) will be deleted as well!',
         'delete_single' : 'Are you sure you want to delete this record?',
         'delete_title' : 'Confirm Delete',
-        'delete_failed' : 'Query Failed! {exception}',
+
+        'delete_failed' : 'Query Failed! {exception}', #popup
+        'delete_failed_title' : 'Problem Deleting',
         # Dataset duplicate_record
         'duplicate_child_title' : 'Confirm Duplicate',
-        'duplicate_child_line1' : 'This record has child records (in {children}).',
-        'duplicate_child_line2' : 'Which do you want to duplicate?',
+        'duplicate_child' : 'This record has child records (in {children}).\nWhich do you want to duplicate?',
         'duplicate_child_button_dupparent' : 'Duplicate ONLY this record.',
         'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and children.',
         'duplicate_single_title' : 'Confirm Duplicate',
         'duplicate_single' : 'Are you sure you want to duplicate this record?',
-        'duplicate_failed' : 'Query Failed! {exception}',
+
+        'duplicate_failed' : 'Query Failed! {exception}', #popup
+        'duplicate_failed_title' : 'Problem Duplicating',
         # Form prompt_save
-        'form_prompt_save' : 'You have unsaved changes! Would you like to save them first?',
+        'form_prompt_save' : 'You have unsaved changes! Would you like to save them first?', # lp_popup_yes_no
+        'form_prompt_save_title' : 'Attention: Unsaved Changes',
         # Form save_records
         'form_save_partial' : 'Some updates saved successfully;',
         'form_save_problem' : 'There was a problem saving updates to the following tables: {tables}',
