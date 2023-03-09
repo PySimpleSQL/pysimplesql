@@ -109,16 +109,19 @@ frm['Addresses'].set_callback('before_save', validate_zip)
 while True:
     event, values = win.read(timeout=100)
 
-    if event == "__TIMEOUT__":
+    if event == sg.WIN_CLOSED or event == 'Exit':
+        frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
+        break
+    elif event == "__TIMEOUT__":
         # Use a timeout (as set in win.read() above) to check for changes and enable/disable the save button on the fly.
         # This could also be done by enabling events in the input controls, but this is much simpler.
         dirty = frm['Addresses'].records_changed()
         win['Addresses:db_save'].update(disabled=not dirty)
-    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    elif "edit_protect" in event:
+        win['datepicker'].update(disabled=frm.get_edit_protect())
+    elif ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
-        break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
 win.close()
