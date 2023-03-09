@@ -1441,7 +1441,7 @@ class DataSet:
                 ]).read(close=True)
             if answer[0] == 'parent':
                 cascade = False
-            elif answer[0] == 'cancel':
+            elif answer[0] in ['cancel', None]:
                 return True
         else:
             msg = lang.duplicate_single
