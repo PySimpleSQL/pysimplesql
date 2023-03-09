@@ -2792,7 +2792,7 @@ def checkbox_to_bool(value):
 
 class Popup:
     """
-    Popup helper class. Has popup functions for internal use. Stores last popup as last_popup
+    Popup helper class. Has popup functions for internal use. Stores last info popup as last_info
     """
     def __init__(self):
         """
