@@ -2387,20 +2387,21 @@ class Form:
             # skip updating this element if requested
             if mapped.element in omit_elements: continue
 
-            # Show the Required Record marker if the column has notnull set and this is a virtual row
-            marker_key = mapped.element.key + ':marker'
-            try:
-                if mapped.dataset.get_current_row().virtual:
-                    # get the column name from the key
-                    col = mapped.column
-                    # get notnull from the column info
-                    if col in mapped.dataset.column_info.names():
-                        if mapped.dataset.column_info[col].notnull:
-                            self.window[marker_key].update(visible=True)
-                else:
+            if type(mapped.element) is not sg.Text: # don't show markers for sg.Text
+                # Show the Required Record marker if the column has notnull set and this is a virtual row
+                marker_key = mapped.element.key + ':marker'
+                try:
+                    if mapped.dataset.get_current_row().virtual:
+                        # get the column name from the key
+                        col = mapped.column
+                        # get notnull from the column info
+                        if col in mapped.dataset.column_info.names():
+                            if mapped.dataset.column_info[col].notnull:
+                                self.window[marker_key].update(visible=True)
+                    else:
+                        self.window[marker_key].update(visible=False)
+                except AttributeError:
                     self.window[marker_key].update(visible=False)
-            except AttributeError:
-                self.window[marker_key].update(visible=False)
 
 
             updated_val = None
@@ -2972,12 +2973,20 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
         layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
     layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size, key=f'{key}:label')
     layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color = themepack.marker_required_color, visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
-    if no_label:
-        layout = [[layout_marker, layout_element]]
-    elif label_above:
-        layout = [[layout_label], [layout_marker, layout_element]]
-    else:
-        layout = [[layout_label , layout_marker, layout_element]]
+    if element.__name__ == 'Text': # don't show markers for sg.Text
+        if no_label:
+            layout = [[layout_element]]
+        elif label_above:
+            layout = [[layout_label], [layout_element]]
+        else:
+            layout = [[layout_label , layout_element]]
+    else:        
+        if no_label:
+            layout = [[layout_marker, layout_element]]
+        elif label_above:
+            layout = [[layout_label], [layout_marker, layout_element]]
+        else:
+            layout = [[layout_label , layout_marker, layout_element]]
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'column': column, 'function': None, 'Form': None, 'filter': filter}
