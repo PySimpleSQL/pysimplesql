@@ -3974,7 +3974,10 @@ class ResultSet:
         return self.rows[item]
 
     def __setitem__(self, idx:int, new_row:ResultRow):
+        # carry over the original_index
+        new_row.original_index = self.rows[idx].original_index
         self.rows[idx]=new_row
+
 
     def __len__(self):
         return len(self.rows)
