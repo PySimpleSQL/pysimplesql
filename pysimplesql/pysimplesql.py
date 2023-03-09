@@ -1652,6 +1652,8 @@ class Form:
         :returns: None
 
         """
+        win_pb = ProgressBar('Creating Form')
+        win_pb.update('Initializing', 0)
         Form.instances.append(self)
 
         self.driver: SQLDriver = driver
@@ -1675,12 +1677,16 @@ class Form:
         self.force_save: bool = False
 
         # Add our default datasets and relationships
+        win_pb.update('Adding datasets', 25)
         self.auto_add_dataset(prefix_data_keys)
+        win_pb.update(' Adding relationships', 50)
         self.auto_add_relationships()
         self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
         if bind_window is not None:
+            win_pb.update('Binding window to Form', 75)
             self.window=bind_window
             self.bind(self.window)
+        win_pb.close()
 
     def __del__(self):
         self.close()
@@ -1710,7 +1716,6 @@ class Form:
         :returns:  None
         """
         logger.info('Binding Window to Form')
-        self.window = win
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
@@ -2800,6 +2805,25 @@ def checkbox_to_bool(value):
     :returns: bool
     """
     return str(value).lower() in ['y','yes','t','true','1']
+
+
+class ProgressBar:
+    def __init__(self, title: str, max_value: int = 100):
+        layout = [
+            [sg.Text('', key='message', size=(31, 1))],
+            [sg.ProgressBar(max_value, orientation='h', size=(30, 20), key='bar')]
+        ]
+
+        self.title = title
+        self.max = max
+        self.win = sg.Window(title, layout=layout, keep_on_top=True, finalize=True)
+
+    def update(self, message: str, current_count: int):
+        self.win['message'].update(message)
+        self.win['bar'].update(current_count=current_count)
+
+    def close(self):
+        self.win.close()
 
 class LangFrmt(dict):
     def __missing__(self, key):
@@ -4183,13 +4207,16 @@ class SQLDriver:
     def __init__(self, name:str, placeholder='%s', table_quote='', column_quote='', value_quote="'"):
         """
         Create a new SQLDriver instance
-        This must be overridden in the derrived class, which must call super().__init__()
+        This must be overridden in the derived class, which must call super().__init__(), and when finished call
+        self.win_pb.close() to close the database.
 
         """
         # Be sure to call super().__init__() in derived class!
         self.con = None
         self.name = name
         self._check_reserved_keywords = True
+        self. win_pb = ProgressBar(f'{name} connection', 100)
+        self.win_pb.update('Connecting to database', 0)
 
         # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
         # in the SQL string should be quoted and represented as placeholders. Override these in the derived class as
@@ -4514,6 +4541,7 @@ class Sqlite(SQLDriver):
             new_database = False
             self.imported_database = True
 
+        self.win_pb.update('executing SQL commands',50)
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
@@ -4527,7 +4555,7 @@ class Sqlite(SQLDriver):
             self.execute_script(sql_script)
 
         self.db_path = db_path
-
+        self.win_pb.close()
 
     def connect(self, database):
         self.con = sqlite3.connect(database)
@@ -4714,6 +4742,7 @@ class Flatfile(Sqlite):
                 self.execute(query, row)
 
         self.commit()
+        self.win_pb.close()
 
 
     def save_record(self, dataset: DataSet, changed_row: dict, where_clause: str = None) -> ResultSet:
@@ -4766,6 +4795,7 @@ class Mysql(SQLDriver):
         self.database = database
         self.con = self.connect()
 
+        self.win_pb.update('Executing SQL commands', 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
             logger.info(f'Executing sql commands passed in')
@@ -4777,6 +4807,7 @@ class Mysql(SQLDriver):
             logger.info('Executing sql script from file passed in')
             self.execute_script(sql_script)
 
+        self.win_pb.close()
 
     def connect(self):
         con = mysql.connector.connect(
@@ -4923,7 +4954,7 @@ class Postgres(SQLDriver):
                     q = f"SELECT setval('{seq}', 1, false);"
                 self.execute(q, silent=True)
 
-
+        self.win_pb.update('executing SQL commands', 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
             logger.info(f'Executing sql commands passed in')
@@ -4934,6 +4965,7 @@ class Postgres(SQLDriver):
             # run SQL script from the file if the database does not yet exist
             logger.info('Executing sql script from file passed in')
             self.execute_script(sql_script)
+        self.win_close()
 
     def connect(self):
         con = psycopg2.connect(
