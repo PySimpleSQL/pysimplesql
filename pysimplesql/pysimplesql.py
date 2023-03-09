@@ -1438,7 +1438,7 @@ class DataSet:
                 [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent')],
                 [sg.Button(button_text=lang.duplicate_child_button_dupboth, key='cascade')],
                 [sg.Button(button_text=lang.button_cancel, key='cancel')],
-                ]).read(close=True)
+                ], keep_on_top=True, modal=True).read(close=True)
             if answer[0] == 'parent':
                 cascade = False
             elif answer[0] in ['cancel', None]:
@@ -3481,6 +3481,11 @@ class LanguagePack:
         lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
     """
     default = {
+        # general buttons
+        'button_cancel' : 'Cancel',
+        'button_ok' : 'Ok',
+        'button_yes' : 'Yes',
+        'button_no' : 'No',
         # DataSet prompt_save
         'dataset_prompt_save' : 'You have unsaved changes! Would you like to save them first?',
         # DataSet save_record
@@ -3501,7 +3506,6 @@ class LanguagePack:
         'duplicate_child_line2' : 'Which do you want to duplicate?',
         'duplicate_child_button_dupparent' : 'Duplicate ONLY this record.',
         'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and children.',
-        'button_cancel' : 'Cancel',
         'duplicate_single_title' : 'Confirm Duplicate',
         'duplicate_single' : 'Are you sure you want to duplicate this record?',
         'duplicate_failed' : 'Query Failed! {exception}',
