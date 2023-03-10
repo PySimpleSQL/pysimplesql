@@ -60,6 +60,10 @@ import functools
 import os.path
 import logging
 
+try:
+    from .language_pack import lp
+except ModuleNotFoundError:
+    pass
 
 # Wrap this in a try block so that pysimplesql can be imported as a single file if desired
 try:
