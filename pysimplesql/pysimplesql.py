@@ -3617,13 +3617,13 @@ class LanguagePack:
     # ------------------------
     # Info Popups - no buttons
     # ------------------------
-    # {'Form save_records' : ''}
+    # Form save_records
     # ------------------------
     'form_save_partial': 'Some updates were saved successfully;',
     'form_save_problem': 'There was a problem saving updates to the following tables:\n{tables}.',
     'form_save_success': 'Updates saved successfully.',
     'form_save_none': 'There were no updates to save.',
-    # {'DataSet save_record' : ''}
+    # DataSet save_record
     # ------------------------
     'dataset_save_empty': 'There were no updates to save.',
     'dataset_save_none': 'There were no changes to save!',
@@ -3632,11 +3632,11 @@ class LanguagePack:
     # ------------------------
     # Yes No Popups
     # ------------------------
-    # {'Form prompt_save' : ''}
+    # Form prompt_save
     # ------------------------
     'form_prompt_save_title': 'Unsaved Changes',
     'form_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
-    # {'DataSet prompt_save' : ''}
+    # DataSet prompt_save
     # ------------------------
     'dataset_prompt_save_title': 'Unsaved Changes',
     'dataset_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
@@ -3644,7 +3644,7 @@ class LanguagePack:
     # ------------------------
     # Ok Popups
     # ------------------------
-    # {'DataSet save_record' : ''}
+    # DataSet save_record
     'dataset_save_callback_false_title': 'Callback Prevented Save',
     'dataset_save_callback_false': 'Updates not saved.',
     
@@ -3657,7 +3657,7 @@ class LanguagePack:
     # ------------------------
     # Custom Popups
     # ------------------------
-    # {'DataSet delete_record' : ''}
+    # DataSet delete_record
     # ------------------------
     'delete_title': 'Confirm Deletion',
     'delete_cascade': 'Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!',
@@ -3666,7 +3666,7 @@ class LanguagePack:
     'delete_failed_title': 'Problem Deleting',
     'delete_failed': 'Query failed: {exception}.',
 
-    # {'Dataset duplicate_record' : ''}
+    # Dataset duplicate_record
     # ------------------------
     # Popup when record has children
     'duplicate_child_title': 'Confirm Duplication',
