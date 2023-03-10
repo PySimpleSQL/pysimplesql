@@ -3644,7 +3644,7 @@ class LanguagePack:
     # ------------------------
     # Ok Popups
     # ------------------------
-    # {:DataSet save_record' : ''}
+    # {'DataSet save_record' : ''}
     'dataset_save_callback_false_title': 'Callback Prevented Save',
     'dataset_save_callback_false': 'Updates not saved.',
     
