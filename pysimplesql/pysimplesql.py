@@ -61,7 +61,7 @@ import os.path
 import logging
 
 try:
-    from .language_pack import lp
+    from .language_pack import *
 except ModuleNotFoundError:
     pass
 
@@ -3543,8 +3543,21 @@ class ThemePack:
     """Default Themepack"""
 
     def __init__(self, tp_dict:Dict[str,str] = {}) -> None:
+        self.tp_dict = ThemePack.default
+
+    def __getattr__(self, key):
+        # Try to get the key from the internal tp_dict first.  If it fails, then check the default dict.
+        try:
+            return self.tp_dict[key]
+        except KeyError:
+            try:
+                return ThemePack.default[key]
+            except KeyError:
+                raise AttributeError(f"ThemePack object has no attribute '{key}'")
+            
+    def __call__(self, tp_dict:Dict[str,str] = {}) -> None:
         """
-        Create a new ThemePack object from tp_dict
+        Update the ThemePack object from tp_dict
 
         Example minimal ThemePack: NOTE: You can add additional keys if desired
             tp_example = {
@@ -3584,16 +3597,6 @@ class ThemePack:
         if tp_dict == {}: tp_dict = ThemePack.default
 
         self.tp_dict = tp_dict
-
-    def __getattr__(self, key):
-        # Try to get the key from the internal tp_dict first.  If it fails, then check the default dict.
-        try:
-            return self.tp_dict[key]
-        except KeyError:
-            try:
-                return ThemePack.default[key]
-            except KeyError:
-                raise AttributeError(f"ThemePack object has no attribute '{key}'")
 
 
 
@@ -3700,15 +3703,7 @@ class LanguagePack:
     """Default LanguagePack"""
 
     def __init__(self, lp_dict={}):
-        """
-        Create a new LanguagePack instance
-
-        """
-        # For default use cases, load the default directly to avoid the overhead
-        # of __getattr__() going through 2 key reads
-        if lp_dict == {}: lp_dict = type(self).default
-
-        self.lp_dict = lp_dict
+        self.lp_dict = type(self).default
 
     def __getattr__(self, key):
         # Try to get the key from the internal lp_dict first.  If it fails, then check the default dict.
@@ -3719,6 +3714,17 @@ class LanguagePack:
                 return type(self).default[key]
             except KeyError:
                 raise AttributeError(f"LanguagePack object has no attribute '{key}'")
+            
+    def __call__(self, lp_dict={}):
+        """
+        Update the LanguagePack instance
+
+        """
+        # For default use cases, load the default directly to avoid the overhead
+        # of __getattr__() going through 2 key reads
+        if lp_dict == {}: lp_dict = type(self).default
+
+        self.lp_dict = lp_dict
 
 # set a default languagepack
 lang = LanguagePack()
@@ -5245,6 +5251,7 @@ SimpleTransformsDict = Dict[str, SimpleTransform]
 # ======================================================================================================================
 # ALIASES
 # ======================================================================================================================
+languagepack = lang
 Database=Form
 Table=DataSet
 record = field # for reverse capability
