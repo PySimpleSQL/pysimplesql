@@ -3635,11 +3635,11 @@ class LanguagePack:
     # {'Form prompt_save' : ''}
     # ------------------------
     'form_prompt_save_title': 'Unsaved Changes',
-    'form_prompt_save': 'You have unsaved changes! Would you like to save them first?',
+    'form_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
     # {'DataSet prompt_save' : ''}
     # ------------------------
     'dataset_prompt_save_title': 'Unsaved Changes',
-    'dataset_prompt_save': 'You have unsaved changes! Would you like to save them first?',
+    'dataset_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
 
     # ------------------------
     # Ok Popups
@@ -3660,7 +3660,7 @@ class LanguagePack:
     # {'DataSet delete_record' : ''}
     # ------------------------
     'delete_title': 'Confirm Deletion',
-    'delete_cascade': 'Are you sure you want to delete this record? \nKeep in mind that child records:\n({children})\nwill also be deleted!',
+    'delete_cascade': 'Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!',
     'delete_single': 'Are you sure you want to delete this record?',
     # Failed Ok Popup
     'delete_failed_title': 'Problem Deleting',
