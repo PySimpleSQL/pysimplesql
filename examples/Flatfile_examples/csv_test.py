@@ -4,6 +4,9 @@ import logging
 logger=logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# Let's use a fun language pack
+ss.lang.load(ss.lp['monty_python'])
+
 # Create a simple layout for working with our flatfile data.
 # Note that you can set a specific table name to use, but here I am just using the defaul 'Flatfile'
 # Lets also use some sortable headers so that we can rearrange the flatfile data when saving
@@ -39,9 +42,6 @@ frm.set_force_save(True)
 
 # Make it so that the name, address and email can be part of the search
 frm['Flatfile'].set_search_order(['name', 'address', 'email'])
-
-# Let's use a fun language pack
-ss.language_pack = ss.lp_90s
 
 # As you can see, using a Flatfile is just like using any database with pysimplesql!
 while True:

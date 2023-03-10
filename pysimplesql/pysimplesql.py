@@ -3594,6 +3594,9 @@ class ThemePack:
                 return ThemePack.default[key]
             except KeyError:
                 raise AttributeError(f"ThemePack object has no attribute '{key}'")
+            
+    def load(self, key):
+        self.tp_dict = key
 
 
 
@@ -3719,6 +3722,9 @@ class LanguagePack:
                 return type(self).default[key]
             except KeyError:
                 raise AttributeError(f"LanguagePack object has no attribute '{key}'")
+            
+    def load(self, key):
+        self.lp_dict = key
 
 # set a default languagepack
 lang = LanguagePack()
@@ -4157,7 +4163,6 @@ class ResultSet:
 
     def __setitem__(self, idx:int, new_row:ResultRow):
         # carry over the original_index
-        new_row.original_index = self.rows[idx].original_index
         try:
             new_row.original_index = self.rows[idx].original_index
         except AttributeError:
