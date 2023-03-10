@@ -53,7 +53,7 @@ Naming conventions can fall under 4 categories:
 
 # The first two imports are for docstrings
 from __future__ import annotations
-from typing import List, Union, Optional, Tuple, Callable, Dict, Type, TypedDict, TypeAlias, Literal
+from typing import List, Union, Optional, Tuple, Callable, Dict, Type, TypedDict
 from datetime import date, datetime
 import PySimpleGUI as sg
 import functools
@@ -1688,7 +1688,7 @@ class Form:
 
         # Add our default datasets and relationships
         win_pb.update('Adding datasets', 25)
-        self.auto_add_dataset(prefix_data_keys)
+        self.auto_add_datasets(prefix_data_keys)
         win_pb.update(' Adding relationships', 50)
         self.auto_add_relationships()
         self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
@@ -1785,7 +1785,7 @@ class Form:
         """
         Manually add a `DataSet` object to the `Form`
         When you attach to a database, PySimpleSQL isn't aware of what it contains until this command is run
-        Note that `Form.auto_add_dataset()` does this automatically, which is called when a `Form` is created
+        Note that `Form.auto_add_datasets()` does this automatically, which is called when a `Form` is created
 
         :param data_key: The key to give this `DataSet`.  Use frm['data_key'] to access it.
         :param table: The name of the table in the database
@@ -1869,7 +1869,7 @@ class Form:
                     return r.fk_column
         return None
     
-    def auto_add_dataset(self, prefix_data_keys: str = '') -> None:
+    def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
         """
         Automatically add `DataSet` objects from the database by looping through the tables available and creating a
         `DataSet` object for each. Each dataset key is an optional prefix plus the name of the table.

@@ -24,7 +24,7 @@ layout=[
 win=sg.Window('Journal example - PostgreSQL', layout, finalize=True)
 
 postgresdb = {
-    'host': '65.19.141.77',
+    'host': 'tommy2.heliohost.org',
     'user': 'pysimplesql_user',
     'password': 'pysimplesql',
     'database': 'pysimplesql_examples'

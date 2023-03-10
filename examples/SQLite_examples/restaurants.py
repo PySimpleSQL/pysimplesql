@@ -14,7 +14,7 @@ layout = [
 ]
 sub_layout = [
     [ss.selector('Item', size=(35, 10))],
-    [ss.actions('Item',default=False, insert=True, delete=True)],
+    [ss.actions('Item', default=False, insert=True, delete=True)],
     [sg.HSep()],
     [
         sg.Col(
