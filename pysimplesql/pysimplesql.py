@@ -2418,6 +2418,8 @@ class Form:
                                 self.window[marker_key].update(visible=True, text_color = themepack.marker_required_color)
                     else:
                         self.window[marker_key].update(visible=False)
+                        if self.window is not None:
+                            self.window[marker_key].update(visible=False)
                 except AttributeError:
                     self.window[marker_key].update(visible=False)
 
@@ -4152,7 +4154,10 @@ class ResultSet:
     def __setitem__(self, idx:int, new_row:ResultRow):
         # carry over the original_index
         new_row.original_index = self.rows[idx].original_index
-        self.rows[idx]=new_row
+        try:
+            new_row.original_index = self.rows[idx].original_index
+        except AttributeError:
+            pass
 
 
     def __len__(self):
