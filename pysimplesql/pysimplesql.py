@@ -1480,7 +1480,7 @@ class DataSet:
         
         # requery and move to new pk
         self.requery(select_first=False)
-        self.set_by_pk(pk)
+        self.set_by_pk(pk, skip_prompt_save=True)
 
     def get_description_for_pk(self, pk:int) -> Union[str,int,None]:
         """
