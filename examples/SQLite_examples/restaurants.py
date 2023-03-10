@@ -9,17 +9,21 @@ logging.basicConfig(level=logging.INFO)  # <=== Set the logging level here (NOTS
 layout = [
     [ss.field('Restaurant.name')],
     [ss.field('Restaurant.location')],
-    [ss.field('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)]
+    [ss.field('Restaurant.fkType', sg.Combo, size=(30, 10), auto_size_text=False)],
+    [sg.HSep()]
 ]
 sub_layout = [
     [ss.selector('Item', size=(35, 10))],
+    [ss.actions('Item',default=False, insert=True, delete=True)],
+    [sg.HSep()],
     [
         sg.Col(
             layout=[
                 [ss.field('Item.name')],
                 [ss.field('Item.fkMenu', sg.Combo, size=(30, 10), auto_size_text=False)],
                 [ss.field('Item.price')],
-                [ss.field('Item.description', sg.MLine, size=(30, 7))]
+                [ss.field('Item.description', sg.MLine, size=(30, 7))],
+
             ]
         )
     ],

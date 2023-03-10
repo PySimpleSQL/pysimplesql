@@ -37,14 +37,21 @@ frm= ss.Form(driver, bind_window=win)
 # data saved back to the flatfile.
 frm.set_force_save(True)
 
+# Make it so that the name, address and email can be part of the search
+frm['Flatfile'].set_search_order(['name', 'address', 'email'])
+
+# Let's use a fun language pack
+ss.language_pack = ss.lp_90s
+
 # As you can see, using a Flatfile is just like using any database with pysimplesql!
 while True:
-    event,values = win.read()
+    event, values = win.read()
 
-    if ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
-        logger.info(f'PySimpleDB event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
+    if event == sg.WIN_CLOSED or event == 'Exit':
         frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
         break
+    elif ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')

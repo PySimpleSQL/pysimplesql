@@ -64,11 +64,11 @@ INSERT INTO Addresses VALUES (2, 1, "Sally", "Jones", "111 North St.","Suite A",
 INSERT INTO Addresses VALUES (3, 3, "David", "Johnson", "456 Elm St.","Apt 1","Albany",3,12084);
 INSERT INTO Addresses VALUES (4, 4, "Bob", "Johnson", "456 Main St.","Suite B","Los Angeles",1,90001);
 INSERT INTO Addresses VALUES (5, 3, "Mary", "Davis", "789 Elm St.","Apt 2","New York City",2,10001);
-INSERT INTO Addresses VALUES (6, 5, "Tom", "Lee", "456 West St.","Suite 101","Houston",3,77001);
-INSERT INTO Addresses VALUES (7, 8, "Emily", "Wilson", "123 Oak Ave.","Unit 5","Detroit",2,48201);
+INSERT INTO Addresses VALUES (6, 2, "Tom", "Lee", "456 West St.","Suite 101","Houston",3,77001);
+INSERT INTO Addresses VALUES (7, 1, "Emily", "Wilson", "123 Oak Ave.","Unit 5","Detroit",2,48201);
 INSERT INTO Addresses VALUES (8, 1, "David", "Brown", "222 Main St.","Apt 3","Columbus",4,43201);
-INSERT INTO Addresses VALUES (9, 7, "Lisa", "Taylor", "555 North St.","Suite C","Chicago",6,60601);
-INSERT INTO Addresses VALUES (10, 6, "Steven", "Harris", "777 Beach Blvd.","Apt 10","Miami",5,33101);
+INSERT INTO Addresses VALUES (9, 3, "Lisa", "Taylor", "555 North St.","Suite C","Chicago",6,60601);
+INSERT INTO Addresses VALUES (10, 4, "Steven", "Harris", "777 Beach Blvd.","Apt 10","Miami",5,33101);
 INSERT INTO Addresses VALUES (11, 2, "Rachel", "Moore", "444 Pine St.","Apt 1","Philadelphia",7,19101);
 """
 
@@ -109,16 +109,19 @@ frm['Addresses'].set_callback('before_save', validate_zip)
 while True:
     event, values = win.read(timeout=100)
 
-    if event == "__TIMEOUT__":
+    if event == sg.WIN_CLOSED or event == 'Exit':
+        frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
+        break
+    elif event == "__TIMEOUT__":
         # Use a timeout (as set in win.read() above) to check for changes and enable/disable the save button on the fly.
         # This could also be done by enabling events in the input controls, but this is much simpler.
         dirty = frm['Addresses'].records_changed()
         win['Addresses:db_save'].update(disabled=not dirty)
-    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    elif "edit_protect" in event:
+        win['datepicker'].update(disabled=frm.get_edit_protect())
+    elif ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
-        break
     else:
         logger.info(f'This event ({event}) is not yet handled.')
 win.close()
