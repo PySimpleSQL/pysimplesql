@@ -2879,6 +2879,24 @@ class Popup:
         """
         return self.last_info
 
+class ProgressBar:
+    def __init__(self, title: str, max_value: int = 100):
+        layout = [
+            [sg.Text('', key='message', size=(31, 1))],
+            [sg.ProgressBar(max_value, orientation='h', size=(30, 20), key='bar')]
+        ]
+
+        self.title = title
+        self.max = max
+        self.win = sg.Window(title, layout=layout, keep_on_top=True, finalize=True)
+
+    def update(self, message: str, current_count: int):
+        self.win['message'].update(message)
+        self.win['bar'].update(current_count=current_count)
+
+    def close(self):
+        self.win.close()
+
 class LangFormat(dict):
     def __missing__(self, key):
         return None
