@@ -6,7 +6,9 @@ Please keep strings in brackets {} unaltered.
 Please keep double spaces and extra spaces unaltered.
 Please keep \n line breaks unaltered.
 
-template_section_1 = {
+Note: You may need to split lp_template into two dicts if ChatGPT stalls at the end.
+
+lp_template = {
     "button_cancel": " Cancel ",
     "button_ok": "  OK  ",
     "button_yes": " Yes ",
@@ -38,8 +40,6 @@ template_section_1 = {
     "dataset_save_keyed_fail": "Query failed: {exception}.",
     "dataset_save_fail_title": "Problem Saving",
     "dataset_save_fail": "Query failed: {exception}.",
-}
-template_section_2 = {
     # DataSet delete_record
     # ------------------------
     "delete_title": "Confirm Deletion",
