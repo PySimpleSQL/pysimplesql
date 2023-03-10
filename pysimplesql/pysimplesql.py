@@ -3609,89 +3609,89 @@ class LanguagePack:
     """
     default = {
         
-        # ------------------------
-        # Buttons
-        # ------------------------
-        'button_cancel' : ' Cancel ',
-        'button_ok' : '  Ok  ',
-        'button_yes' : ' Yes ',
-        'button_no' : '  No  ',
+    # ------------------------
+    # Buttons
+    # ------------------------
+    'button_cancel' : ' Cancel ',
+    'button_ok' : '  OK  ',
+    'button_yes' : ' Yes ',
+    'button_no' : '  No  ',
 
-        # ------------------------
-        # Info Popup Title - universal
-        # ------------------------
-        'info_popup_title' : 'Info',
+    # ------------------------
+    # Info Popup Title - universal
+    # ------------------------
+    'info_popup_title': 'Info',
 
-        # ------------------------
-        # Info Popups - no buttons
-        # ------------------------
-            # Form save_records
-            # ------------------------
-            'form_save_partial' : 'Some updates saved successfully;',
-            'form_save_problem' : 'There was a problem saving updates to the following tables: {tables}',
-            'form_save_success' : 'Updates saved successfully.',
-            'form_save_none' : 'There was nothing to update.',
-            # DataSet save_record
-            # ------------------------
-            'dataset_save_empty' : 'There were no updates to save.',
-            'dataset_save_none' : 'There were no changes to save!',
-            'dataset_save_success' : 'Updates saved successfully!',
+    # ------------------------
+    # Info Popups - no buttons
+    # ------------------------
+    # Form save_records
+    # ------------------------
+    'form_save_partial': 'Some updates were saved successfully;',
+    'form_save_problem': 'There was a problem saving updates to the following tables:\n{tables}.',
+    'form_save_success': 'Updates saved successfully.',
+    'form_save_none': 'There were no updates to save.',
+    # DataSet save_record
+    # ------------------------
+    'dataset_save_empty': 'There were no updates to save.',
+    'dataset_save_none': 'There were no changes to save!',
+    'dataset_save_success': 'Updates saved successfully.',
 
-        # ------------------------
-        # Yes No Popups
-        # ------------------------
-            # Form prompt_save
-            # ------------------------
-            'form_prompt_save_title' : 'Attention: Unsaved Changes',
-            'form_prompt_save' : 'You have unsaved changes! \nWould you like to save them first?',
-            # DataSet prompt_save
-            # ------------------------
-            'dataset_prompt_save_title' : 'Attention: Unsaved Changes',
-            'dataset_prompt_save' : 'You have unsaved changes! \nWould you like to save them first?',
+    # ------------------------
+    # Yes No Popups
+    # ------------------------
+    # Form prompt_save
+    # ------------------------
+    'form_prompt_save_title': 'Unsaved Changes',
+    'form_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
+    # DataSet prompt_save
+    # ------------------------
+    'dataset_prompt_save_title': 'Unsaved Changes',
+    'dataset_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
 
-        # ------------------------
-        # Ok Popups
-        # ------------------------
-            # DataSet save_record
-            'dataset_save_callback_false_title' : 'Callback Prevented Save',
-            'dataset_save_callback_false' : 'Updates not saved.',
-            
-            'dataset_save_keyed_fail_title' : 'Problem Saving',
-            'dataset_save_keyed_fail' : 'Query Failed! {exception}',
+    # ------------------------
+    # Ok Popups
+    # ------------------------
+    # DataSet save_record
+    'dataset_save_callback_false_title': 'Callback Prevented Save',
+    'dataset_save_callback_false': 'Updates not saved.',
+    
+    'dataset_save_keyed_fail_title': 'Problem Saving',
+    'dataset_save_keyed_fail': 'Query failed: {exception}.',
 
-            'dataset_save_fail_title' : 'Problem Saving',
-            'dataset_save_fail' : 'Query Failed! {exception}',
+    'dataset_save_fail_title': 'Problem Saving',
+    'dataset_save_fail': 'Query failed: {exception}.',
 
-        # ------------------------
-        # Custom Popups
-        # ------------------------
-            # DataSet delete_record
-            # ------------------------
-            'delete_title' : 'Confirm Delete',
-            'delete_cascade' : 'Are you sure you want to delete this record? \nKeep in mind that child records\n({children})\nwill be deleted as well!',
-            'delete_single' : 'Are you sure you want to delete this record?',
-            # Failed Ok Popup
-            'delete_failed_title' : 'Problem Deleting',
-            'delete_failed' : 'Query Failed! {exception}',
+    # ------------------------
+    # Custom Popups
+    # ------------------------
+    # DataSet delete_record
+    # ------------------------
+    'delete_title': 'Confirm Deletion',
+    'delete_cascade': 'Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!',
+    'delete_single': 'Are you sure you want to delete this record?',
+    # Failed Ok Popup
+    'delete_failed_title': 'Problem Deleting',
+    'delete_failed': 'Query failed: {exception}.',
 
-            # Dataset duplicate_record
-            # ------------------------
-            # Popup when record has children
-            'duplicate_child_title' : 'Confirm Duplicate',
-            'duplicate_child' : 'This record has child records (in {children}).\nWhich do you want to duplicate?',
-            'duplicate_child_button_dupparent' : 'Duplicate ONLY this record.',
-            'duplicate_child_button_dupboth' : 'Duplicate BOTH this record and children.',
-            # Popup when record is single
-            'duplicate_single_title' : 'Confirm Duplicate',
-            'duplicate_single' : 'Are you sure you want to duplicate this record?',
-            # Failed Ok Popup
-            'duplicate_failed_title' : 'Problem Duplicating',
-            'duplicate_failed' : 'Query Failed! {exception}',
+    # Dataset duplicate_record
+    # ------------------------
+    # Popup when record has children
+    'duplicate_child_title': 'Confirm Duplication',
+    'duplicate_child': 'This record has child records:\n(in {children})\nWhich records would you like to duplicate?',
+    'duplicate_child_button_dupparent': 'Only duplicate this record.',
+    'duplicate_child_button_dupboth': 'Duplicate this record and its children.',
+    # Popup when record is single
+    'duplicate_single_title': 'Confirm Duplication',
+    'duplicate_single': 'Are you sure you want to duplicate this record?',
+    # Failed Ok Popup
+    'duplicate_failed_title': 'Problem Duplicating',
+    'duplicate_failed': 'Query failed: {exception}.',
 
-        # ------------------------
-        # Quick Editor
-        # ------------------------
-        'quick_edit_title' : 'Quick Edit - {data_key}'
+    # ------------------------
+    # Quick Editor
+    # ------------------------
+    'quick_edit_title': 'Quick Edit - {data_key}'
     }
     """Default LanguagePack"""
 
