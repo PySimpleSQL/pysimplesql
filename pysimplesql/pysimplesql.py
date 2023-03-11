@@ -3029,44 +3029,6 @@ class Convenience:
     """
     pass
 
-# Global variables to set default sizes for the record function below
-_default_label_size = (15, 1)
-_default_element_size = (30, 1)
-_default_mline_size = (30, 7)
-
-def set_label_size(w:int, h:int) -> None:
-    """
-    Sets the default label (text) size when `field()` is used. A label is static text that is displayed near the
-    element to describe what it is.
-
-    :param w: the width desired
-    :param h: the height desired
-    :returns: None
-    """
-    global _default_label_size
-    _default_label_size = (w, h)
-
-def set_element_size(w:int, h:int) -> None:
-    """
-    Sets the default element size when `field()` is used.  The size parameter of `field()` will override this
-
-    :param w: the width desired
-    :param h: the height desired
-    :returns: None
-    """
-    global _default_element_size
-    _default_element_size = (w, h)
-
-def set_mline_size(w:int, h:int) -> None:
-    """
-    Sets the default multi-line text size when `field()` is used.  The size parameter of `field()` will override this
-
-    :param w: the width desired
-    :param h: the height desired
-    :returns: None
-    """
-    global _default_mline_size
-    _default_mline_size = (w, h)
 
 
 
@@ -3120,10 +3082,10 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
         first_param=''
 
     if element.__name__ == 'Multiline':
-        layout_element = element(first_param, key=key, size=size or _default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
+        layout_element = element(first_param, key=key, size=size or themepack.default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
     else:
-        layout_element = element(first_param, key=key, size=size or _default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
-    layout_label =  sg.T(label_text if label == '' else label, size=_default_label_size, key=f'{key}:label')
+        layout_element = element(first_param, key=key, size=size or themepack.default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
+    layout_label =  sg.T(label_text if label == '' else label, size=themepack.default_label_size, key=f'{key}:label')
     layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color=sg.theme_background_color(), visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
     if element.__name__ == 'Text': # don't show markers for sg.Text
         if no_label:
@@ -3305,14 +3267,14 @@ def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, i
 
     meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
     if element == sg.Listbox:
-        layout = element(values=(), size=size or _default_element_size, key=key,
+        layout = element(values=(), size=size or themepack.default_element_size, key=key,
                     select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
                     enable_events=True, metadata=meta)
     elif element == sg.Slider:
-        layout = element(enable_events=True, size=size or _default_element_size, orientation='h',
+        layout = element(enable_events=True, size=size or themepack.default_element_size, orientation='h',
                           disable_number_display=True, key=key, metadata=meta)
     elif element == sg.Combo:
-        w = _default_element_size[0]
+        w = themepack.default_element_size[0]
         layout = element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
                           auto_size_text=False, metadata=meta)
     elif element == sg.Table:
@@ -3501,7 +3463,10 @@ tp_text = {
     'sort_asc_marker': '\u25BC',
     'sort_desc_marker': '\u25B2',
     'info_popup_auto_close_seconds' : 1,
-    'info_popup_alpha_channel' : .85
+    'info_popup_alpha_channel' : .85,
+    'default_label_size' : (15, 1),
+    'default_element_size' : (30, 1),
+    'default_mline_size' : (30, 7),
 }
 
 tp_large = {
@@ -3523,7 +3488,10 @@ tp_large = {
     'sort_asc_marker': '\u25BC',
     'sort_desc_marker': '\u25B2',
     'info_popup_auto_close_seconds' : 1,
-    'info_popup_alpha_channel' : .85
+    'info_popup_alpha_channel' : .85,
+    'default_label_size' : (15, 1),
+    'default_element_size' : (30, 1),
+    'default_mline_size' : (30, 7),
 }
 
 class ThemePack:
@@ -3559,7 +3527,21 @@ class ThemePack:
         'sort_asc_marker': '\u25BC',
         'sort_desc_marker': '\u25B2',
         'info_popup_auto_close_seconds' : 1,
-        'info_popup_alpha_channel' : .85
+        'info_popup_alpha_channel' : .85,
+        # Default sizes for elements
+        #---------------------------
+        # Label Size
+        # Sets the default label (text) size when `field()` is used.
+        # A label is static text that is displayed near the element to describe what it is.
+        'default_label_size' : (20, 1), # (width, height)
+        # Element Size
+        # Sets the default element size when `field()` is used.
+        # The size= parameter of `field()` will override this.
+        'default_element_size' : (30, 1), # (width, height)
+        # Mline size
+        # Sets the default multi-line text size when `field()` is used.
+        # The size= parameter of `field()` will override this.
+        'default_mline_size' : (30, 7), # (width, height)
     }
     """Default Themepack"""
 
