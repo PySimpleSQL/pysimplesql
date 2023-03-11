@@ -2900,7 +2900,7 @@ class ProgressBar:
 
         self.title = title
         self.max = max
-        self.win = sg.Window(title, layout=layout, keep_on_top=True, finalize=True)
+        self.win = sg.Window(title, layout=layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme)
 
     def update(self, message: str, current_count: int):
         self.win['message'].update(message)
