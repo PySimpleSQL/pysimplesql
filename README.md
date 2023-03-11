@@ -268,27 +268,28 @@ Referencing the example above, look at the following:
     sg.Input('', key='Restaurant.name', size=(30, 1), metadata={'type': ss.TYPE_RECORD, 'Form': None, 'filter': None, 'field': 'Restaurant.name', 'data_key': 'Restaurant.name'})
 ]
 ```
-As you can see, the @pysimplesql.field() convenience function simplifies making field controls that adhere to the
+As you can see, the pysimplesql.field() convenience function simplifies making field elements that adhere to the
 **pysimplesql** conventions needed for automatic mapping. Also notice that **pysimplesql**  makes use of the PySimpleGUI 
 metadata keyword argument - but don't worry, the element's metadata is still be available to you in your own program by
 adding your own keys in the Python list contained within, or just overwriting it completely after the window has been
-bound to the Form. There is even more you can do with this. The pysimplesql.field() function can take a PySimpleGUI™  
-control element as a parameter as well, overriding the default Input() element. Furthermore, supplying an optional key
-will let you use any key you want in your program instead of the default table.column string.
-See this code which creates a combobox instead:
+bound to the Form. 
 
+There is even more you can do with this. The pysimplesql.field() function can take a PySimpleGUI™ element as a parameter 
+as well, overriding the default Input() element. Furthermore, supplying an optional key will let you use any key you 
+want in your program instead of the default table.column string.
+See this code which uses ss.field() to create a combobox instead of the default Input element:
 ```python
 [ss.field('Restaurant.fkType', sg.Combo)]
 ```
-Furthering that, the functions pysimplesql.set_label_size() and pysimplesql.set_element_size() can be used before calls 
-to pysimplesql.field() to have custom sizing of the control elements.  Even with these defaults set, the size parameter 
-of pysimplesql.field() will override the default control size, for plenty of flexibility.
+Furthering that, the default size of these elements created by ss.field() can be set with the ThemePack to have custom 
+sizing of the elements.  Even with these defaults set, the size parameter  of pysimplesql.field() will override the 
+default size, for plenty of flexibility with a minimum amount of code.
 
 Place those two functions just above the layout definition shown in the example above and then run the code again
 ```python
 # set the sizing for the Restaurant section
-ss.set_label_size(10, 1)    # <=== Add this line
-ss.set_element_size(90, 1)  # <=== Add this line
+ss.themepack['set_label_size'] = (10, 1)    # <=== Add this line
+ss.themepack['set_element_size'] = (90, 1)  # <=== Add this line
 # Define our layout. We will use the Form.field() convenience function to create the controls
 layout = [
     [ss.field('Restaurant.name')],
@@ -315,16 +316,15 @@ sub_layout = [
 layout.append([sg.Frame('Items', sub_layout)])
 layout.append([ss.actions('Restaurant', edit_protect=False)])
 ```
-![image](https://user-images.githubusercontent.com/70232210/91287363-a71ea680-e75d-11ea-8b2f-d240c1ec2acf.png)
+![image](https://user-images.githubusercontent.com/70232210/224509660-04337fda-1081-4ad0-bd2a-3ebd59614966.png)
 You will see that now, the controls were resized using the new sizing rules.  Notice however that some elements had a
-size parameter set, so they didn't use the defaults!
+size parameter manually set, so they didn't use the defaults!
 
 Let's see one more example.  This time we will fix the oddly sized elements by specifying the new size in the size
 parameter
-
 ```python
-ss.set_label_size(10, 1)
-ss.set_element_size(90, 1)
+ss.themepack['set_label_size'] = (10, 1)   
+ss.themepack['set_element_size'] = (90, 1)  
 # Define our layout. We will use the Form.field() convenience function to create the controls
 layout = [
     [ss.field('Restaurant.name')],
@@ -349,8 +349,7 @@ sub_layout = [
     ],
 ]
 ```
-![image](https://user-images.githubusercontent.com/70232210/91288080-8e62c080-e75e-11ea-8438-86035d4d6609.png)
-
+![image](https://user-images.githubusercontent.com/70232210/224509700-87de2735-c46c-43cb-a329-b30a75e73c57.png)
 
 
 
