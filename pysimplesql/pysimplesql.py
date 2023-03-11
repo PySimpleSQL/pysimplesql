@@ -1710,7 +1710,7 @@ class Form:
                     f'not exist, the database user does not have the proper permissions set, or any number of '
                     f'database configuration issues.')
 
-    def close(self,reset_keygen: bool  =True):
+    def close(self, reset_keygen: bool = True):
         """
         Safely close out the `Form`
 
