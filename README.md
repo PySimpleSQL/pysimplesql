@@ -46,12 +46,12 @@ has an alias of Database and the Dataset class has an alias of Table - so you ca
 * Callbacks to allow your own functions to expand control over your own database front ends
 * Event Mapping system
 * An edit protect system to help prevent unwanted or errant changes to your data
-* A prompt save system to help void losing data
+* A prompt save system to help avoid losing data
 * LanguagePacks - use one of the existing ones, modify one or create your own
 * ThemePacks - change the look and feel of your application, including icons for navigation buttons and more
 * Transforms - Transform your data as it's read from and written to the database
 
-All of the above features will be broken down in the sections below, starting from the simple up to the advanced.
+All of the above features will be broken down throughout the sections below, from the simple to the advanced.
 
 # Lets do this!
 
