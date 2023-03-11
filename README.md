@@ -38,7 +38,7 @@ has an alias of Database and the Dataset class has an alias of Table - so you ca
 
 ## ADVANCED FUNCTIONALITY
 **pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and databases! In full, **pysimplesql** contains:
-* Support for multiple database.  Currentyly, SQLite, MySQL, MariaDB, PostgreSQL and even CSV Flatfiles are supported
+* Support for multiple databases.  Currently, SQLite, MySQL, MariaDB, PostgreSQL and even CSV Flatfiles are supported
 * Convenience functions for simplifying PySimpleGUI™ layout code for building database driven GUIs
 * Binding between PySimpleGUI™ elements and database fields
 * Automatic requerying of related tables
