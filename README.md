@@ -36,6 +36,23 @@ Some people may like to think of Form objects as a Database, and Dataset objects
 has an alias of Database and the Dataset class has an alias of Table - so you can use the **Database**/**Table** classes instead of
 **Form**/**Dataset** in your own code if you prefer!
 
+## ADVANCED FUNCTIONALITY
+**pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and databases! In full, **pysimplesql** contains:
+* Support for multiple database.  Currentyly, SQLite, MySQL, MariaDB, PostgreSQL and even CSV Flatfiles are supported
+* Convenience functions for simplifying PySimpleGUI™ layout code for building database driven GUIs
+* Binding between PySimpleGUI™ elements and database fields
+* Automatic requerying of related tables
+* Record navigation - Such as First, Previous, Next, Last, Searching and selector control elements
+* Callbacks to allow your own functions to expand control over your own database front ends
+* Event Mapping system
+* An edit protect system to help prevent unwanted or errant changes to your data
+* A prompt save system to help void losing data
+* LanguagePacks - use one of the existing ones, modify one or create your own
+* ThemePacks - change the look and feel of your application, including icons for navigation buttons and more
+* Transforms - Transform your data as it's read from and written to the database
+
+All of the above features will be broken down in the sections below, starting from the simple up to the advanced.
+
 # Lets do this!
 
 ## Install
@@ -49,7 +66,7 @@ pip3 install PySimpleGUI
 pip3 install pysimplesql
 ```
 
-**pysimplesql** is now in active development and constantly changing. When an update is available, a message similar to 
+**pysimplesql** is in active development and constantly changing. When an update is available, a message similar to 
 the following will be displayed in the output of the program:
 
 ```***** pysimplesql update to v0.0.5 available! Just run pip3 install pysimplesql --upgrade *****```
@@ -119,7 +136,7 @@ while True:
         logger.info(f'This event ({event}) is not yet handled.')
 win.close()
 ```
-along with these SQL statements
+along with a database created from these SQL statements
 ```sql
 DROP TABLE IF EXISTS "Restaurant";
 DROP TABLE IF EXISTS "Item";
@@ -181,8 +198,7 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ```
 ### Makes This fully operational database front-end
-
-![image](https://user-images.githubusercontent.com/70232210/91227678-e8c73700-e6f4-11ea-83ee-4712e687bfb4.png)
+![image](https://user-images.githubusercontent.com/70232210/224509161-dd0238d0-4975-4d71-86d8-bb9b9214fd6b.png)
 
 Like PySimpleGUI™, **pysimplesql** supports subscript notation, so your code can access the data easily in the format of
 Form['Table']['column'].
@@ -202,15 +218,15 @@ To get the best possible experience with **pysimplesql**, the magic is in the sc
 The automatic functionality of **pysimplesql** relies on just a couple of things:
 - foreign key constraints on the database tables (lets **pysimplesql** know what the relationships are, though manual 
 relationship mapping is also available)
-- a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent tables are 
-changed
-- PySimpleGUI™ control keys are typically named {table}.{column} when using the ss.field() convenience function.  Of 
-course, manual mapping is  supported as well. @Form.record() is a convenience function/"custom element" to make adding 
+- a CASCADE ON UPDATE constraint on any tables that should automatically refresh child tables when parent table records
+are changed
+- PySimpleGUI™ element keys are typically named {table}.{column} when using the ss.field() convenience function.  Of 
+course, keys can be  manually supplied as well. Form.field() is a convenience function/"custom element" to make adding 
 records quick and easy!
-- Each table has what is known as a "description column". The description column is what will be displayed in combo boxes
-and other controls for foreign key relationships. The description column is automatically set to the  'name', 'title', or
-'description' column of the table if they exist, or the 2nd column of the table in the absence of one of these columns.
-Of course, this can be changed manually if needed, but truly the simplictiy of **pysimplesql** is in having everything
+- Each table has what is known as a "description column". The description column is what will be displayed in ComboBoxes
+and other controls for foreign key relationships. The description column is automatically set to the  'name', 'title',
+or 'description' column of the table if they exist, or the 2nd column of the table in the absence of these columns.
+This can als be changed manually if needed, but truly the simplicity of **pysimplesql** is in having everything
 happen automatically!
 
 Here is another example SQL table that shows the above rules at work.  Don't let this scare you, there are plenty of
@@ -237,8 +253,8 @@ CREATE TABLE "Chapter"(
 
 ### But wait, there's more!
 The above is literally all you have to know for working with simple and even moderate databases.  However, there is a 
-lot of power in learning what is going on under the hood.  Starting with the fully automatic example above, we will work
-backwards and unravel things to explain what is available to you for more control at a lower level.
+lot of power in learning what is going on under the hood.  In the examples below, we will peel back the layers so that
+you can learn how to manually add database tables, map elements to them and manually set up events and callbacks.
 
 #### **pysimplesql** elements:
 Referencing the example above, look at the following:
@@ -422,21 +438,7 @@ frm.update_elements()
 As you can see, there is a lot of power in the auto functionality of pysimplesql, and you should take advantage of it 
 any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
 
-# BREAKDOWN OF ADVANCED FUNCTIONALITY
-**pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and databases! In full, **pysimplesql** contains:
-* Convenience functions for simplifying PySimpleGUI™ layout code
-* Control binding between PySimpleGUI™ controls and database fields
-* Automatic requerying of related tables
-* Record navigation - Such as First, Previous, Next, Last, Searching and selector controls
-* Callbacks allow your own functions to expand control over your own database front ends
-* Event Mapping
-* An edit protect system to help prevent unwanted or errant changes to your data
-* A prompt save system to help void losing data
-* LanguagePacks - use one of the existing ones, modify one or create your own
-* ThemePacks - change the look and feel of your application, including icons for navigation buttons and more
-* Transforms - Transform your data as it's read from and written to the database
 
-We will break each of these down below to give you a better understanding of how each of these features works.
 ## Convenience Functions
 pysimplesql.field(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating 
 a PySimpleGUI™ text element and a PySimpleGUI™ Input element inline for purposes of displaying a field from the current record.  
@@ -702,7 +704,7 @@ is an example to load the Spanish LanguagePack:
 ```ss.languagepack = ss.LanguagePack(ss.lp_es)```
 or the German LanguagePack:
 ```ss.languagepack = ss.LanguagePack(ss.lp_de)```
-In fact, you can use a pre-build fun LanguagePack, or even build your own:
+In fact, you can use a pre-built fun LanguagePack, or even build your own:
 ```ss.languagepack = ss.LanguagePack(ss.lp_monty_python)```
 See the language_pack.py file for available built-in LanguagePacks!
 
