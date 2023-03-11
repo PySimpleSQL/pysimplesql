@@ -368,17 +368,20 @@ The above auto_map_* methods could have been manually achieved as follows:
 ```python
 # Add the datasets you want pysimplesql to handle.  The function frm.auto_add_datasets() will add all dataset found in the database 
 # by default.  However, you may only need to work with a couple of tables in the database, and this is how you would do that
-frm.add_dataset('Restaurant', 'pkRestaurant',
-                'name', )  # add the table Restaurant, with its primary key field, and descriptive field (for comboboxes)
-frm.add_dataset('Item', 'pkItem',
-                'name', )  # Note: While I personally prefer to use the pk{DataSet} and fk{DataSet} naming
-frm.add_dataset('Type', 'pkType', 'name', )  # conventions, it's not necessary for pySimpleSQL
-frm.add_dataset('Menu', 'pkMenu', 'name', )  # These could have just as well been restaurantID and itemID for example
+
+# add the tables, with their primary key fields, and description fields
+frm.add_dataset('Restaurant', 'pkRestaurant', 'name', ) 
+frm.add_dataset('Item', 'pkItem', 'name', )  
+frm.add_dataset('Type', 'pkType', 'name', )  
+frm.add_dataset('Menu', 'pkMenu', 'name', )  
+# Note: While I personally prefer to use the pk{Table} and fk{Table} naming conventions, it's not necessary for 
+# pySimpleSQL. These could have just as well been restaurantID and itemID for example
+
 
 # Set up relationships
 # Notice below that the first relationship has the last parameter to True.  This is what the ON UPDATE CASCADE constraint accomplishes.
 # Basically what it means is that then the Restaurant table is requeried, the associated Item table will automatically requery right after.
-# This is what allows the GUI to seamlessly update all of the control elements when records are changed!
+# This is what allows the GUI to seamlessly update all the PySimpleGUI elements when records are changed!
 # The other relationships have that parameter set to False - they still have a relationship, but they don't need requeried automatically
 frm.add_relationship('LEFT JOIN', 'Item', 'fkRestaurant', 'Restaurant', 'pkRestaurant', True)
 frm.add_relationship('LEFT JOIN', 'Restaurant', 'fkType', 'Type', 'pkType', False)
@@ -386,7 +389,8 @@ frm.add_relationship('LEFT JOIN', 'Item', 'fkMenu', 'Menu', 'pkMenu', False)
 
 # Map our elements
 # Note that you can map any element to any DataSet field  that you would like.
-# The {DataSet}.{field} naming convention is only necessary if you want to use the auto-mapping functionality of pysimplesql!
+# The {DataSet}.{field} naming convention is only a default used by **pysimplesql**, and can be customized with the
+# `key` parameter when using ss.field() or ss.selector()
 frm.map_element(win['Restaurant.name'], 'Restaurant', 'name')
 frm.map_element(win['Restaurant.location'], 'Restaurant', 'location')
 frm.map_element(win['Restaurant.fkType'], 'Type', 'pkType')
@@ -397,25 +401,26 @@ frm.map_element(win['Item.price'], 'Item', 'price')
 frm.map_element(win['Item.description'], 'Item', 'description')
 
 # Map out our events
-# In the above example, this was all done in the background, as we used convenience functions to add record navigation buttons.
-# However, we could have made our own buttons and mapped them to events.  Below is such an example
-frm.map_event('Restaurant:table_first', db['Restaurant'].First)  # button control with the key of 'Edit.Restaurant.First'
-# mapped to the DataSet.First method
-frm.map_event('Restaurant:table_previous', db['Restaurant'].Previous)
-frm.map_event('Restaurant:table_next', db['Restaurant'].Next)
-frm.map_event('Restaurant:table_last', db['Restaurant'].Last)
+# In the other examples, this was all done automaticallys since we used the ss.actions() convenience functions to add 
+# record navigation buttons. However, we could have made our own buttons and mapped them to events.  Below is such an 
+# example.
+frm.map_event('Restaurant:table_first', frm['Restaurant'].first)  # button control with the key of 'Restaurant:table_first'
+frm.map_event('Restaurant:table_previous', frm['Restaurant'].previous)
+frm.map_event('Restaurant:table_next', frm['Restaurant'].next)
+frm.map_event('Restaurant:table_last', frm['Restaurant'].last)
 # and so on...
 # In fact, you can use the event mapper however you want to, mapping control names to any function you would like!
 # Event mapping will be covered in more detail later...
 
 # This is the magic function which populates all of the controls we mapped!
-# For your convience, you can optionally use the function Form.set_callback('update_controls',function) to set a callback function
+# For your convenience, you can optionally use the function Form.set_callback('update_controls',function) to set a callback function
 # that will be called every time the controls are updated.  This allows you to do custom things like update
 # a preview image, change element parameters or just about anything you want!
 frm.update_elements()
 ```
 
-As you can see, there is a lot of power in the auto functionality of pysimplesql, and you should take advantage of it any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
+As you can see, there is a lot of power in the auto functionality of pysimplesql, and you should take advantage of it 
+any time you can.  Only very specific cases need to reach this lower level of manual configuration and mapping!
 
 # BREAKDOWN OF ADVANCED FUNCTIONALITY
 **pysimplesql** does much more than just bridge the gap between PySimpleGUI™ and databases! In full, **pysimplesql** contains:
@@ -425,37 +430,48 @@ As you can see, there is a lot of power in the auto functionality of pysimplesql
 * Record navigation - Such as First, Previous, Next, Last, Searching and selector controls
 * Callbacks allow your own functions to expand control over your own database front ends
 * Event Mapping
-* LanguagePacks - use one of the existing ones or create your own
+* An edit protect system to help prevent unwanted or errant changes to your data
+* A prompt save system to help void losing data
+* LanguagePacks - use one of the existing ones, modify one or create your own
 * ThemePacks - change the look and feel of your application, including icons for navigation buttons and more
-* Transforms - Transform your data as its read from and written to the database
+* Transforms - Transform your data as it's read from and written to the database
 
 We will break each of these down below to give you a better understanding of how each of these features works.
 ## Convenience Functions
-There are currently only a few convenience functions to aid in quickly creating PySimpleGUI™ layout code
-pysimplesql.set_label_size(width,height) - Sets the PySimpleGUI™ text size for subsequent calls to Form.field(). 
-Defaults to (15,1) otherwise.
-
-pysimplesql.set_element_size(width, height) - Sets the PySImpleGUI™ control size for subsequent calls to Form.field(). 
-Defaults to (30,1) otherwise.
-
 pysimplesql.field(table, field,control_type=None,size=None,text_label=None)- This is a convenience function for creating 
-a PySimpleGUI™ text element and a PySimpleGUI™ Input element inline for purposes of displaying a record from the database.  
+a PySimpleGUI™ text element and a PySimpleGUI™ Input element inline for purposes of displaying a field from the current record.  
 This function also creates a default name of {table.column} in the element's key parameter and the required metadata 
 that **pysimplesql** uses for advanced automatic functionality. The optional element parameter allows you to bind elements
-other than Input to a database field.  Checkboxes, listboxes and other controls entered here will override the default Input control. The size parameter will override the default control size that was set with Database.set_control_size().  Lastly, the text_label parameter will prefix a text field before the control.
+other than Input to a database field.  Checkboxes, ListBoxes, and other controls entered here will override the default 
+Input control. The size parameter will override the default element size that is set in the current ThemePack.  Lastly, 
+the text_label parameter will prefix a text field before the element.
 
-pysimplesql.selector() -  for adding Selector controls to your GUI.  Selectors are responsible for selecting the current record in a Form
+pysimplesql.selector() -  For adding Selector controls to your GUI.  Selectors are responsible for selecting the current
+record in a Form in addition to the normal navigateion buttons.
 
-pysimplesql.actions()- Actions such as save, delete, search and navigation can all be customized with this convenience function!
+pysimplesql.actions()- Actions such as save, delete, search and record navigation can all be customized with this 
+convenience function!
 
-## Control Binding
-    TODO
+## Element Binding
+PySimpleGUI elements are bound to fields from the current record.  This means that as you navigate through your data
+your GUI automatically updates and stays in sync. This happens automatically, but can also be done manually if needed.
+    
 ## Automatic Requerying
-    TODO
-## Record Navigation
-**pysimplesql** includes a convenience function for adding record navigation buttons to your project.  For lower level control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function and work backwards from there to see how you can implement your own record navigation controls.
+Foreign key relationships can be complicated, and even more so when you are trying to manage a GUI to display this
+related data.  As example, if you were to have an `Albums` database, and a `Songs` database, where a foreign key
+in `Songs` references the `Albums` table, then when the current record for `Album` changes, the songs list is
+automatically requeried so that only songs referencing that Album are shown.
 
-The convenience function pysimplesql.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these items).  Under the hood, the actions() convenience function uses the Event Mapping features of **pysimplesql**, and your own code can do this too!
+## Record Navigation
+**pysimplesql** includes a convenience function for adding record navigation buttons to your project.  For lower level 
+control or a custom look, you may want to learn how to do this on your own.  Lets start with the convenience function 
+and work backwards from there to see how you can implement your own record navigation controls.
+
+The convenience function pysimplesql.actions() is a swiss army knife when it comes to generating PySimpleGUI™ layout 
+code for your record navigation controls.  With it, you can add First, Previous, Next and Last record navigation buttons, 
+a search box, edit protection modes, and record actions such as Insert, Save and Delete (Or any combination of these 
+items).  Under the hood, the actions() convenience function uses the Event Mapping features of **pysimplesql**, and your
+own code can do this too!
 See the code below on example usage of the **pysimplesql**.actions() convenience function
 
 ```python
