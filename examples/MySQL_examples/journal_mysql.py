@@ -25,13 +25,10 @@ layout = [
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
-win = sg.Window('Journal (internal) example', layout, finalize=True)
-
+# Create the Window, Driver and Form
+win = sg.Window('Journal example: MySQL', layout, finalize=True)
 driver = ss.Mysql(**ss.mysql_examples)  # Use the mysql examples database credentials
-
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
-# Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
-# database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date ASC')

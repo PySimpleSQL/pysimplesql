@@ -1,40 +1,51 @@
 import PySimpleGUI as sg
 import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
-logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)    # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
-# POSTGRES EXAMPLE
-# Note: Postgres is funny about case sensitivity.  To keep this simple, table names in this example are lower case.
+# POSTGRESQL EXAMPLE
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
-# Define the columns for the table selector
-headings=['id','Title:                                 ','Date:      ','Mood:                ']
-visible=[0,1,1,1] # Hide the id column
-layout=[
-    [ss.selector('Journal', sg.Table, key='sel_journal', num_rows=10, headings=headings, visible_column_map=visible)],
-    [ss.actions('Journal', 'act_journal')],
-    [ss.field('Journal.entry_date')],
+# Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
+headings = ss.TableHeadings(sort_enable=True)
+headings.add_column('title', 'Title', width=40)
+headings.add_column('entry_date', 'Date', width=10)
+headings.add_column('mood_id', 'Mood', width=20)
+
+layout = [
+    [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
+    [ss.actions('Journal')],
+    [ss.field('Journal.entry_date'), sg.CalendarButton("Select Date", close_when_date_chosen=True,
+                                                       target="Journal.entry_date",  # <- target matches field() name
+                                                       format="%Y-%m-%d", size=(10, 1), key='datepicker')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
-win=sg.Window('Journal example - PostgreSQL', layout, finalize=True)
-
-driver=ss.Postgres(**ss.postgres_examples)  # Use the postgres examples database credentials
-
-frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
-# Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
-# database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
+# Create the Window, Driver and Form
+win = sg.Window('Journal example: PostgreSQL', layout, finalize=True)
+driver = ss.Mysql(**ss.postgres_examples)  # Use the postgres examples database credentials
+frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date ASC')
-# Set the column order for search operations.  By default, only the column designated as the description column is searched
+# Set the column order for search operations.  By default, only the designated description column is searched
 frm['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
+
+# ------------------------------------------
+# How to Edit Protect your sg.CalendarButton
+# ------------------------------------------
+# By default, action() includes an edit_protect() call, that disables edits in the window.
+# You can toggle it off with:
+frm.edit_protect()  # Comment this out to edit protect elements when the window is created.
+# Set initial CalendarButton state to the same as pysimplesql elements
+win['datepicker'].update(disabled=frm.get_edit_protect())
+# Then watch for the 'edit_protect' event in your Main Loop
 
 # ---------
 # MAIN LOOP
@@ -42,14 +53,19 @@ frm['Journal'].requery()
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
-        logger.info(f'PySimpleDB event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
+
+    if event == sg.WIN_CLOSED or event == 'Exit':
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
         break
+    elif "edit_protect" in event:
+        win['datepicker'].update(disabled=frm.get_edit_protect())
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-win.close()
+
+
 
 """
 I hope that you enjoyed this simple demo of a Journal database.  
