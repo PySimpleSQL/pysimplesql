@@ -2877,7 +2877,7 @@ class Popup:
                               keep_on_top = True, modal = True, finalize = True, 
                               auto_close_duration = themepack.info_popup_auto_close_seconds,
                               alpha_channel = themepack.info_popup_alpha_channel,
-                              element_justification = "center")
+                              element_justification = "center", ttk_theme = themepack.ttk_theme)
         while True:
             event, values = popup_win.read()
             if event in [sg.WIN_CLOSED,'Exit']:
