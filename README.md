@@ -696,6 +696,27 @@ code, use the auto event mapper, manually map the events, or handle the events y
 flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has 
 attractive icons in the buttons, and really should be used in most cases.
 
+## LanguagePacks
+LanguagePacks in **pysimplesql** fun and easy to use.  By default, a US English Language Pack is already enabled. Here
+is an example to load the Spanish LanguagePack:
+```ss.languagepack = ss.LanguagePack(ss.lp_es)```
+or the German LanguagePack:
+```ss.languagepack = ss.LanguagePack(ss.lp_de)```
+In fact, you can use a pre-build fun LanguagePack, or even build your own:
+```ss.languagepack = ss.LanguagePack(ss.lp_monty_python)```
+See the language_pack.py file for available built-in LanguagePacks!
+
+Additionally, You can create partial LanguagePacks that uses the default LanguagePack for keys not specified in the new
+one.  See example below that creates a new LanguagePack, where the YES and NO buttons are replaced with `Yep!` and `Nope`,
+and all others remain the default:
+```
+new_lp = {'button_yes': 'Yep!', 'button_no': 'Nope!'}
+ss.languagepack = ss.LanguagePack(new_lp)
+```
+See the language_pack.py file for all the keys used in our LanguagePacks.
+
+## ThemePacks
+ TODO
 ## Callbacks
  TODO
 ## Event Mapping
