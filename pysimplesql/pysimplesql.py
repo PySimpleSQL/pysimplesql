@@ -1706,7 +1706,9 @@ class Form:
         try:
             return self.datasets[key]
         except KeyError:
-            return None
+            raise RuntimeError(f'The DataSet for `{key}` does not exist.  This can be caused because the database does'
+                    f'not exist, the database user does not have the proper permissions set, or any number of '
+                    f'database configuration issues.')
 
     def close(self,reset_keygen: bool  =True):
         """
@@ -2172,11 +2174,9 @@ class Form:
                     if data_key: funct=functools.partial(self[data_key].search, search_box)
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
-                    referring_table=table
-                    dataset = self[table]
-                    if dataset is not None:
-                        table = dataset.get_related_table_for_column(column)
-                        funct=functools.partial(dataset.quick_editor, self[referring_table].get_current, column)
+                    referring_table = table
+                    table = self[table].get_related_table_for_column(column)
+                    funct = functools.partial(self[table].quick_editor, self[referring_table].get_current, column)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
                 else:
