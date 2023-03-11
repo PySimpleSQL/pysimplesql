@@ -1703,7 +1703,10 @@ class Form:
 
     # Override the [] operator to retrieve dataset by key
     def __getitem__(self, key: str) -> DataSet:
-        return self.datasets[key]
+        try:
+            return self.datasets[key]
+        except KeyError:
+            return None
 
     def close(self,reset_keygen: bool  =True):
         """
@@ -2170,8 +2173,10 @@ class Form:
                 #elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table=table
-                    table= self[table].get_related_table_for_column(column)
-                    funct=functools.partial(self[table].quick_editor, self[referring_table].get_current, column)
+                    dataset = self[table]
+                    if dataset is not None:
+                        table = dataset.get_related_table_for_column(column)
+                        funct=functools.partial(dataset.quick_editor, self[referring_table].get_current, column)
                 elif event_type == EVENT_FUNCTION:
                     funct=function
                 else:
