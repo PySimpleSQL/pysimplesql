@@ -23,14 +23,8 @@ layout=[
 ]
 win=sg.Window('Journal example - PostgreSQL', layout, finalize=True)
 
-postgresdb = {
-    'host': 'tommy2.heliohost.org',
-    'user': 'pysimplesql_user',
-    'password': 'pysimplesql',
-    'database': 'pysimplesql_examples'
-}
+driver=ss.Postgres(**ss.postgres_examples)  # Use the postgres examples database credentials
 
-driver=ss.Postgres(**postgresdb)
 frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
 # Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
@@ -38,7 +32,7 @@ frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date ASC')
 # Set the column order for search operations.  By default, only the column designated as the description column is searched
-frm['Journal'].set_search_order(['entry_date','title','entry'])
+frm['Journal'].set_search_order(['entry_date', 'title', 'entry'])
 # Requery the data since we made changes to the sort order
 frm['Journal'].requery()
 

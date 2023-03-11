@@ -675,7 +675,11 @@ while True:
 
 ```
 
-Whether you want to use the **pysimplesql**.actions() convenience function, write your own navigation button layout code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has attractive icons in the buttons, and really should be used in most cases.
+Whether you want to use the **pysimplesql**.actions() convenience function, write your own navigation button layout 
+code, use the auto event mapper, manually map the events, or handle the events yourself, you have plenty of options for 
+flexibility writing your navigation button code!  Of course, the convenience function is very flexible and has 
+attractive icons in the buttons, and really should be used in most cases.
+
 ## Callbacks
  TODO
 ## Event Mapping

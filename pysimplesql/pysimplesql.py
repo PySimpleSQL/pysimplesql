@@ -2987,6 +2987,22 @@ class KeyGen:
 keygen = KeyGen(separator=':')
 """This is a global keygen instance for general purpose use. See `KeyGen` for more info"""
 
+# Convenience dicts for example database connection
+postgres_examples = {
+    'host': 'tommy2.heliohost.org',
+    'user': 'pysimplesql_user',
+    'password': 'pysimplesql',
+    'database': 'pysimplesql_examples'
+}
+
+mysql_examples = {
+    'host': 'tommy2.heliohost.org',
+    'user': 'pysimplesql_user',
+    'password': 'pysimplesql',
+    'database': 'pysimplesql_examples'
+}
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
 # ----------------------------------------------------------------------------------------------------------------------
@@ -5109,7 +5125,7 @@ class Postgres(SQLDriver):
             # run SQL script from the file if the database does not yet exist
             logger.info('Executing sql script from file passed in')
             self.execute_script(sql_script)
-        self.win_close()
+        self.win_pb.close()
 
     def connect(self):
         con = psycopg2.connect(
@@ -5144,13 +5160,24 @@ class Postgres(SQLDriver):
         rows = self.execute(query, silent=True)
         return [row['table_name'] for row in rows]
 
-    def column_info(self, table):
+    def column_info(self, table: str) -> ColumnInfo:
         # Return a list of column names
-        query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'"
+        query = f"SELECT * FROM information_schema.columns WHERE table_name = '{table}'"
         rows = self.execute(query, silent=True)
-        return [row['column_name'] for row in rows]
 
-    def pk_column(self,table):
+        col_info = ColumnInfo(self, table)
+        pk_column = self.pk_column(table)
+        for row in rows:
+            name = row['column_name']
+            domain = row['data_type'].upper()
+            notnull = False if row['is_nullable'] == 'YES' else True
+            default = row['column_default']
+            pk = True if name == pk_column else False
+            col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
+
+        return col_info
+
+    def pk_column(self, table):
         query = f"SELECT column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = '{table}' "
         cur = self.execute(query, silent=True)
         row = cur.fetchone()

@@ -27,12 +27,7 @@ layout = [
 ]
 win = sg.Window('Journal (internal) example', layout, finalize=True)
 
-driver = ss.Mysql(
-    host='tommy2.heliohost.org',
-    user='pysimplesql_user',
-    password='pysimplesql',
-    database='pysimplesql_examples'
-)
+driver = ss.Mysql(**ss.mysql_examples)  # Use the mysql examples database credentials
 
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 # Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
