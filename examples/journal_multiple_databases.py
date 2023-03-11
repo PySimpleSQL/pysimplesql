@@ -96,18 +96,14 @@ while True:
 
 
 """
-I hope that you enjoyed this simple demo of a Journal database.  
-Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full 
-database-backed usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
-
 Learnings from this example:
+- Writing database-agnostic code with pysimplesql is easy.  The complexities of dealing with different types of 
+  databases are completely hidden from the user
 - Using DataSet.set_search_order() to set the search order of the query for search operations.
-- embedding sql commands in code for table creation
-- creating a default/empty database with sql commands with the sql_commands keyword argument to ss.Form()
-- using Form.record() and Form.selector() functions for easy GUI element creation
+- How to edit protect PySimpleGUI elements
+- using Form.field() and Form.selector() functions for easy GUI element creation
 - using the label keyword argument to Form.record() to define a custom label
 - using Tables as Form.selector() element types
-- changing the sort order of database dataset
-- Adding and edit-protecting a sg.CalendarButton
+- Using the TableHeadings() function to define sortable table headings
 """
 
