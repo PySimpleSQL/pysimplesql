@@ -3023,7 +3023,7 @@ class Convenience:
     conform to pysimplesql standards so that your database application is up and running quickly, and with all the great
     automatic functionality pysimplesql has to offer.
     See the documentation for the following convenience functions:
-    `set_label_size()`, `set_element_size()`, `set_mline_size()`, `field()`, `selector()`, `actions()`, `TableHeadings`
+    `field()`, `selector()`, `actions()`, `TableHeadings`
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
