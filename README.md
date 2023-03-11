@@ -198,6 +198,8 @@ INSERT INTO "Item" VALUES (9,"Dinner Pizza",3,3,"$16.99","Whatever we did not se
 
 ```
 ### Makes This fully operational database front-end
+Complete with navigation buttons, insert, delete, duplicate and save buttons, a search input field and button, and even 
+a built in quick editor for editing related foreign tables.
 ![image](https://user-images.githubusercontent.com/70232210/224509161-dd0238d0-4975-4d71-86d8-bb9b9214fd6b.png)
 
 Like PySimpleGUI™, **pysimplesql** supports subscript notation, so your code can access the data easily in the format of
