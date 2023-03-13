@@ -118,13 +118,10 @@ while True:
         # This could also be done by enabling events in the input controls, but this is much simpler.
         dirty = frm['Addresses'].records_changed()
         win['Addresses:db_save'].update(disabled=not dirty)
-    elif "edit_protect" in event:
-        win['datepicker'].update(disabled=frm.get_edit_protect())
-    elif ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-win.close()
 
 
 """

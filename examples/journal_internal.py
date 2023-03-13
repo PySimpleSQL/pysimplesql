@@ -62,9 +62,9 @@ layout = [
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
 win = sg.Window('Journal (internal) example', layout, finalize=True)
-driver = ss.Sqlite('SQLite_examples/Journal.db', sql_commands=sql)
+driver = ss.Sqlite('./SQLite_examples/Journal.db', sql_commands=sql)
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
-# Note:  sql_commands in only run if journal.frm does not exist!  This has the effect of creating a new blank
+# Note:  sql_commands in only run if Journal.db does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
@@ -94,10 +94,10 @@ while True:
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
         win.close()
         break
-    elif "edit_protect" in event:
-        win['datepicker'].update(disabled=frm.get_edit_protect())
     elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
+        if "edit_protect" in event:
+            win['datepicker'].update(disabled=frm.get_edit_protect())
     else:
         logger.info(f'This event ({event}) is not yet handled.')
 

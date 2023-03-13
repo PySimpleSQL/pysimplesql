@@ -58,14 +58,15 @@ frm.bind(win)
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
-        print(f'PySimpleDB event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
+    if event == sg.WIN_CLOSED or event == 'Exit':
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
         break
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
-        print(f'This event ({event}) is not yet handled.')
-win.close()
+        logger.info(f'This event ({event}) is not yet handled.')
+
 
 """
 This example showed how to easily access key,value information stored in dataset.  A classic example of this is with

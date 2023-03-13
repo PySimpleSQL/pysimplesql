@@ -20,9 +20,9 @@ layout=[
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
 win=sg.Window('Journal (external)  example', layout, finalize=True)
-driver=ss.Sqlite('journal.db', sql_script='journal.sql')
+driver=ss.Sqlite('./SQLite_examples/Journal.db', sql_script='journal.sql')
 frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
-# Note:  sql_script is only run if journal.frm does not exist!  This has the effect of creating a new blank
+# Note:  sql_script is only run if Journal.db does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_script file if the database does not yet exist, otherwise it will use the database!
 
 # Reverse the default sort order so new journal entries appear at the top
@@ -38,12 +38,12 @@ frm['Journal'].requery()
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
-        logger.info(f'PySimpleDB event handler handled the event {event}!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
+    if event == sg.WIN_CLOSED or event == 'Exit':
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
         break
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-win.close()
 

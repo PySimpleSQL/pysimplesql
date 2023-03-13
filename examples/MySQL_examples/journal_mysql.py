@@ -58,10 +58,10 @@ while True:
         frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
         win.close()
         break
-    elif "edit_protect" in event:
-        win['datepicker'].update(disabled=frm.get_edit_protect())
     elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
+        if "edit_protect" in event:
+            win['datepicker'].update(disabled=frm.get_edit_protect())
     else:
         logger.info(f'This event ({event}) is not yet handled.')
 
