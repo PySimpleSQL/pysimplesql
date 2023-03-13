@@ -168,8 +168,8 @@ SEARCH_ENDED: int = 8     # We have reached the end of the search
 DELETE_FAILED: int = 1    # No result was found
 DELETE_RETURNED: int = 2  # A result was found
 DELETE_ABORTED: int = 4   # The search was aborted, likely during a callback
-DELETE_HIT_RECURSION_LIMIT: int = 8     # We hit max nested levels
-DELETE_CASCADE_RECURSION_LIMIT = 15 # This is mysql's max level when using foreign key CASCADE DELETE
+DELETE_RECURSION_LIMIT_ERROR: int = 8     # We hit max nested levels
+DELETE_CASCADE_RECURSION_LIMIT = 15 # Mysql sets this as 15 when using foreign key CASCADE DELETE
 
 # -------
 # CLASSES
@@ -1403,8 +1403,10 @@ class DataSet:
 
         # Delete child records first!
         result = self.driver.delete_record(self, True)
-        
-        if result.exception is not None:
+        if result == DELETE_RECURSION_LIMIT_ERROR:
+            self.frm.popup.ok(lang.delete_failed_title, 
+                              lang.delete_failed.format_map(LangFormat(exception=lang.delete_recursion_limit_error)))
+        elif result.exception is not None:
             self.frm.popup.ok(lang.delete_failed_title, 
                               lang.delete_failed.format_map(LangFormat(exception=result.exception)))
 
@@ -3692,6 +3694,7 @@ class LanguagePack:
     # Failed Ok Popup
     'delete_failed_title': 'Problem Deleting',
     'delete_failed': 'Query failed: {exception}.',
+    'delete_recursion_limit_error' : 'Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT',
 
     # Dataset duplicate_record
     # ------------------------
@@ -4591,9 +4594,11 @@ class SQLDriver:
         # Delete child records first!
         if cascade:
             recursion = 0
-            self.delete_record_recursive(dataset, delete_clause, '', where_clause, table, pk_column, recursion)
+            result = self.delete_record_recursive(dataset, delete_clause, '', where_clause, table, pk_column, recursion)
         
         # Then delete self
+        if result == DELETE_RECURSION_LIMIT_ERROR:
+            return DELETE_RECURSION_LIMIT_ERROR
         q = delete_clause + where_clause + ";"
         return self.execute(q)
     
@@ -4602,7 +4607,7 @@ class SQLDriver:
             # Check to make sure we arn't at recursion limit
             recursion += 1 # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
-                return DELETE_HIT_RECURSION_LIMIT
+                return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm))
@@ -4616,8 +4621,8 @@ class SQLDriver:
                                                   where_clause, child, self.quote_column(dataset.frm[child].pk_column), recursion)
 
             # Break out of recursive call if at recursion limit
-            if result == DELETE_HIT_RECURSION_LIMIT:
-                return DELETE_HIT_RECURSION_LIMIT
+            if result == DELETE_RECURSION_LIMIT_ERROR:
+                return DELETE_RECURSION_LIMIT_ERROR
             
             # Create query and execute
             q = delete_clause + inner_join_clause + where_clause
