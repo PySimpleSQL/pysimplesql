@@ -397,7 +397,8 @@ class DataSet:
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                be generated. False will display all records in query.
         :param prompt_save: (optional) Default: `Form.prompt_save_`. Prompt to save changes when dirty records are present.
-        :param prompt_silent: (optional) Default: `Form.prompt_silent`. True to save when changes are found without prompting the user.
+        :param prompt_silent: (optional) Default: `Form.prompt_silent`. True to save silently when changes are found
+                without prompting the user.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -733,6 +734,9 @@ class DataSet:
         # TODO: children too?
         if self.current_index is None or self.rows == [] or self.prompt_save_ is False:
             return PROMPT_SAVE_NONE
+        
+        # silence info popups on success or none
+        display_message = not self.prompt_silent
 
         # See if any rows are virtual
         vrows = len([row for row in self.rows if row.virtual])
@@ -745,7 +749,8 @@ class DataSet:
                 save_changes = self.frm.popup.yes_no(lang.dataset_prompt_save_title, lang.dataset_prompt_save)
             if save_changes == 'yes':
                 # save this record's cascaded relationships, last to first
-                if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
+                if self.frm.save_records(table=self.table, update_elements=update_elements,
+                                         display_message=display_message) & SAVE_FAIL:
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
@@ -1202,6 +1207,7 @@ class DataSet:
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
         logger.debug(f'Saving records for table {self.table}...')
+
         # Ensure that there is actually something to save
         if not len(self.rows):
             if display_message:
@@ -1221,7 +1227,7 @@ class DataSet:
         # Check right away to see if any records have changed, no need to proceed any further than we have to
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
             if display_message:
-                self.frm.popup.info(lang.dataset_save_none)
+                self.frm.popup.info(lang.dataset_save_none, display_message=display_message)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
@@ -1327,7 +1333,7 @@ class DataSet:
             self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
         if display_message:
-            self.frm.popup.info(lang.dataset_save_success)
+            self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
@@ -1667,7 +1673,7 @@ class Form:
                        also be set manually as a dict with the key 'filter' set in the element's metadata
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
                              as well.
-        :param prompt_silent: (optional) Default:False. True to save when changes are found without prompting the user.
+        :param prompt_silent: (optional) Default:False. True to save silently when changes are found without prompting the user.
         :returns: None
 
         """
@@ -2237,6 +2243,9 @@ class Form:
         :param prompt_silent: True to save when changes are found without prompting the user.
         :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
         """
+        # silence info popups on success or none
+        display_message = not self.prompt_silent
+        
         user_prompted = False # Has the user been prompted yet?
         for data_key in self.datasets:
             if self[data_key].prompt_save_ is False:
@@ -2259,7 +2268,7 @@ class Form:
                         return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
                     break
         if user_prompted:
-            self.save_records(check_prompt_save=True)
+            self.save_records(check_prompt_save=True, display_message=display_message)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
     def set_force_save(self, force:bool=False) -> None:
@@ -2272,7 +2281,7 @@ class Form:
         self.force_save = force
 
     def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False, \
-            update_elements: bool = True) -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
+            update_elements: bool = True, display_message: bool = True,) -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
         """
         Save records of all `DataSet` objects` associated with this `Form`.
 
@@ -2281,6 +2290,7 @@ class Form:
         :param check_prompt_save: Passed to `DataSet.save_record_recursive` to check if individual `DataSet` has prompt_save enabled.
                                   Used when `DataSet.save_records()` is called from `Form.prompt_save()`.
         :param update_elements: (optional) Passed to `Form.save_record_recursive()` to update_elements.
+        :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
         :returns: result - can be used with RETURN BITMASKS
         """
         if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
@@ -2319,6 +2329,7 @@ class Form:
         msg = ''
         msg_tables = ', '.join(failed_tables)
         if result & SAVE_FAIL:
+            display_message = True
             if result & SAVE_SUCCESS:
                 msg = lang.form_save_partial
             msg += lang.form_save_problem.format_map(LangFormat(tables=msg_tables))
@@ -2326,7 +2337,7 @@ class Form:
             msg = lang.form_save_success
         else:
             msg = lang.form_save_none
-        if show_message: self.popup.info(msg)
+        if show_message: self.popup.info(msg, display_message=display_message)
         return result
 
     def set_prompt_save(self, prompt_save: bool, prompt_silent: bool = None) -> None:
@@ -2887,24 +2898,25 @@ class Popup:
         popup_win.close()
         return result
 
-    def info(self, msg):
+    def info(self, msg, display_message: bool = True):
         """
         Internal use only. Creates sg.Window with no buttons, auto-closing after seconds as defined in themepack
         """
         title = lang.info_popup_title
         self.last_info = [title,msg]
-        msg = msg.splitlines()
-        layout = [sg.T(line, font='bold') for line in msg]
-        popup_win = sg.Window(title = title, layout = [layout], no_titlebar = False, auto_close = True,
-                              keep_on_top = True, modal = True, finalize = True, 
-                              auto_close_duration = themepack.info_popup_auto_close_seconds,
-                              alpha_channel = themepack.info_popup_alpha_channel,
-                              element_justification = "center", ttk_theme = themepack.ttk_theme)
-        while True:
-            event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED,'Exit']:
-                break
-        popup_win.close()
+        if display_message:
+            msg = msg.splitlines()
+            layout = [sg.T(line, font='bold') for line in msg]
+            popup_win = sg.Window(title = title, layout = [layout], no_titlebar = False, auto_close = True,
+                                  keep_on_top = True, modal = True, finalize = True, 
+                                  auto_close_duration = themepack.info_popup_auto_close_seconds,
+                                  alpha_channel = themepack.info_popup_alpha_channel,
+                                  element_justification = "center", ttk_theme = themepack.ttk_theme)
+            while True:
+                event, values = popup_win.read()
+                if event in [sg.WIN_CLOSED,'Exit']:
+                    break
+            popup_win.close()
         
     def get_last_info(self) -> List[str]:
         """
