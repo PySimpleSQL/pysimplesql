@@ -4610,7 +4610,7 @@ class SQLDriver:
                 return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
-            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm))
+            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child))
             child_table = self.quote_table(child)
 
             # Create new inner join and add it to beginning of passed in inner_join
