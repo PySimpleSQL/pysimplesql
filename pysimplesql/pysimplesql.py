@@ -236,10 +236,7 @@ class Relationship:
         :param table: The table to get relationships for
         :returns: A list of @Relationship objects
         """
-        rel = []
-        for r in cls.instances:
-            if r.child_table == table:
-                rel.append(r)
+        rel = [r for r in cls.instances if r.child_table == table]
         return rel
 
     @classmethod
@@ -250,10 +247,8 @@ class Relationship:
         :param table: The table to get cascaded children for
         :returns: A unique list of table names
         """
-        rel = []
-        for r in cls.instances:
-            if r.parent_table == table and r.update_cascade:
-                rel.append(r.child_table)
+        rel = [r.child_table for r in cls.instances
+               if r.parent_table == table and r.update_cascade]
         # make unique
         rel = list(set(rel))
         return rel
