@@ -1684,7 +1684,6 @@ class Form:
         self.auto_add_datasets(prefix_data_keys)
         win_pb.update(' Adding relationships', 50)
         self.auto_add_relationships()
-        print('here')
         self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
         if bind_window is not None:
             win_pb.update('Binding window to Form', 75)
