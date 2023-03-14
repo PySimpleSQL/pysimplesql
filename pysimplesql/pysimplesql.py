@@ -396,8 +396,8 @@ class DataSet:
                "ORDER BY {description_column} ASC"
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                be generated. False will display all records in query.
-        :param prompt_save: (optional) Prompt to save changes when dirty records are present.
-        :param prompt_silent: (optional) Default: False. True to save when changes are found without prompting the user.
+        :param prompt_save: (optional) Default: `Form.prompt_save_`. Prompt to save changes when dirty records are present.
+        :param prompt_silent: (optional) Default: `Form.prompt_silent`. True to save when changes are found without prompting the user.
         :returns: None
         """
         DataSet.instances.append(self)
