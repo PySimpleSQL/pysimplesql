@@ -381,7 +381,7 @@ class DataSet:
 
     def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
                  query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
-                 prompt_save: bool = True, autosave=False) -> None:
+                 prompt_save: bool = None, prompt_silent: bool = None) -> None:
         """
         Initialize a new `DataSet` instance
 
@@ -396,8 +396,8 @@ class DataSet:
                "ORDER BY {description_column} ASC"
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                be generated. False will display all records in query.
-        :param prompt_save: (optional) Prompt to save changes when dirty records are present
-        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :param prompt_save: (optional) Prompt to save changes when dirty records are present.
+        :param prompt_silent: (optional) Default: False. True to save when changes are found without prompting the user.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -427,9 +427,15 @@ class DataSet:
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None]] = None
         self.filtered: bool = filtered
-        self._prompt_save: bool = prompt_save
         self._simple_transform: SimpleTransformsDict = {}
-        self.autosave: bool = autosave
+        if prompt_save is None:
+            self.prompt_save_: bool = self.frm.prompt_save_
+        else:
+            self.prompt_save_: bool = prompt_save_
+        if prompt_silent is None:
+            self.prompt_silent: bool = self.frm.prompt_silent
+        else:
+            self.prompt_silent: bool = prompt_silent
 
     # Override the [] operator to retrieve columns by key
     def __getitem__(self, key: str):
@@ -481,14 +487,17 @@ class DataSet:
         # Update the internally tracked instances
         DataSet.instances = new_instances
 
-    def set_prompt_save(self, value: bool) -> None:
+    def set_prompt_save(self, prompt_save: bool, prompt_silent: bool=None) -> None:
         """
-        Set the prompt to save action when navigating records
+        Set the prompt to save action, and silent mode when navigating records.
 
-        :param value: a boolean value, True to prompt to save, False for no prompt to save
+        :param prompt_save: a boolean value, True to check for unsaved changes and prompt to save, False for no action.
+        :param prompt_silent: a boolean value, True to skip message. prompt_save must be True to use.
         :returns: None
         """
-        self._prompt_save = value
+        self.prompt_save_ = prompt_save
+        if prompt_silent is not None:
+            self.prompt_silent = prompt_silent
 
     def set_search_order(self, order: List[str]) -> None:
         """
@@ -710,19 +719,19 @@ class DataSet:
                         break
         return dirty
 
-    def prompt_save(self, autosave: bool = False, update_elements: bool = True)  \
+    def prompt_save(self, prompt_silent: bool = False, update_elements: bool = True)  \
             -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
 
-        :param autosave: True to autosave when changes are found without prompting the user
+        :param prompt_silent: True to save when changes are found without prompting the user.
         :param update_elements: (optional) Passed to `Form.save_records()` -> `Form.save_records_recursive()` to
                         update_elements. Additionally used to discard changes if user reply's 'No' to prompt.
         :returns: A prompt return value of one of the following: `PROMPT_PROCEED`, `PROMPT_DISCARDED`, or `PROMPT_NONE`
         """
-        # Return False if there is nothing to check or _prompt_save is False
+        # Return False if there is nothing to check or prompt_save_ is False
         # TODO: children too?
-        if self.current_index is None or self.rows == [] or self._prompt_save is False:
+        if self.current_index is None or self.rows == [] or self.prompt_save_ is False:
             return PROMPT_SAVE_NONE
 
         # See if any rows are virtual
@@ -730,7 +739,7 @@ class DataSet:
         # Check if any records have changed
         changed = self.records_changed() or vrows
         if changed:
-            if autosave or self.autosave:
+            if prompt_silent or self.prompt_silent:
                 save_changes = 'yes'
             else:
                 save_changes = self.frm.popup.yes_no(lang.dataset_prompt_save_title, lang.dataset_prompt_save)
@@ -1331,7 +1340,7 @@ class DataSet:
         :param display_message: Passed to DataSet.save_record. Displays a message "Updates saved successfully", otherwise
                is silent on success
         :param check_prompt_save: Used when called from Form.prompt_save. Updates elements without saving if individual
-               `DataSet._prompt_save()` is False.
+               `DataSet.prompt_save_()` is False.
         :returns: dict of {table : results}
         """
         for rel in self.frm.relationships:
@@ -1342,7 +1351,7 @@ class DataSet:
                     check_prompt_save=check_prompt_save,
                     update_elements=update_elements
                     )
-        if check_prompt_save and self._prompt_save is False:
+        if check_prompt_save and self.prompt_save_ is False:
             if update_elements:
                 self.frm.update_elements(self.table)
             results[self.table] = PROMPT_SAVE_NONE
@@ -1645,7 +1654,8 @@ class Form:
     relationships = [] # Track our relationships
 
     def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
-                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False) -> None:
+                 parent: Form = None, filter: str = None, select_first: bool = True, prompt_save: bool = True,
+                 prompt_silent: bool = False) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1657,7 +1667,7 @@ class Form:
                        also be set manually as a dict with the key 'filter' set in the element's metadata
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
                              as well.
-        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :param prompt_silent: (optional) Default:False. True to save when changes are found without prompting the user.
         :returns: None
 
         """
@@ -1683,7 +1693,10 @@ class Form:
         self.event_map = []  # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships: List[Relationship] = []
         self.callbacks: CallbacksDict = {}
-        self.autosave: bool = autosave
+        self.prompt_save_: bool = prompt_save
+        if prompt_silent and not prompt_save:
+            logger.info('prompt_save must be True to use silent mode')
+        self.prompt_silent: bool = prompt_silent
         self.force_save: bool = False
 
         # Add our default datasets and relationships
@@ -2216,24 +2229,24 @@ class Form:
         """
         return self._edit_protect
 
-    def prompt_save(self, autosave:bool=False) -> PromptSaveValue:
+    def prompt_save(self, prompt_silent:bool=False) -> PromptSaveValue:
         """
         Prompt to save if any GUI changes are found the affect any table on this form. The helps prevent data entry
         loss when performing an action that changes the current record of a `DataSet`.
 
-        :param autosave: True to autosave when changes are found without prompting the user
+        :param prompt_silent: True to save when changes are found without prompting the user.
         :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
         """
         user_prompted = False # Has the user been prompted yet?
         for data_key in self.datasets:
-            if self[data_key]._prompt_save is False:
+            if self[data_key].prompt_save_ is False:
                 continue
 
             if self[data_key].records_changed(recursive=False): # don't check children
                 # we will only show the popup once, regardless of how many dataset have changed
                 if not user_prompted:
                     user_prompted = True
-                    if autosave or self.autosave:
+                    if prompt_silent or self.prompt_silent:
                         save_changes = 'yes'
                     else:
                         save_changes = self.popup.yes_no(lang.form_prompt_save_title, 
@@ -2316,15 +2329,19 @@ class Form:
         if show_message: self.popup.info(msg)
         return result
 
-    def set_prompt_save(self, value: bool) -> None:
+    def set_prompt_save(self, prompt_save: bool, prompt_silent: bool = None) -> None:
         """
-        Set the prompt to save action when navigating records for all `DataSet` objects associated with this `Form`
+        Set the prompt to save action when navigating records for all `DataSet` objects associated with this `Form`.
+        prompt_silent silently saves when both the `Form` and `DataSet` objects `prompt_save` is called. 
 
-        :param value: a boolean value, True to prompt to save, False for no prompt to save
+        :param prompt_save: a boolean value, True to check for unsaved changes and prompt to save, False for no action.
+        :param prompt_silent: a boolean value, True to skip message. prompt_save must be True to use.
         :returns: None
         """
         for data_key in self.datasets:
-            self[data_key].set_prompt_save(value)
+            self[data_key].set_prompt_save(prompt_save, prompt_silent)
+        if prompt_silent is not None:
+            self.prompt_silent = prompt_silent
 
     def update_elements(self, target_data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
         """
