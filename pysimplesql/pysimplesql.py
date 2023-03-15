@@ -4629,7 +4629,7 @@ class SQLDriver:
                 return DELETE_RECURSION_LIMIT_ERROR
             
             # Create query and execute
-            q = delete_clause + "(" + select_clause + inner_join_clause + where_clause + ")"
+            q = delete_clause + "(" + select_clause + inner_join_clause + where_clause + ");"
             self.execute(q)
             logger.debug(f'Delete query executed: {q}')
 
