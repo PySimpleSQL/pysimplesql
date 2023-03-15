@@ -4589,12 +4589,12 @@ class SQLDriver:
         
         # Create clauses
         delete_clause = f'DELETE FROM {table} ' # leave a space at end for joining
-        where_clause = f'WHERE {table}.{pk_column} = {pk} ' # leave a space at end for joining
+        where_clause = f'WHERE {table}.{pk_column} = {pk}'
 
         # Delete child records first!
         if cascade:
             recursion = 0
-            result = self.delete_record_recursive(dataset, delete_clause, '', where_clause, table, pk_column, recursion)
+            result = self.delete_record_recursive(dataset, '', where_clause, table, pk_column, recursion)
         
         # Then delete self
         if result == DELETE_RECURSION_LIMIT_ERROR:
@@ -4602,7 +4602,7 @@ class SQLDriver:
         q = delete_clause + where_clause + ";"
         return self.execute(q)
     
-    def delete_record_recursive(self, dataset: DataSet, delete_clause, inner_join, where_clause, parent, pk_column, recursion):
+    def delete_record_recursive(self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion):
         for child in Relationship.get_cascaded_relationships(dataset.key):
             # Check to make sure we arn't at recursion limit
             recursion += 1 # Increment, since this is a child
@@ -4610,14 +4610,18 @@ class SQLDriver:
                 return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
-            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child))
+            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm)) # Toggle this if you merge before the Relationship Redo
+#             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child)) # Toggle
+            pk_column = self.quote_column(dataset.frm[child].pk_column)
             child_table = self.quote_table(child)
+            select_clause = f'SELECT {child_table}.{pk_column} FROM {child} '
+            delete_clause = f'DELETE FROM {child} WHERE {pk_column} IN '
 
             # Create new inner join and add it to beginning of passed in inner_join
-            inner_join_clause = f'INNER JOIN {child} ON {parent}.{pk_column} = {child}.{fk_column} {inner_join}'
+            inner_join_clause = f'INNER JOIN {parent} ON {parent}.{pk_column} = {child}.{fk_column} {inner_join}'
 
             # Call function again to create recursion
-            result = self.delete_record_recursive(dataset.frm[child], delete_clause, inner_join_clause,
+            result = self.delete_record_recursive(dataset.frm[child], inner_join_clause,
                                                   where_clause, child, self.quote_column(dataset.frm[child].pk_column), recursion)
 
             # Break out of recursive call if at recursion limit
@@ -4625,7 +4629,7 @@ class SQLDriver:
                 return DELETE_RECURSION_LIMIT_ERROR
             
             # Create query and execute
-            q = delete_clause + inner_join_clause + where_clause
+            q = delete_clause + "(" + select_clause + inner_join_clause + where_clause + ")"
             self.execute(q)
             logger.debug(f'Delete query executed: {q}')
 
