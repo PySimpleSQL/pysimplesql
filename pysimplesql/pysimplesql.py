@@ -4610,8 +4610,8 @@ class SQLDriver:
                 return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
-            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm)) # Toggle this if you merge before the Relationship Redo
-#             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child)) # Toggle
+#             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm)) # Toggle this if you merge before the Relationship Redo
+            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child)) # Toggle
             pk_column = self.quote_column(dataset.frm[child].pk_column)
             child_table = self.quote_table(child)
             select_clause = f'SELECT {child_table}.{pk_column} FROM {child} '
