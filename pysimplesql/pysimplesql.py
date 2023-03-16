@@ -798,34 +798,39 @@ class DataSet:
                     row[k] = v.rstrip()
 
         if select_first:
-            self.first(update_elements=update_elements, requery_dependents=requery_dependents,
+            self.first(filtered=filtered, update_elements=update_elements, requery_dependents=requery_dependents,
                        skip_prompt_save=True)  # We don't want to prompt save in this situation, requery already done
 
-    def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
+    def requery_dependents(self, child: bool = False, filtered: bool = True, update_elements: bool = True) -> None:
         """
         Requery parent `DataSet` instances as defined by the relationships of the table
 
         :param child: (optional) If True, will requery self. Default False; used to skip requery when called by parent.
+        :param filtered: (optional) passed to `DataSet.requery()`. If True, the relationships will be considered and an appropriate
+                WHERE clause will be generated. False will display all records from the table.
         :param update_elements: (optional) passed to `DataSet.requery()` -> `DataSet.first()` to update_elements.
         :returns: None
         """
         if child:
-            self.requery(update_elements=update_elements,
+            self.requery(filtered=filtered, update_elements=update_elements,
                          requery_dependents=False)  # dependents=False: no recursive dependent requery
 
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.update_cascade:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
-                self.frm[rel.child_table].requery_dependents(child=True, update_elements=update_elements)
+                self.frm[rel.child_table].requery_dependents(child=True, filtered=filtered,
+                                                             update_elements=update_elements)
 
-    def first(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False) \
-            -> None:
+    def first(self, filtered: bool = True, update_elements: bool = True, requery_dependents: bool = True,
+              skip_prompt_save: bool = False) -> None:
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
         which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
         `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
+        :param filtered: (optional) passed to `DataSet.requery_dependents()`. If True, the relationships will be considered and an appropriate
+                        WHERE clause will be generated. False will display all records from the table.
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
@@ -837,7 +842,7 @@ class DataSet:
 
         self.current_index = 0
         if requery_dependents:
-            self.requery_dependents(update_elements=update_elements)
+            self.requery_dependents(filtered=filtered, update_elements=update_elements)
         if update_elements:
             self.frm.update_elements(self.table)
         # callback
