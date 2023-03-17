@@ -27,7 +27,7 @@ layout = [
 ]
 # Create the Window, Driver and Form
 win = sg.Window('Journal example: PostgreSQL', layout, finalize=True)
-driver = ss.Mysql(**ss.postgres_examples)  # Use the postgres examples database credentials
+driver = ss.Postgres(**ss.postgres_examples)  # Use the postgres examples database credentials
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top
