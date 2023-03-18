@@ -3396,10 +3396,10 @@ class _SortCallbackWrapper:
         """
         Create a new _SortCallbackWrapper object
 
-        :param frm: `Form` object
-        :param data_key: the `DataSet` item of this Table
+        :param frm_reference: `Form` object
+        :param data_key: `DataSet` key
+        :param element: PySimpleGUI sg.Table element
         :param table_heading: `TableHeading` object
-        :param element: the PySimpleGUI Table element
         :returns: None
         """
         self.frm: Form = frm_reference
