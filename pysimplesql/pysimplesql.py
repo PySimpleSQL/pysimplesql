@@ -162,6 +162,15 @@ SEARCH_RETURNED: int = 2  # A result was found
 SEARCH_ABORTED: int = 4   # The search was aborted, likely during a callback
 SEARCH_ENDED: int = 8     # We have reached the end of the search
 
+# ----------------------------
+# DELETE RETURNS BITMASKS
+# ----------------------------
+DELETE_FAILED: int = 1    # No result was found
+DELETE_RETURNED: int = 2  # A result was found
+DELETE_ABORTED: int = 4   # The search was aborted, likely during a callback
+DELETE_RECURSION_LIMIT_ERROR: int = 8     # We hit max nested levels
+DELETE_CASCADE_RECURSION_LIMIT = 15 # Mysql sets this as 15 when using foreign key CASCADE DELETE
+
 # -------
 # CLASSES
 # -------
@@ -1394,8 +1403,10 @@ class DataSet:
 
         # Delete child records first!
         result = self.driver.delete_record(self, True)
-        
-        if result.exception is not None:
+        if result == DELETE_RECURSION_LIMIT_ERROR:
+            self.frm.popup.ok(lang.delete_failed_title, 
+                              lang.delete_failed.format_map(LangFormat(exception=lang.delete_recursion_limit_error)))
+        elif result.exception is not None:
             self.frm.popup.ok(lang.delete_failed_title, 
                               lang.delete_failed.format_map(LangFormat(exception=result.exception)))
 
@@ -3683,6 +3694,7 @@ class LanguagePack:
     # Failed Ok Popup
     'delete_failed_title': 'Problem Deleting',
     'delete_failed': 'Query failed: {exception}.',
+    'delete_recursion_limit_error' : 'Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT',
 
     # Dataset duplicate_record
     # ------------------------
@@ -4570,24 +4582,59 @@ class SQLDriver:
         return q
 
     def delete_record(self, dataset: DataSet, cascade=True): # TODO: get ON DELETE CASCADE from db
-        # Delete child records first!
-        if cascade:
-            child_deleted = []
-            for _ in dataset.frm.datasets:
-                for r in dataset.frm.relationships:
-                    if r.parent_table == dataset.table and r.update_cascade and (r.child_table not in child_deleted):
-                        child = self.quote_table(r.child_table)
-                        child_deleted.append(child)
-                        fk_column = self.quote_column(r.fk_column)
-                        q = f'DELETE FROM {child} WHERE {fk_column}={dataset.get_current(dataset.pk_column)}'
-                        self.execute(q)
-                        logger.debug(f'Delete query executed: {q}')
-                        dataset.frm[r.child_table].requery(False)
-
+        # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
-        q = f'DELETE FROM {table} WHERE {pk_column}={dataset.get_current(dataset.pk_column)};'
+        pk = dataset.get_current(dataset.pk_column)
+        
+        # Create clauses
+        delete_clause = f'DELETE FROM {table} ' # leave a space at end for joining
+        where_clause = f'WHERE {table}.{pk_column} = {pk}'
+
+        # Delete child records first!
+        if cascade:
+            recursion = 0
+            result = self.delete_record_recursive(dataset, '', where_clause, table, pk_column, recursion)
+        
+        # Then delete self
+        if result == DELETE_RECURSION_LIMIT_ERROR:
+            return DELETE_RECURSION_LIMIT_ERROR
+        q = delete_clause + where_clause + ";"
         return self.execute(q)
+    
+    def delete_record_recursive(self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion):
+        for child in Relationship.get_cascaded_relationships(dataset.key):
+            # Check to make sure we arn't at recursion limit
+            recursion += 1 # Increment, since this is a child
+            if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
+                return DELETE_RECURSION_LIMIT_ERROR
+
+            # Get data for query
+#             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm)) # Toggle this if you merge before the Relationship Redo
+            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child)) # Toggle
+            pk_column = self.quote_column(dataset.frm[child].pk_column)
+            child_table = self.quote_table(child)
+            select_clause = f'SELECT {child_table}.{pk_column} FROM {child} '
+            delete_clause = f'DELETE FROM {child} WHERE {pk_column} IN '
+
+            # Create new inner join and add it to beginning of passed in inner_join
+            inner_join_clause = f'INNER JOIN {parent} ON {parent}.{pk_column} = {child}.{fk_column} {inner_join}'
+
+            # Call function again to create recursion
+            result = self.delete_record_recursive(dataset.frm[child], inner_join_clause,
+                                                  where_clause, child, self.quote_column(dataset.frm[child].pk_column), recursion)
+
+            # Break out of recursive call if at recursion limit
+            if result == DELETE_RECURSION_LIMIT_ERROR:
+                return DELETE_RECURSION_LIMIT_ERROR
+            
+            # Create query and execute
+            q = delete_clause + "(" + select_clause + inner_join_clause + where_clause + ");"
+            self.execute(q)
+            logger.debug(f'Delete query executed: {q}')
+
+            # Reset limit for next Child stack
+            recursion = 0
 
     def duplicate_record(self, dataset: DataSet, cascade: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
