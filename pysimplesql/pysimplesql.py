@@ -2007,19 +2007,7 @@ class Form:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
                         # 2 and run TableHeading.update_headings() with the Table element, sort_column, sort_reverse
                         # 3 and run update_elements() to see the changes
-
-                        def callback_wrapper(column, element=element, data_key=data_key):
-                            # store the pk:
-                            pk = self[data_key].get_current_pk()
-                            sort_order = self[data_key].rows.sort_cycle(column, data_key)
-                            # We only need to update the selectors not all elements, so first set by the primary key,
-                            # then update_selectors()
-                            self[data_key].set_by_pk(pk, update_elements=False, requery_dependents=False,
-                                                     skip_prompt_save=True)
-                            self.update_selectors(data_key)
-                            table_heading.update_headings(element, column, sort_order)
-
-                        table_heading.enable_sorting(element, callback_wrapper)
+                        table_heading.enable_sorting(element, _SortCallbackWrapper(self, data_key, element, table_heading))
 
 
                 else:
@@ -3398,6 +3386,37 @@ class TableHeadings(list):
 
     def insert(self, idx, heading_column:str, column:str=None, *args, **kwargs):
         super().insert(idx,{'heading': heading_column, 'column': column})
+
+class _SortCallbackWrapper:
+    """
+    Internal class used when sg.Table column headers are clicked.
+    """
+    
+    def __init__(self,frm_reference: Form, data_key: str, element: sg.Element, table_heading):
+        """
+        Create a new _SortCallbackWrapper object
+
+        :param frm_reference: `Form` object
+        :param data_key: `DataSet` key
+        :param element: PySimpleGUI sg.Table element
+        :param table_heading: `TableHeading` object
+        :returns: None
+        """
+        self.frm: Form = frm_reference
+        self.data_key = data_key
+        self.element = element
+        self.table_heading:TableHeadings = table_heading
+    
+    def __call__(self, column):
+        # store the pk:
+        pk = self.frm[self.data_key].get_current_pk()
+        sort_order = self.frm[self.data_key].rows.sort_cycle(column, self.data_key)
+        # We only need to update the selectors not all elements, so first set by the primary key,
+        # then update_selectors()
+        self.frm[self.data_key].set_by_pk(pk, update_elements=False, requery_dependents=False,
+                                 skip_prompt_save=True)
+        self.frm.update_selectors(self.data_key)
+        self.table_heading.update_headings(self.element, column, sort_order)
 
 # ======================================================================================================================
 # THEMEPACKS
