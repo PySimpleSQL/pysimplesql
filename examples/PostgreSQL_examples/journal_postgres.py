@@ -25,16 +25,10 @@ layout = [
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
-postgres_examples = {
-    'host': 'tommy2.heliohost.org',
-    'user': 'pysimplesql_admin',
-    'password': 'ssadmin2023',
-    'database': 'pysimplesql_examples'
-}
 
 # Create the Window, Driver and Form
 win = sg.Window('Journal example: PostgreSQL', layout, finalize=True)
-driver = ss.Postgres(**postgres_examples)  # Use the postgres examples database credentials
+driver = ss.Postgres(**ss.postgres_examples)  # Use the postgres examples database credentials
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top

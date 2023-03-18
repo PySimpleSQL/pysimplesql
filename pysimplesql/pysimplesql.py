@@ -3873,10 +3873,10 @@ class ColumnInfo(List):
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
                 table = self.driver.quote_table(self.table)
-                q = f'SELECT {default} FROM {table};' # TODO: may need AS column to support all databases?
+                q = f'SELECT {default} AS val FROM {table};' # TODO: may need AS column to support all databases?
                 rows = self.driver.execute(q)
                 if rows.exception is None:
-                    default = rows.fetchone()[default]
+                    default = rows.fetchone()['val']
                     logger.debug(f'Default fetched from database function. Default value is: {default}')
                     d[c.name] = default
                     continue
@@ -5039,7 +5039,7 @@ class Maria(Mysql):
 # POSTGRES DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
-    def __init__(self,host,user,password,database,sql_script=None, sql_commands=None, sync_sequences=True):
+    def __init__(self,host,user,password,database,sql_script=None, sql_commands=None, sync_sequences=False):
         super().__init__(name='Postgres', table_quote='"')
 
         self.host = host
@@ -5069,6 +5069,7 @@ class Postgres(SQLDriver):
                 max_pk = self.max_pk(table, pk_column)
 
                 # update the sequence
+                # TODO: This needs fixed.  pysimplesql_user does have permissions on the sequence, but this still bombs out
                 seq = self.quote_table(seq)
                 if max_pk > 0:
                     q = f"SELECT setval('{seq}', {max_pk});"
@@ -5106,6 +5107,10 @@ class Postgres(SQLDriver):
             cursor.execute(query, values) if values else cursor.execute(query)
         except psycopg2.Error as e:
             exception = e
+            logger.debug(f'{e}, {query}')
+            self.rollback()
+        else:
+            self.commit()
 
         try:
             rows = cursor.fetchall()
@@ -5194,7 +5199,7 @@ class Postgres(SQLDriver):
         seq = f'{table}_{pk_column}_seq' # build the default sequence name
         seq = self.quote_table(seq) # quote it like a table
 
-        q=f"SELECT nextval('{seq}');" # wrap the quoted string in singe quotes.  Phew!
+        q=f"SELECT nextval('{seq}') LIMIT 1;" # wrap the quoted string in singe quotes.  Phew!
         rows = self.execute(q, silent=True)
         return rows.fetchone()['nextval']
 
