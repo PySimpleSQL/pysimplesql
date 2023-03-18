@@ -253,10 +253,7 @@ class Relationship:
         :param table: The table to get relationships for
         :returns: A list of @Relationship objects
         """
-        rel = []
-        for r in cls.instances:
-            if r.child_table == table:
-                rel.append(r)
+        rel = [r for r in cls.instances if r.child_table == table]
         return rel
 
     @classmethod
@@ -267,10 +264,8 @@ class Relationship:
         :param table: The table to get cascaded children for
         :returns: A unique list of table names
         """
-        rel = []
-        for r in cls.instances:
-            if r.parent_table == table and r.update_cascade:
-                rel.append(r.child_table)
+        rel = [r.child_table for r in cls.instances
+               if r.parent_table == table and r.update_cascade]
         # make unique
         rel = list(set(rel))
         return rel
@@ -288,18 +283,16 @@ class Relationship:
         return None
 
     @classmethod
-    def get_cascade_fk_column(cls, table: str, frm: Form) -> Union[str, None]:
+    def get_cascade_fk_column(cls, table: str) -> Union[str, None]:
         """
         Return the cascade fk that filters for the passed-in table
 
         :param table: The table name of the child
-        :param frm: A `Form` object
         :returns: The name of the cascade-fk, or None
         """
-        for _ in frm.datasets:
-            for r in cls.instances:
-                if r.child_table == frm[table].table and r.update_cascade:
-                    return r.fk_column
+        for r in cls.instances:
+            if r.child_table == table and r.update_cascade:
+                return r.fk_column
         return None
 
     def __init__(self, join_type: str, child_table: str, fk_column: Union[str, int], parent_table: str,
@@ -1266,7 +1259,7 @@ class DataSet:
         changed_row = {k: v for k, v in current_row.items()}
         cascade_fk_changed = False
         # check to see if cascading-fk has changed before we update database
-        cascade_fk_column = self.frm.get_cascade_fk_column(self.table)
+        cascade_fk_column = Relationship.get_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
@@ -1543,7 +1536,7 @@ class DataSet:
             else:
                 lst = []
 
-            rels = self.frm.get_relationships_for_table(self)
+            rels = Relationship.get_relationships_for_table(self.table)
             pk = None
             for col in all_columns:
                 # Is this the primary key column?
@@ -1569,7 +1562,7 @@ class DataSet:
         :param column: The column name to get related table information for
         :returns: The name of the related table, or the current table if none are found
         """
-        rels = self.frm.get_relationships_for_table(self)
+        rels = Relationship.get_relationships_for_table(self.table)
         for rel in rels:
             if column == rel.fk_column:
                 return rel.parent_table
@@ -1840,58 +1833,6 @@ class Form:
         """
         self.relationships.append(
             Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver, self))
-
-    def get_relationships_for_table(self, table:str) -> List[Relationship]:
-        """
-        Return the relationships for the passed-in table.
-
-        :param table: The table to get relationships for
-        :returns: A list of @Relationship objects
-        """
-        rel = []
-        for r in self.relationships:
-            if r.child_table == table.table:
-                rel.append(r)
-        return rel
-
-    def get_cascaded_relationships(self, table:str) -> List[str]:
-        """
-        Return a unique list of the relationships for this table that should requery with this table.
-
-        :param table: The table to get cascaded children for
-        :returns: A unique list of table names
-        """
-        rel = []
-        for r in self.relationships:
-            if r.parent_table == table and r.update_cascade:
-                rel.append(r.child_table)
-        # make unique
-        rel = list(set(rel))
-        return rel
-
-    def get_parent(self, table: str) -> Union[str, None]:
-        """
-        Return the parent table for the passed-in table
-        :param table: The table (str) to get relationships for
-        :returns: The name of the Parent table, or None if there is none
-        """
-        for r in self.relationships:
-            if r.child_table == table and r.update_cascade:
-                return r.parent_table
-        return None
-    
-    def get_cascade_fk_column(self, table:str) -> Union[str,None]:
-        """
-        Return the cascade fk that filters for the passed-in table
-
-        :param table: The table name of the child
-        :returns: The name of the cascade-fk, or None
-        """
-        for _ in self.datasets:
-            for r in self.relationships:
-                if r.child_table == self[table].table and r.update_cascade:
-                    return r.fk_column
-        return None
     
     def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
         """
@@ -2299,10 +2240,10 @@ class Form:
         if table: tables = [table] # if passed single table
         # for cascade_only, build list of top-level dataset that have children
         elif cascade_only: tables = [dataset.table for dataset in self.datasets.values()
-                                     if len(self.get_cascaded_relationships(table=dataset.table))
-                                     and self.get_parent(dataset.table) is None]
+                                     if len(Relationship.get_cascaded_relationships(dataset.table))
+                                     and Relationship.get_parent(dataset.table) is None]
         # default behavior, build list of top-level dataset (ones without a parent)
-        else: tables = [dataset.table for dataset in self.datasets.values() if self.get_parent(dataset.table) is None]
+        else: tables = [dataset.table for dataset in self.datasets.values() if Relationship.get_parent(dataset.table) is None]
         
         # call save_record_recursive on tables, which saves from last to first.
         result_list = []
@@ -2397,7 +2338,7 @@ class Form:
                     win[m['event']].update(disabled=disable)
 
                 # Disable insert on children with no parent records or edit protect mode
-                parent = self.get_parent(data_key)
+                parent = Relationship.get_parent(data_key)
                 if parent is not None:
                     disable = len(self[parent].rows) == 0 or self._edit_protect
                 else:
@@ -2469,7 +2410,7 @@ class Form:
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
                 target_table=None
-                rels = self.get_relationships_for_table(mapped.dataset) # TODO this should be get_relationships_for_data?
+                rels = Relationship.get_relationships_for_table(mapped.dataset.table) # TODO this should be get_relationships_for_data?
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -2667,7 +2608,7 @@ class Form:
         # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
         logger.info('Requerying all datasets')
         for data_key in self.datasets:
-            if self.get_parent(data_key) is None:
+            if Relationship.get_parent(data_key) is None:
                 self[data_key].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
                                        requery_dependents=requery_dependents)
 
