@@ -4558,15 +4558,19 @@ class SQLDriver:
         ## using the "CREATE TABLE AS" syntax.
         description = self.quote_value(f"{lang.duplicate_prepend}{dataset.get_description_for_pk(dataset.get_current_pk())}")
         table = self.quote_table(dataset.table)
+        tmp_table = self.quote_table(f"temp_{dataset.table}")
         pk_column = self.quote_column(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
-
-        query= ['DROP TABLE IF EXISTS tmp;',
-                f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {table} WHERE {pk_column}=\
-                {dataset.get_current(dataset.pk_column)}',
-                f'UPDATE tmp SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)}',
-                f'UPDATE tmp SET {description_column} = {description}', f'INSERT INTO {table} SELECT * FROM tmp'
-                ]
+        
+        # Create tmp table, update pk column in temp and insert into table
+        query= [f'DROP TABLE IF EXISTS {tmp_table};',
+                f'CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE {pk_column}=\
+                    {dataset.get_current(dataset.pk_column)};',
+                f'UPDATE {tmp_table} SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)};',
+                f'UPDATE {tmp_table} SET {description_column} = {description}',
+                f'INSERT INTO {table} SELECT * FROM {tmp_table};',
+                f'DROP TABLE IF EXISTS {tmp_table};',
+               ]
         for q in query:
             res = self.execute(q)
             if res.exception: return res
@@ -4582,17 +4586,20 @@ class SQLDriver:
                 for r in dataset.frm.relationships:
                     if r.parent_table == dataset.table and r.update_cascade and (r.child_table not in child_duplicated):
                         child = self.quote_table(r.child_table)
+                        tmp_child = self.quote_table(f"temp_{r.child_table}")
                         fk = self.quote_column(r.fk_column)
                         pk_column = self.quote_column(dataset.frm[r.child_table].pk_column)
                         fk_column = self.quote_column(r.fk_column)
 
-                        queries = ['DROP TABLE IF EXISTS tmp;',
-                                 f'CREATE TEMPORARY TABLE tmp AS SELECT * FROM {child} WHERE {fk}=\
-                                 {dataset.get_current(dataset.pk_column)}',
-                                 f'UPDATE tmp SET {pk_column} = {self.next_pk(r.child_table, r.pk_column)}',
-                                 f'UPDATE tmp SET {fk_column} = {pk}', f'INSERT INTO {child} SELECT * FROM tmp',
-                                 'DROP TABLE IF EXISTS tmp;'
-                                 ]
+                        # Update children's pk_columns to NULL and set correct parent PK value.
+                        queries = [f'DROP TABLE IF EXISTS {tmp_child};',
+                                   f'CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk}=\
+                                       {dataset.get_current(dataset.pk_column)};',
+                                   f'UPDATE {tmp_child} SET {pk_column} = NULL;', # don't next_pk(), because child can be plural.
+                                   f'UPDATE {tmp_child} SET {fk_column} = {pk}',
+                                   f'INSERT INTO {child} SELECT * FROM {tmp_child};',
+                                   f'DROP TABLE IF EXISTS {tmp_child};',
+                                  ]
                         for q in queries:
                             res = self.execute(q)
                             if res.exception: return res
