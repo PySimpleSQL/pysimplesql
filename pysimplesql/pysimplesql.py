@@ -60,6 +60,10 @@ import functools
 import os.path
 import logging
 
+# For threaded info popup
+from time import sleep
+import threading
+
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
 try:
     from .language_pack import *
@@ -1684,7 +1688,7 @@ class Form:
         self._edit_protect: bool = False
         self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
-        self.popup = Popup()
+        self.popup = None
         """
         The element map dict is set up as below:
         
@@ -1707,6 +1711,7 @@ class Form:
         if bind_window is not None:
             win_pb.update(lang.startup_binding, 75)
             self.window=bind_window
+            self.popup = Popup()
             self.bind(self.window)
         win_pb.close()
 
@@ -1743,7 +1748,8 @@ class Form:
         :returns:  None
         """
         logger.info('Binding Window to Form')
-        #self.window = win
+        self.window = win
+        self.popup = Popup()
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
@@ -2007,19 +2013,7 @@ class Form:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
                         # 2 and run TableHeading.update_headings() with the Table element, sort_column, sort_reverse
                         # 3 and run update_elements() to see the changes
-
-                        def callback_wrapper(column, element=element, data_key=data_key):
-                            # store the pk:
-                            pk = self[data_key].get_current_pk()
-                            sort_order = self[data_key].rows.sort_cycle(column, data_key)
-                            # We only need to update the selectors not all elements, so first set by the primary key,
-                            # then update_selectors()
-                            self[data_key].set_by_pk(pk, update_elements=False, requery_dependents=False,
-                                                     skip_prompt_save=True)
-                            self.update_selectors(data_key)
-                            table_heading.update_headings(element, column, sort_order)
-
-                        table_heading.enable_sorting(element, callback_wrapper)
+                        table_heading.enable_sorting(element, _SortCallbackWrapper(self, data_key, element, table_heading))
 
 
                 else:
@@ -2794,6 +2788,7 @@ class Popup:
         :returns: None
         """
         self.last_info = None
+        self.popup_info = None
 
     def ok(self, title, msg):
         """
@@ -2830,24 +2825,34 @@ class Popup:
         popup_win.close()
         return result
 
-    def info(self, msg):
+    def info(self, msg: str, display_message: bool = True, auto_close_seconds: int = None):
+        """
+        Creates sg.Window with no buttons to display passed in message string, and writes message to
+        to self.last_info.
+        Uses title as defined in lang.info_popup_title.
+        By default auto-closes in seconds as defined in themepack.info_popup_auto_close_seconds
+        :param msg: String to display as message
+        :param display_message: [Optional] By default True. False only writes [title,msg] to self.last_info
+        :param auto_close_seconds: [Optional] Gets value from themepack.info_popup_auto_close_seconds by default.
+        :returns: None
+        """
         """
         Internal use only. Creates sg.Window with no buttons, auto-closing after seconds as defined in themepack
         """
         title = lang.info_popup_title
+        if auto_close_seconds is None:
+            auto_close_seconds = themepack.info_popup_auto_close_seconds
         self.last_info = [title,msg]
-        msg = msg.splitlines()
-        layout = [sg.T(line, font='bold') for line in msg]
-        popup_win = sg.Window(title = title, layout = [layout], no_titlebar = False, auto_close = True,
-                              keep_on_top = True, modal = True, finalize = True, 
-                              auto_close_duration = themepack.info_popup_auto_close_seconds,
-                              alpha_channel = themepack.info_popup_alpha_channel,
-                              element_justification = "center", ttk_theme = themepack.ttk_theme)
-        while True:
-            event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED,'Exit']:
-                break
-        popup_win.close()
+        if display_message:
+            msg = msg.splitlines()
+            layout = [sg.T(line, font='bold') for line in msg]
+            self.popup_info = sg.Window(title = title, layout = [layout], no_titlebar = False,
+                                  keep_on_top = True, finalize = True, 
+                                  alpha_channel = themepack.info_popup_alpha_channel,
+                                  element_justification = "center", ttk_theme = themepack.ttk_theme)
+            threading.Thread(target=self.auto_close,
+                             args=(self.popup_info, auto_close_seconds),
+                             daemon=True).start()
         
     def get_last_info(self) -> List[str]:
         """
@@ -2855,6 +2860,22 @@ class Popup:
         :returns: a single list of [type,title, msg]
         """
         return self.last_info
+    
+    def auto_close(self, window: sg.Window, seconds: int):
+        """
+        Use in a thread to automatically close the passed in sg.Window.
+        :param window: sg.Window object to close
+        :param seconds: Seconds to keep window open
+        :returns: None
+        """
+        step = 1
+        while step <= seconds:
+            sleep(1)
+            step += 1
+        self.close(window)
+    
+    def close(self, window):
+        window.close()
 
 class ProgressBar:
     def __init__(self, title: str, max_value: int = 100):
@@ -3398,6 +3419,37 @@ class TableHeadings(list):
 
     def insert(self, idx, heading_column:str, column:str=None, *args, **kwargs):
         super().insert(idx,{'heading': heading_column, 'column': column})
+
+class _SortCallbackWrapper:
+    """
+    Internal class used when sg.Table column headers are clicked.
+    """
+    
+    def __init__(self,frm_reference: Form, data_key: str, element: sg.Element, table_heading):
+        """
+        Create a new _SortCallbackWrapper object
+
+        :param frm_reference: `Form` object
+        :param data_key: `DataSet` key
+        :param element: PySimpleGUI sg.Table element
+        :param table_heading: `TableHeading` object
+        :returns: None
+        """
+        self.frm: Form = frm_reference
+        self.data_key = data_key
+        self.element = element
+        self.table_heading:TableHeadings = table_heading
+    
+    def __call__(self, column):
+        # store the pk:
+        pk = self.frm[self.data_key].get_current_pk()
+        sort_order = self.frm[self.data_key].rows.sort_cycle(column, self.data_key)
+        # We only need to update the selectors not all elements, so first set by the primary key,
+        # then update_selectors()
+        self.frm[self.data_key].set_by_pk(pk, update_elements=False, requery_dependents=False,
+                                 skip_prompt_save=True)
+        self.frm.update_selectors(self.data_key)
+        self.table_heading.update_headings(self.element, column, sort_order)
 
 # ======================================================================================================================
 # THEMEPACKS
