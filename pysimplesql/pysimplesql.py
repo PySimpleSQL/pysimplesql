@@ -1672,8 +1672,8 @@ class Form:
         :returns: None
 
         """
-        win_pb = ProgressBar('Creating Form')
-        win_pb.update('Initializing', 0)
+        win_pb = ProgressBar(lang.startup_form)
+        win_pb.update(lang.startup_init, 0)
         Form.instances.append(self)
 
         self.driver: SQLDriver = driver
@@ -1698,13 +1698,13 @@ class Form:
         self.force_save: bool = False
 
         # Add our default datasets and relationships
-        win_pb.update('Adding datasets', 25)
+        win_pb.update(lang.startup_datasets, 25)
         self.auto_add_datasets(prefix_data_keys)
-        win_pb.update(' Adding relationships', 50)
+        win_pb.update(lang.startup_relationships, 50)
         self.auto_add_relationships()
         self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
         if bind_window is not None:
-            win_pb.update('Binding window to Form', 75)
+            win_pb.update(lang.startup_binding, 75)
             self.window=bind_window
             self.bind(self.window)
         win_pb.close()
@@ -3637,6 +3637,22 @@ class LanguagePack:
     'button_ok' : '  OK  ',
     'button_yes' : ' Yes ',
     'button_no' : '  No  ',
+    
+    # ------------------------
+    # Startup progress bar
+    # ------------------------
+    'startup_form' : 'Creating Form',
+    'startup_init' : 'Initializing',
+    'startup_datasets' : 'Adding datasets',
+    'startup_relationships' : 'Adding relationships',
+    'startup_binding' : 'Binding window to Form',
+
+    # ------------------------
+    # Progress bar displayed during sqldriver operations
+    # ------------------------
+    'sqldriver_init' : '{name} connection',
+    'sqldriver_connecting' : 'Connecting to database',
+    'sqldriver_execute' : 'executing SQL commands',
 
     # ------------------------
     # Info Popup Title - universal
@@ -3698,6 +3714,8 @@ class LanguagePack:
 
     # Dataset duplicate_record
     # ------------------------
+    # Msg prepend to front of parent duplicate
+    'duplicate_prepend' : 'Copy of ',
     # Popup when record has children
     'duplicate_child_title': 'Confirm Duplication',
     'duplicate_child': 'This record has child records:\n(in {children})\nWhich records would you like to duplicate?',
@@ -4380,8 +4398,8 @@ class SQLDriver:
         self.con = None
         self.name = name
         self._check_reserved_keywords = True
-        self. win_pb = ProgressBar(f'{name} connection', 100)
-        self.win_pb.update('Connecting to database', 0)
+        self.win_pb = ProgressBar(lang.sqldriver_init.format_map(LangFormat(name=name)), 100)
+        self.win_pb.update(lang.sqldriver_connecting, 0)
 
         # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
         # in the SQL string should be quoted and represented as placeholders. Override these in the derived class as
@@ -4641,7 +4659,7 @@ class SQLDriver:
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        description = self.quote_value(f"Copy of {dataset.get_description_for_pk(dataset.get_current_pk())}")
+        description = self.quote_value(f"{lang.duplicate_prepend}{dataset.get_description_for_pk(dataset.get_current_pk())}")
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
@@ -4741,7 +4759,7 @@ class Sqlite(SQLDriver):
             new_database = False
             self.imported_database = True
 
-        self.win_pb.update('executing SQL commands',50)
+        self.win_pb.update(lang.sqldriver_execute,50)
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
