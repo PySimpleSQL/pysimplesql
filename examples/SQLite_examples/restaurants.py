@@ -41,11 +41,12 @@ frm = ss.Form(driver, bind_window=win)  # <=== load the database
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
-        logger.info('PySimpleDB event handler handled the event!')
-    elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization at close
+    if event == sg.WIN_CLOSED or event == 'Exit':
+        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        win.close()
         break
+    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+        logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-win.close()
+
