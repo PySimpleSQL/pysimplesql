@@ -2862,9 +2862,9 @@ class Popup:
                                   keep_on_top = True, finalize = True, 
                                   alpha_channel = themepack.popup_info_alpha_channel,
                                   element_justification = "center", ttk_theme = themepack.ttk_theme)
-#             threading.Thread(target=self.auto_close,
-#                              args=(self.popup_info, auto_close_seconds),
-#                              daemon=True).start()
+            threading.Thread(target=self.auto_close,
+                             args=(self.popup_info, auto_close_seconds),
+                             daemon=True).start()
         
     def get_last_info(self) -> List[str]:
         """
