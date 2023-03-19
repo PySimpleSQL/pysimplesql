@@ -261,7 +261,7 @@ class Relationship:
         return rel
 
     @classmethod
-    def get_cascaded_relationships(cls, table: str) -> List[str]:
+    def get_update_cascade_relationships(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should requery with this table.
 
@@ -269,7 +269,21 @@ class Relationship:
         :returns: A unique list of table names
         """
         rel = [r.child_table for r in cls.instances
-               if r.parent_table == table and r.update_cascade]
+               if r.parent_table == table and r._update_cascade]
+        # make unique
+        rel = list(set(rel))
+        return rel
+    
+    @classmethod
+    def get_delete_cascade_relationships(cls, table: str) -> List[str]:
+        """
+        Return a unique list of the relationships for this table that should be deleted with this table.
+
+        :param table: The table to get cascaded children for
+        :returns: A unique list of table names
+        """
+        rel = [r.child_table for r in cls.instances
+               if r.parent_table == table and r._delete_cascade]
         # make unique
         rel = list(set(rel))
         return rel
@@ -282,12 +296,12 @@ class Relationship:
         :returns: The name of the Parent table, or None if there is none
         """
         for r in cls.instances:
-            if r.child_table == table and r.update_cascade:
+            if r.child_table == table and r._update_cascade:
                 return r.parent_table
         return None
 
     @classmethod
-    def get_cascade_fk_column(cls, table: str) -> Union[str, None]:
+    def get_update_cascade_fk_column(cls, table: str) -> Union[str, None]:
         """
         Return the cascade fk that filters for the passed-in table
 
@@ -295,12 +309,26 @@ class Relationship:
         :returns: The name of the cascade-fk, or None
         """
         for r in cls.instances:
-            if r.child_table == table and r.update_cascade:
+            if r.child_table == table and r._update_cascade:
+                return r.fk_column
+        return None
+    
+    @classmethod
+    def get_delete_cascade_fk_column(cls, table: str) -> Union[str, None]:
+        """
+        Return the cascade fk that filters for the passed-in table
+
+        :param table: The table name of the child
+        :returns: The name of the cascade-fk, or None
+        """
+        for r in cls.instances:
+            if r.child_table == table and r._delete_cascade:
                 return r.fk_column
         return None
 
     def __init__(self, join_type: str, child_table: str, fk_column: Union[str, int], parent_table: str,
-                 pk_column: Union[str, int], update_cascade: bool, driver: SQLDriver, frm: Form) -> None:
+                 pk_column: Union[str, int], update_cascade: bool, delete_cascade: bool,
+                 driver: SQLDriver, frm: Form) -> None:
         """
         Initialize a new Relationship instance
 
@@ -309,6 +337,8 @@ class Relationship:
         :param fk_column: The child table's foreign key column
         :param parent_table: The table name of the parent table
         :param pk_column: The parent table's primary key column
+        :param update_cascade: True if the child's fk_column ON UPDATE rule is 'CASCADE'
+        :param delete_cascade: True if the child's fk_column ON DELETE rule is 'CASCADE'
         :param driver: A `SQLDriver` instance
         :param frm: A Form instance
         :returns: None
@@ -319,9 +349,24 @@ class Relationship:
         self.parent_table = parent_table
         self.pk_column = pk_column
         self.update_cascade = update_cascade
+        self.delete_cascade = delete_cascade
         self.driver = driver
         self.frm = frm
         Relationship.instances.append(self)
+        
+    @property
+    def _update_cascade(self):
+        if self.update_cascade and self.frm.update_cascade:
+            return True
+        else:
+            return False
+
+    @property
+    def _delete_cascade(self):
+        if self.delete_cascade and self.frm.delete_cascade:
+            return True
+        else:
+            return False
 
     def __str__(self):
         """
@@ -718,7 +763,7 @@ class DataSet:
         # handle recursive checking next
         if recursive:
             for rel in self.frm.relationships:
-                if rel.parent_table == self.table and rel.update_cascade:
+                if rel.parent_table == self.table and rel._update_cascade:
                     dirty = self.frm[rel.child_table].records_changed()
                     if dirty:
                         break
@@ -828,7 +873,7 @@ class DataSet:
                          requery_dependents=False)  # dependents=False: no recursive dependent requery
 
         for rel in self.frm.relationships:
-            if rel.parent_table == self.table and rel.update_cascade:
+            if rel.parent_table == self.table and rel._update_cascade:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
                 self.frm[rel.child_table].requery_dependents(child=True, update_elements=update_elements)
 
@@ -1182,7 +1227,7 @@ class DataSet:
 
         # Make sure we take into account the foreign key relationships...
         for r in self.frm.relationships:
-            if self.table == r.child_table and r.update_cascade:
+            if self.table == r.child_table and r._update_cascade:
                 new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert.
@@ -1263,7 +1308,7 @@ class DataSet:
         changed_row = {k: v for k, v in current_row.items()}
         cascade_fk_changed = False
         # check to see if cascading-fk has changed before we update database
-        cascade_fk_column = Relationship.get_cascade_fk_column(self.table)
+        cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
@@ -1349,7 +1394,7 @@ class DataSet:
         :returns: dict of {table : results}
         """
         for rel in self.frm.relationships:
-            if rel.parent_table == self.table and rel.update_cascade:
+            if rel.parent_table == self.table and rel._update_cascade:
                 self.frm[rel.child_table].save_record_recursive(
                     results=results,
                     display_message=display_message,
@@ -1385,12 +1430,8 @@ class DataSet:
 
         children = []
         if cascade:
-            for _ in self.frm.datasets:
-                for r in self.frm.relationships:
-                    if r.parent_table == self.table and r.update_cascade:
-                        children.append(r.child_table)
-        
-        children = list(set(children))
+            children = Relationship.get_delete_cascade_relationships(self.table)
+
         msg_children = ', '.join(children)
         if len(children):
             msg = lang.delete_cascade.format_map(LangFormat(children=msg_children))
@@ -1447,22 +1488,24 @@ class DataSet:
             
         children = []
         if cascade:
-            for _ in self.frm.datasets:
-                for r in self.frm.relationships:
-                    if r.parent_table == self.table and r.update_cascade:
-                        children.append(r.child_table)
-        
-        children = list(set(children))
+            children = Relationship.get_update_cascade_relationships(self.table)
+
         msg_children = ', '.join(children)
         msg = lang.duplicate_child.format_map(LangFormat(children=msg_children)).splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
         if len(children):
             answer = sg.Window(lang.duplicate_child_title, [
                 layout,
-                [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent')],
-                [sg.Button(button_text=lang.duplicate_child_button_dupboth, key='cascade')],
-                [sg.Button(button_text=lang.button_cancel, key='cancel')],
-                ], keep_on_top=True, modal=True).read(close=True)
+                [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent',
+                                use_ttk_buttons = themepack.use_ttk_buttons,
+                                pad = themepack.popup_button_pad)],
+                [sg.Button(button_text=lang.duplicate_child_button_dupboth, key='cascade',
+                                use_ttk_buttons = themepack.use_ttk_buttons,
+                                pad = themepack.popup_button_pad)],
+                [sg.Button(button_text=lang.button_cancel, key='cancel',
+                                use_ttk_buttons = themepack.use_ttk_buttons,
+                                pad = themepack.popup_button_pad)],
+                ], keep_on_top=True, modal=True, ttk_theme = themepack.ttk_theme).read(close=True)
             if answer[0] == 'parent':
                 cascade = False
             elif answer[0] in ['cancel', None]:
@@ -1600,7 +1643,7 @@ class DataSet:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            [selector(data_key, sg.Table, num_rows=10, headings=headings, visible_column_map=visible)])
+            [selector(data_key, sg.Table, key=f'{data_key}:quick_editor', num_rows=10, headings=headings, visible_column_map=visible)])
         layout.append([actions(data_key, edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
@@ -1609,10 +1652,12 @@ class DataSet:
             if col!=self.pk_column:
                 layout.append([field(column)])
 
-        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFormat(data_key=data_key)), layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
-        driver=Sqlite(sqlite3_database=self.frm.driver.con)
-        quick_frm = Form(driver, bind_window=quick_win)
-
+        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
+                              layout, keep_on_top = True, modal = True, finalize = True,
+                              ttk_theme=themepack.ttk_theme) # Without specifying same ttk_theme,
+                                                             # quick_edit will override user-set theme
+                                                             # in main window
+        quick_frm = Form(self.frm.driver, bind_window=quick_win)
 
         # Select the current entry to start with
         if pk_update_funct is not None:
@@ -1626,7 +1671,7 @@ class DataSet:
 
             if quick_frm.process_events(event, values):
                 logger.debug(f'PySimpleSQL Quick Editor event handler handled the event {event}!')
-            if event == sg.WIN_CLOSED or event == 'Exit':
+            if event in [sg.WIN_CLOSED,'Exit']:
                 break
             else:
                 logger.debug(f'This event ({event}) is not yet handled.')
@@ -1661,7 +1706,8 @@ class Form:
     relationships = [] # Track our relationships
 
     def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
-                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False) -> None:
+                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False,
+                 update_cascade: bool = True, delete_cascade: bool = True) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1701,6 +1747,8 @@ class Form:
         self.callbacks: CallbacksDict = {}
         self.autosave: bool = autosave
         self.force_save: bool = False
+        self.update_cascade: bool = update_cascade
+        self.delete_cascade: bool = delete_cascade
 
         # Add our default datasets and relationships
         win_pb.update(lang.startup_datasets, 25)
@@ -1821,7 +1869,8 @@ class Form:
         self.datasets.update({data_key: DataSet(data_key, self, table, pk_column, description_column, query, order_clause)})
         self[data_key].set_search_order([description_column])  # set a default sort order
 
-    def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str, update_cascade) -> None:
+    def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str,
+                         update_cascade:bool, delete_cascade:bool) -> None:
         """
         Add a foreign key relationship between two dataset of the database
         When you attach a database, PySimpleSQL isn't aware of the relationships contained until dataset are
@@ -1834,11 +1883,32 @@ class Form:
         :param fk_column: The foreign key column of the child table
         :param parent_table: The parent table containing the primary key
         :param pk_column: The primary key column of the parent table
-        :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in SQL)
+        :param update_cascade: Requery and filter child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
         :returns: None
         """
         self.relationships.append(
-            Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver, self))
+            Relationship(join, child_table, fk_column, parent_table, pk_column,
+                         update_cascade, delete_cascade, self.driver, self))
+        
+    def update_fk_relationship(self, child_table:str, fk_column:str, update_cascade:bool = None, delete_cascade:bool = None) -> None:
+        """
+        Update a foreign key's update_cascade and delete_cascade behavior.
+        `Form.auto_add_relationships()` automatically sets update_cascade and delete_cascade
+        from the schema of the database.
+        :param child_table: The child table containing the foreign key
+        :param fk_column: The foreign key column of the child table
+        :param update_cascade: True requeries and filters child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
+        :returns: None
+        """
+        for rel in self.relationships:
+            if rel.child_table == child_table and rel.fk_column == fk_column:
+                logger.info(f'Updating {fk_column=} relationship.')
+                if update_cascade is not None:
+                    rel.update_cascade = update_cascade
+                if delete_cascade is not None:
+                    rel.delete_cascade = update_cascade
     
     def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
         """
@@ -1893,7 +1963,8 @@ class Form:
         relationships = self.driver.relationships()
         for r in relationships:
             logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
-            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['update_cascade'])
+            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'],
+                                  r['update_cascade'], r['delete_cascade'])
 
     # Map an element to a DataSet.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
@@ -2234,7 +2305,7 @@ class Form:
         if table: tables = [table] # if passed single table
         # for cascade_only, build list of top-level dataset that have children
         elif cascade_only: tables = [dataset.table for dataset in self.datasets.values()
-                                     if len(Relationship.get_cascaded_relationships(dataset.table))
+                                     if len(Relationship.get_update_cascade_relationships(dataset.table))
                                      and Relationship.get_parent(dataset.table) is None]
         # default behavior, build list of top-level dataset (ones without a parent)
         else: tables = [dataset.table for dataset in self.datasets.values() if Relationship.get_parent(dataset.table) is None]
@@ -2796,7 +2867,9 @@ class Popup:
         """
         msg = msg.splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
-        layout.append(sg.Button(button_text = lang.button_ok, key = 'ok', use_ttk_buttons = True, pad=5))
+        layout.append(sg.Button(button_text = lang.button_ok, key = 'ok',
+                                use_ttk_buttons = themepack.use_ttk_buttons,
+                                pad = themepack.popup_button_pad))
         popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
                               ttk_theme = themepack.ttk_theme, element_justification = "center")
 
@@ -2812,8 +2885,12 @@ class Popup:
         """
         msg = msg.splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
-        layout.append(sg.Button(button_text = lang.button_yes, key = 'yes', use_ttk_buttons = True, pad=5))
-        layout.append(sg.Button(button_text = lang.button_no, key = 'no', use_ttk_buttons = True, pad=5))
+        layout.append(sg.Button(button_text = lang.button_yes, key = 'yes',
+                                use_ttk_buttons = themepack.use_ttk_buttons,
+                                pad = themepack.popup_button_pad))
+        layout.append(sg.Button(button_text = lang.button_no, key = 'no',
+                                use_ttk_buttons = themepack.use_ttk_buttons,
+                                pad = themepack.popup_button_pad))
         popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
                               ttk_theme = themepack.ttk_theme, element_justification = "center")
         
@@ -2830,10 +2907,10 @@ class Popup:
         Creates sg.Window with no buttons to display passed in message string, and writes message to
         to self.last_info.
         Uses title as defined in lang.info_popup_title.
-        By default auto-closes in seconds as defined in themepack.info_popup_auto_close_seconds
+        By default auto-closes in seconds as defined in themepack.popup_info_auto_close_seconds
         :param msg: String to display as message
-        :param display_message: [Optional] By default True. False only writes [title,msg] to self.last_info
-        :param auto_close_seconds: [Optional] Gets value from themepack.info_popup_auto_close_seconds by default.
+        :param display_message: (optional) By default True. False only writes [title,msg] to self.last_info
+        :param auto_close_seconds: (optional) Gets value from themepack.info_popup_auto_close_seconds by default.
         :returns: None
         """
         """
@@ -2841,14 +2918,14 @@ class Popup:
         """
         title = lang.info_popup_title
         if auto_close_seconds is None:
-            auto_close_seconds = themepack.info_popup_auto_close_seconds
+            auto_close_seconds = themepack.popup_info_auto_close_seconds
         self.last_info = [title,msg]
         if display_message:
             msg = msg.splitlines()
             layout = [sg.T(line, font='bold') for line in msg]
             self.popup_info = sg.Window(title = title, layout = [layout], no_titlebar = False,
                                   keep_on_top = True, finalize = True, 
-                                  alpha_channel = themepack.info_popup_alpha_channel,
+                                  alpha_channel = themepack.popup_info_alpha_channel,
                                   element_justification = "center", ttk_theme = themepack.ttk_theme)
             threading.Thread(target=self.auto_close,
                              args=(self.popup_info, auto_close_seconds),
@@ -2881,7 +2958,7 @@ class ProgressBar:
     def __init__(self, title: str, max_value: int = 100):
         layout = [
             [sg.Text('', key='message', size=(31, 1))],
-            [sg.ProgressBar(max_value, orientation='h', size=(30, 20), key='bar')]
+            [sg.ProgressBar(max_value, orientation='h', size=(30, 20), key='bar', style=themepack.ttk_theme)]
         ]
 
         self.title = title
@@ -3015,7 +3092,7 @@ class Convenience:
 
 def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = None, label: str = '',
           no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None, key=None,
-          **kwargs) -> sg.Column:
+          use_ttk_buttons = None, pad = None, **kwargs) -> sg.Column:
     """
     Convenience function for adding PySimpleGUI elements to the Window, so they are properly configured for pysimplesql
     The automatic functionality of pysimplesql relies on accompanying metadata so that the `Form.auto_add_elements()`
@@ -3041,7 +3118,11 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
     """
     # TODO: See what the metadata does after initial setup is complete - is it needed anymore?
     global keygen
-    global themepack
+    
+    if use_ttk_buttons is None:
+        use_ttk_buttons = themepack.use_ttk_buttons
+    if pad is None:
+        pad = themepack.quick_editor_button_pad
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
     if '?' in field:
@@ -3086,15 +3167,17 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
     if element == sg.Combo and quick_editor:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'column': column, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.quick_edit) is bytes:
-            layout[-1].append(sg.B('', key=keygen.get(f'{key}.quick_edit'), size=(1, 1), image_data=themepack.quick_edit, metadata=meta))
+            layout[-1].append(sg.B('', key=keygen.get(f'{key}.quick_edit'), size=(1, 1), image_data=themepack.quick_edit, metadata=meta,
+                                   use_ttk_buttons = use_ttk_buttons, pad = pad))
         else:
-            layout[-1].append(sg.B(themepack.quick_edit, key=keygen.get(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = True))
+            layout[-1].append(sg.B(themepack.quick_edit, key=keygen.get(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad))
     #return layout
     return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
 
 def actions(table: str, key=None, default: bool = True, edit_protect: bool = None, navigation: bool = None,
             insert: bool = None, delete: bool = None, duplicate: bool = None, save: bool = None, search: bool = None,
-            search_size: Tuple[int, int] = (30, 1), bind_return_key: bool = True, filter: str = None) -> sg.Column:
+            search_size: Tuple[int, int] = (30, 1), bind_return_key: bool = True, filter: str = None,
+            use_ttk_buttons: bool = None, pad = None, **kwargs) -> sg.Column:
     """
     Allows for easily adding record navigation and record action elements to the PySimpleGUI window
     The navigation elements are generated automatically (first, previous, next, last and search).  The action elements
@@ -3135,6 +3218,11 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
     """
     global keygen
     global themepack
+    
+    if use_ttk_buttons is None:
+        use_ttk_buttons = themepack.use_ttk_buttons
+    if pad is None:
+        pad = themepack.action_button_pad
 
     edit_protect = default if edit_protect is None else edit_protect
     navigation = default if navigation is None else navigation
@@ -3151,73 +3239,70 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
     if edit_protect:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'table': None, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.edit_protect) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}edit_protect'), size=(1, 1), button_color=('orange', 'yellow'),
-                               image_data=themepack.edit_protect, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}edit_protect'), size=(1, 1), image_data=themepack.edit_protect, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.edit_protect, key=keygen.get(f'{key}edit_protect'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.edit_protect, key=keygen.get(f'{key}edit_protect'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
     if save:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'table': None, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.save) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}db_save'), size=(1, 1), button_color=('white', 'white'), image_data=themepack.save,
-                               metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}db_save'), image_data=themepack.save, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.save, key=keygen.get(f'{key}db_save'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.save, key=keygen.get(f'{key}db_save'), metadata=meta))
 
     # DataSet-level events
     if navigation:
         # first
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.first) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_first'), size=(1, 1), image_data=themepack.first, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_first'), size=(1, 1), image_data=themepack.first, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.first, key=keygen.get(f'{key}table_first'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.first, key=keygen.get(f'{key}table_first'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         # previous
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.previous) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_previous'), size=(1, 1), image_data=themepack.previous, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_previous'), size=(1, 1), image_data=themepack.previous, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.previous, key=keygen.get(f'{key}table_previous'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.previous, key=keygen.get(f'{key}table_previous'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         # next
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.next) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_next'), size=(1, 1), image_data=themepack.next, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_next'), size=(1, 1), image_data=themepack.next, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.next, key=keygen.get(f'{key}table_next'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.next, key=keygen.get(f'{key}table_next'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         # last
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.last) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_last'), size=(1, 1), image_data=themepack.last, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_last'), size=(1, 1), image_data=themepack.last, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.last, key=keygen.get(f'{key}table_last'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.last, key=keygen.get(f'{key}table_last'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
     if duplicate:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.duplicate) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_duplicate'), size=(1, 1), button_color=('orange', 'orange'),
-                               image_data=themepack.duplicate, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_duplicate'), size=(1, 1), image_data=themepack.duplicate, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
             layout.append(
-                sg.B(themepack.duplicate, key=keygen.get(f'{key}table_duplicate'), metadata=meta, use_ttk_buttons=True))
+                sg.B(themepack.duplicate, key=keygen.get(f'{key}table_duplicate'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
     if insert:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.insert) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_insert'), size=(1, 1), button_color=('black', 'chartreuse3'),
-                               image_data=themepack.insert, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_insert'), size=(1, 1), image_data=themepack.insert, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.insert, key=keygen.get(f'{key}table_insert'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.insert, key=keygen.get(f'{key}table_insert'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
     if delete:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.delete) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_delete'), size=(1, 1), button_color=('white', 'red'),
-                            image_data=themepack.delete, metadata=meta))
+            layout.append(sg.B('', key=keygen.get(f'{key}table_delete'), size=(1, 1), image_data=themepack.delete, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
         else:
-            layout.append(sg.B(themepack.delete, key=keygen.get(f'{key}table_delete'), metadata=meta, use_ttk_buttons = True))
+            layout.append(sg.B(themepack.delete, key=keygen.get(f'{key}table_delete'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
     if search:
         meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
         if type(themepack.search) is bytes:
-            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B('', key=keygen.get(f'{key}search_button'), bind_return_key=bind_return_key, size=(1, 1), button_color=('white', 'red'),
-                                                                                            image_data=themepack.delete, metadata=meta, use_ttk_buttons = True)]
+            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B('', key=keygen.get(f'{key}search_button'),
+                                                                                               bind_return_key=bind_return_key, size=(1, 1),
+                                                                                               image_data=themepack.delete, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs)]
         else:
-            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B(themepack.search, key=keygen.get(f'{key}search_button'), bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = True)]
+            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B(themepack.search, key=keygen.get(f'{key}search_button'),
+                                                                                               bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs)]
     return sg.Col(layout=[layout], pad=(0,0))
 
 
@@ -3470,7 +3555,21 @@ class ThemePack:
 
     """
     default = {
+        # Theme to use with ttk widgets.
+        #-------------------------------
+        # Choices (on Windows) include:
+        # 'default', 'winnative', 'clam', 'alt', 'classic', 'vista', 'xpnative'
         'ttk_theme': 'default',
+        
+        # Defaults for actions() buttons & popups
+        #----------------------------------------
+        'use_ttk_buttons' : True,
+        'quick_editor_button_pad' : (3,0),
+        'action_button_pad' : (3,0),
+        'popup_button_pad' : (5,5),
+        
+        # Action buttons
+        #----------------------------------------
         'edit_protect': b'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',
         'quick_edit': b'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',
         'save': b'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',
@@ -3482,23 +3581,35 @@ class ThemePack:
         'delete': b'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',
         'duplicate': b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw1AUhU9TRZGKQztIcchQnSyIFnHUKhShQqgVWnUweekfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfE1cVJ0UVKvC8ptIjxwuN9nHfP4b37AKFZZZrVMwFoum1mUkkxl18V+14hIIAwokjIzDLmJCkN3/q6p16quzjP8u/7swbVgsWAgEg8ywzTJt4gnt60Dc77xBFWllXic+Jxky5I/Mh1xeM3ziWXBZ4ZMbOZeeIIsVjqYqWLWdnUiBPEMVXTKV/Ieaxy3uKsVeusfU/+wlBBX1nmOq0RpLCIJUgQoaCOCqqwEaddJ8VChs6TPv6o65fIpZCrAkaOBdSgQXb94H/we7ZWcWrSSwolgd4Xx/kYBfp2gVbDcb6PHad1AgSfgSu94681gZlP0hsdLXYEDG0DF9cdTdkDLneA4SdDNmVXCtISikXg/Yy+KQ+Eb4GBNW9u7XOcPgBZmlX6Bjg4BMZKlL3u8+7+7rn929Oe3w9rHnKk7x4JKQAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAAd0SU1FB+cCARMnD1HzB0IAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAABJUlEQVQ4y6WTT2qDQBTGvxnLwFTETZfZZCu9hPdwJei2B3GThZcovUJAkx6hdXqBisxOycI/YF43VWxiTEo+eAy8gW9+35sZMMYeAWxM0zwAoEvFOSfbtvcA1piIAdhEUfTieR4451iSUgqu634BcMamaZqHoihoqqZpLtYv0WpqTFprIiLK85x836elKJP6GOKMBr7vU5ZldIuSJCEhxHY0GPBuldaaDMOg5akBqOsaYRjO7vV9j6sEZVnO9rXWBIAelk7uug5VVQHAuEopIYTA2S2cEgRBMDv9OI7/EIBzflcEblnWu1IK92gNQA2Ip2rbdsSeI5garf77DqSUx+ktfAP4TNP02XGcq9i73Q51Xb+dxRFCbA3DWPwHUsojgFfG2NMPCKbWh17KiKEAAAAASUVORK5CYII=',
         'search': 'Search',
+        
+        # Markers
+        #----------------------------------------
         'marker_virtual': '\u2731',
         'marker_required': '\u2731',
         'marker_required_color': 'red2',
+        
+        # Sorting icons
+        #----------------------------------------
         'sort_asc_marker': '\u25BC',
         'sort_desc_marker': '\u25B2',
-        'info_popup_auto_close_seconds' : 1,
-        'info_popup_alpha_channel' : .85,
+        
+        # Info Popup defaults
+        #----------------------------------------
+        'popup_info_auto_close_seconds' : 1,
+        'popup_info_alpha_channel' : .85,
+
         # Default sizes for elements
         #---------------------------
         # Label Size
         # Sets the default label (text) size when `field()` is used.
         # A label is static text that is displayed near the element to describe what it is.
         'default_label_size' : (20, 1), # (width, height)
+
         # Element Size
         # Sets the default element size when `field()` is used.
         # The size= parameter of `field()` will override this.
         'default_element_size' : (30, 1), # (width, height)
+
         # Mline size
         # Sets the default multi-line text size when `field()` is used.
         # The size= parameter of `field()` will override this.
@@ -4508,7 +4619,7 @@ class SQLDriver:
         where = ''
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
-                if r.update_cascade:
+                if r._update_cascade:
                     table = dataset.table
                     parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
                     if parent_pk == '':
@@ -4570,15 +4681,14 @@ class SQLDriver:
         return self.execute(q)
     
     def delete_record_recursive(self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion):
-        for child in Relationship.get_cascaded_relationships(dataset.key):
+        for child in Relationship.get_delete_cascade_relationships(dataset.key):
             # Check to make sure we arn't at recursion limit
             recursion += 1 # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
                 return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
-#             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm)) # Toggle this if you merge before the Relationship Redo
-            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child)) # Toggle
+            fk_column = self.quote_column(Relationship.get_delete_cascade_fk_column(child))
             pk_column = self.quote_column(dataset.frm[child].pk_column)
             child_table = self.quote_table(child)
             select_clause = f'SELECT {child_table}.{pk_column} FROM {child} '
@@ -4636,16 +4746,14 @@ class SQLDriver:
         if cascade:
             for _ in dataset.frm.datasets:
                 for r in dataset.frm.relationships:
-                    if r.parent_table == dataset.table and r.update_cascade and (r.child_table not in child_duplicated):
+                    if r.parent_table == dataset.table and r._update_cascade and (r.child_table not in child_duplicated):
                         child = self.quote_table(r.child_table)
                         tmp_child = self.quote_table(f"temp_{r.child_table}")
-                        fk = self.quote_column(r.fk_column)
                         pk_column = self.quote_column(dataset.frm[r.child_table].pk_column)
                         fk_column = self.quote_column(r.fk_column)
-
                         # Update children's pk_columns to NULL and set correct parent PK value.
                         queries = [f'DROP TABLE IF EXISTS {tmp_child};',
-                                   f'CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk}=\
+                                   f'CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
                                        {dataset.get_current(dataset.pk_column)};',
                                    f'UPDATE {tmp_child} SET {pk_column} = NULL;', # don't next_pk(), because child can be plural.
                                    f'UPDATE {tmp_child} SET {fk_column} = {pk}',
@@ -4807,6 +4915,10 @@ class Sqlite(SQLDriver):
                     dic['update_cascade'] = True
                 else:
                     dic['update_cascade'] = False
+                if row['on_delete'] == 'CASCADE':
+                    dic['delete_cascade'] = True
+                else:
+                    dic['delete_cascade'] = False
                 dic['from_table'] = from_table
                 dic['to_table'] = row['table']
                 dic['from_column'] = row['from']
@@ -5052,11 +5164,15 @@ class Mysql(SQLDriver):
             for row in rows:
                 dic = {}
                 # Get the constraint information
-                constraint = self.constraint(row['CONSTRAINT_NAME'])
-                if constraint == 'CASCADE':
+                on_update, on_delete = self.constraint(row['CONSTRAINT_NAME'])
+                if on_update == 'CASCADE':
                     dic['update_cascade'] = True
                 else:
                     dic['update_cascade'] = False
+                if on_delete == 'CASCADE':
+                    dic['delete_cascade'] = True
+                else:
+                    dic['delete_cascade'] = False
                 dic['from_table'] = row['TABLE_NAME']
                 dic['to_table'] = row['REFERENCED_TABLE_NAME']
                 dic['from_column'] = row['COLUMN_NAME']
@@ -5071,9 +5187,9 @@ class Mysql(SQLDriver):
 
     # Not required for SQLDriver
     def constraint(self,constraint_name):
-        query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
+        query = f"SELECT UPDATE_RULE, DELETE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
         rows = self.execute(query, silent=True)
-        return rows[0]['UPDATE_RULE']
+        return rows[0]['UPDATE_RULE'], rows[0]['DELETE_RULE']
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -5207,7 +5323,7 @@ class Postgres(SQLDriver):
         tables= self.get_tables()
         relationships = []
         for from_table in tables:
-            query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, "
+            query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, confdeltype,"
             query += f"a1.attname AS column_name, a2.attname AS referenced_column_name "
             query += f"FROM pg_constraint "
             query += f"JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
@@ -5221,10 +5337,14 @@ class Postgres(SQLDriver):
                 dic = {}
                 # Get the constraint information
                 #constraint = self.constraint(row['conname'])
-                if row['conname'] == 'c':
+                if row['confupdtype'] == 'c':
                     dic['update_cascade'] = True
                 else:
                     dic['update_cascade'] = False
+                if row['confdeltype'] == 'c':
+                    dic['delete_cascade'] = True
+                else:
+                    dic['delete_cascade'] = False
                 dic['from_table'] = row['conrelid'].strip('"')
                 dic['to_table'] = row['confrelid'].strip('"')
                 dic['from_column'] = row['column_name']
