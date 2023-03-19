@@ -1643,7 +1643,7 @@ class DataSet:
             headings[i]=headings[i].ljust(col_width,' ')
 
         layout.append(
-            [selector(data_key, sg.Table, num_rows=10, headings=headings, visible_column_map=visible)])
+            [selector(data_key, sg.Table, key=f'{data_key}:quick_editor', num_rows=10, headings=headings, visible_column_map=visible)])
         layout.append([actions(data_key, edit_protect=False)])
         layout.append([sg.Text('')])
         layout.append([sg.HorizontalSeparator()])
@@ -1652,10 +1652,12 @@ class DataSet:
             if col!=self.pk_column:
                 layout.append([field(column)])
 
-        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFormat(data_key=data_key)), layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme) ## Without specifying same ttk_theme, quick_edit will override user-set theme in main window
-        driver=Sqlite(sqlite3_database=self.frm.driver.con)
-        quick_frm = Form(driver, bind_window=quick_win)
-
+        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
+                              layout, keep_on_top = True, modal = True, finalize = True,
+                              ttk_theme=themepack.ttk_theme) # Without specifying same ttk_theme,
+                                                             # quick_edit will override user-set theme
+                                                             # in main window
+        quick_frm = Form(self.frm.driver, bind_window=quick_win)
 
         # Select the current entry to start with
         if pk_update_funct is not None:
@@ -1669,7 +1671,7 @@ class DataSet:
 
             if quick_frm.process_events(event, values):
                 logger.debug(f'PySimpleSQL Quick Editor event handler handled the event {event}!')
-            if event == sg.WIN_CLOSED or event == 'Exit':
+            if event in [sg.WIN_CLOSED,'Exit']:
                 break
             else:
                 logger.debug(f'This event ({event}) is not yet handled.')
