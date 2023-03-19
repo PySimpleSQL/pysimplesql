@@ -261,7 +261,7 @@ class Relationship:
         return rel
 
     @classmethod
-    def get_cascaded_relationships(cls, table: str) -> List[str]:
+    def get_update_cascade_relationships(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should requery with this table.
 
@@ -269,7 +269,21 @@ class Relationship:
         :returns: A unique list of table names
         """
         rel = [r.child_table for r in cls.instances
-               if r.parent_table == table and r.update_cascade]
+               if r.parent_table == table and r._update_cascade]
+        # make unique
+        rel = list(set(rel))
+        return rel
+    
+    @classmethod
+    def get_delete_cascade_relationships(cls, table: str) -> List[str]:
+        """
+        Return a unique list of the relationships for this table that should be deleted with this table.
+
+        :param table: The table to get cascaded children for
+        :returns: A unique list of table names
+        """
+        rel = [r.child_table for r in cls.instances
+               if r.parent_table == table and r._delete_cascade]
         # make unique
         rel = list(set(rel))
         return rel
@@ -282,12 +296,12 @@ class Relationship:
         :returns: The name of the Parent table, or None if there is none
         """
         for r in cls.instances:
-            if r.child_table == table and r.update_cascade:
+            if r.child_table == table and r._update_cascade:
                 return r.parent_table
         return None
 
     @classmethod
-    def get_cascade_fk_column(cls, table: str) -> Union[str, None]:
+    def get_update_cascade_fk_column(cls, table: str) -> Union[str, None]:
         """
         Return the cascade fk that filters for the passed-in table
 
@@ -295,12 +309,26 @@ class Relationship:
         :returns: The name of the cascade-fk, or None
         """
         for r in cls.instances:
-            if r.child_table == table and r.update_cascade:
+            if r.child_table == table and r._update_cascade:
+                return r.fk_column
+        return None
+    
+    @classmethod
+    def get_delete_cascade_fk_column(cls, table: str) -> Union[str, None]:
+        """
+        Return the cascade fk that filters for the passed-in table
+
+        :param table: The table name of the child
+        :returns: The name of the cascade-fk, or None
+        """
+        for r in cls.instances:
+            if r.child_table == table and r._delete_cascade:
                 return r.fk_column
         return None
 
     def __init__(self, join_type: str, child_table: str, fk_column: Union[str, int], parent_table: str,
-                 pk_column: Union[str, int], update_cascade: bool, driver: SQLDriver, frm: Form) -> None:
+                 pk_column: Union[str, int], update_cascade: bool, delete_cascade: bool,
+                 driver: SQLDriver, frm: Form) -> None:
         """
         Initialize a new Relationship instance
 
@@ -309,6 +337,8 @@ class Relationship:
         :param fk_column: The child table's foreign key column
         :param parent_table: The table name of the parent table
         :param pk_column: The parent table's primary key column
+        :param update_cascade: True if the child's fk_column ON UPDATE rule is 'CASCADE'
+        :param delete_cascade: True if the child's fk_column ON DELETE rule is 'CASCADE'
         :param driver: A `SQLDriver` instance
         :param frm: A Form instance
         :returns: None
@@ -319,9 +349,24 @@ class Relationship:
         self.parent_table = parent_table
         self.pk_column = pk_column
         self.update_cascade = update_cascade
+        self.delete_cascade = delete_cascade
         self.driver = driver
         self.frm = frm
         Relationship.instances.append(self)
+        
+    @property
+    def _update_cascade(self):
+        if self.update_cascade and self.frm.update_cascade:
+            return True
+        else:
+            return False
+
+    @property
+    def _delete_cascade(self):
+        if self.delete_cascade and self.frm.delete_cascade:
+            return True
+        else:
+            return False
 
     def __str__(self):
         """
@@ -718,7 +763,7 @@ class DataSet:
         # handle recursive checking next
         if recursive:
             for rel in self.frm.relationships:
-                if rel.parent_table == self.table and rel.update_cascade:
+                if rel.parent_table == self.table and rel._update_cascade:
                     dirty = self.frm[rel.child_table].records_changed()
                     if dirty:
                         break
@@ -828,7 +873,7 @@ class DataSet:
                          requery_dependents=False)  # dependents=False: no recursive dependent requery
 
         for rel in self.frm.relationships:
-            if rel.parent_table == self.table and rel.update_cascade:
+            if rel.parent_table == self.table and rel._update_cascade:
                 logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
                 self.frm[rel.child_table].requery_dependents(child=True, update_elements=update_elements)
 
@@ -1182,7 +1227,7 @@ class DataSet:
 
         # Make sure we take into account the foreign key relationships...
         for r in self.frm.relationships:
-            if self.table == r.child_table and r.update_cascade:
+            if self.table == r.child_table and r._update_cascade:
                 new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert.
@@ -1263,7 +1308,7 @@ class DataSet:
         changed_row = {k: v for k, v in current_row.items()}
         cascade_fk_changed = False
         # check to see if cascading-fk has changed before we update database
-        cascade_fk_column = Relationship.get_cascade_fk_column(self.table)
+        cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
@@ -1349,7 +1394,7 @@ class DataSet:
         :returns: dict of {table : results}
         """
         for rel in self.frm.relationships:
-            if rel.parent_table == self.table and rel.update_cascade:
+            if rel.parent_table == self.table and rel._update_cascade:
                 self.frm[rel.child_table].save_record_recursive(
                     results=results,
                     display_message=display_message,
@@ -1385,12 +1430,8 @@ class DataSet:
 
         children = []
         if cascade:
-            for _ in self.frm.datasets:
-                for r in self.frm.relationships:
-                    if r.parent_table == self.table and r.update_cascade:
-                        children.append(r.child_table)
-        
-        children = list(set(children))
+            children = Relationship.get_delete_cascade_relationships(self.table)
+
         msg_children = ', '.join(children)
         if len(children):
             msg = lang.delete_cascade.format_map(LangFormat(children=msg_children))
@@ -1447,12 +1488,8 @@ class DataSet:
             
         children = []
         if cascade:
-            for _ in self.frm.datasets:
-                for r in self.frm.relationships:
-                    if r.parent_table == self.table and r.update_cascade:
-                        children.append(r.child_table)
-        
-        children = list(set(children))
+            children = Relationship.get_update_cascade_relationships(self.table)
+
         msg_children = ', '.join(children)
         msg = lang.duplicate_child.format_map(LangFormat(children=msg_children)).splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
@@ -1661,7 +1698,8 @@ class Form:
     relationships = [] # Track our relationships
 
     def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
-                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False) -> None:
+                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False,
+                 update_cascade: bool = True, delete_cascade: bool = True) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1701,6 +1739,8 @@ class Form:
         self.callbacks: CallbacksDict = {}
         self.autosave: bool = autosave
         self.force_save: bool = False
+        self.update_cascade: bool = update_cascade
+        self.delete_cascade: bool = delete_cascade
 
         # Add our default datasets and relationships
         win_pb.update(lang.startup_datasets, 25)
@@ -1821,7 +1861,8 @@ class Form:
         self.datasets.update({data_key: DataSet(data_key, self, table, pk_column, description_column, query, order_clause)})
         self[data_key].set_search_order([description_column])  # set a default sort order
 
-    def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str, update_cascade) -> None:
+    def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str,
+                         update_cascade:bool, delete_cascade:bool) -> None:
         """
         Add a foreign key relationship between two dataset of the database
         When you attach a database, PySimpleSQL isn't aware of the relationships contained until dataset are
@@ -1834,11 +1875,32 @@ class Form:
         :param fk_column: The foreign key column of the child table
         :param parent_table: The parent table containing the primary key
         :param pk_column: The primary key column of the parent table
-        :param update_cascade: Automatically requery the child table if the parent table changes (ON UPDATE CASCADE in SQL)
+        :param update_cascade: Requery and filter child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
         :returns: None
         """
         self.relationships.append(
-            Relationship(join, child_table, fk_column, parent_table, pk_column, update_cascade, self.driver, self))
+            Relationship(join, child_table, fk_column, parent_table, pk_column,
+                         update_cascade, delete_cascade, self.driver, self))
+        
+    def update_fk_relationship(self, child_table:str, fk_column:str, update_cascade:bool = None, delete_cascade:bool = None) -> None:
+        """
+        Update a foreign key's update_cascade and delete_cascade behavior.
+        `Form.auto_add_relationships()` automatically sets update_cascade and delete_cascade
+        from the schema of the database.
+        :param child_table: The child table containing the foreign key
+        :param fk_column: The foreign key column of the child table
+        :param update_cascade: True requeries and filters child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
+        :returns: None
+        """
+        for rel in self.relationships:
+            if rel.child_table == child_table and rel.fk_column == fk_column:
+                logger.info(f'Updating {fk_column=} relationship.')
+                if update_cascade is not None:
+                    rel.update_cascade = update_cascade
+                if delete_cascade is not None:
+                    rel.delete_cascade = update_cascade
     
     def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
         """
@@ -1893,7 +1955,8 @@ class Form:
         relationships = self.driver.relationships()
         for r in relationships:
             logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
-            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'], r['update_cascade'])
+            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'],
+                                  r['update_cascade'], r['delete_cascade'])
 
     # Map an element to a DataSet.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
@@ -2234,7 +2297,7 @@ class Form:
         if table: tables = [table] # if passed single table
         # for cascade_only, build list of top-level dataset that have children
         elif cascade_only: tables = [dataset.table for dataset in self.datasets.values()
-                                     if len(Relationship.get_cascaded_relationships(dataset.table))
+                                     if len(Relationship.get_update_cascade_relationships(dataset.table))
                                      and Relationship.get_parent(dataset.table) is None]
         # default behavior, build list of top-level dataset (ones without a parent)
         else: tables = [dataset.table for dataset in self.datasets.values() if Relationship.get_parent(dataset.table) is None]
@@ -2832,8 +2895,8 @@ class Popup:
         Uses title as defined in lang.info_popup_title.
         By default auto-closes in seconds as defined in themepack.info_popup_auto_close_seconds
         :param msg: String to display as message
-        :param display_message: [Optional] By default True. False only writes [title,msg] to self.last_info
-        :param auto_close_seconds: [Optional] Gets value from themepack.info_popup_auto_close_seconds by default.
+        :param display_message: (optional) By default True. False only writes [title,msg] to self.last_info
+        :param auto_close_seconds: (optional) Gets value from themepack.info_popup_auto_close_seconds by default.
         :returns: None
         """
         """
@@ -4508,7 +4571,7 @@ class SQLDriver:
         where = ''
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
-                if r.update_cascade:
+                if r._update_cascade:
                     table = dataset.table
                     parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
                     if parent_pk == '':
@@ -4570,15 +4633,14 @@ class SQLDriver:
         return self.execute(q)
     
     def delete_record_recursive(self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion):
-        for child in Relationship.get_cascaded_relationships(dataset.key):
+        for child in Relationship.get_delete_cascade_relationships(dataset.key):
             # Check to make sure we arn't at recursion limit
             recursion += 1 # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
                 return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
-#             fk_column = self.quote_column(Relationship.get_cascade_fk_column(child, dataset.frm)) # Toggle this if you merge before the Relationship Redo
-            fk_column = self.quote_column(Relationship.get_cascade_fk_column(child)) # Toggle
+            fk_column = self.quote_column(Relationship.get_delete_cascade_fk_column(child))
             pk_column = self.quote_column(dataset.frm[child].pk_column)
             child_table = self.quote_table(child)
             select_clause = f'SELECT {child_table}.{pk_column} FROM {child} '
@@ -4636,16 +4698,14 @@ class SQLDriver:
         if cascade:
             for _ in dataset.frm.datasets:
                 for r in dataset.frm.relationships:
-                    if r.parent_table == dataset.table and r.update_cascade and (r.child_table not in child_duplicated):
+                    if r.parent_table == dataset.table and r._update_cascade and (r.child_table not in child_duplicated):
                         child = self.quote_table(r.child_table)
                         tmp_child = self.quote_table(f"temp_{r.child_table}")
-                        fk = self.quote_column(r.fk_column)
                         pk_column = self.quote_column(dataset.frm[r.child_table].pk_column)
                         fk_column = self.quote_column(r.fk_column)
-
                         # Update children's pk_columns to NULL and set correct parent PK value.
                         queries = [f'DROP TABLE IF EXISTS {tmp_child};',
-                                   f'CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk}=\
+                                   f'CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
                                        {dataset.get_current(dataset.pk_column)};',
                                    f'UPDATE {tmp_child} SET {pk_column} = NULL;', # don't next_pk(), because child can be plural.
                                    f'UPDATE {tmp_child} SET {fk_column} = {pk}',
@@ -4807,6 +4867,10 @@ class Sqlite(SQLDriver):
                     dic['update_cascade'] = True
                 else:
                     dic['update_cascade'] = False
+                if row['on_delete'] == 'CASCADE':
+                    dic['delete_cascade'] = True
+                else:
+                    dic['delete_cascade'] = False
                 dic['from_table'] = from_table
                 dic['to_table'] = row['table']
                 dic['from_column'] = row['from']
@@ -5052,11 +5116,15 @@ class Mysql(SQLDriver):
             for row in rows:
                 dic = {}
                 # Get the constraint information
-                constraint = self.constraint(row['CONSTRAINT_NAME'])
-                if constraint == 'CASCADE':
+                on_update, on_delete = self.constraint(row['CONSTRAINT_NAME'])
+                if on_update == 'CASCADE':
                     dic['update_cascade'] = True
                 else:
                     dic['update_cascade'] = False
+                if on_delete == 'CASCADE':
+                    dic['delete_cascade'] = True
+                else:
+                    dic['delete_cascade'] = False
                 dic['from_table'] = row['TABLE_NAME']
                 dic['to_table'] = row['REFERENCED_TABLE_NAME']
                 dic['from_column'] = row['COLUMN_NAME']
@@ -5071,9 +5139,9 @@ class Mysql(SQLDriver):
 
     # Not required for SQLDriver
     def constraint(self,constraint_name):
-        query = f"SELECT UPDATE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
+        query = f"SELECT UPDATE_RULE, DELETE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
         rows = self.execute(query, silent=True)
-        return rows[0]['UPDATE_RULE']
+        return rows[0]['UPDATE_RULE'], rows[0]['DELETE_RULE']
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -5207,7 +5275,7 @@ class Postgres(SQLDriver):
         tables= self.get_tables()
         relationships = []
         for from_table in tables:
-            query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, "
+            query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, confdeltype,"
             query += f"a1.attname AS column_name, a2.attname AS referenced_column_name "
             query += f"FROM pg_constraint "
             query += f"JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
@@ -5221,10 +5289,14 @@ class Postgres(SQLDriver):
                 dic = {}
                 # Get the constraint information
                 #constraint = self.constraint(row['conname'])
-                if row['conname'] == 'c':
+                if row['confupdtype'] == 'c':
                     dic['update_cascade'] = True
                 else:
                     dic['update_cascade'] = False
+                if row['confdeltype'] == 'c':
+                    dic['delete_cascade'] = True
+                else:
+                    dic['delete_cascade'] = False
                 dic['from_table'] = row['conrelid'].strip('"')
                 dic['to_table'] = row['confrelid'].strip('"')
                 dic['from_column'] = row['column_name']
