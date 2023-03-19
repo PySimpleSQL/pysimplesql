@@ -160,6 +160,12 @@ PROMPT_SAVE_PROCEED: int = 2
 PROMPT_SAVE_NONE: int = 4
 
 # ---------------------------
+# PROMPT_SAVE MODES
+# ---------------------------
+PROMPT_MODE: int = 1
+AUTOSAVE_MODE: int = 2
+
+# ---------------------------
 # RECORD SAVE RETURN BITMASKS
 # ---------------------------
 SAVE_FAIL: int = 1     # Save failed due to callback
@@ -440,7 +446,7 @@ class DataSet:
 
     def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
                  query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
-                 prompt_save: bool = True, autosave=False) -> None:
+                 prompt_save: int = None, save_quiet: bool = None) -> None:
         """
         Initialize a new `DataSet` instance
 
@@ -455,8 +461,11 @@ class DataSet:
                "ORDER BY {description_column} ASC"
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                be generated. False will display all records in query.
-        :param prompt_save: (optional) Prompt to save changes when dirty records are present
-        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save changes when dirty records are present.
+                            Two modes avaialable, (if pysimplesql is imported as `ss`) use:
+                            `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+                            `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+        :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on save. Error popups will still be shown.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -486,9 +495,16 @@ class DataSet:
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None]] = None
         self.filtered: bool = filtered
-        self._prompt_save: bool = prompt_save
+        if prompt_save is None:
+            self._prompt_save = self.frm._prompt_save
+            print(self._prompt_save)
+        else:
+            self._prompt_save: int = prompt_save
+        if save_quiet is None:
+            self.save_quiet = self.frm.save_quiet
+        else:
+            self.save_quiet: bool = save_quiet
         self._simple_transform: SimpleTransformsDict = {}
-        self.autosave: bool = autosave
 
     # Override the [] operator to retrieve columns by key
     def __getitem__(self, key: str):
@@ -540,14 +556,16 @@ class DataSet:
         # Update the internally tracked instances
         DataSet.instances = new_instances
 
-    def set_prompt_save(self, value: bool) -> None:
+    def set_prompt_save(self, mode: int) -> None:
         """
         Set the prompt to save action when navigating records
 
-        :param value: a boolean value, True to prompt to save, False for no prompt to save
+        :param mode: a constant value. If pysimplesql is imported as `ss`, use:
+                    `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+                    `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
         :returns: None
         """
-        self._prompt_save = value
+        self._prompt_save = mode
 
     def set_search_order(self, order: List[str]) -> None:
         """
@@ -769,8 +787,7 @@ class DataSet:
                         break
         return dirty
 
-    def prompt_save(self, autosave: bool = False, update_elements: bool = True)  \
-            -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
+    def prompt_save(self, update_elements: bool = True) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
 
@@ -781,7 +798,7 @@ class DataSet:
         """
         # Return False if there is nothing to check or _prompt_save is False
         # TODO: children too?
-        if self.current_index is None or self.rows == [] or self._prompt_save is False:
+        if self.current_index is None or self.rows == [] or not self._prompt_save:
             return PROMPT_SAVE_NONE
 
         # See if any rows are virtual
@@ -789,7 +806,7 @@ class DataSet:
         # Check if any records have changed
         changed = self.records_changed() or vrows
         if changed:
-            if autosave or self.autosave:
+            if self._prompt_save == AUTOSAVE_MODE:
                 save_changes = 'yes'
             else:
                 save_changes = self.frm.popup.yes_no(lang.dataset_prompt_save_title, lang.dataset_prompt_save)
@@ -1241,7 +1258,7 @@ class DataSet:
                        skip_prompt_save=True)  # already saved
         self.frm.update_elements(self.table)
 
-    def save_record(self, display_message: bool = True, update_elements: bool = True) -> int:
+    def save_record(self, display_message: bool = None, update_elements: bool = True) -> int:
         """
         Save the currently selected record
         Saves any changes made via the GUI back to the database.  The before_save and after_save `DataSet.callbacks`
@@ -1252,10 +1269,13 @@ class DataSet:
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
         logger.debug(f'Saving records for table {self.table}...')
+        
+        if display_message is None:
+            display_message = not self.save_quiet
+        
         # Ensure that there is actually something to save
         if not len(self.rows):
-            if display_message:
-                self.frm.popup.info(lang.dataset_save_empty)
+            self.frm.popup.info(lang.dataset_save_empty, display_message=display_message)
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
@@ -1270,8 +1290,7 @@ class DataSet:
 
         # Check right away to see if any records have changed, no need to proceed any further than we have to
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
-            if display_message:
-                self.frm.popup.info(lang.dataset_save_none)
+            self.frm.popup.info(lang.dataset_save_none, display_message=display_message)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
@@ -1376,8 +1395,7 @@ class DataSet:
         if update_elements:
             self.frm.update_elements(self.table)
         logger.debug(f'Record Saved!')
-        if display_message:
-            self.frm.popup.info(lang.dataset_save_success)
+        self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
@@ -1706,8 +1724,8 @@ class Form:
     relationships = [] # Track our relationships
 
     def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
-                 parent: Form = None, filter: str = None, select_first: bool = True, autosave: bool = False,
-                 update_cascade: bool = True, delete_cascade: bool = True) -> None:
+                 parent: Form = None, filter: str = None, select_first: bool = True, prompt_save: int = PROMPT_MODE,
+                 save_quiet: bool = False, update_cascade: bool = True, delete_cascade: bool = True) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1719,7 +1737,13 @@ class Form:
                        also be set manually as a dict with the key 'filter' set in the element's metadata
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
                              as well.
-        :param autosave: (optional) Default:False. True to autosave when changes are found without prompting the user
+        :param prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when dirty records are present.
+                            Two modes avaialable, (if pysimplesql is imported as `ss`) use:
+                            `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+                            `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+        :param save_quiet: (optional) Default:False. True to skip info popup on save. Error popups will still be shown.
+        :param update_cascade: True requeries and filters child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
         :returns: None
 
         """
@@ -1745,7 +1769,8 @@ class Form:
         self.event_map = []  # Array of dicts, {'event':, 'function':, 'table':}
         self.relationships: List[Relationship] = []
         self.callbacks: CallbacksDict = {}
-        self.autosave: bool = autosave
+        self._prompt_save: int = prompt_save
+        self.save_quiet: bool = save_quiet
         self.force_save: bool = False
         self.update_cascade: bool = update_cascade
         self.delete_cascade: bool = delete_cascade
@@ -1891,9 +1916,9 @@ class Form:
             Relationship(join, child_table, fk_column, parent_table, pk_column,
                          update_cascade, delete_cascade, self.driver, self))
         
-    def update_fk_relationship(self, child_table:str, fk_column:str, update_cascade:bool = None, delete_cascade:bool = None) -> None:
+    def set_fk_column_cascade(self, child_table:str, fk_column:str, update_cascade:bool = None, delete_cascade:bool = None) -> None:
         """
-        Update a foreign key's update_cascade and delete_cascade behavior.
+        Set a foreign key's update_cascade and delete_cascade behavior.
         `Form.auto_add_relationships()` automatically sets update_cascade and delete_cascade
         from the schema of the database.
         :param child_table: The child table containing the foreign key
@@ -2241,24 +2266,23 @@ class Form:
         """
         return self._edit_protect
 
-    def prompt_save(self, autosave:bool=False) -> PromptSaveValue:
+    def prompt_save(self) -> PromptSaveValue:
         """
         Prompt to save if any GUI changes are found the affect any table on this form. The helps prevent data entry
         loss when performing an action that changes the current record of a `DataSet`.
 
-        :param autosave: True to autosave when changes are found without prompting the user
         :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
         """
         user_prompted = False # Has the user been prompted yet?
         for data_key in self.datasets:
-            if self[data_key]._prompt_save is False:
+            if not self[data_key]._prompt_save:
                 continue
 
             if self[data_key].records_changed(recursive=False): # don't check children
                 # we will only show the popup once, regardless of how many dataset have changed
                 if not user_prompted:
                     user_prompted = True
-                    if autosave or self.autosave:
+                    if self._prompt_save == AUTOSAVE_MODE:
                         save_changes = 'yes'
                     else:
                         save_changes = self.popup.yes_no(lang.form_prompt_save_title, 
@@ -2297,6 +2321,8 @@ class Form:
         """
         if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
         else: logger.debug(f'Saving records in all datasets...')
+        
+        display_message = not self.save_quiet
 
         result = 0
         show_message = True
@@ -2338,18 +2364,21 @@ class Form:
             msg = lang.form_save_success
         else:
             msg = lang.form_save_none
-        if show_message: self.popup.info(msg)
+        if show_message: self.popup.info(msg, display_message=display_message)
         return result
 
-    def set_prompt_save(self, value: bool) -> None:
+    def set_prompt_save(self, mode: int) -> None:
         """
         Set the prompt to save action when navigating records for all `DataSet` objects associated with this `Form`
 
-        :param value: a boolean value, True to prompt to save, False for no prompt to save
+        :param mode: a constant value. If pysimplesql is imported as `ss`, use:
+                    `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+                    `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
         :returns: None
         """
+        self._prompt_save = mode
         for data_key in self.datasets:
-            self[data_key].set_prompt_save(value)
+            self[data_key].set_prompt_save(mode)
 
     def update_elements(self, target_data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
         """
