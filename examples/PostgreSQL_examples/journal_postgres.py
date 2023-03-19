@@ -2,7 +2,7 @@ import PySimpleGUI as sg
 import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)    # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logging.basicConfig(level=logging.DEBUG)    # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # POSTGRESQL EXAMPLE
 

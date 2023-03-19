@@ -1325,7 +1325,7 @@ class DataSet:
                 self.driver.rollback()
                 return SAVE_FAIL + SHOW_MESSAGE
 
-        # If we made it here, we can commit the changes
+        # If we made it here, we can commit the changes, since the save and insert above do not commit or rollback
         self.driver.commit()
 
         if update_elements:
@@ -3929,9 +3929,10 @@ class ColumnInfo(List):
                 rows = self.driver.execute(q)
                 if rows.exception is None:
                     default = rows.fetchone()['val']
-                    logger.debug(f'Default fetched from database function. Default value is: {default}')
                     d[c.name] = default
                     continue
+                else:
+                    logger.warning(f'There was an exception getting the default: {e}')
 
             # The stored default is a literal value, lets try to use it:
             if default is None:
@@ -3942,16 +3943,18 @@ class ColumnInfo(List):
                     null_default = None
 
                 # If our default is callable, call it.  Otherwise, assign it
-                # Make sure to skip primary keys, and onlu consider text that is in the description column
-                if (domain not in ['TEXT','VARCHAR','CHAR'] and c.name != dataset.description_column) and c.pk==False:
+                # Make sure to skip primary keys, and only consider text that is in the description column
+                if (domain not in ['TEXT', 'VARCHAR', 'CHAR'] and
+                c.name != dataset.description_column) and c.pk == False:
                     default = null_default() if callable(null_default) else null_default
             else:
-                # Load the default from the database
+                # Load the default that was fetched from the database during ColumnInfo creation
                 if domain in ['TEXT', 'VARCHAR', 'CHAR']:
                     # strip quotes from default strings as they seem to get passed with some database-stored defaults
                     default = c.default.strip('"\'')  # strip leading and trailing quotes
 
-            d[c.name]= default
+            d[c.name] = default
+            logger.debug(f'Default fetched from database function. Default value is: {default}')
         if dataset.transform is not None: dataset.transform(dataset, d, TFORM_DECODE)
         return d
 
@@ -4381,7 +4384,17 @@ class SQLDriver:
         """
         raise NotImplementedError
 
-    def execute(self, query, values=None, column_info: ColumnInfo = None):
+    def execute(self, query, values=None, column_info: ColumnInfo = None, auto_commit_rollback: bool = False):
+        """
+        Implements the native SQL implementation's execute() command.
+
+        :param query: The query string to execute
+        :param values: Values to pass into the query to replace the placeholders
+        :param column_info: An optional ColumnInfo object
+        :param auto_commit_rollback: Automatically commit or rollback depending on whether an exception was handled. Set
+            to False by default.  Set to True to have exceptions and commit/rollbacks happen automatically
+        :return:
+        """
         raise NotImplementedError
 
     def execute_script(self, script: str, silent: bool=False):
@@ -4734,7 +4747,7 @@ class Sqlite(SQLDriver):
     def connect(self, database):
         self.con = sqlite3.connect(database)
 
-    def execute(self, query, values=None, silent=False, column_info = None):
+    def execute(self, query, values=None, silent=False, column_info = None, auto_commit_rollback: bool = False):
         if not silent:logger.info(f'Executing query: {query} {values}')
 
         cursor = self.con.cursor()
@@ -4743,6 +4756,12 @@ class Sqlite(SQLDriver):
             cur = cursor.execute(query, values) if values else cursor.execute(query)
         except sqlite3.Error as e:
             exception = e
+            logger.warning(f'Execute exception: {type(e).__name__}: {e}, using query: {query}')
+            if auto_commit_rollback:
+                self.rollback()
+        else:
+            if auto_commit_rollback:
+                self.commit()
 
         try:
             rows = cur.fetchall()
@@ -4915,7 +4934,7 @@ class Flatfile(Sqlite):
             for row in reader:
                 self.execute(query, row)
 
-        self.commit()
+        self.commit()  # commit them all at the end
         self.win_pb.close()
 
 
@@ -4992,7 +5011,7 @@ class Mysql(SQLDriver):
         )
         return con
 
-    def execute(self, query, values=None, silent=False, column_info=None):
+    def execute(self, query, values=None, silent=False, column_info=None, auto_commit_rollback: bool = False):
         if not silent: logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor(dictionary=True)
         exception = None
@@ -5000,6 +5019,12 @@ class Mysql(SQLDriver):
             cursor.execute(query, values) if values else cursor.execute(query)
         except mysql.connector.Error as e:
             exception = e.msg
+            logger.warning(f'Execute exception: {type(e).__name__}: {e}, using query: {query}')
+            if auto_commit_rollback:
+                self.rollback()
+        else:
+            if auto_commit_rollback:
+                self.commit()
 
         try:
             rows = cursor.fetchall()
@@ -5114,7 +5139,7 @@ class Postgres(SQLDriver):
 
                 # get the max pk for this table
                 q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)'"
-                rows = self.execute(q, silent=True)
+                rows = self.execute(q, silent=True, auto_commit_rollback=True)
                 row=rows.fetchone()
                 table = row['table_name']
                 pk_column = row['column_name']
@@ -5127,7 +5152,7 @@ class Postgres(SQLDriver):
                     q = f"SELECT setval('{seq}', {max_pk});"
                 else:
                     q = f"SELECT setval('{seq}', 1, false);"
-                self.execute(q, silent=True)
+                self.execute(q, silent=True, auto_commit_rollback=True)
 
         self.win_pb.update('executing SQL commands', 50)
         if sql_commands is not None:
@@ -5151,7 +5176,7 @@ class Postgres(SQLDriver):
         )
         return con
 
-    def execute(self, query:str, values=None, silent=False, column_info=None):
+    def execute(self, query:str, values=None, silent=False, column_info=None, auto_commit_rollback: bool = False):
         if not silent: logger.info(f'Executing query: {query} {values}')
         cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         exception = None
@@ -5159,10 +5184,12 @@ class Postgres(SQLDriver):
             cursor.execute(query, values) if values else cursor.execute(query)
         except psycopg2.Error as e:
             exception = e
-            logger.debug(f'{e}, {query}')
-            self.rollback()
+            logger.warning(f'Execute exception: {type(e).__name__}: {e}, using query: {query}')
+            if auto_commit_rollback:
+                self.rollback()
         else:
-            self.commit()
+            if auto_commit_rollback:
+                self.commit()
 
         try:
             rows = cursor.fetchall()
@@ -5191,6 +5218,11 @@ class Postgres(SQLDriver):
             domain = row['data_type'].upper()
             notnull = False if row['is_nullable'] == 'YES' else True
             default = row['column_default']
+            # Fix the default value by removing the datatype that is appended to the end
+            if default is not None:
+                if '::' in default:
+                    default = default[:default.index('::')]
+
             pk = True if name == pk_column else False
             col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
 
@@ -5255,7 +5287,7 @@ class Postgres(SQLDriver):
         rows = self.execute(q, silent=True)
         return rows.fetchone()['nextval']
 
-    def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
+    def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # insert_record() for Postgres is a little different from the rest. Instead of relying on an autoincrement, we
         # first already "reserved" a primary key earlier, so we will use it directly
         # quote appropriately
