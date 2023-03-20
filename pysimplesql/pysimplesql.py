@@ -2291,7 +2291,7 @@ class Form:
         :param cascade_only: Save only tables with cascaded relationships. Default False.
         :param check_prompt_save: Passed to `DataSet.save_cascade` to check if individual `DataSet` has prompt_save enabled.
                                   Used when `DataSet.save_records()` is called from `Form.prompt_save()`.
-        :param update_elements: (optional) Passed to `Form.save_cascade()` to update_elements.
+        :param update_elements: (optional) Passed to `Dataset.save_cascade()` to update_elements.
         :returns: result - can be used with RETURN BITMASKS
         """
         if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
