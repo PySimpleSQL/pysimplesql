@@ -2360,6 +2360,8 @@ class Form:
             if result & SAVE_SUCCESS:
                 msg = lang.form_save_partial
             msg += lang.form_save_problem.format_map(LangFormat(tables=msg_tables))
+            if show_message: self.popup.ok(lang.form_save_problem_title, msg)
+            return result
         elif result & SAVE_SUCCESS:
             msg = lang.form_save_success
         else:
@@ -3746,8 +3748,6 @@ class LanguagePack:
     # ------------------------
     # Form save_records
     # ------------------------
-    'form_save_partial': 'Some updates were saved successfully;',
-    'form_save_problem': 'There was a problem saving updates to the following tables:\n{tables}.',
     'form_save_success': 'Updates saved successfully.',
     'form_save_none': 'There were no updates to save.',
     # DataSet save_record
@@ -3771,6 +3771,11 @@ class LanguagePack:
     # ------------------------
     # Ok Popups
     # ------------------------
+    # Form save_records
+    # ------------------------
+    'form_save_problem_title' : 'Problem Saving',
+    'form_save_partial': 'Some updates were saved successfully;',
+    'form_save_problem': 'There was a problem saving updates to the following tables:\n{tables}.',
     # DataSet save_record
     'dataset_save_callback_false_title': 'Callback Prevented Save',
     'dataset_save_callback_false': 'Updates not saved.',
