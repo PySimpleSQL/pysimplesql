@@ -102,8 +102,8 @@ win = sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.them
 driver = ss.Sqlite(':memory:', sql_commands=sql)
 # Create our frm
 frm = ss.Form(driver, bind_window=win,
-              prompt_save = ss.AUTOSAVE_MODE, # uncomment this to save changes automatically
-              save_quiet = True # uncomment this to skip displaying successful save message
+#               prompt_save = ss.AUTOSAVE_MODE, # uncomment this to save changes automatically
+#               save_quiet = True # uncomment this to skip displaying successful save message
               )
 
 # Use a callback to validate the zip code
