@@ -2887,7 +2887,7 @@ class Popup:
         Create a new Popup instance
         :returns: None
         """
-        self.last_info = None
+        self._last_info = None
         self.popup_info = None
 
     def ok(self, title, msg):
@@ -2948,7 +2948,7 @@ class Popup:
         title = lang.info_popup_title
         if auto_close_seconds is None:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
-        self.last_info = [title,msg]
+        self._last_info = (title,msg)
         if display_message:
             msg = msg.splitlines()
             layout = [sg.T(line, font='bold') for line in msg]
@@ -2959,13 +2959,17 @@ class Popup:
             threading.Thread(target=self.auto_close,
                              args=(self.popup_info, auto_close_seconds),
                              daemon=True).start()
-        
-    def get_last_info(self) -> List[str]:
+
+    @property
+    def last_info_msg(self) -> str:
         """
-        Get last info popup. Useful for integrating into a status bar.
-        :returns: a single list of [type,title, msg]
+        Get last info popup msg. Useful for integrating into a sg.StatusBar.
+        :returns: message string. "" if empty.
         """
-        return self.last_info
+        if self._last_info is None:
+            return ""
+        else:
+            return self._last_info[1]
     
     def auto_close(self, window: sg.Window, seconds: int):
         """
