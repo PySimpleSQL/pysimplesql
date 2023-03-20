@@ -478,7 +478,7 @@ class DataSet:
         self.order_clause: str = order_clause
         self.join_clause: str = ''
         self.where_clause: str = ''  # In addition to the generated where clause!
-        self.dependents: list = []
+#         self.dependents: list = [] # Is this even used anywhere?
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[ResultSet, None] = None
         self.search_order: List[str] = []
@@ -870,7 +870,7 @@ class DataSet:
         """
         if child:
             self.requery(update_elements=update_elements,
-                         requery_cascade=False)  # dependents=False: no cascade requery
+                         requery_cascade=False)  # no cascade requery
 
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel._update_cascade:
@@ -892,7 +892,7 @@ class DataSet:
         """
         logger.debug(f'Moving to the first record of table {self.table}')
         if skip_prompt_save is False:
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
         self.current_index = 0
         if requery_cascade:
@@ -917,7 +917,7 @@ class DataSet:
         """
         logger.debug(f'Moving to the last record of table {self.table}')
         if skip_prompt_save is False:
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
             
         self.current_index = len(self.rows) - 1
         if requery_cascade:
@@ -943,7 +943,7 @@ class DataSet:
         if self.current_index < len(self.rows) - 1:
             logger.debug(f'Moving to the next record of table {self.table}')
             if skip_prompt_save is False:
-                self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+                self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
             self.current_index += 1
             if requery_cascade:
@@ -969,7 +969,7 @@ class DataSet:
         if self.current_index > 0:
             logger.debug(f'Moving to the previous record of table {self.table}')
             if skip_prompt_save is False:
-                self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+                self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
             self.current_index -= 1
             if requery_cascade:
@@ -980,7 +980,7 @@ class DataSet:
             if 'record_changed' in self.callbacks.keys():
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
-    def search(self, search_string: str, update_elements: bool = True, dependents: bool = True,
+    def search(self, search_string: str, update_elements: bool = True, requery_cascade: bool = True,
                skip_prompt_save: bool = False) \
             -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
@@ -994,7 +994,7 @@ class DataSet:
 
         :param search_string: The search string to look for
         :param update_elements: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery cascade after switching records?
+        :param requery_cascade: (optional) Requery cascade after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: One of the following search values: `SEARCH_FAILED`, `SEARCH_RETURNED`, `SEARCH_ABORTED`
         """
@@ -1011,7 +1011,7 @@ class DataSet:
                 return SEARCH_ABORTED
 
         if skip_prompt_save is False:  # TODO: Should this be before the before_search callback?
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows):
@@ -1024,7 +1024,7 @@ class DataSet:
                         if search_string.lower() in str(self.rows[i][o]).lower():
                             old_index = self.current_index
                             self.current_index = i
-                            if dependents:
+                            if requery_cascade:
                                 self.requery_cascade()
                             if update_elements:
                                 self.frm.update_elements(self.table)
@@ -1047,7 +1047,7 @@ class DataSet:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index: int, update_elements: bool = True, dependents: bool = True,
+    def set_by_index(self, index: int, update_elements: bool = True, requery_cascade: bool = True,
                      skip_prompt_save: bool = False, omit_elements: List[str] = None) -> None:
         """
         Move to the record of the table located at the specified index in DataSet.
@@ -1057,7 +1057,7 @@ class DataSet:
 
         :param index: The index of the record to move to.
         :param update_elements: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery cascade after switching records?
+        :param requery_cascade: (optional) Requery cascade after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
@@ -1070,10 +1070,10 @@ class DataSet:
             # see if sg.Table has potential changes
             if len(omit_elements) and self.records_changed(cascade=False):
                 omit_elements = [] # most likely will need to update, either to discard virtual or update after save
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
         self.current_index = index
-        if dependents:
+        if requery_cascade:
             self.requery_cascade()
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
@@ -1103,7 +1103,7 @@ class DataSet:
             # see if sg.Table has potential changes
             if len(omit_elements) and self.records_changed(cascade=False):
                 omit_elements = [] # most likely will need to update, either to discard virtual or update after save
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
         i = 0
         for r in self.rows:
@@ -1214,7 +1214,7 @@ class DataSet:
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
         if skip_prompt_save is False:
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False) # don't update self/cascade if we are going to below anyway
 
         # Get a new dict for a new row with default values already filled in
         new_values = self.column_info.default_row_dict(self)
