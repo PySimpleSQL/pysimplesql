@@ -497,7 +497,6 @@ class DataSet:
         self.filtered: bool = filtered
         if prompt_save is None:
             self._prompt_save = self.frm._prompt_save
-            print(self._prompt_save)
         else:
             self._prompt_save: int = prompt_save
         if save_quiet is None:
