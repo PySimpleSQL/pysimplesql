@@ -127,19 +127,25 @@ while True:
         win.close()
         break
     elif event == "__TIMEOUT__":
+        #--------------------------------------------------
+        # Dynamic save button
+        #--------------------------------------------------
         # Use a timeout (as set in win.read() above) to check for changes and enable/disable the save button on the fly.
         # This could also be done by enabling events in the input controls, but this is much simpler.
         dirty = frm['Addresses'].records_changed()
         win['Addresses:db_save'].update(disabled=not dirty)
+        #--------------------------------------------------
+        # Status bar updating
+        #--------------------------------------------------
         # Using the same timeout, we can update our sg.StatusBar with save messages
         counter += 1
         new_val = frm.popup.last_info_msg
-        # if there is a new mesg, reset our counter and update the sg.StatusBar
+        # If there is a new info popup msg, reset our counter and update the sg.StatusBar
         if new_val != last_val:
             counter = 0
             win['status_bar'].update(value=new_val)
             last_val = new_val
-        # after counter reaches seconds limit, clear sg.StatusBar and frm.popup.last_info_msg
+        # After counter reaches seconds limit, clear sg.StatusBar and frm.popup.last_info_msg
         if counter > seconds_to_display * 10:
             counter = 0
             frm.popup.last_info_msg = ""
