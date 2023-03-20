@@ -3551,9 +3551,9 @@ class ThemePack:
         my_tp = {'search': 'Click here to search'} # I want a different search button
 
     Once a ThemePack is created, it's very easy to use.  Here is a very simple example of using a ThemePack:
-        themepack = ThemePack(my_tp_dict_variable)
+        ss.themepack(my_tp_dict_variable)
         # make a search button, using the 'search' key from the ThemePack
-        sg.Button(themepack.search, key='search_button')
+        sg.Button(ss.themepack.search, key='search_button')
 
     """
     default = {
