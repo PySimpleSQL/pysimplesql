@@ -688,8 +688,8 @@ class DataSet:
         Set the `DataSet` object's description column.
 
         This is the column that will display in Listboxes, Comboboxes, Tables, etc.
-        By default,this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the
-        table if none of those columns exist.
+        By default,this is initialized to either the names in languagepack.description_column_names,
+        ('description','name' or 'title' column), or the 2nd column of the table if none of those columns exist.
         This method allows you to specify a different column to use as the description for the record.
 
         :param column: The name of the column to use
@@ -1932,7 +1932,8 @@ class Form:
             # but can be overwritten below
             description_column = column_info.col_name(1)
             for col in column_info.names():
-                if col in ('name', 'description', 'title'):
+                if col in lang.description_column_names:
+                    print(col)
                     description_column = col
                     break
 
@@ -3791,7 +3792,15 @@ class LanguagePack:
     # ------------------------
     # Quick Editor
     # ------------------------
-    'quick_edit_title': 'Quick Edit - {data_key}'
+    'quick_edit_title': 'Quick Edit - {data_key}',
+    
+    # ------------------------
+    # Description Column names
+    # ------------------------
+    # This is the column that will display in Listboxes, Comboboxes, Tables, etc.
+    # By default, this is initialized to either one of the names below,
+    # or the 2nd column of the table if none of those columns exist.
+    'description_column_names' : ('name', 'description', 'title')
     }
     """Default LanguagePack"""
 
