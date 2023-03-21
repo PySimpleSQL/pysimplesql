@@ -2338,8 +2338,9 @@ class Form:
         # call save_cascade on tables, which saves from last to first.
         result_list = []
         for q in tables:
-            res = self[q].save_cascade(results={},display_message=False,check_prompt_save=check_prompt_save, \
-                                                update_elements=update_elements)
+            res = self[q].save_cascade(results={},display_message=False,
+                                       check_prompt_save=check_prompt_save,
+                                       update_elements=update_elements)
             result_list.append(res)
         
         # flatten list of result dicts
