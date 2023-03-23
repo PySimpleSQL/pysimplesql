@@ -4816,7 +4816,12 @@ class SQLDriver:
         pk_column = dataset.pk_column
 
         # Remove the pk column and any virtual columns
-        changed_row = {k: v for k,v in changed_row.items() if k != pk_column and k not in dataset.column_info.get_virtual_names()}
+        changed_row = {self.quote_column(k): v for k,v in changed_row.items() if k != pk_column and k not in dataset.column_info.get_virtual_names()}
+
+        # Set empty fields to None
+        for k, v in changed_row.items():
+            if v == "":
+                changed_row[k] = None
 
         # quote appropriately
         table = self.quote_table(dataset.table)
@@ -4837,7 +4842,12 @@ class SQLDriver:
 
     def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
         # Remove the pk column
-        row = {k: v for k, v in row.items() if k != pk_column}
+        row = {self.quote_column(k): v for k, v in row.items() if k != pk_column}
+        
+        # Set empty fields to None
+        for k, v in row.items():
+            if v == "":
+                row[k] = None
 
         # quote appropriately
         table = self.quote_table(table)
