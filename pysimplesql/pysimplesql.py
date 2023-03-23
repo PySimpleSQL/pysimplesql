@@ -812,9 +812,9 @@ class DataSet:
             if save_changes == 'yes':
                 # save this record's cascaded relationships, last to first
                 if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
-                    self.frm.popup.ok(lang.rows_purge_virtual_title, lang.rows_purge_virtual)
-                    self.rows.purge_virtual()
                     if vrows and update_elements:
+                        self.rows.purge_virtual()
+                        self.frm.popup.ok(lang.rows_purge_virtual_title, lang.rows_purge_virtual)
                         self.frm.update_elements(self.table)
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
