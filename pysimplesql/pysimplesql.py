@@ -3999,8 +3999,8 @@ class ColumnInfo(List):
             'TEXT': 'New Record',
             'VARCHAR': 'New Record',
             'CHAR' : 'New Record',
-            'INT': 1,
-            'INTEGER': 1,
+            'INT': 0,
+            'INTEGER': 0,
             'REAL': 0.0,
             'DOUBLE': 0.0,
             'FLOAT': 0.0,
@@ -4082,12 +4082,21 @@ class ColumnInfo(List):
                 except KeyError:
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
+               
+                # skip primary keys
+                if not c.pk:
+                    # put default in description_column
+                    if c.name == dataset.description_column:
+                        default = null_default
 
-                # If our default is callable, call it.  Otherwise, assign it
-                # Make sure to skip primary keys, and only consider text that is in the description column
-                if (domain not in ['TEXT', 'VARCHAR', 'CHAR'] and
-                c.name != dataset.description_column) and c.pk == False:
-                    default = null_default() if callable(null_default) else null_default
+                    # put defaults in other fields 
+                    elif domain not in ['TEXT', 'VARCHAR', 'CHAR']: # (don't put 'New Record' in other txt fields)
+                        # If our default is callable, call it.
+                        if callable(null_default):
+                            default = null_default()
+                        # Otherwise, assign it
+                        else:
+                            default = null_default
             else:
                 # Load the default that was fetched from the database during ColumnInfo creation
                 if domain in ['TEXT', 'VARCHAR', 'CHAR']:
