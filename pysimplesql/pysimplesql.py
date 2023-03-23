@@ -812,6 +812,10 @@ class DataSet:
             if save_changes == 'yes':
                 # save this record's cascaded relationships, last to first
                 if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
+                    self.frm.popup.ok(lang.rows_purge_virtual_title, lang.rows_purge_virtual)
+                    self.rows.purge_virtual()
+                    if vrows and update_elements:
+                        self.frm.update_elements(self.table)
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
@@ -3788,6 +3792,13 @@ class LanguagePack:
 
     'dataset_save_fail_title': 'Problem Saving',
     'dataset_save_fail': 'Query failed: {exception}.',
+    
+    # Purge virtual after failed prompt save
+    # A prompt save failed save of a virtual row leaves the virtual row in state that can be lost easily
+    # Let the user know it will be deleted
+    'rows_purge_virtual_title' : 'Delete Virtual Record',
+    'rows_purge_virtual' : 'The virtual record could not be saved and must be deleted.',
+
 
     # ------------------------
     # Custom Popups
