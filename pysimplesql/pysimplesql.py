@@ -1423,7 +1423,9 @@ class DataSet:
                 self.requery(select_first=False,
                              update_elements=False)  # Requery so that the new  row honors the order clause
                 if update_elements:
-                    self.set_by_pk(pk, skip_prompt_save=True) # Then move to the record
+                    self.set_by_pk(pk, skip_prompt_save=True, # Then move to the record
+                                   requery_dependents=False)
+                    self.frm.update_elements(edit_protect_only=True) # only need to reset the Insert button
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1504,7 +1506,7 @@ class DataSet:
         if self.get_current_row().virtual:
             self.rows.purge_virtual()
             self.frm.update_elements(self.table)
-            self.requery_dependents()
+            self.frm.update_elements(edit_protect_only=True) # only need to reset the Insert button
             return
 
         # Delete child records first!
