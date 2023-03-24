@@ -2551,7 +2551,7 @@ class Form:
                     pk_position = 0
 
                 # Update table, and set vertical scroll bar to follow selected element
-                update_table(self.window, mapped.element, values, index, pk_position)
+                update_table_element(self.window, mapped.element, values, index, pk_position)
                 continue
 
             elif type(mapped.element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.Multiline, sg.PySimpleGUI.Text]:
@@ -2675,7 +2675,7 @@ class Form:
                         logger.debug(f'Selector:: index:{index} found:{found}')
 
                         # Update table, and set vertical scroll bar to follow selected element
-                        update_table(self.window, element, values, index, pk_position)
+                        update_table_element(self.window, element, values, index, pk_position)
 
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
@@ -2847,7 +2847,7 @@ def simple_transform(dataset:DataSet, row, encode):
                 row[col] = function['encode'](row, col)
             logger.debug(f'{msg} to {row[col]}')
 
-def update_table(window: sg.Window, element: Type[sg.Element], values: List[TableRow],
+def update_table_element(window: sg.Window, element: Type[sg.Table], values: List[TableRow],
                  select_rows: List[int], vscroll_position: float = None) -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
