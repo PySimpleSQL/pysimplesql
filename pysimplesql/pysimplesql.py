@@ -2868,7 +2868,8 @@ def update_table(window: sg.Window, element: Type[sg.Element], values: List[Tabl
     # update element
     element.update(values=values, select_rows=select_rows)
     # set vertical scroll bar to follow selected element
-    if vscroll_position: element.set_vscroll_position(vscroll_position)
+    if vscroll_position is not None:
+        element.set_vscroll_position(vscroll_position)
     window.refresh()                                            # Event handled and bypassed
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected) # Enable handling for "<<TreeviewSelect>>" event
 
