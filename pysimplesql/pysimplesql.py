@@ -307,6 +307,22 @@ class Relationship:
             if r.child_table == table and r.on_update_cascade:
                 return r.parent_table
         return None
+    
+    @classmethod
+    def parent_virtual(cls, table: str, frm: Form) -> bool:
+        """
+        Return True if current row of parent table is virtual
+        :param table: The table (str) to get relationships for
+        :param frm: Form reference
+        :returns: True if current row of parent table is virtual
+        """
+        for r in cls.instances:
+            if r.child_table == table and r.on_update_cascade:
+                try:
+                    return frm[r.parent_table].get_current_row().virtual
+                except AttributeError:
+                    return False
+        return None
 
     @classmethod
     def get_update_cascade_fk_column(cls, table: str) -> Union[str, None]:
@@ -856,11 +872,7 @@ class DataSet:
             # Logic for stopping requery short if parent has no records or current row is virtual
             parent_table = Relationship.get_parent(self.table)
             if parent_table:
-                try:
-                    parent_virtual = self.frm[parent_table].get_current_row().virtual
-                except AttributeError:
-                    parent_virtual = False
-                if not len(self.frm[parent_table].rows) or parent_virtual:
+                if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(self.table, self.frm):
                     self.rows = ResultSet([]) # purge rows
                     if requery_dependents:
                         self.requery_dependents(update_elements=update_elements)
@@ -1259,11 +1271,7 @@ class DataSet:
         # Don't insert if parent has no records or is virtual
         parent_table = Relationship.get_parent(self.table)
         if parent_table:
-            try:
-                parent_virtual = self.frm[parent_table].get_current_row().virtual
-            except AttributeError:
-                parent_virtual = False
-            if not len(self.frm[parent_table].rows) or parent_virtual:
+            if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(self.table, self.frm):
                 logger.debug(f"{parent_table=} is empty or current row is virtual")
                 return
 
@@ -1415,8 +1423,7 @@ class DataSet:
                 self.requery(select_first=False,
                              update_elements=False)  # Requery so that the new  row honors the order clause
                 if update_elements:
-                    self.set_by_pk(pk, skip_prompt_save=True, # Then move to the record
-                                   requery_dependents=False) # Don't requery dependents, since there arnt any
+                    self.set_by_pk(pk, skip_prompt_save=True) # Then move to the record
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1497,7 +1504,7 @@ class DataSet:
         if self.get_current_row().virtual:
             self.rows.purge_virtual()
             self.frm.update_elements(self.table)
-            # don't need to requery_dependents, since there arnt any
+            self.requery_dependents()
             return
 
         # Delete child records first!
@@ -2486,7 +2493,7 @@ class Form:
                 elif ':table_insert' in m['event']:
                     parent = Relationship.get_parent(data_key)
                     if parent is not None:
-                        disable = len(self[parent].rows) == 0 or self._edit_protect or self[parent].get_current_row().virtual
+                        disable = len(self[parent].rows) == 0 or self._edit_protect or Relationship.parent_virtual(data_key,self)
                     else:
                         disable = self._edit_protect
                     win[m['event']].update(disabled=disable)
