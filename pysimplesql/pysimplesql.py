@@ -1896,14 +1896,18 @@ class Form:
 
         The following callbacks are supported:
 
-         update_elements: Called after elements are updated via `Form.update_elements()`. This allows for other GUI manipulation on each update of the GUI
-         edit_enable: Called before editing mode is enabled. This can be useful for asking for a password for example
+         update_elements: Called after elements are updated via `Form.update_elements()`.
+                          This allows for other GUI manipulation on each update of the GUI
+         edit_enable: Called before editing mode is enabled. This can be useful for
+                      asking for a password for example
          edit_disable: Called after the editing mode is disabled
-         {element_name}: Called while updating MAPPED element. This overrides the default element update implementation.
-                         Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
+         {element_name}: Called while updating MAPPED element. This overrides the default
+                         element update implementation. Note that the {element_name} callback
+                         function needs to return a value to pass to Win[element].update()
 
         :param callback_name: The name of the callback, from the list above
-        :param fctn: The function to call. Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
+        :param fctn: The function to call. Note, the function must take in two parameters,
+                     a Form instance, and a PySimpleGUI.Window instance
         :returns: None
         """
         logger.info(f'Callback {callback_name} being set on Form')
