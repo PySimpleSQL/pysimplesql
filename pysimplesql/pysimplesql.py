@@ -1114,8 +1114,6 @@ class DataSet:
         logger.debug(f'Setting table {self.table} record by primary key {pk}')
         if omit_elements is None:
             omit_elements = []
-        
-        print(omit_elements)
 
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
