@@ -852,6 +852,23 @@ class DataSet:
             filtered = False
 
         if filtered:
+            
+            # Logic for stopping requery short if parent has no records or current row is virtual
+            parent_table = Relationship.get_parent(self.table)
+            if parent_table:
+                try:
+                    parent_virtual = self.frm[parent_table].get_current_row().virtual
+                except AttributeError:
+                    parent_virtual = False
+                if not len(self.frm[parent_table].rows) or parent_virtual:
+                    self.rows = ResultSet([]) # purge rows
+                    if requery_dependents:
+                        self.requery_dependents(update_elements=update_elements)
+                    if update_elements:
+                        self.frm.update_elements(self.table)
+                    return
+            
+            # else, get join/where clause like normal
             join = self.driver.generate_join_clause(self)
             where = self.driver.generate_where_clause(self)
 
@@ -1239,6 +1256,17 @@ class DataSet:
         if skip_prompt_save is False:
             self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
 
+        # Don't insert if parent has no records or is virtual
+        parent_table = Relationship.get_parent(self.table)
+        if parent_table:
+            try:
+                parent_virtual = self.frm[parent_table].get_current_row().virtual
+            except AttributeError:
+                parent_virtual = False
+            if not len(self.frm[parent_table].rows) or parent_virtual:
+                logger.debug(f"{parent_table=} is empty or current row is virtual")
+                return
+
         # Get a new dict for a new row with default values already filled in
         new_values = self.column_info.default_row_dict(self)
 
@@ -1387,7 +1415,8 @@ class DataSet:
                 self.requery(select_first=False,
                              update_elements=False)  # Requery so that the new  row honors the order clause
                 if update_elements:
-                    self.set_by_pk(pk, skip_prompt_save=True)  # Then move to the record
+                    self.set_by_pk(pk, skip_prompt_save=True, # Then move to the record
+                                   requery_dependents=False) # Don't requery dependents, since there arnt any
 
         # callback
         if 'after_save' in self.callbacks.keys():
@@ -1468,7 +1497,7 @@ class DataSet:
         if self.get_current_row().virtual:
             self.rows.purge_virtual()
             self.frm.update_elements(self.table)
-            self.requery_dependents()
+            # don't need to requery_dependents, since there arnt any
             return
 
         # Delete child records first!
@@ -2433,7 +2462,7 @@ class Form:
                     win[m['event']].update(disabled=disable)
 
                 # Disable duplicate if no rows, edit protect, or current row virtual
-                if ':table_duplicate' in m['event']:
+                elif ':table_duplicate' in m['event']:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect or self[data_key].get_current_row().virtual
                     win[m['event']].update(disabled=disable)
                     
@@ -2453,28 +2482,28 @@ class Form:
                     disable = len(self[data_key].rows) < 2 or (self[data_key].current_index == len(self[data_key].rows) - 1)
                     win[m['event']].update(disabled=disable)
 
-                # Disable insert on children with no parent records or edit protect mode
-                parent = Relationship.get_parent(data_key)
-                if parent is not None:
-                    disable = len(self[parent].rows) == 0 or self._edit_protect
-                else:
-                    disable = self._edit_protect
-                if ':table_insert' in m['event']:
-                    if m['table'] == self[data_key].table:
-                        win[m['event']].update(disabled=disable)
-
+                # Disable insert on children with no parent/virtual parent records or edit protect mode
+                elif ':table_insert' in m['event']:
+                    parent = Relationship.get_parent(data_key)
+                    if parent is not None:
+                        disable = len(self[parent].rows) == 0 or self._edit_protect or self[parent].get_current_row().virtual
+                    else:
+                        disable = self._edit_protect
+                    win[m['event']].update(disabled=disable)
+ 
                 # Disable db_save when needed
-                disable = self._edit_protect
-                if ':db_save' in m['event']:
+                elif ':db_save' in m['event']:
+                    disable = len(self[data_key].rows) == 0 or self._edit_protect
+                    print(disable)
                     win[m['event']].update(disabled=disable)
 
                 # Disable table_save when needed
-                disable = self._edit_protect
-                if ':table_save' in m['event']:
+                elif ':save_table' in m['event']:
+                    disable = len(self[data_key].rows) == 0 or self._edit_protect
                     win[m['event']].update(disabled=disable)
 
                 # Enable/Disable quick edit buttons
-                if ':quick_edit' in m['event']:
+                elif ':quick_edit' in m['event']:
                     win[m['event']].update(disabled=disable)
         if edit_protect_only: return
 
