@@ -446,7 +446,7 @@ class DataSet:
 
     def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
                  query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
-                 prompt_save: int = None, save_quiet: bool = None) -> None:
+                 prompt_save: int = None, save_quiet: bool = None, duplicate_children: bool = None) -> None:
         """
         Initialize a new `DataSet` instance
 
@@ -466,6 +466,7 @@ class DataSet:
                             `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
                             `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
         :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on save. Error popups will still be shown.
+        :param duplicate_children: (optional) Default: Set in `Form`. If record has children, prompt user to choose to duplicate current record, or both.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -503,6 +504,10 @@ class DataSet:
             self.save_quiet = self.frm.save_quiet
         else:
             self.save_quiet: bool = save_quiet
+        if duplicate_children is None:
+            self.duplicate_children = self.frm.duplicate_children
+        else:
+            self.duplicate_children: bool = duplicate_children
         self._simple_transform: SimpleTransformsDict = {}
 
     # Override the [] operator to retrieve columns by key
@@ -705,7 +710,7 @@ class DataSet:
         Set the `DataSet` object's description column.
 
         This is the column that will display in Listboxes, Comboboxes, Tables, etc.
-        By default,this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the
+        By default, this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the
         table if none of those columns exist.
         This method allows you to specify a different column to use as the description for the record.
 
@@ -1486,7 +1491,7 @@ class DataSet:
         self.requery_dependents()
         self.frm.update_elements(self.table)
         
-    def duplicate_record(self, cascade:bool=True) -> None: # TODO check return type, returns True within
+    def duplicate_record(self, children: bool = None) -> None: # TODO check return type, returns True within
         """
         Duplicate the currently selected record
         The before_duplicate and after_duplicate callbacks are run during this process to give some control over the process
@@ -1503,14 +1508,17 @@ class DataSet:
             if not self.callbacks['before_duplicate'](self.frm, self.frm.window):
                 return
             
-        children = []
-        if cascade:
-            children = Relationship.get_update_cascade_relationships(self.table)
+        if children is None:
+            children = self.duplicate_children
+            
+        child_list = []
+        if children:
+            child_list = Relationship.get_update_cascade_relationships(self.table)
 
-        msg_children = ', '.join(children)
+        msg_children = ', '.join(child_list)
         msg = lang.duplicate_child.format_map(LangFormat(children=msg_children)).splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
-        if len(children):
+        if len(child_list):
             answer = sg.Window(lang.duplicate_child_title, [
                 layout,
                 [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent',
@@ -1524,7 +1532,7 @@ class DataSet:
                                 pad = themepack.popup_button_pad)],
                 ], keep_on_top=True, modal=True, ttk_theme = themepack.ttk_theme).read(close=True)
             if answer[0] == 'parent':
-                cascade = False
+                children = False
             elif answer[0] in ['cancel', None]:
                 return True
         else:
@@ -1536,7 +1544,7 @@ class DataSet:
         pk = self.get_current_pk()
 
         # Have the driver duplicate the record
-        result = self.driver.duplicate_record(self, cascade)
+        result = self.driver.duplicate_record(self, children)
         if result.exception:
             self.driver.rollback()
             self.frm.popup.ok(lang.duplicate_failed_title, 
@@ -1724,7 +1732,8 @@ class Form:
 
     def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
                  parent: Form = None, filter: str = None, select_first: bool = True, prompt_save: int = PROMPT_MODE,
-                 save_quiet: bool = False, update_cascade: bool = True, delete_cascade: bool = True) -> None:
+                 save_quiet: bool = False, update_cascade: bool = True, delete_cascade: bool = True,
+                 duplicate_children: bool = True, description_column_names: List[str] = None) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1737,12 +1746,16 @@ class Form:
         :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
                              as well.
         :param prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when dirty records are present.
-                            Two modes avaialable, (if pysimplesql is imported as `ss`) use:
+                            Two modes available, (if pysimplesql is imported as `ss`) use:
                             `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
                             `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
         :param save_quiet: (optional) Default:False. True to skip info popup on save. Error popups will still be shown.
-        :param update_cascade: True requeries and filters child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
-        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
+        :param update_cascade: (optional) Default:True. Requery and filter child table on selected parent primary key. (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: (optional) Default:True. Delete the dependent child records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
+        :param duplicate_children: (optional) Default:True. If record has children, prompt user to choose to duplicate current record, or both.
+        :param description_column_names: (optional) A list of names to use for the DataSet object's description column, displayed in Listboxes, Comboboxes, and Tables instead of the primary key.
+                                         The first matching column of the table is given priority. If no match is found, the second column is used.
+                                         Default list: ['description', 'name', 'title'].
         :returns: None
 
         """
@@ -1773,6 +1786,11 @@ class Form:
         self.force_save: bool = False
         self.update_cascade: bool = update_cascade
         self.delete_cascade: bool = delete_cascade
+        self.duplicate_children: int = duplicate_children
+        if description_column_names is None:
+            self.description_column_names = ['description', 'name', 'title']
+        else:
+            self.description_column_names = description_column_names
 
         # Add our default datasets and relationships
         win_pb.update(lang.startup_datasets, 25)
@@ -1956,7 +1974,7 @@ class Form:
             # but can be overwritten below
             description_column = column_info.col_name(1)
             for col in column_info.names():
-                if col in ('name', 'description', 'title'):
+                if col in self.description_column_names:
                     description_column = col
                     break
 
@@ -4767,7 +4785,7 @@ class SQLDriver:
             # Reset limit for next Child stack
             recursion = 0
 
-    def duplicate_record(self, dataset: DataSet, cascade: bool) -> ResultSet:
+    def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
@@ -4797,7 +4815,7 @@ class SQLDriver:
         # create list of which children we have duplicated
         child_duplicated = []
         # Next, duplicate the child records!
-        if cascade:
+        if children:
             for _ in dataset.frm.datasets:
                 for r in dataset.frm.relationships:
                     if r.parent_table == dataset.table and r._update_cascade and (r.child_table not in child_duplicated):
