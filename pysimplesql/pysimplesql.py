@@ -1,4 +1,4 @@
-"""
+""" 
 # **pysimplesql** User's Manual
 
 ## DISCLAIMER:
@@ -247,7 +247,7 @@ class ElementRow:
 
 
 class Relationship:
-    """
+    """ 
     This class is used to track primary/foreign key relationships in the database.
 
     See the following for more information: `Form.add_relationship` and `Form.auto_add_relationships`
@@ -259,7 +259,7 @@ class Relationship:
 
     @classmethod
     def get_relationships_for_table(cls, table: str) -> List[Relationship]:
-        """
+        """ 
         Return the relationships for the passed-in table.
 
         :param table: The table to get relationships for
@@ -270,8 +270,9 @@ class Relationship:
 
     @classmethod
     def get_update_cascade_relationships(cls, table: str) -> List[str]:
-        """
-        Return a unique list of the relationships for this table that should requery with this table.
+        """ 
+        Return a unique list of the relationships for this table that should requery
+        with this table.
 
         :param table: The table to get cascaded children for
         :returns: A unique list of table names
@@ -284,8 +285,9 @@ class Relationship:
     
     @classmethod
     def get_delete_cascade_relationships(cls, table: str) -> List[str]:
-        """
-        Return a unique list of the relationships for this table that should be deleted with this table.
+        """ 
+        Return a unique list of the relationships for this table that should be deleted
+        with this table.
 
         :param table: The table to get cascaded children for
         :returns: A unique list of table names
@@ -298,8 +300,9 @@ class Relationship:
 
     @classmethod
     def get_parent(cls, table: str) -> Union[str, None]:
-        """
-        Return the parent table for the passed-in table
+        """ 
+        Return the parent table for the passed-in table.
+
         :param table: The table (str) to get relationships for
         :returns: The name of the Parent table, or None if there is none
         """
@@ -310,8 +313,8 @@ class Relationship:
 
     @classmethod
     def get_update_cascade_fk_column(cls, table: str) -> Union[str, None]:
-        """
-        Return the cascade fk that filters for the passed-in table
+        """ 
+        Return the cascade fk that filters for the passed-in table.
 
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
@@ -323,8 +326,8 @@ class Relationship:
     
     @classmethod
     def get_delete_cascade_fk_column(cls, table: str) -> Union[str, None]:
-        """
-        Return the cascade fk that filters for the passed-in table
+        """ 
+        Return the cascade fk that filters for the passed-in table.
 
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
@@ -337,8 +340,8 @@ class Relationship:
     def __init__(self, join_type: str, child_table: str, fk_column: Union[str, int], parent_table: str,
                  pk_column: Union[str, int], update_cascade: bool, delete_cascade: bool,
                  driver: SQLDriver, frm: Form) -> None:
-        """
-        Initialize a new Relationship instance
+        """ 
+        Initialize a new Relationship instance.
 
         :param join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
         :param child_table: The table name of the child table
@@ -377,14 +380,14 @@ class Relationship:
             return False
 
     def __str__(self):
-        """
-        Return a join clause when cast to a string
+        """ 
+        Return a join clause when cast to a string.
         """
         return self.driver.relationship_to_join_clause(self)
 
     def __repr__(self):
-        """
-        Return a more descriptive string for debugging
+        """ 
+        Return a more descriptive string for debugging.
         """
         ret = f'Relationship (' \
               f'\n\tjoin={self.join_type},' \
@@ -398,18 +401,20 @@ class Relationship:
 
 
 class ElementMap(dict):
-    """
-    Map a PySimpleGUI element to a specific `DataSet` column. This is what makes the GUI automatically update to
-    the contents of the database. This happens automatically when a PySimpleGUI Window is bound to a `Form` by
-    using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the
-    Table.column naming convention is used, This method can be used to manually map any element to any `DataSet` column
-    regardless of naming convention.
+    """ 
+    Map a PySimpleGUI element to a specific `DataSet` column.
 
+    This is what makes the GUI automatically update to the contents of the database.
+    This happens automatically when a PySimpleGUI Window is bound to a `Form` by using
+    the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as
+    long as the Table.column naming convention is used, This method can be used to
+    manually map any element to any `DataSet` column regardless of naming convention.
     """
     def __init__(self, element: sg.Element, dataset: DataSet, column: str, where_column: str = None,
                  where_value: str = None) -> None:
-        """
-        Create a new ElementMap instance
+        """ 
+        Create a new ElementMap instance.
+
         :param element: A PySimpleGUI Element
         :param dataset: A `DataSet` object
         :param column: The name of the column to bind to the element
@@ -436,8 +441,10 @@ class ElementMap(dict):
 
 
 class DataSet:
-    """
-    This class is used for an internal representation of database tables. `DataSet` instances are added by the
+    """ 
+    This class is used for an internal representation of database tables.
+
+    `DataSet` instances are added by the
     `Form` methods: `Form.add_table` `Form.auto_add_tables` # TODO refactor:rename these
     A `DataSet` is synonymous for a SQL Table (though you can technically have multiple `DataSet` objects referencing
     the same table, with each `DataSet` object having its own sorting, where clause, etc.)
@@ -449,8 +456,8 @@ class DataSet:
     def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
                  query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
                  prompt_save: int = None, save_quiet: bool = None, duplicate_children: bool = None) -> None:
-        """
-        Initialize a new `DataSet` instance
+        """ 
+        Initialize a new `DataSet` instance.
 
         :param data_key: The name you are assigning to this `DataSet` object (I.e. 'people')
         :param frm_reference: This is a reference to the @ Form object, for convenience
@@ -533,8 +540,8 @@ class DataSet:
 
     @classmethod
     def purge_form(cls, frm: Form, reset_keygen: bool) -> None:
-        """
-        Purge the tracked instances related to frm
+        """ 
+        Purge the tracked instances related to frm.
 
         :param frm: the `Form` to purge `DataSet`` instances from
         :param reset_keygen: Reset the keygen after purging?
@@ -563,8 +570,8 @@ class DataSet:
         DataSet.instances = new_instances
 
     def set_prompt_save(self, mode: int) -> None:
-        """
-        Set the prompt to save action when navigating records
+        """ 
+        Set the prompt to save action when navigating records.
 
         :param mode: a constant value. If pysimplesql is imported as `ss`, use:
                     `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
@@ -574,7 +581,7 @@ class DataSet:
         self._prompt_save = mode
 
     def set_search_order(self, order: List[str]) -> None:
-        """
+        """ 
         Set the search order when using the search box.
 
         This is a list of column names to be searched, in order
@@ -585,8 +592,9 @@ class DataSet:
         self.search_order = order
 
     def set_callback(self, callback: str, fctn: Callable[[Form, sg.Window], bool]) -> None:
-        """
-        Set DataSet callbacks. A runtime error will be thrown if the callback is not supported.
+        """ 
+        Set DataSet callbacks. A runtime error will be thrown if the callback is not
+        supported.
 
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the callback returns true, or the
@@ -628,7 +636,7 @@ class DataSet:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
     def set_transform(self, fn: callable) -> None:
-        """
+        """ 
         Set a transform on the data for this `DataSet`.
 
         Here you can set custom a custom transform to both decode data from the
@@ -645,7 +653,7 @@ class DataSet:
         self.transform = fn
 
     def set_query(self, query: str) -> None:
-        """
+        """ 
         Set the query string for the `DataSet`.
 
         This is more for advanced users. It defaults to "SELECT * FROM {table};" This can override the default
@@ -657,7 +665,7 @@ class DataSet:
         self.query = query
 
     def set_join_clause(self, clause: str) -> None:
-        """
+        """ 
         Set the `DataSet` object's join string.
 
         This is more for advanced users, as it will automatically generate from the database Relationships otherwise.
@@ -669,7 +677,7 @@ class DataSet:
         self.join_clause = clause
 
     def set_where_clause(self, clause: str) -> None:
-        """
+        """ 
         Set the `DataSet` object's where clause.
 
         This is ADDED TO the auto-generated where clause from Relationship data
@@ -681,7 +689,7 @@ class DataSet:
         self.where_clause = clause
 
     def set_order_clause(self, clause: str) -> None:
-        """
+        """ 
         Set the `DataSet` object's order clause.
 
         This is more for advanced users, as it will automatically generate from the database Relationships otherwise.
@@ -693,9 +701,9 @@ class DataSet:
         self.order_clause = clause
 
     def update_column_info(self, column_info: ColumnInfo = None) -> None:
-        """
-        Generate column information for the `DataSet` object. This may need done, for example, when a manual query
-        using joins is used.
+        """ 
+        Generate column information for the `DataSet` object. This may need done, for
+        example, when a manual query using joins is used.
 
         This is more for advanced users.
         :param column_info: (optional) A `ColumnInfo` instance. Defaults to being generated by the `SQLDriver`
@@ -708,7 +716,7 @@ class DataSet:
             self.column_info = self.driver.column_info(self.table)
 
     def set_description_column(self, column: str) -> None:
-        """
+        """ 
         Set the `DataSet` object's description column.
 
         This is the column that will display in Listboxes, Comboboxes, Tables, etc.
@@ -722,8 +730,9 @@ class DataSet:
         self.description_column = column
 
     def records_changed(self, column: str = None, recursive=True) -> bool:
-        """
-        Checks if records have been changed by comparing PySimpleGUI control values with the stored DataSet values
+        """ 
+        Checks if records have been changed by comparing PySimpleGUI control values with
+        the stored DataSet values.
 
         :param column: Limit the changed records search to just the supplied column name
         :param recursive: True to check related `DataSet` instances
@@ -794,8 +803,9 @@ class DataSet:
         return dirty
 
     def prompt_save(self, update_elements: bool = True) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
-        """
-        Prompts the user if they want to save when changes are detected and the current record is about to change.
+        """ 
+        Prompts the user if they want to save when changes are detected and the current
+        record is about to change.
 
         :param autosave: True to autosave when changes are found without prompting the user
         :param update_elements: (optional) Passed to `Form.save_records()` -> `Form.save_records_recursive()` to
@@ -831,9 +841,10 @@ class DataSet:
 
     def requery(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                 requery_dependents: bool = True) -> None:
-        """
-        Requeries the table. The `DataSet` object maintains an internal representation of the actual database table.
-        The requery method will query the actual database and sync the `DataSet` object to it
+        """ 
+        Requeries the table. The `DataSet` object maintains an internal representation
+        of the actual database table. The requery method will query the actual database
+        and sync the `DataSet` object to it.
 
         :param select_first: (optional) If True, the first record will be selected after the requery
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
@@ -883,8 +894,8 @@ class DataSet:
                        skip_prompt_save=True)  # We don't want to prompt save in this situation, requery already done
 
     def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
-        """
-        Requery parent `DataSet` instances as defined by the relationships of the table
+        """ 
+        Requery parent `DataSet` instances as defined by the relationships of the table.
 
         :param child: (optional) If True, will requery self. Default False; used to skip requery when called by parent.
         :param update_elements: (optional) passed to `DataSet.requery()` -> `DataSet.first()` to update_elements.
@@ -901,11 +912,12 @@ class DataSet:
 
     def first(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False) \
             -> None:
-        """
-        Move to the first record of the table.
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
-        `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
+        """ 
+        Move to the first record of the table. Only one entry in the table is ever
+        considered "Selected"  This is one of several functions that influences which
+        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
+        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
+        `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -926,11 +938,12 @@ class DataSet:
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def last(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
-        """
-        Move to the last record of the table.
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
-        `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
+        """ 
+        Move to the last record of the table. Only one entry in the table is ever
+        considered "Selected"  This is one of several functions that influences which
+        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
+        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
+        `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -951,11 +964,12 @@ class DataSet:
             self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def next(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
-        """
-        Move to the next record of the table.
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
-        `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
+        """ 
+        Move to the next record of the table. Only one entry in the table is ever
+        considered "Selected"  This is one of several functions that influences which
+        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
+        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
+        `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -977,11 +991,12 @@ class DataSet:
                 self.callbacks['record_changed'](self.frm, self.frm.window)
 
     def previous(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
-        """
-        Move to the previous record of the table.
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
-        `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
+        """ 
+        Move to the previous record of the table. Only one entry in the table is ever
+        considered "Selected"  This is one of several functions that influences which
+        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
+        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
+        `DataSet.set_by_index()`
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -1005,14 +1020,16 @@ class DataSet:
     def search(self, search_string: str, update_elements: bool = True, dependents: bool = True,
                skip_prompt_save: bool = False) \
             -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
-        """
+        """ 
         Move to the next record in the `DataSet` that contains `search_string`.
-        Successive calls will search from the current position, and wrap around back to the beginning.
-        The search order from `DataSet.set_search_order()` will be used. If the search order is not set by the user,
-        it will default to the description column (see `DataSet.set_description_column()`).
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
-        `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
+        Successive calls will search from the current position, and wrap around back to
+        the beginning. The search order from `DataSet.set_search_order()` will be used.
+        If the search order is not set by the user, it will default to the description
+        column (see `DataSet.set_description_column()`). Only one entry in the table is
+        ever considered "Selected"  This is one of several functions that influences
+        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
+        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
+        `DataSet.set_by_index()`
 
         :param search_string: The search string to look for
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -1071,11 +1088,12 @@ class DataSet:
 
     def set_by_index(self, index: int, update_elements: bool = True, dependents: bool = True,
                      skip_prompt_save: bool = False, omit_elements: List[str] = None) -> None:
-        """
-        Move to the record of the table located at the specified index in DataSet.
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`,
-        `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
+        """ 
+        Move to the record of the table located at the specified index in DataSet. Only
+        one entry in the table is ever considered "Selected"  This is one of several
+        functions that influences which record is currently selected. See
+        `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`
 
         :param index: The index of the record to move to.
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -1102,12 +1120,13 @@ class DataSet:
 
     def set_by_pk(self, pk: int, update_elements: bool = True, requery_dependents: bool = True,
                   skip_prompt_save: bool = False, omit_elements: list[str] = None) -> None:
-        """
-        Move to the record with this primary key.
-        This is useful when modifying a record (such as renaming). The primary key can be stored, the record re-named,
-        and then the current record selection updated regardless of the new sort order.
-        Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
-        which record is currently selected. See `DataSet.first`, `DataSet.previous`, `DataSet.next`, `DataSet.last`,
+        """ 
+        Move to the record with this primary key. This is useful when modifying a record
+        (such as renaming). The primary key can be stored, the record re-named, and then
+        the current record selection updated regardless of the new sort order. Only one
+        entry in the table is ever considered "Selected"  This is one of several
+        functions that influences which record is currently selected. See
+        `DataSet.first`, `DataSet.previous`, `DataSet.next`, `DataSet.last`,
         `DataSet.search`, `DataSet.set_by_index`
 
         :param pk: The record to move to containing the primary key
@@ -1141,9 +1160,10 @@ class DataSet:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
 
     def get_current(self, column: str, default: Union[str, int] = "") -> Union[str, int]:
-        """
-        Get the current value for the supplied column. You can also use indexing of the @Form object
-        to get the current value of a column, I.e. frm[{DataSet}].[{column}]
+        """ 
+        Get the current value for the supplied column. You can also use indexing of the
+        @Form object to get the current value of a column, I.e.
+        frm[{DataSet}].[{column}]
 
         :param column: The column you want to get the value from
         :param default: A value to return if the record is null
@@ -1172,8 +1192,9 @@ class DataSet:
         self.get_current_row()[column] = value
 
     def get_keyed_value(self, value_column: str, key_column: str, key_value: Union[str, int]) -> Union[str, int]:
-        """
-        Return `value_column` where` key_column`=`key_value`. Useful for datastores with key/value pairs
+        """ 
+        Return `value_column` where` key_column`=`key_value`. Useful for datastores with
+        key/value pairs.
 
         :param value_column: The column to fetch the value from
         :param key_column: The column in which to search for the value
@@ -1185,16 +1206,16 @@ class DataSet:
                 return r[value_column]
 
     def get_current_pk(self) -> int:
-        """
-        Get the primary key of the currently selected record
+        """ 
+        Get the primary key of the currently selected record.
 
         :returns: the primary key
         """
         return self.get_current(self.pk_column)
 
     def get_current_row(self) -> ResultRow:
-        """
-        Get the row for the currently selected record of this table
+        """ 
+        Get the row for the currently selected record of this table.
 
         :returns: A `ResultRow` object
         """
@@ -1222,10 +1243,10 @@ class DataSet:
         self.selector.append(d)
 
     def insert_record(self, values: Dict[str: Union[str, int]] = None, skip_prompt_save: bool = False) -> None:
-        """
-        Insert a new record virtually in the `DataSet` object. If values are passed, it will initially set those columns
-        to the values (I.e. {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the database if
-        present.
+        """ 
+        Insert a new record virtually in the `DataSet` object. If values are passed, it
+        will initially set those columns to the values (I.e. {'name': 'New Record',
+        'note': ''}), otherwise they will be fetched from the database if present.
 
         :param values: column:value pairs
         :param skip_prompt_save: Skip prompting the user to save dirty records before the insert
@@ -1263,10 +1284,10 @@ class DataSet:
         self.frm.update_elements(self.table)
 
     def save_record(self, display_message: bool = None, update_elements: bool = True) -> int:
-        """
-        Save the currently selected record.
-        Saves any changes made via the GUI back to the database. The before_save and after_save `DataSet.callbacks`
-        will call your own functions for error checking if needed!
+        """ 
+        Save the currently selected record. Saves any changes made via the GUI back to
+        the database. The before_save and after_save `DataSet.callbacks` will call your
+        own functions for error checking if needed!
 
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
         :param update_elements: Update the GUI elements after saving
@@ -1405,8 +1426,9 @@ class DataSet:
 
     def save_record_recursive(self, results: SaveResultsDict, display_message = False, check_prompt_save: bool = False,
                               update_elements: bool = True) -> SaveResultsDict:
-        """
-        Recursively save changes, taking into account the relationships of the tables
+        """ 
+        Recursively save changes, taking into account the relationships of the tables.
+
         :param results: Used in Form.save_records to collect DataSet.save_record returns. Pass an empty dict to get list
                of {table : result}
         :param display_message: Passed to DataSet.save_record. Displays a message "Updates saved successfully", otherwise
@@ -1434,9 +1456,9 @@ class DataSet:
             return results
 
     def delete_record(self, cascade:bool=True): # TODO: check return type, we return True below
-        """
-        Delete the currently selected record.
-        The before_delete and after_delete callbacks are run during this process to give some control over the process
+        """ 
+        Delete the currently selected record. The before_delete and after_delete
+        callbacks are run during this process to give some control over the process.
 
         :param cascade: Delete child records (as defined by `Relationship`s that were set up) before deleting this record
         :returns: None
@@ -1492,9 +1514,10 @@ class DataSet:
         self.frm.update_elements(self.table)
         
     def duplicate_record(self, children: bool = None) -> None: # TODO check return type, returns True within
-        """
-        Duplicate the currently selected record.
-        The before_duplicate and after_duplicate callbacks are run during this process to give some control over the process
+        """ 
+        Duplicate the currently selected record. The before_duplicate and
+        after_duplicate callbacks are run during this process to give some control over
+        the process.
 
         :param cascade: Duplicate child records (as defined by `Relationship`s that were set up) before duplicating this record
         :returns: None
@@ -1579,8 +1602,9 @@ class DataSet:
         return None
 
     def table_values(self, columns: List[str] = None, mark_virtual: bool = False) -> List[TableRow]:
-        """
-        Create a values list of `TableRows`s for use in a PySimpleGUI Table element. Each
+        """ 
+        Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
+        Each.
 
         :param columns: A list of column names to create table values for. Defaults to getting them from the
                              `DataSet.rows` `ResultSet`
@@ -1628,8 +1652,8 @@ class DataSet:
         return values
 
     def get_related_table_for_column(self, column: str) -> str:
-        """
-        Get parent table name as it relates to this column
+        """ 
+        Get parent table name as it relates to this column.
 
         :param column: The column name to get related table information for
         :returns: The name of the related table, or the current table if none are found
@@ -1705,8 +1729,9 @@ class DataSet:
         self.frm.update_elements()
 
     def add_simple_transform(self, transforms: SimpleTransformsDict) -> None:
-        """
-        Merge a dictionary of transforms into the `DataSet._simple_transform` dictionary.
+        """ 
+        Merge a dictionary of transforms into the `DataSet._simple_transform`
+        dictionary.
 
         Example:
         {'entry_date' : {
@@ -1734,8 +1759,8 @@ class Form:
                  parent: Form = None, filter: str = None, select_first: bool = True, prompt_save: int = PROMPT_MODE,
                  save_quiet: bool = False, update_cascade: bool = True, delete_cascade: bool = True,
                  duplicate_children: bool = True, description_column_names: List[str] = None) -> None:
-        """
-        Initialize a new `Form` instance
+        """ 
+        Initialize a new `Form` instance.
 
         :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
         :param bind_window: Bind this window to the `Form`
@@ -1757,7 +1782,6 @@ class Form:
                                          The first matching column of the table is given priority. If no match is found, the second column is used.
                                          Default list: ['description', 'name', 'title'].
         :returns: None
-
         """
         win_pb = ProgressBar(lang.startup_form)
         win_pb.update(lang.startup_init, 0)
@@ -1771,9 +1795,9 @@ class Form:
         self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
         self.popup = None
-        """
+        """ 
         The element map dict is set up as below:
-        
+
         .. literalinclude:: ../doc_examples/element_map.1.py
         :language: python
         :caption: Example code
@@ -1818,7 +1842,7 @@ class Form:
                     f'database configuration issues.')
 
     def close(self, reset_keygen: bool = True):
-        """
+        """ 
         Safely close out the `Form`
 
         :param reset_keygen: True to reset the keygen for this `Form`
@@ -1828,11 +1852,13 @@ class Form:
         self.driver.close()
 
     def bind(self, win:sg.Window) -> None:
-        """
-        Bind the PySimpleGUI Window to the Form for the purpose of GUI element, event and relationship mapping.
-        This can happen automatically on `Form` creation with the bind parameter and is not typically called by the end
-        user. This function literally just groups all the auto_* methods. See `Form.auto_add_tables()`,
-        `Form.auto_add_relationships()`, `Form.auto_map_elements()`, `Form.auto_map_events()`
+        """ 
+        Bind the PySimpleGUI Window to the Form for the purpose of GUI element, event
+        and relationship mapping. This can happen automatically on `Form` creation with
+        the bind parameter and is not typically called by the end user. This function
+        literally just groups all the auto_* methods. See `Form.auto_add_tables()`,
+        `Form.auto_add_relationships()`, `Form.auto_map_elements()`,
+        `Form.auto_map_events()`
 
         :param win: The PySimpleGUI window
         :returns:  None
@@ -1847,7 +1873,7 @@ class Form:
 
 
     def execute(self, query: str) -> ResultSet:
-        """
+        """ 
         Convenience function to pass along to `SQLDriver.execute()`
 
         :param query: The query to execute
@@ -1856,7 +1882,7 @@ class Form:
         return self.driver.execute(query)
 
     def commit(self) -> None:
-        """
+        """ 
         Convenience function to pass along to `SQLDriver.commit()`
 
         :returns: None
@@ -1864,21 +1890,22 @@ class Form:
         self.driver.commit()
 
     def set_callback(self, callback_name:str, fctn:Callable[[Form,sg.Window],Union[None,bool]]) -> None:
-        """
-       Set `Form` callbacks. A runtime error will be raised if the callback is not supported.
-       
-       The following callbacks are supported:
-           
-        update_elements: Called after elements are updated via `Form.update_elements()`. This allows for other GUI manipulation on each update of the GUI
-        edit_enable: Called before editing mode is enabled. This can be useful for asking for a password for example
-        edit_disable: Called after the editing mode is disabled
-        {element_name}: Called while updating MAPPED element. This overrides the default element update implementation.
-                        Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
+        """ 
+        Set `Form` callbacks. A runtime error will be raised if the callback is not
+        supported.
 
-       :param callback_name: The name of the callback, from the list above
-       :param fctn: The function to call. Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
-       :returns: None
-       """
+        The following callbacks are supported:
+
+         update_elements: Called after elements are updated via `Form.update_elements()`. This allows for other GUI manipulation on each update of the GUI
+         edit_enable: Called before editing mode is enabled. This can be useful for asking for a password for example
+         edit_disable: Called after the editing mode is disabled
+         {element_name}: Called while updating MAPPED element. This overrides the default element update implementation.
+                         Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
+
+        :param callback_name: The name of the callback, from the list above
+        :param fctn: The function to call. Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
+        :returns: None
+        """
         logger.info(f'Callback {callback_name} being set on Form')
         supported = ['update_elements', 'edit_enable', 'edit_disable']
 
@@ -1897,10 +1924,11 @@ class Form:
 
     def add_dataset(self, data_key: str, table: str, pk_column: str, description_column: str, query: str = '',
                     order_clause: str = '') -> None:
-        """
-        Manually add a `DataSet` object to the `Form`.
-        When you attach to a database, PySimpleSQL isn't aware of what it contains until this command is run
-        Note that `Form.auto_add_datasets()` does this automatically, which is called when a `Form` is created
+        """ 
+        Manually add a `DataSet` object to the `Form`. When you attach to a database,
+        PySimpleSQL isn't aware of what it contains until this command is run Note that
+        `Form.auto_add_datasets()` does this automatically, which is called when a
+        `Form` is created.
 
         :param data_key: The key to give this `DataSet`. Use frm['data_key'] to access it.
         :param table: The name of the table in the database
@@ -1915,12 +1943,13 @@ class Form:
 
     def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str,
                          update_cascade:bool, delete_cascade:bool) -> None:
-        """
-        Add a foreign key relationship between two dataset of the database.
-        When you attach a database, PySimpleSQL isn't aware of the relationships contained until dataset are
-        added via `Form.add_data`, and the relationship of various tables is set with this function.
-        Note that `Form.auto_add_relationships()` will do this automatically from the schema of the database,
-        which also happens automatically when a `Form` is created.
+        """ 
+        Add a foreign key relationship between two dataset of the database. When you
+        attach a database, PySimpleSQL isn't aware of the relationships contained until
+        dataset are added via `Form.add_data`, and the relationship of various tables is
+        set with this function. Note that `Form.auto_add_relationships()` will do this
+        automatically from the schema of the database, which also happens automatically
+        when a `Form` is created.
 
         :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
         :param child_table: The child table containing the foreign key
@@ -1936,9 +1965,9 @@ class Form:
                          update_cascade, delete_cascade, self.driver, self))
         
     def set_fk_column_cascade(self, child_table:str, fk_column:str, update_cascade:bool = None, delete_cascade:bool = None) -> None:
-        """
+        """ 
         Set a foreign key's update_cascade and delete_cascade behavior.
-        
+
         `Form.auto_add_relationships()` does this automatically from the database schema.
 
         :param child_table: Child table with the foreign key.
@@ -1956,12 +1985,13 @@ class Form:
                     rel.delete_cascade = update_cascade
     
     def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
-        """
-        Automatically add `DataSet` objects from the database by looping through the tables available and creating a
-        `DataSet` object for each. Each dataset key is an optional prefix plus the name of the table.
-        When you attach to a sqlite database, PySimpleSQL isn't aware of what it contains until this command is run.
-        This is called automatically when a `Form ` is created.
-        Note that `Form.add_table()` can do this manually on a per-table basis.
+        """ 
+        Automatically add `DataSet` objects from the database by looping through the
+        tables available and creating a `DataSet` object for each. Each dataset key is
+        an optional prefix plus the name of the table. When you attach to a sqlite
+        database, PySimpleSQL isn't aware of what it contains until this command is run.
+        This is called automatically when a `Form ` is created. Note that
+        `Form.add_table()` can do this manually on a per-table basis.
 
         :param prefix_data_keys: Adds a prefix to the auto-generated `DataSet` keys
         :returns: None
@@ -1993,12 +2023,14 @@ class Form:
     # Make sure to send a list of table names to requery if you want
     # dependent dataset to requery automatically
     def auto_add_relationships(self) -> None:
-        """
-        Automatically add a foreign key relationship between tables of the database. This is done by foreign key
-        constraints within the database. Automatically requery the child table if the parent table changes (ON UPDATE
-        CASCADE in sql is set) When you attach a database, PySimpleSQL isn't aware of the relationships contained until
-        tables are added and the relationship of various tables is set. This happens automatically during `Form`
-        creation. Note that `Form.add_relationship()` can do this manually.
+        """ 
+        Automatically add a foreign key relationship between tables of the database.
+        This is done by foreign key constraints within the database. Automatically
+        requery the child table if the parent table changes (ON UPDATE CASCADE in sql is
+        set) When you attach a database, PySimpleSQL isn't aware of the relationships
+        contained until tables are added and the relationship of various tables is set.
+        This happens automatically during `Form` creation. Note that
+        `Form.add_relationship()` can do this manually.
 
         :returns: None
         """
@@ -2015,12 +2047,14 @@ class Form:
     # Optionally a where_column and a where_value. This is useful for key,value pairs!
     def map_element(self, element: sg.Element, dataset: DataSet, column: str, where_column: str = None,
                     where_value: str = None) -> None:
-        """
-        Map a PySimpleGUI element to a specific `DataSet` column. This is what makes the GUI automatically update to
-        the contents of the database. This happens automatically when a PySimpleGUI Window is bound to a `Form` by
-        using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long as the element
-        metadata is configured properly. This method can be used to manually map any element to any `DataSet` column
-        regardless of metadata configuration.
+        """ 
+        Map a PySimpleGUI element to a specific `DataSet` column. This is what makes the
+        GUI automatically update to the contents of the database. This happens
+        automatically when a PySimpleGUI Window is bound to a `Form` by using the bind
+        parameter of `Form` creation, or by executing `Form.auto_map_elements()` as long
+        as the element metadata is configured properly. This method can be used to
+        manually map any element to any `DataSet` column regardless of metadata
+        configuration.
 
         :param element: A PySimpleGUI Element
         :param dataset: A `DataSet` object
@@ -2033,17 +2067,19 @@ class Form:
         self.element_map.append(ElementMap(element, dataset, column, where_column, where_value))
 
     def auto_map_elements(self, win:sg.Window, keys:List[str]=None) -> None:
-        """
-        Automatically map PySimpleGUI Elements to `DataSet` columns. A special naming convention has to be used for
-        automatic mapping to happen. Note that `Form.map_element()` can be used to manually map an Element to a column.
-        Automatic mapping relies on a special naming convention as well as certain data in the Element's metadata.
-        The convenience functions `field()`, `selector()`, and `actions()` do this automatically and should be used in
-        almost all cases to make elements that conform to this standard, but this information will allow you to do this
-        manually if needed.
-        
+        """ 
+        Automatically map PySimpleGUI Elements to `DataSet` columns. A special naming
+        convention has to be used for automatic mapping to happen. Note that
+        `Form.map_element()` can be used to manually map an Element to a column.
+        Automatic mapping relies on a special naming convention as well as certain data
+        in the Element's metadata. The convenience functions `field()`, `selector()`,
+        and `actions()` do this automatically and should be used in almost all cases to
+        make elements that conform to this standard, but this information will allow you
+        to do this manually if needed.
+
         For individual fields, Element keys must be named 'Table.column'. Additionally, the metadata must contain a dict
         with the key of 'type' set to `TYPE_RECORD`.
-        
+
         For selectors, the key can be named whatever you want, but the metadata must contain a dict with the key of
         'type' set to TPE_SELECTOR
 
@@ -2138,8 +2174,8 @@ class Form:
                     logger.debug(f'Can not add selector {str(element)}')
 
     def set_element_clauses(self, element: sg.Element, where_clause: str = None, order_clause: str = None) -> None:
-        """
-        Set the where and/or order clauses for the specified element in the element map
+        """ 
+        Set the where and/or order clauses for the specified element in the element map.
 
         :param element: A PySimpleGUI Element
         :param where_clause: (optional) The where clause to set
@@ -2152,11 +2188,13 @@ class Form:
                 mapped.order_clause =order_clause
 
     def map_event(self, event:str, fctn:Callable[[None],None], table:str=None) -> None:
-        """
-        Manually map a PySimpleGUI event (returned by Window.read()) to a callable. The callable will execute
-        when the event is detected by `Form.process_events()`. Most users will not have to manually map any events,
-        as `Form.auto_map_events()` will create most needed events when a PySimpleGUI Window is bound to a `Form`
-        by using the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()`.
+        """ 
+        Manually map a PySimpleGUI event (returned by Window.read()) to a callable. The
+        callable will execute when the event is detected by `Form.process_events()`.
+        Most users will not have to manually map any events, as `Form.auto_map_events()`
+        will create most needed events when a PySimpleGUI Window is bound to a `Form` by
+        using the bind parameter of `Form` creation, or by executing
+        `Form.auto_map_elements()`.
 
         :param event: The event to watch for, as returned by PySimpleGUI Window.read() (an element name for example)
         :param fctn: The callable to run when the event is detected. It should take no parameters and have no return value
@@ -2172,8 +2210,9 @@ class Form:
         self.event_map.append(dic)
 
     def replace_event(self, event:str ,fctn:Callable[[None],None], table:str=None) -> None:
-        """
-        Replace an event that was manually mapped with `Form.auto_map_events()` or `Form.map_event()`. The callable will execute
+        """ 
+        Replace an event that was manually mapped with `Form.auto_map_events()` or
+        `Form.map_event()`. The callable will execute.
 
         :param event: The event to watch for, as returned by PySimpleGUI Window.read() (an element name for example)
         :param fctn: The callable to run when the event is detected. It should take no parameters and have no return value
@@ -2186,12 +2225,13 @@ class Form:
                 e['table'] = table if table is not None else e['table']
 
     def auto_map_events(self, win:sg.Window) -> None:
-        """
-        Automatically map events. pysimplesql relies on certain events to function properly. This method maps all the
-        record navigation (previous, next, etc.) and database actions (insert, delete, save, etc.). Note that the event
-        mapper is very general-purpose, and you can add your own event triggers to the mapper using
-        `Form.map_event()`, or even replace one of the auto-generated ones if you have specific needs by using
-        `Form.replace_event()`
+        """ 
+        Automatically map events. pysimplesql relies on certain events to function
+        properly. This method maps all the record navigation (previous, next, etc.) and
+        database actions (insert, delete, save, etc.). Note that the event mapper is
+        very general-purpose, and you can add your own event triggers to the mapper
+        using `Form.map_event()`, or even replace one of the auto-generated ones if you
+        have specific needs by using `Form.replace_event()`
 
         :param win: A PySimpleGUI Window
         :returns: None
@@ -2259,10 +2299,11 @@ class Form:
 
 
     def edit_protect(self) -> None:
-        """
-        The edit protect system allows records to be protected from accidental editing by disabling the insert, delete,
-        duplicate and save buttons on the GUI. A button to toggle the edit protect mode can easily be added by using
-        the `actions()` convenience function.
+        """ 
+        The edit protect system allows records to be protected from accidental editing
+        by disabling the insert, delete, duplicate and save buttons on the GUI. A button
+        to toggle the edit protect mode can easily be added by using the `actions()`
+        convenience function.
 
         :returns: None
         """
@@ -2281,17 +2322,18 @@ class Form:
         self.update_elements(edit_protect_only=True)
 
     def get_edit_protect(self) -> bool:
-        """
-        Get the current edit protect state
+        """ 
+        Get the current edit protect state.
 
         :returns: True if edit protect is enabled, False if not enabled
         """
         return self._edit_protect
 
     def prompt_save(self) -> PromptSaveValue:
-        """
-        Prompt to save if any GUI changes are found the affect any table on this form. The helps prevent data entry
-        loss when performing an action that changes the current record of a `DataSet`.
+        """ 
+        Prompt to save if any GUI changes are found the affect any table on this form.
+        The helps prevent data entry loss when performing an action that changes the
+        current record of a `DataSet`.
 
         :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
         """
@@ -2321,8 +2363,9 @@ class Form:
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
     def set_force_save(self, force:bool=False) -> None:
-        """
-        Force save without checking for changes first, so even an unchanged record will be written back to the database.
+        """ 
+        Force save without checking for changes first, so even an unchanged record will
+        be written back to the database.
 
         :param force: True to force unchanged records to save.
         :returns: None
@@ -2331,7 +2374,7 @@ class Form:
 
     def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False, \
             update_elements: bool = True) -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
-        """
+        """ 
         Save records of all `DataSet` objects` associated with this `Form`.
 
         :param table: Name of table to save, as well as any cascaded relationships. Used in `DataSet.prompt_save()`
@@ -2392,8 +2435,9 @@ class Form:
         return result
 
     def set_prompt_save(self, mode: int) -> None:
-        """
-        Set the prompt to save action when navigating records for all `DataSet` objects associated with this `Form`
+        """ 
+        Set the prompt to save action when navigating records for all `DataSet` objects
+        associated with this `Form`
 
         :param mode: a constant value. If pysimplesql is imported as `ss`, use:
                     `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
@@ -2405,10 +2449,11 @@ class Form:
             self[data_key].set_prompt_save(mode)
 
     def update_elements(self, target_data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
-        """
-        Updated the GUI elements to reflect values from the database for this `Form` instance only
-        Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances. This
-        method also executes `update_selectors()`, which updates selector elements.
+        """ 
+        Updated the GUI elements to reflect values from the database for this `Form`
+        instance only Not to be confused with the main `update_elements()`, which
+        updates GUI elements for all `Form` instances. This method also executes
+        `update_selectors()`, which updates selector elements.
 
         :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
         :param edit_protect_only: (optional) If true, only update items affected by edit_protect
@@ -2613,9 +2658,10 @@ class Form:
             self.callbacks['update_elements'](self, self.window)
 
     def update_selectors(self, target_data_key: str = None, omit_elements: List[str] = []) -> None:
-        """
-        Updated the GUI elements to reflect values from the database for this `Form` instance only
-        Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
+        """ 
+        Updated the GUI elements to reflect values from the database for this `Form`
+        instance only Not to be confused with the main `update_elements()`, which
+        updates GUI elements for all `Form` instances.
 
         :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
         :param omit_elements: A list of elements to omit updating
@@ -2702,9 +2748,9 @@ class Form:
 
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
-        """
-        Requeries all `DataSet` objects associated with this `Form`.
-        This effectively re-loads the data from the database into `DataSet` objects
+        """ 
+        Requeries all `DataSet` objects associated with this `Form`. This effectively
+        re-loads the data from the database into `DataSet` objects.
 
         :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If True, the first record will be
                              selected after the requery
@@ -2724,7 +2770,7 @@ class Form:
                                        requery_dependents=requery_dependents)
 
     def process_events(self, event: str, values: list) -> bool:
-        """
+        """ 
         Process mapped events for this specific `Form` instance.
 
         Not to be confused with the main `process_events()`, which processes events for ALL `Form` instances.
@@ -2776,7 +2822,7 @@ class Form:
         return False
 
     def update_element_states(self, table: str, disable: bool = None, visible: bool = None) -> None:
-        """
+        """ 
         Disable/enable and/or show/hide all elements associated with a table.
 
         :param table: table name associated with elements to disable/enable
@@ -2804,9 +2850,9 @@ class Form:
 # These functions exist as utilities to the pysimplesql module
 # This is a dummy class for documenting utility functions
 class Utility:
-    """
-    Utility functions are a collection of functions and classes that directly improve on aspects of the pysimplesql
-    module.
+    """ 
+    Utility functions are a collection of functions and classes that directly improve on
+    aspects of the pysimplesql module.
 
     See the documentation for the following utility functions:
     `process_events()`, `update_elements()`, `bind()`, `simple_transform()`, `KeyGen()`,
@@ -2817,17 +2863,17 @@ class Utility:
 
 
 def process_events(event: str, values: list) -> bool:
+    """ 
+    Process mapped events for ALL Form instances.
+
+    Not to be confused with `Form.process_events()`, which processes events for individual `Form` instances.
+    This should be called once per iteration in your event loop
+    Note: Events handled are responsible for requerying and updating elements as needed
+
+    :param event: The event returned by PySimpleGUI.read()
+    :param values: the values returned by PySimpleGUI.read()
+    :returns: True if an event was handled, False otherwise
     """
-        Process mapped events for ALL Form instances.
-
-        Not to be confused with `Form.process_events()`, which processes events for individual `Form` instances.
-        This should be called once per iteration in your event loop
-        Note: Events handled are responsible for requerying and updating elements as needed
-
-        :param event: The event returned by PySimpleGUI.read()
-        :param values: the values returned by PySimpleGUI.read()
-        :returns: True if an event was handled, False otherwise
-        """
     handled = False
     for i in Form.instances:
         if i.process_events(event, values): handled=True
@@ -2835,9 +2881,10 @@ def process_events(event: str, values: list) -> bool:
 
 
 def update_elements(data_key: str = None, edit_protect_only: bool = False) -> None:
-    """
+    """ 
     Updated the GUI elements to reflect values from the database for ALL Form instances
-    Not to be confused with `Form.update_elements()`, which updates GUI elements for individual `Form` instances.
+    Not to be confused with `Form.update_elements()`, which updates GUI elements for
+    individual `Form` instances.
 
     :param data_key: (optional) key of `DataSet` to update elements for, otherwise updates elements for all datasets
     :param edit_protect_only: (optional) If true, only update items affected by edit_protect
@@ -2847,10 +2894,10 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
         i.update_elements(data_key, edit_protect_only)
 
 def bind(win: sg.Window) -> None:
-    """
-    Bind ALL forms to window.
-    Not to be confused with `Form.bind()`, which binds specific forms to the window.
-    
+    """ 
+    Bind ALL forms to window. Not to be confused with `Form.bind()`, which binds
+    specific forms to the window.
+
     :param win: The PySimpleGUI window to bind all forms to
     :returns: None
     """
@@ -2858,8 +2905,9 @@ def bind(win: sg.Window) -> None:
         i.bind(win)
 
 def simple_transform(dataset:DataSet, row, encode):
-    """
-    Convenience transform function that makes it easier to add transforms to your records.
+    """ 
+    Convenience transform function that makes it easier to add transforms to your
+    records.
     """
     for col, function in dataset._simple_transform.items():
         if col in row:
@@ -2872,9 +2920,9 @@ def simple_transform(dataset:DataSet, row, encode):
 
 def update_table_element(window: sg.Window, element: Type[sg.Table], values: List[TableRow],
                  select_rows: List[int], vscroll_position: float = None) -> None:
-    """
+    """ 
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
-    
+
     Call this function instead of simply calling update() on a sg.Table element.
     The reason is that updating the selection or values will in turn fire more
     changed events, adding up to an endless loop of events.
@@ -2897,16 +2945,19 @@ def update_table_element(window: sg.Window, element: Type[sg.Table], values: Lis
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected) # Enable handling for "<<TreeviewSelect>>" event
 
 def checkbox_to_bool(value):
-    """
+    """ 
     Allows a variety of checkbox values to still return True or False.
+
     :param value: Value to convert into True or False
     :returns: bool
     """
     return str(value).lower() in ['y','yes','t','true','1']
 
 class Popup:
-    """
-    Popup helper class. Has popup functions for internal use. Stores last info popup as last_info
+    """ 
+    Popup helper class.
+
+    Has popup functions for internal use. Stores last info popup as last_info
     """
     def __init__(self):
         """
@@ -2917,8 +2968,10 @@ class Popup:
         self.popup_info = None
 
     def ok(self, title, msg):
-        """
-        Internal use only. Creates sg.Window with LanguagePack OK button
+        """ 
+        Internal use only.
+
+        Creates sg.Window with LanguagePack OK button
         """
         msg = msg.splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
@@ -2935,8 +2988,10 @@ class Popup:
         popup_win.close()
 
     def yes_no(self, title, msg):
-        """
-        Internal use only. Creates sg.Window with LanguagePack Yes/No button
+        """ 
+        Internal use only.
+
+        Creates sg.Window with LanguagePack Yes/No button
         """
         msg = msg.splitlines()
         layout = [[sg.T(line, font='bold')] for line in msg]
@@ -2958,14 +3013,16 @@ class Popup:
         return result
 
     def info(self, msg: str, display_message: bool = True, auto_close_seconds: int = None):
-        """
-        Creates sg.Window with no buttons to display passed in message string, and writes message to
-        to self.last_info. Uses title as defined in lang.info_popup_title. By default auto-closes in seconds as defined in themepack.popup_info_auto_close_seconds
-        
+        """ 
+        Creates sg.Window with no buttons to display passed in message string, and
+        writes message to to self.last_info. Uses title as defined in
+        lang.info_popup_title. By default auto-closes in seconds as defined in
+        themepack.popup_info_auto_close_seconds.
+
         :param msg: String to display as message
         :param display_message: (optional) By default True. False only writes [title,msg] to self.last_info
         :param auto_close_seconds: (optional) Gets value from themepack.info_popup_auto_close_seconds by default.
-        
+
         :returns: None
         """
         title = lang.info_popup_title
@@ -2984,8 +3041,9 @@ class Popup:
                              daemon=True).start()
     
     def auto_close(self, window: sg.Window, seconds: int):
-        """
+        """ 
         Use in a thread to automatically close the passed in sg.Window.
+
         :param window: sg.Window object to close
         :param seconds: Seconds to keep window open
         :returns: None
@@ -3018,23 +3076,29 @@ class ProgressBar:
         self.win.close()
 
 class LangFormat(dict):
-    """
-    This is a convenience class used by LanguagePack format_map calls, allowing users to not include expected variables.
+    """ 
+    This is a convenience class used by LanguagePack format_map calls, allowing users to
+    not include expected variables.
+
     Note: This is typically not used by the end user.
     """
     def __missing__(self, key):
         return None
 
 class KeyGen:
-    """
-    The keygen system provides a mechanism to generate unique keys for use as PySimpleGUI element keys.
-    This is needed because many auto-generated items will have the same name. If for example you had two save buttons on
-    the screen at the same time, they must have unique names. The keygen will append a separator and an incremental number
-    to keys that would otherwise be duplicates. A global KeyGen instance is created automatically, see `keygen` for info.
+    """ 
+    The keygen system provides a mechanism to generate unique keys for use as
+    PySimpleGUI element keys.
+
+    This is needed because many auto-generated items will have the same name. If for
+    example you had two save buttons on the screen at the same time, they must have
+    unique names. The keygen will append a separator and an incremental number to keys
+    that would otherwise be duplicates. A global KeyGen instance is created
+    automatically, see `keygen` for info.
     """
     def __init__(self, separator='!'):
-        """
-        Create a new KeyGen instance
+        """ 
+        Create a new KeyGen instance.
 
         :param separator: The default separator that goes between the key and the incremental number
         :returns: None
@@ -3043,7 +3107,7 @@ class KeyGen:
         self._separator = separator
 
     def get(self, key:str, separator:str=None) -> str:
-        """
+        """ 
         Get a generated key from the `KeyGen`
 
         :param key: The key from which to generate the new key. If the key has not been used before, then it will be
@@ -3066,8 +3130,8 @@ class KeyGen:
         return return_key
 
     def reset_key(self, key: str) -> None:
-        """
-        Reset the generation sequence for the supplied key
+        """ 
+        Reset the generation sequence for the supplied key.
 
         :param key: The base key to reset te sequence for
         """
@@ -3077,16 +3141,17 @@ class KeyGen:
             pass
 
     def reset(self) -> None:
-        """
-        Reset the entire `KeyGen` and remove all keys
+        """ 
+        Reset the entire `KeyGen` and remove all keys.
 
         :returns: None
         """
         self._keygen = {}
 
     def reset_from_form(self, frm:Form) -> None:
-        """
-        Reset keys from the keygen that were from mapped PySimpleGUI elements of that `Form`
+        """ 
+        Reset keys from the keygen that were from mapped PySimpleGUI elements of that
+        `Form`
 
         :param frm: The `Form` from which to get the list of mapped elements
         :returns: None
@@ -3097,7 +3162,11 @@ class KeyGen:
 
 # create a global KeyGen instance
 keygen = KeyGen(separator=':')
-"""This is a global keygen instance for general purpose use. See `KeyGen` for more info"""
+""" 
+This is a global keygen instance for general purpose use.
+
+See `KeyGen` for more info
+"""
 
 # Convenience dicts for example database connection
 postgres_examples = {
@@ -3125,11 +3194,12 @@ mysql_examples = {
 
 # This is a dummy class for documenting convenience functions
 class Convenience:
-    """
-    Convenience functions are a collection of functions and classes that aide in building PySimpleGUI layouts that
-    conform to pysimplesql standards so that your database application is up and running quickly, and with all the great
-    automatic functionality pysimplesql has to offer.
-    
+    """ 
+    Convenience functions are a collection of functions and classes that aide in
+    building PySimpleGUI layouts that conform to pysimplesql standards so that your
+    database application is up and running quickly, and with all the great automatic
+    functionality pysimplesql has to offer.
+
     See the documentation for the following convenience functions:
     `field()`, `selector()`, `actions()`, `TableHeadings`
 
@@ -3228,12 +3298,13 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
             insert: bool = None, delete: bool = None, duplicate: bool = None, save: bool = None, search: bool = None,
             search_size: Tuple[int, int] = (30, 1), bind_return_key: bool = True, filter: str = None,
             use_ttk_buttons: bool = None, pad = None, **kwargs) -> sg.Column:
-    """
-    Allows for easily adding record navigation and record action elements to the PySimpleGUI window
-    The navigation elements are generated automatically (first, previous, next, last and search). The action elements
-    can be customized by selecting which ones you want generated from the parameters available. This allows full
-    control over what is available to the user of your database application. Check out `ThemePacks` to give any of these
-    autogenerated controls a custom look!
+    """ 
+    Allows for easily adding record navigation and record action elements to the
+    PySimpleGUI window The navigation elements are generated automatically (first,
+    previous, next, last and search). The action elements can be customized by selecting
+    which ones you want generated from the parameters available. This allows full
+    control over what is available to the user of your database application. Check out
+    `ThemePacks` to give any of these autogenerated controls a custom look!
 
     Note: By default, the base element keys generated for PySimpleGUI will be table!action using the name of the table
     passed in the table parameter plus the action strings below separated by a colon: (I.e. Journal:table_insert)
@@ -3359,11 +3430,12 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
 
 def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
              key: str = None, **kwargs) -> sg.Element:
-    """
-    Selectors in pysimplesql are special elements that allow the user to change records in the database application.
-    For example, Listboxes, Comboboxes and Tables all provide a convenient way to users to choose which record they
-    want to select. This convenience function makes creating selectors very quick and as easy as using a normal
-    PySimpleGUI element.
+    """ 
+    Selectors in pysimplesql are special elements that allow the user to change records
+    in the database application. For example, Listboxes, Comboboxes and Tables all
+    provide a convenient way to users to choose which record they want to select. This
+    convenience function makes creating selectors very quick and as easy as using a
+    normal PySimpleGUI element.
 
     :param table: The table name in the database that this selector will act on
     :param element: The type of element you would like to use as a selector (defaults to a Listbox)
@@ -3374,7 +3446,6 @@ def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, i
                 using the table specified in the table parameter. This is also passed through the keygen, so if
                 selectors all use the default name, they will be made unique. I.e. Journal:selector!1, Journal:selector!2, etc.
     :param kwargs: Any additional arguments supplied will be passed on to the PySimpleGUI element
-
     """
     global keygen
 
@@ -3434,16 +3505,18 @@ def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, i
     return layout
 
 class TableHeadings(list):
-    """
-    This is a convenience class used to build table headings for PySimpleGUI. In addition, `TableHeading` objects
-    can sort columns in ascending or descending order by clicking on the column in the heading in the PySimpleGUI Table
-    element if the sort_enable parameter is set to True.
+    """ 
+    This is a convenience class used to build table headings for PySimpleGUI.
+
+    In addition, `TableHeading` objects can sort columns in ascending or descending
+    order by clicking on the column in the heading in the PySimpleGUI Table element if
+    the sort_enable parameter is set to True.
     """
     # store our instances
     instances = []
     def __init__(self, sort_enable:bool=True) -> None:
-        """
-        Create a new TableHeadings object
+        """ 
+        Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
         :returns: None
@@ -3456,10 +3529,10 @@ class TableHeadings(list):
         TableHeadings.instances.append(self)
 
     def add_column(self, column: str, heading_column: str, width: int, visible: bool = True) -> None:
-        """
-        Add a new heading column to this TableHeading object. Columns are added in the order that this method is called.
-        Note that the primary key column does not need to be included, as primary keys are stored internally in the
-        `TableRow` class.
+        """ 
+        Add a new heading column to this TableHeading object. Columns are added in the
+        order that this method is called. Note that the primary key column does not need
+        to be included, as primary keys are stored internally in the `TableRow` class.
 
         :param heading_column: The name of this columns heading (title)
         :param column: The name of the column in the database the heading column is for
@@ -3474,16 +3547,17 @@ class TableHeadings(list):
         self._visible_map.append(visible)
 
     def heading_names(self) -> List[str]:
-        """
-        Return a list of heading_names for use with the headings parameter of PySimpleGUI.Table
+        """ 
+        Return a list of heading_names for use with the headings parameter of
+        PySimpleGUI.Table.
 
         :returns: a list of heading names
         """
         return [c['heading'] for c in self]
 
     def columns(self):
-        """
-        Return a list of column names
+        """ 
+        Return a list of column names.
 
         :returns: a list of column names
         """
@@ -3491,16 +3565,16 @@ class TableHeadings(list):
 
 
     def visible_map(self) -> List[Union[bool,int]]:
-        """
-        Convenience method for creating PySimpleGUI tables
+        """ 
+        Convenience method for creating PySimpleGUI tables.
 
         :returns: a list of visible columns for use with th PySimpleGUI Table visible_column_map parameter
         """
         return [x for x in self._visible_map]
 
     def width_map(self) -> List[int]:
-        """
-        Convenience method for creating PySimpleGUI tables
+        """ 
+        Convenience method for creating PySimpleGUI tables.
 
         :returns: a list column widths for use with th PySimpleGUI Table col_widths parameter
         """
@@ -3556,13 +3630,13 @@ class TableHeadings(list):
         super().insert(idx,{'heading': heading_column, 'column': column})
 
 class _SortCallbackWrapper:
-    """
+    """ 
     Internal class used when sg.Table column headers are clicked.
     """
     
     def __init__(self,frm_reference: Form, data_key: str, element: sg.Element, table_heading):
-        """
-        Create a new _SortCallbackWrapper object
+        """ 
+        Create a new _SortCallbackWrapper object.
 
         :param frm_reference: `Form` object
         :param data_key: `DataSet` key
@@ -3667,7 +3741,9 @@ class ThemePack:
         # The size= parameter of `field()` will override this.
         'default_mline_size' : (30, 7), # (width, height)
     }
-    """Default Themepack"""
+    """ 
+    Default Themepack.
+    """
 
     def __init__(self, tp_dict:Dict[str,str] = {}) -> None:
         self.tp_dict = ThemePack.default
@@ -3683,8 +3759,8 @@ class ThemePack:
                 raise AttributeError(f"ThemePack object has no attribute '{key}'")
             
     def __call__(self, tp_dict:Dict[str,str] = {}) -> None:
-        """
-        Update the ThemePack object from tp_dict
+        """ 
+        Update the ThemePack object from tp_dict.
 
         Example minimal ThemePack: NOTE: You can add additional keys if desired
             tp_example = {
@@ -3707,11 +3783,11 @@ class ThemePack:
                 'sort_desc_marker': string eg '', f'',  unicode
             }
         For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder
-      	Remember to us b'' around the string.
+        Remember to us b'' around the string.
 
-      	For Text buttons, yan can even add Emoji's.
-      	https://carpedm20.github.io/emoji/ and copy-paste the 'Python Unicode name:' (less the variable)
-      	Format like f'\N{WASTEBASKET} Delete',
+        For Text buttons, yan can even add Emoji's.
+        https://carpedm20.github.io/emoji/ and copy-paste the 'Python Unicode name:' (less the variable)
+        Format like f'\N{WASTEBASKET} Delete',
 
         :param tp_dict: (optional) A dict formatted as above to create the ThemePack from. If one is not supplied, a
                         default ThemePack will be generated. Any keys not present in the supplied tp_dict will be
@@ -3734,9 +3810,11 @@ themepack = ThemePack()
 # ======================================================================================================================
 # Change the language text used throughout the program.
 class LanguagePack:
-    """
-    LanguagePacks are user-definable collections of strings that allow for localization of strings and messages presented
-    to the end user. Creating your own is easy as well! In fact, a LanguagePack can be as simple as one line if you just
+    """ 
+    LanguagePacks are user-definable collections of strings that allow for localization
+    of strings and messages presented to the end user.
+
+    Creating your own is easy as well! In fact, a LanguagePack can be as simple as one line if you just
     want to change one aspect of the default LanguagePack. Example:
         lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
     """
@@ -3848,7 +3926,9 @@ class LanguagePack:
     # ------------------------
     'quick_edit_title': 'Quick Edit - {data_key}'
     }
-    """Default LanguagePack"""
+    """ 
+    Default LanguagePack.
+    """
 
     def __init__(self, lp_dict={}):
         self.lp_dict = type(self).default
@@ -3864,9 +3944,8 @@ class LanguagePack:
                 raise AttributeError(f"LanguagePack object has no attribute '{key}'")
             
     def __call__(self, lp_dict={}):
-        """
-        Update the LanguagePack instance
-
+        """ 
+        Update the LanguagePack instance.
         """
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
@@ -3886,11 +3965,13 @@ lang = LanguagePack()
 
 # This is a dummy class for documenting convenience functions
 class Abstractions:
-    """
-    Supporting multiple databases in your application can quickly become very complicated and unmanagealbe.
-    pysimplesql abstracts all of this complexity and presents a unified API via abstracting the main concepts of
-    database programming. See the following documentation for a better understanding of how this is accomplished.
-    `Column`, `ColumnInfo`, `ResultRow `, `ResultSet`, `SQLDriver`, `Sqlite`, `Mysql`, `Postgres`
+    """ 
+    Supporting multiple databases in your application can quickly become very
+    complicated and unmanageable. pysimplesql abstracts all of this complexity and
+    presents a unified API via abstracting the main concepts of database programming.
+    See the following documentation for a better understanding of how this is
+    accomplished. `Column`, `ColumnInfo`, `ResultRow `, `ResultSet`, `SQLDriver`,
+    `Sqlite`, `Mysql`, `Postgres`
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
@@ -3903,12 +3984,14 @@ class Abstractions:
 # types, primary key status and notnull status
 # ----------------------------------------------------------------------------------------------------------------------
 class Column:
-    """
-    The `Column` class is a generic column class. It holds a dict containing the column name, type  whether the
-    column is notnull, whether the column is a primary key and the default value, if any. `Column`s are typically
-    stored in a `ColumnInfo` collection. There are multiple ways to get information from a `Column`, including subscript
-    notation, and via properties. The available column info via these methods are name, domain, notnull, default and pk
-    See example:
+    """ 
+    The `Column` class is a generic column class. It holds a dict containing the column
+    name, type  whether the column is notnull, whether the column is a primary key and
+    the default value, if any. `Column`s are typically stored in a `ColumnInfo`
+    collection. There are multiple ways to get information from a `Column`, including
+    subscript notation, and via properties. The available column info via these methods
+    are name, domain, notnull, default and pk See example:
+
     .. literalinclude:: ../doc_examples/Column.1.py
         :language: python
         :caption: Example code
@@ -3944,9 +4027,10 @@ class Column:
             self._column[key] = value
 
     def cast(self, value: any) -> any:
-        """
-        Cast a value to the appropriate data type as defined by the column info for the column.
-        This can be useful for comparing values between the database and the GUI.
+        """ 
+        Cast a value to the appropriate data type as defined by the column info for the
+        column. This can be useful for comparing values between the database and the
+        GUI.
 
         :param value: The value you would like to cast
         :returns: The value, cast to a type as defined by the domain
@@ -3995,8 +4079,8 @@ class Column:
         return value
 
 class ColumnInfo(List):
-    """
-    Column Information Class
+    """ 
+    Column Information Class.
 
     The `ColumnInfo` class is a custom container that behaves like a List containing a collection of `Columns`. This
     class is responsible for maintaining information about all the columns (`Column`) in a table. While the
@@ -4049,8 +4133,8 @@ class ColumnInfo(List):
         else:
             return super().__getitem__(item)
     def pk_column(self) -> Union[str,None]:
-        """
-        Get the pk_column for this colection of column_info
+        """ 
+        Get the pk_column for this colection of column_info.
 
         :returns: A string containing the column name of the PK column, or None if one was not found
         """
@@ -4059,16 +4143,17 @@ class ColumnInfo(List):
         return None
 
     def names(self) -> List[str]:
-        """
-        Return a List of column names from the `Column`s in this collection
+        """ 
+        Return a List of column names from the `Column`s in this collection.
 
         :returns: List of column names
         """
         return self._get_list('name')
 
     def col_name(self, idx:int) -> str:
-        """
-        Get the column name located at the specified index in this collection of `Column`s
+        """ 
+        Get the column name located at the specified index in this collection of
+        `Column`s.
 
         :param idx: The index of the column to get the name from
         :returns: The name of the column at the specified index
@@ -4076,9 +4161,9 @@ class ColumnInfo(List):
         return self[idx].name
 
     def default_row_dict(self, dataset: DataSet) -> dict:
-        """
-        Return a dictionary of a table row with all defaults assigned. This is useful for inserting new records to
-        prefill the GUI elements
+        """ 
+        Return a dictionary of a table row with all defaults assigned. This is useful
+        for inserting new records to prefill the GUI elements.
 
         :param dataset: a pysimplesql DataSet object
         :returns: dict
@@ -4127,15 +4212,14 @@ class ColumnInfo(List):
                 if domain in ['TEXT', 'VARCHAR', 'CHAR']:
                     # strip quotes from default strings as they seem to get passed with some database-stored defaults
                     default = c.default.strip('"\'')  # strip leading and trailing quotes
-
             d[c.name] = default
             logger.debug(f'Default fetched from database function. Default value is: {default}')
         if dataset.transform is not None: dataset.transform(dataset, d, TFORM_DECODE)
         return d
 
     def set_null_default(self, domain: str, value: object) -> None:
-        """
-        Set a Null default for a single SQL type
+        """ 
+        Set a Null default for a single SQL type.
 
         :param domain: The SQL type to set the default for ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
         :param value: The new value to set the SQL type to. This can be a literal or even a callable
@@ -4147,8 +4231,8 @@ class ColumnInfo(List):
         self.null_defaults[domain] = value
 
     def set_null_defaults(self, null_defaults:dict) -> None:
-        """
-        Set Null defaults for all SQL types
+        """ 
+        Set Null defaults for all SQL types.
 
         supported types:  'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME',
         'DATE', 'DATETIME', 'TIMESTAMP'
@@ -4161,8 +4245,8 @@ class ColumnInfo(List):
 
         self.null_defaults = null_defaults
     def get_virtual_names(self) -> List[str]:
-        """
-        Get a list of virtual column names
+        """ 
+        Get a list of virtual column names.
 
         :returns: A List of column names that are virtual, or [] if none are present in this collections
         """
@@ -4218,15 +4302,16 @@ class ColumnInfo(List):
 # of generic ResultRow instances.
 # ----------------------------------------------------------------------------------------------------------------------
 class ResultRow:
-    """
-    The ResulRow class is a generic row class. It holds a dict containing the column names and values of the row, along
-    with a "virtual" flag. A "virtual" row is one which exists in PySimpleSQL, but not in the underlying database.
-    This is useful for inserting records or other temporary storage of records. Note that when querying a database,
-    the virtual flag will never be set for a row- it is only set by the end user by calling <ResultSet>.insert() to insert
-    a new virtual row.
+    """ 
+    The ResulRow class is a generic row class. It holds a dict containing the column
+    names and values of the row, along with a "virtual" flag. A "virtual" row is one
+    which exists in PySimpleSQL, but not in the underlying database. This is useful for
+    inserting records or other temporary storage of records. Note that when querying a
+    database, the virtual flag will never be set for a row- it is only set by the end
+    user by calling <ResultSet>.insert() to insert a new virtual row.
 
-    ResultRows are not typcially used by the end user directly, they are typically used as a collection of ResultRows in
-    a ResultSet.
+    ResultRows are not typcially used by the end user directly, they are typically used
+    as a collection of ResultRows in a ResultSet.
     """
 
     def __init__(self, row:dict, original_index=None, virtual=False):
@@ -4266,10 +4351,11 @@ class ResultRow:
         return ResultRow(self.row.copy(), virtual=self.virtual)
 
 class ResultSet:
-    """
-    The ResultSet class is a generic result class so that working with the resultset of the different supported
-    databases behave in a consistent manner. A `ResultSet` is a collection of `ResultRow`s, along with the lastrowid
-    and any exception returned by the underlying `SQLDriver` when a query is executed.
+    """ 
+    The ResultSet class is a generic result class so that working with the resultset of
+    the different supported databases behave in a consistent manner. A `ResultSet` is a
+    collection of `ResultRow`s, along with the lastrowid and any exception returned by
+    the underlying `SQLDriver` when a query is executed.
 
     ResultSets can be thought up as rows of information. Iterating through a ResultSet is very simple:
         rows:ResultSet = driver.execute('SELECT * FROM Journal;')
@@ -4286,8 +4372,8 @@ class ResultSet:
 
     def __init__(self, rows: List[Dict[str, any]] = [], lastrowid: int = None, exception: str = None,
                  column_info: ColumnInfo = None) -> None:
-        """
-        Create a new ResultSet instance
+        """ 
+        Create a new ResultSet instance.
 
         :param rows: a list of dicts representing a row of data, with each key being a column name
         :param lastrowid: The primary key of an inserted item
@@ -4337,25 +4423,27 @@ class ResultSet:
         return self.rows.get(key, default)
 
     def fetchone(self) -> ResultRow:
-        """
+        """ 
         Fetch the first record in the ResulSet.
 
         :returns: A `ResultRow` object
         """
         return self.rows[0] if len(self.rows) else []
     def fetchall(self) -> ResultSet:
-        """
-        ResultSets don't actually support a fetchall(), since the rows are already returned. This is more of a
-        comfort method that does nothing, for those that are used to calling fetchall()
+        """ 
+        ResultSets don't actually support a fetchall(), since the rows are already
+        returned. This is more of a comfort method that does nothing, for those that are
+        used to calling fetchall()
 
         :returns: The same ResultSet that called fetchall()
         """
         return self
 
     def insert(self, row: dict, idx: int = None) -> None:
-        """
-        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist in memory, but not in the
-        database. When a save action is performed, virtua rows will be added into the database.
+        """ 
+        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist
+        in memory, but not in the database. When a save action is performed, virtua rows
+        will be added into the database.
 
         :param row: A dict representation of a row of data
         :param idx: The index where the row should be inserted (default to last index)
@@ -4365,7 +4453,7 @@ class ResultSet:
         self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
 
     def purge_virtual(self) -> None:
-        """
+        """ 
         Purge virtual rows from the `ResultSet`
 
         :returns: None
@@ -4374,10 +4462,10 @@ class ResultSet:
         self.rows = [row for row in self.rows if not row.virtual]
 
     def sort_by_column(self, column: str, table: str, reverse = False) -> None:
-        """
-        Sort the `ResultSet` by column.
-        Using the mapped relationships of the database, foreign keys will automatically sort based on the
-        parent table's description column, rather than the foreign key number.
+        """ 
+        Sort the `ResultSet` by column. Using the mapped relationships of the database,
+        foreign keys will automatically sort based on the parent table's description
+        column, rather than the foreign key number.
 
         :param column: The name of the column to sort the `ResultSet` by
         :param table: The name of the table the column belongs to
@@ -4405,10 +4493,10 @@ class ResultSet:
             logger.debug(f'ResultSet could not sort by column {column}. KeyError.')
 
     def sort_by_index(self,index:int, table:str, reverse=False):
-        """
-        Sort the `ResultSet` by column index.
-        Using the mapped relationships of the database, foreign keys will automatically sort based on the
-        parent table's description column, rather than the foreign key number.
+        """ 
+        Sort the `ResultSet` by column index. Using the mapped relationships of the
+        database, foreign keys will automatically sort based on the parent table's
+        description column, rather than the foreign key number.
 
         :param index: The index of the column to sort the `ResultSet` by
         :param table: The name of the table the column belongs to
@@ -4424,17 +4512,19 @@ class ResultSet:
 
 
     def store_sort_settings(self) -> list:
-        """
-        Store the current sort settingg. Sort settings are just the sort column and reverse setting.
-        Sort order can be restored with `ResultSet.load_sort_settings()`
+        """ 
+        Store the current sort settingg. Sort settings are just the sort column and
+        reverse setting. Sort order can be restored with
+        `ResultSet.load_sort_settings()`
 
         :returns: A list containing the sort_column and the sort_reverse
         """
         return [self.sort_column, self.sort_reverse]
 
     def load_sort_settings(self, sort_settings:list) -> None:
-        """
-        Load a previously stored sort setting. Sort settings are just the sort columm and reverse setting
+        """ 
+        Load a previously stored sort setting. Sort settings are just the sort columm
+        and reverse setting.
 
         :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
         """
@@ -4443,9 +4533,9 @@ class ResultSet:
 
 
     def sort_reset(self) -> None:
-        """
-        Reset the sort order to the original when this ResultSet was created. Each ResultRow has the original order
-        stored
+        """ 
+        Reset the sort order to the original when this ResultSet was created. Each
+        ResultRow has the original order stored.
 
         :returns: None
         """
@@ -4453,9 +4543,9 @@ class ResultSet:
 
 
     def sort(self, table:str) -> None:
-        """
-        Sort according to the internal sort_column and sort_reverse variables
-        This is a good way to re-sort without changing the sort_cycle
+        """ 
+        Sort according to the internal sort_column and sort_reverse variables. This is a
+        good way to re-sort without changing the sort_cycle.
 
         :param table: The table associated with this ResultSet. Passed along to `ResultSet.sort_by_column()`
         :returns: None
@@ -4466,8 +4556,9 @@ class ResultSet:
             self.sort_by_column(self.sort_column, table, self.sort_reverse)
 
     def sort_cycle(self, column:str, table:str) -> int:
-        """
-        Cycle between original sort order of the ResultSet, ASC by column, and DESC by column with each call
+        """ 
+        Cycle between original sort order of the ResultSet, ASC by column, and DESC by
+        column with each call.
 
         :param column: The column name to cycle the sort on
         :param table: The table that the column belongs to
@@ -4495,11 +4586,11 @@ class ReservedKeywordError(Exception):
     pass
 
 class SQLDriver:
-    """
-    Abstract SQLDriver class. Derive from this class to create drivers that conform to PySimpleSQL. This ensures
-    that the same code will work the same way regardless of which database is used. There are a few important things
-    to note:
-    
+    """ 
+    Abstract SQLDriver class. Derive from this class to create drivers that conform to
+    PySimpleSQL. This ensures that the same code will work the same way regardless of
+    which database is used. There are a few important things to note:
+
     The commented code below is broken into methods that **MUST** be implemented in the derived class, methods that
     **SHOULD** be implemented in the derived class, and methods that **MAY** need to be implemented in the derived class
     for it to work as expected. Most derived drivers will at least partially work by implementing the **MUST** have
@@ -4516,11 +4607,10 @@ class SQLDriver:
     # in order to function
     # ---------------------------------------------------------------------
     def __init__(self, name:str, placeholder='%s', table_quote='', column_quote='', value_quote="'"):
-        """
-        Create a new SQLDriver instance
-        This must be overridden in the derived class, which must call super().__init__(), and when finished call
-        self.win_pb.close() to close the database.
-
+        """ 
+        Create a new SQLDriver instance. This must be overridden in the derived class,
+        which must call super().__init__(), and when finished call self.win_pb.close()
+        to close the database.
         """
         # Be sure to call super().__init__() in derived class!
         self.con = None
@@ -4542,9 +4632,10 @@ class SQLDriver:
         self.quote_value_char = value_quote                # override this in derived __init__() (defaults to single quotes)
 
     def check_reserved_keywords(self, value: bool) -> None:
-        """
-        SQLDrivers can check to make sure that field names respect their own reserved keywords. By default, all
-        SQLDrivers will check for their respective keywords. You can choose to disable this feature with this method.
+        """ 
+        SQLDrivers can check to make sure that field names respect their own reserved
+        keywords. By default, all SQLDrivers will check for their respective keywords.
+        You can choose to disable this feature with this method.
 
         :param value: True to check for reserved keywords in field names, false to skip this check
         :return: None
@@ -4552,16 +4643,17 @@ class SQLDriver:
         self._check_reserved_keywords = value
 
     def connect(self, *args, **kwargs):
-        """
+        """ 
         Connect to a database.
-        Connect to a database in the connect() method, assigning the connection to self.con
-        Implementation varies by database, you may need only one parameter, or several depending on how a connection
-        is established with the target database.
+
+        Connect to a database in the connect() method, assigning the connection to
+        self.con. Implementation varies by database, you may need only one parameter, or
+        several depending on how a connection is established with the target database.
         """
         raise NotImplementedError
 
     def execute(self, query, values=None, column_info: ColumnInfo = None, auto_commit_rollback: bool = False):
-        """
+        """ 
         Implements the native SQL implementation's execute() command.
 
         :param query: The query string to execute
@@ -4603,10 +4695,12 @@ class SQLDriver:
         else: return 1
 
     def check_keyword(self, keyword: str, key: str = None) -> None:
-        """
-        Check keyword to see if it is a reserved word. If it is raise a ReservedKeywordError. Checks to see if the
-        database name is in keys and uses the database name for the key if it exists, otherwise defaults to 'common' in the
-        RESERVED set. Override this with the specific key for the database if needed for best results.
+        """ 
+        Check keyword to see if it is a reserved word. If it is raise a
+        ReservedKeywordError. Checks to see if the database name is in keys and uses the
+        database name for the key if it exists, otherwise defaults to 'common' in the
+        RESERVED set. Override this with the specific key for the database if needed for
+        best results.
 
         :param keyword: the value to check against reserved words
         :param key: The key in the RESERVED set to check in
@@ -4670,8 +4764,8 @@ class SQLDriver:
         return rows.fetchone()[f'MAX({pk_column})']
 
     def generate_join_clause(self, dataset: DataSet) -> str:
-        """
-        Automatically generates a join clause from the Relationships that have been set
+        """ 
+        Automatically generates a join clause from the Relationships that have been set.
 
         This typically isn't used by end users
 
@@ -4686,8 +4780,9 @@ class SQLDriver:
 
 
     def generate_where_clause(self, dataset: DataSet) -> str:
-        """
-        Generates a where clause from the Relationships that have been set, as well as the DataSet's where clause
+        """ 
+        Generates a where clause from the Relationships that have been set, as well as
+        the DataSet's where clause.
 
         This is not typically used by end users
 
@@ -4718,8 +4813,8 @@ class SQLDriver:
 
     def generate_query(self, dataset: DataSet, join_clause: bool = True, where_clause: bool = True,
                        order_clause: bool = True) -> str:
-        """
-        Generate a query string using the relationships that have been set
+        """ 
+        Generate a query string using the relationships that have been set.
 
         :param dataset: A `DataSet` object
         :param join_clause: True if you want the join clause auto-generated, False if not
@@ -5032,16 +5127,19 @@ class Sqlite(SQLDriver):
 # ----------------------------------------------------------------------------------------------------------------------
 # The CSV driver uses SQlite3 in the background to use pysimplesql directly with CSV files
 class Flatfile(Sqlite):
-    """
-    The Flatfile driver adds support for flatfile databases such as CSV files to pysimplesql.
-    The flatfile data is loaded into an internal SQlite database, where it can be used and manipulated like any other
-    database file. Each timem records are saved, the contents of the internal SQlite database are written back out
-    to the file. This makes working with flatfile data as easy and consistent as any other database.
+    """ 
+    The Flatfile driver adds support for flatfile databases such as CSV files to
+    pysimplesql.
+
+    The flatfile data is loaded into an internal SQlite database, where it can be used
+    and manipulated like any other database file. Each timem records are saved, the
+    contents of the internal SQlite database are written back out to the file. This
+    makes working with flatfile data as easy and consistent as any other database.
     """
     def __init__(self, file_path: str, delimiter: str = ',', quotechar: str = '"', header_row_num: int = 0,
                  table: str = None, pk_col: str = None) -> None:
-        """
-        Create a new Flatfile driver instance
+        """ 
+        Create a new Flatfile driver instance.
 
         :param file_path: The path to the flatfile
         :param delimiter: The delimiter for the flatfile. Defaults to ','. Tabs ('\t') are another popular option
@@ -5056,7 +5154,6 @@ class Flatfile(Sqlite):
                          as the primary key for the dataset. If this column does not exist in the header row, then a
                          virtual primary key column with this name will be created with AUTO INCREMENT and PRIMARY KEY set.
                          As above, the virtual primary key column that was created will not be written to the flatfile.
-
         """
 
         # First up the SQLite driver that we derived from
