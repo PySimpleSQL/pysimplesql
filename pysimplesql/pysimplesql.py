@@ -786,7 +786,7 @@ class DataSet:
                 # Make the comparison
                 if element_val != table_val:
                     dirty = True
-                    logger.debug(f'CHANGED RECORD FOUND!')
+                    logger.debug('CHANGED RECORD FOUND!')
                     logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
                     logger.debug(f'\t{mapped.element.Key}:{element_val} != {mapped.column}:{table_val}')
                     return dirty
@@ -1419,7 +1419,7 @@ class DataSet:
 
         if update_elements:
             self.frm.update_elements(self.table)
-        logger.debug(f'Record Saved!')
+        logger.debug('Record Saved!')
         self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
@@ -2038,7 +2038,7 @@ class Form:
 
         :returns: None
         """
-        logger.info(f'Automatically adding foreign key relationships')
+        logger.info('Automatically adding foreign key relationships')
         # Ensure we clear any current dataset so that successive calls will not double the entries
         self.relationships = [] # clear any relationships already stored
         relationships = self.driver.relationships()
@@ -2240,7 +2240,7 @@ class Form:
         :param win: A PySimpleGUI Window
         :returns: None
         """
-        logger.info(f'Automapping events')
+        logger.info('Automapping events')
         # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
 
@@ -2388,8 +2388,8 @@ class Form:
         :param update_elements: (optional) Passed to `Form.save_record_recursive()` to update_elements.
         :returns: result - can be used with RETURN BITMASKS
         """
-        if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
-        else: logger.debug(f'Saving records in all datasets...')
+        if check_prompt_save: logger.debug('Saving records in all datasets that allow prompt_save...')
+        else: logger.debug('Saving records in all datasets...')
         
         display_message = not self.save_quiet
 
@@ -2613,11 +2613,9 @@ class Form:
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
 
-                found = False
                 if len(values):
                     index = [[v[0] for v in values].index(pk)] # set index to pk
                     pk_position = index[0] / len(values)  # calculate pk percentage position
-                    found = True
                 else: # if empty
                     index = []
                     pk_position = 0
@@ -2684,7 +2682,7 @@ class Form:
 
             if len(dataset.selector):
                 for e in dataset.selector:
-                    logger.debug(f'update_elements: SELECTOR FOUND')
+                    logger.debug('update_elements: SELECTOR FOUND')
                     # skip updating this element if requested
                     if e['element'] in omit_elements: continue
 
@@ -2696,7 +2694,7 @@ class Form:
                         self.callbacks[element.key]()
 
                     if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
-                        logger.debug(f'update_elements: List/Combo selector found...')
+                        logger.debug('update_elements: List/Combo selector found...')
                         lst = []
                         for r in dataset.rows:
                             if e['where_column'] is not None:
@@ -2723,7 +2721,7 @@ class Form:
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
-                        logger.debug(f'update_elements: Table selector found...')
+                        logger.debug('update_elements: Table selector found...')
                         # Populate entries
                         try:
                             columns = element.metadata['TableHeading'].columns()
@@ -2786,14 +2784,14 @@ class Form:
         :returns: True if an event was handled, False otherwise
         """
         if self.window is None:
-            logger.info(f'***** Form appears to be unbound. Do you have frm.bind(win) in your code? ***')
+            logger.info('***** Form appears to be unbound. Do you have frm.bind(win) in your code? ***')
             return False
         elif event:
             for e in self.event_map:
                 if e['event'] == event:
                     logger.debug(f"Executing event {event} via event mapping.")
                     e['function']()
-                    logger.debug(f'Done processing event!')
+                    logger.debug('Done processing event!')
                     return True
 
             # Check for  selector events
@@ -4078,7 +4076,7 @@ class Column:
             try:
                 value = datetime.date(value)
             except TypeError:
-                logger.debug(f'Unable to case datetime/time/timestamp. Casting to string instead.')
+                logger.debug('Unable to case datetime/time/timestamp. Casting to string instead.')
                 value = str(value)
         return value
 
@@ -5014,7 +5012,7 @@ class Sqlite(SQLDriver):
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
+            logger.info('Executing sql commands passed in')
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
@@ -5279,7 +5277,7 @@ class Mysql(SQLDriver):
         self.win_pb.update('Executing SQL commands', 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
+            logger.info('Executing sql commands passed in')
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
@@ -5449,7 +5447,7 @@ class Postgres(SQLDriver):
         self.win_pb.update('executing SQL commands', 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
+            logger.info('Executing sql commands passed in')
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
@@ -5531,11 +5529,11 @@ class Postgres(SQLDriver):
         tables= self.get_tables()
         relationships = []
         for from_table in tables:
-            query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, confdeltype,"
-            query += f"a1.attname AS column_name, a2.attname AS referenced_column_name "
-            query += f"FROM pg_constraint "
-            query += f"JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
-            query += f"JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND a2.attnum = ANY(confkey) "
+            query = "SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, confdeltype,"
+            query += "a1.attname AS column_name, a2.attname AS referenced_column_name "
+            query += "FROM pg_constraint "
+            query += "JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
+            query += "JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND a2.attnum = ANY(confkey) "
             query += f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
 
 
@@ -5564,13 +5562,13 @@ class Postgres(SQLDriver):
         table = self.quote_table(table)
         pk_column = self.quote_column(pk_column)
         rows = self.execute(f'SELECT COALESCE(MIN({pk_column}), 0) AS min_pk FROM {table};', silent=True)
-        return rows.fetchone()[f'min_pk']
+        return rows.fetchone()['min_pk']
 
     def max_pk(self, table: str, pk_column: str) -> int:
         table = self.quote_table(table)
         pk_column = self.quote_column(pk_column)
         rows = self.execute(f'SELECT COALESCE(MAX({pk_column}), 0) AS max_pk FROM {table};', silent=True)
-        return rows.fetchone()[f'max_pk']
+        return rows.fetchone()['max_pk']
 
     def next_pk(self, table: str, pk_column: str) -> int:
         # Working with case-sensitive tables is painful in Postgres. First, the sequence must be quoted in a manner
