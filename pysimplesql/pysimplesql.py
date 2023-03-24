@@ -2847,7 +2847,8 @@ def simple_transform(dataset:DataSet, row, encode):
                 row[col] = function['encode'](row, col)
             logger.debug(f'{msg} to {row[col]}')
 
-def update_table(window: sg.Window, element: Type[sg.Element], values: List[TableRow], select_rows: List[int], vscroll_position: float = None):
+def update_table(window: sg.Window, element: Type[sg.Element], values: List[TableRow],
+                 select_rows: List[int], vscroll_position: float = None): -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
     
