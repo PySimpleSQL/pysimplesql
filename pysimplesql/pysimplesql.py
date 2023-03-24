@@ -1953,7 +1953,7 @@ class Form:
                 if update_cascade is not None:
                     rel.update_cascade = update_cascade
                 if delete_cascade is not None:
-                    rel.delete_cascade = update_cascade
+                    rel.delete_cascade = delete_cascade
     
     def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
         """
