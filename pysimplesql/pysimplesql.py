@@ -2550,12 +2550,8 @@ class Form:
                     index = []
                     pk_position = 0
 
-                # update element
-                mapped.element.update(values=values, select_rows=index)
-                # set vertical scroll bar to follow selected element
-                if len(index): mapped.element.set_vscroll_position(pk_position)
-
-                eat_events(self.window)
+                # Update table, and set vertical scroll bar to follow selected element
+                update_table_element(self.window, mapped.element, values, index, pk_position)
                 continue
 
             elif type(mapped.element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.Multiline, sg.PySimpleGUI.Text]:
@@ -2677,12 +2673,9 @@ class Form:
                             pk_position = 0
 
                         logger.debug(f'Selector:: index:{index} found:{found}')
-                        # update element
-                        element.update(values=values, select_rows=index)
-                        # set vertical scroll bar to follow selected element
-                        element.set_vscroll_position(pk_position)
 
-                        eat_events(self.window)
+                        # Update table, and set vertical scroll bar to follow selected element
+                        update_table_element(self.window, element, values, index, pk_position)
 
     def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
                     requery_dependents: bool = True) -> None:
@@ -2854,22 +2847,31 @@ def simple_transform(dataset:DataSet, row, encode):
                 row[col] = function['encode'](row, col)
             logger.debug(f'{msg} to {row[col]}')
 
-def eat_events(win:sg.Window) -> None:
+def update_table_element(window: sg.Window, element: Type[sg.Table], values: List[TableRow],
+                 select_rows: List[int], vscroll_position: float = None) -> None:
     """
-    Eat extra events emitted by PySimpleGUI.DataSet.update().
+    Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
+    
+    Call this function instead of simply calling update() on a sg.Table element.
+    The reason is that updating the selection or values will in turn fire more
+    changed events, adding up to an endless loop of events.
 
-    Call this function directly after update() is run on a DataSet element. The reason is that updating the selection or values
-    will in turn fire more changed events, adding up to an endless loop of events.  This function eliminates this problem
-    TODO: Determine if this is fixed yet in PySimpleSQL (still not fixed as of 3/2/23)
+    :param window: A PySimpleGUI Window containing the sg.Table element to be updated.
+    :param element: The sg.Table element to be updated.
+    :param values: A list of table rows to update the sg.Table with.
+    :param select_rows: List of rows to select as if user did.
+    :param vscroll_position: From 0 to 1.0, the percentage from the top to move scrollbar to.
 
-    :param win: A PySimpleGUI Window instance
     :returns: None
     """
-    while True:
-        event,values=win.read(timeout=1)
-        if event=='__TIMEOUT__':
-            break
-    return
+    element.Widget.unbind("<<TreeviewSelect>>")                         # Disable handling for "<<TreeviewSelect>>" event
+    # update element
+    element.update(values=values, select_rows=select_rows)
+    # set vertical scroll bar to follow selected element
+    if vscroll_position is not None:
+        element.set_vscroll_position(vscroll_position)
+    window.refresh()                                            # Event handled and bypassed
+    element.widget.bind("<<TreeviewSelect>>", element._treeview_selected) # Enable handling for "<<TreeviewSelect>>" event
 
 def checkbox_to_bool(value):
     """
