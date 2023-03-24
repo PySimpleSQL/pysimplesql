@@ -1114,6 +1114,8 @@ class DataSet:
         logger.debug(f'Setting table {self.table} record by primary key {pk}')
         if omit_elements is None:
             omit_elements = []
+        
+        print(omit_elements)
 
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
@@ -2848,7 +2850,7 @@ def simple_transform(dataset:DataSet, row, encode):
             logger.debug(f'{msg} to {row[col]}')
 
 def update_table(window: sg.Window, element: Type[sg.Element], values: List[TableRow],
-                 select_rows: List[int], vscroll_position: float = None): -> None:
+                 select_rows: List[int], vscroll_position: float = None) -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
     
