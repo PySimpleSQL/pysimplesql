@@ -944,7 +944,9 @@ class DataSet:
         requery_dependents: bool = True,
     ) -> None:
         """
-        Requeries the table The `DataSet` object maintains an internal representation of
+        Requeries the table.
+
+        The `DataSet` object maintains an internal representation of
         the actual database table. The requery method will query the actual database and
         sync the `DataSet` object to it.
 
@@ -952,9 +954,9 @@ class DataSet:
         :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
                          be generated. If False all records in the table will be fetched.
         :param update_elements: (optional) Passed to `DataSet.first()` to update_elements. Note that the select_first
-                        parameter must equal True to use this parameter.
+                                parameter must equal True to use this parameter.
         :param requery_dependents: (optional) passed to `DataSet.first()` to requery_dependents. Note that the
-                           select_first parameter must = True to use this parameter.
+                                   select_first parameter must = True to use this parameter.
         :returns: None
         """
         join = ""
@@ -1043,11 +1045,12 @@ class DataSet:
         skip_prompt_save: bool = False,
     ) -> None:
         """
-        Move to the first record of the table Only one entry in the table is ever
-        considered "Selected"  This is one of several functions that influences which
-        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
-        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
-        `DataSet.set_by_index()`.
+        Move to the first record of the table.
+
+        Only one entry in the table is ever considered "Selected"  This is one of
+        several functions that influences which record is currently selected. See
+        `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -1076,11 +1079,12 @@ class DataSet:
         skip_prompt_save: bool = False,
     ):
         """
-        Move to the last record of the table Only one entry in the table is ever
-        considered "Selected"  This is one of several functions that influences which
-        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
-        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
-        `DataSet.set_by_index()`.
+        Move to the last record of the table.
+
+        Only one entry in the table is ever considered "Selected"  This is one of
+        several functions that influences which record is currently selected. See
+        `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -1109,11 +1113,12 @@ class DataSet:
         skip_prompt_save: bool = False,
     ):
         """
-        Move to the next record of the table Only one entry in the table is ever
-        considered "Selected"  This is one of several functions that influences which
-        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
-        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
-        `DataSet.set_by_index()`.
+        Move to the next record of the table.
+
+        Only one entry in the table is ever considered "Selected"  This is one of
+        several functions that influences which record is currently selected. See
+        `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -1143,11 +1148,12 @@ class DataSet:
         skip_prompt_save: bool = False,
     ):
         """
-        Move to the previous record of the table Only one entry in the table is ever
-        considered "Selected"  This is one of several functions that influences which
-        record is currently selected. See `DataSet.first()`, `DataSet.previous()`,
-        `DataSet.next()`, `DataSet.last()`, `DataSet.search()`, `DataSet.set_by_pk()`,
-        `DataSet.set_by_index()`.
+        Move to the previous record of the table.
+
+        Only one entry in the table is ever considered "Selected"  This is one of
+        several functions that influences which record is currently selected. See
+        `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param update_elements: (optional) Update the GUI elements after switching records
         :param requery_dependents: (optional) Requery dependents after switching records?
@@ -1174,7 +1180,7 @@ class DataSet:
         self,
         search_string: str,
         update_elements: bool = True,
-        dependents: bool = True,
+        requery_dependents: bool = True,
         skip_prompt_save: bool = False,
     ) -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
@@ -1190,7 +1196,7 @@ class DataSet:
 
         :param search_string: The search string to look for
         :param update_elements: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param requery_dependents:: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: One of the following search values: `SEARCH_FAILED`, `SEARCH_RETURNED`, `SEARCH_ABORTED`
         """
@@ -1228,7 +1234,7 @@ class DataSet:
                         if search_string.lower() in str(self.rows[i][o]).lower():
                             old_index = self.current_index
                             self.current_index = i
-                            if dependents:
+                            if requery_dependents:
                                 self.requery_dependents()
                             if update_elements:
                                 self.frm.update_elements(self.table)
@@ -1259,20 +1265,21 @@ class DataSet:
         self,
         index: int,
         update_elements: bool = True,
-        dependents: bool = True,
+        requery_dependents: bool = True,
         skip_prompt_save: bool = False,
         omit_elements: List[str] = None,
     ) -> None:
         """
-        Move to the record of the table located at the specified index in DataSet. Only
-        one entry in the table is ever considered "Selected"  This is one of several
-        functions that influences which record is currently selected. See
+        Move to the record of the table located at the specified index in DataSet.
+
+        Only one entry in the table is ever considered "Selected"  This is one of
+        several functions that influences which record is currently selected. See
         `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
         `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param index: The index of the record to move to.
         :param update_elements: (optional) Update the GUI elements after switching records
-        :param dependents: (optional) Requery dependents after switching records?
+        :param requery_dependents: (optional) Requery dependents after switching records?
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
@@ -1292,7 +1299,7 @@ class DataSet:
             )  # don't update self/dependents if we are going to below anyway
 
         self.current_index = index
-        if dependents:
+        if requery_dependents:
             self.requery_dependents()
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
@@ -1306,13 +1313,14 @@ class DataSet:
         omit_elements: list[str] = None,
     ) -> None:
         """
-        Move to the record with this primary key This is useful when modifying a record
+        Move to the record with this primary key. This is useful when modifying a record
         (such as renaming).  The primary key can be stored, the record re-named, and
-        then the current record selection updated regardless of the new sort order. Only
-        one entry in the table is ever considered "Selected"  This is one of several
-        functions that influences which record is currently selected. See
-        `DataSet.first`, `DataSet.previous`, `DataSet.next`, `DataSet.last`,
-        `DataSet.search`, `DataSet.set_by_index`.
+        then the current record selection updated regardless of the new sort order.
+
+        Only one entry in the table is ever considered "Selected"  This is one of
+        several functions that influences which record is currently selected. See
+        `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
+        `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param pk: The record to move to containing the primary key
         :param update_elements: (optional) Update the GUI elements after switching records
@@ -1352,7 +1360,7 @@ class DataSet:
         self, column: str, default: Union[str, int] = ""
     ) -> Union[str, int]:
         """
-        Get the current value for the supplied column You can also use indexing of the
+        Get the current value for the supplied column. You can also use indexing of the
         @Form object to get the current value of a column I.e. frm[{DataSet}].[{column}].
 
         :param column: The column you want to get the value from
@@ -1370,7 +1378,8 @@ class DataSet:
 
     def set_current(self, column: str, value: Union[str, int]) -> None:
         """
-        Set the current value for the supplied column
+        Set the current value for the supplied column.
+
         You can also use indexing of the `Form` object to set the current value of a column
         I.e. frm[{DataSet}].[{column}] = 'New value'.
 
@@ -1515,8 +1524,10 @@ class DataSet:
         self, display_message: bool = None, update_elements: bool = True
     ) -> int:
         """
-        Save the currently selected record Saves any changes made via the GUI back to
-        the database.  The before_save and after_save `DataSet.callbacks` will call your
+        Save the currently selected record.
+
+        Saves any changes made via the GUI back to the database.  The
+        before_save and after_save `DataSet.callbacks` will call your
         own functions for error checking if needed!.
 
         :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
@@ -1737,8 +1748,10 @@ class DataSet:
         self, cascade: bool = True
     ):  # TODO: check return type, we return True below
         """
-        Delete the currently selected record The before_delete and after_delete
-        callbacks are run during this process to give some control over the process.
+        Delete the currently selected record.
+
+        The before_delete and after_delete callbacks are run during this process
+        to give some control over the process.
 
         :param cascade: Delete child records (as defined by `Relationship`s that were set up) before deleting this record
         :returns: None
@@ -1805,8 +1818,10 @@ class DataSet:
         self, children: bool = None
     ) -> None:  # TODO check return type, returns True within
         """
-        Duplicate the currently selected record The before_duplicate and after_duplicate
-        callbacks are run during this process to give some control over the process.
+        Duplicate the currently selected record.
+
+        The before_duplicate and after_duplicate callbacks are run during this
+        process to give some control over the process.
 
         :param cascade: Duplicate child records (as defined by `Relationship`s that were set up) before duplicating this record
         :returns: None
@@ -1922,10 +1937,9 @@ class DataSet:
     ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
-        Each.
 
-        :param columns: A list of column names to create table values for.  Defaults to getting them from the
-                             `DataSet.rows` `ResultSet`
+        :param columns: A list of column names to create table values for.
+                        Defaults to getting them from the `DataSet.rows` `ResultSet`.
         :param mark_virtual: Place a marker next to virtual records
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table element values
         """
@@ -2939,7 +2953,7 @@ class Form:
     ) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form`
-        instance only Not to be confused with the main `update_elements()`, which
+        instance only. Not to be confused with the main `update_elements()`, which
         updates GUI elements for all `Form` instances. This method also executes
         `update_selectors()`, which updates selector elements.
 
@@ -3186,7 +3200,7 @@ class Form:
     ) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form`
-        instance only Not to be confused with the main `update_elements()`, which
+        instance only. Not to be confused with the main `update_elements()`, which
         updates GUI elements for all `Form` instances.
 
         :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
@@ -3297,7 +3311,7 @@ class Form:
         requery_dependents: bool = True,
     ) -> None:
         """
-        Requeries all `DataSet` objects associated with this `Form` This effectively re-
+        Requeries all `DataSet` objects associated with this `Form`. This effectively re-
         loads the data from the database into `DataSet` objects.
 
         :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If True, the first record will be
@@ -3451,7 +3465,7 @@ def process_events(event: str, values: list) -> bool:
 
 def update_elements(data_key: str = None, edit_protect_only: bool = False) -> None:
     """
-    Updated the GUI elements to reflect values from the database for ALL Form instances
+    Updated the GUI elements to reflect values from the database for ALL Form instances.
     Not to be confused with `Form.update_elements()`, which updates GUI elements for
     individual `Form` instances.
 
@@ -3465,7 +3479,7 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
 
 def bind(win: sg.Window) -> None:
     """
-    Bind ALL forms to window Not to be confused with `Form.bind()`, which binds specific
+    Bind ALL forms to window. Not to be confused with `Form.bind()`, which binds specific
     forms to the window.
 
     :param win: The PySimpleGUI window to bind all forms to
@@ -4636,7 +4650,7 @@ class TableHeadings(list):
         self, element: sg.Table, sort_column=None, sort_order: int = None
     ) -> None:
         """
-        Perform the actual update to the PySimpleGUI Table heading
+        Perform the actual update to the PySimpleGUI Table heading.
         Note: Not typically called by the end user.
 
         :param element: The PySimpleGUI Table element
@@ -4666,7 +4680,7 @@ class TableHeadings(list):
 
     def enable_sorting(self, element: sg.Table, fn: callable) -> None:
         """
-        Enable the sorting callbacks for each column index
+        Enable the sorting callbacks for each column index.
         Note: Not typically used by the end user. Called from `Form.auto_map_elements()`.
 
         :param element: The PySimpleGUI Table element associated with this TableHeading
@@ -5674,7 +5688,7 @@ class ResultSet:
 
     def sort(self, table: str) -> None:
         """
-        Sort according to the internal sort_column and sort_reverse variables This is a
+        Sort according to the internal sort_column and sort_reverse variables. This is a
         good way to re-sort without changing the sort_cycle.
 
         :param table: The table associated with this ResultSet.  Passed along to `ResultSet.sort_by_column()`
@@ -5792,10 +5806,13 @@ class SQLDriver:
 
     def connect(self, *args, **kwargs):
         """
-        Connect to a database Connect to a database in the connect() method, assigning
-        the connection to self.con Implementation varies by database, you may need only
-        one parameter, or several depending on how a connection is established with the
-        target database.
+        Connect to a database.
+
+        Connect to a database in the connect() method, assigning the connection to
+        self.con.
+
+        Implementation varies by database, you may need only one parameter, or
+        several depending on how a connection is established with the target database.
         """
         raise NotImplementedError
 
@@ -5923,7 +5940,7 @@ class SQLDriver:
         """
         Automatically generates a join clause from the Relationships that have been set.
 
-        This typically isn't used by end users
+        This typically isn't used by end users.
 
         :returns: A join string to be used in a sqlite3 query
         :rtype: str
@@ -5939,7 +5956,7 @@ class SQLDriver:
         Generates a where clause from the Relationships that have been set, as well as
         the DataSet's where clause.
 
-        This is not typically used by end users
+        This is not typically used by end users.
 
         :returns: A where clause string to be used in a sqlite3 query
         :rtype: str
