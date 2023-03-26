@@ -201,6 +201,7 @@ DELETE_CASCADE_RECURSION_LIMIT = (
     15  # Mysql sets this as 15 when using foreign key CASCADE DELETE
 )
 
+
 # -------
 # CLASSES
 # -------
@@ -963,7 +964,6 @@ class DataSet:
             filtered = False
 
         if filtered:
-
             # Logic for stopping requery short if parent has no records or current row is virtual
             parent_table = Relationship.get_parent(self.table)
             if parent_table:
@@ -1565,7 +1565,6 @@ class DataSet:
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
             if mapped.dataset == self:
-
                 # convert the data into the correct data type using the domain in ColumnInfo
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
@@ -3846,6 +3845,7 @@ mysql_examples = {
 #       For example - give forms names!  and reference them by name string
 #       They could even be converted later to a real form during form creation?
 
+
 # This is a dummy class for documenting convenience functions
 class Convenience:
 
@@ -5007,6 +5007,7 @@ lang = LanguagePack()
 # ======================================================================================================================
 # Database abstraction layers for a uniform API
 # ----------------------------------------------------------------------------------------------------------------------
+
 
 # This is a dummy class for documenting convenience functions
 class Abstractions:
