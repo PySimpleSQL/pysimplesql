@@ -1,3 +1,6 @@
+# To keep examples concise, avoid Black formatting. Remove # fmt: off to use Black formatting.
+# fmt: off
+
 # import PySimpleGUI and pysimplesql
 import PySimpleGUI as sg
 import pysimplesql as ss
@@ -89,4 +92,3 @@ while True:
     else:
         print(f'This event ({event}) is not yet handled.')
 win.close()
-

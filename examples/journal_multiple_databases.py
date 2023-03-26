@@ -1,3 +1,6 @@
+# To keep examples concise, avoid Black formatting. Remove # fmt: off to use Black formatting.
+# fmt: off
+
 import PySimpleGUI as sg
 import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
@@ -106,4 +109,3 @@ Learnings from this example:
 - using Tables as Form.selector() element types
 - Using the TableHeadings() function to define sortable table headings
 """
-

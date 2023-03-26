@@ -1,3 +1,6 @@
+# To keep examples concise, avoid Black formatting. Remove # fmt: off to use Black formatting.
+# fmt: off
+
 import PySimpleGUI as sg
 import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
@@ -46,4 +49,3 @@ while True:
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-

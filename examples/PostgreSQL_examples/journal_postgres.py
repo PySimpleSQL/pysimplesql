@@ -1,3 +1,6 @@
+# To keep examples concise, avoid Black formatting. Remove # fmt: off to use Black formatting.
+# fmt: off
+
 import PySimpleGUI as sg
 import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
@@ -121,4 +124,3 @@ INSERT INTO "Journal" (entry_date, mood_id, title, entry) VALUES ('2023-02-09 15
 
 
 """
-

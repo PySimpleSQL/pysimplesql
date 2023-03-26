@@ -1,0 +1,9 @@
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+select = [
+    "A", 
+    "B", 
+    "C", 
+    "D", 
+    "E", 
+    "F",]
+ignore = ["D211","D212"]
