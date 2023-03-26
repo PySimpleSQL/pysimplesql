@@ -68,4 +68,3 @@ while True:
     else:
         print(f'This event ({event}) is not yet handled.')
 win.close()
-

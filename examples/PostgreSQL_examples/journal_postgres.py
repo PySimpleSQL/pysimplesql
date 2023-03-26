@@ -124,4 +124,3 @@ INSERT INTO "Journal" (entry_date, mood_id, title, entry) VALUES ('2023-02-09 15
 
 
 """
-

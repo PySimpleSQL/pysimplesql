@@ -121,4 +121,3 @@ INSERT INTO Journal (id, entry_date, mood_id, title, entry) VALUES (11, '2023-02
 INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solution!', 'I can finally stop worrying about SQL syntax and focus on my research. pysimplesql is the best Python library for working with databases, and it saved me so much time and effort!');
 
 """
-

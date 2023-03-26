@@ -52,4 +52,3 @@ while True:
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:
         logger.info(f'This event ({event}) is not yet handled.')
-

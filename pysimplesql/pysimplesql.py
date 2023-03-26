@@ -67,27 +67,33 @@ import threading
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
 try:
     from .language_pack import *
-except (ModuleNotFoundError, ImportError): # ImportError for 'attempted relative import with no known parent package'
+except (
+    ModuleNotFoundError,
+    ImportError,
+):  # ImportError for 'attempted relative import with no known parent package'
     pass
 
 try:
     from .theme_pack import *
-except (ModuleNotFoundError, ImportError): # ImportError for 'attempted relative import with no known parent package'
+except (
+    ModuleNotFoundError,
+    ImportError,
+):  # ImportError for 'attempted relative import with no known parent package'
     pass
 
 try:
     from .reserved_sql_keywords import ADAPTERS as RESERVED
 except (ModuleNotFoundError, ImportError):
     # Use common as minium default
-    #fmt: off
+    # fmt: off
     RESERVED = {"common": ["SELECT", "INSERT", "DELETE", "UPDATE", "DROP", "CREATE", "ALTER",
                            "WHERE", "FROM", "INNER", "JOIN", "AND", "OR", "LIKE", "ON", "IN",
                            "SET", "BY", "GROUP", "ORDER", "LEFT", "OUTER", "IF", "END", "THEN",
                            "LOOP", "AS", "ELSE", "FOR", "CASE", "WHEN", "MIN", "MAX", "DISTINCT",]}
-    #fmt: on
+    # fmt: on
 
 # Load database backends if present
-supported_databases = ['SQLite3', 'MySQL', 'PostgreSQL', 'Flatfile']
+supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile"]
 failed_modules = 0
 try:
     import sqlite3
@@ -108,8 +114,10 @@ except ModuleNotFoundError:
     failed_modules += 1
 
 if failed_modules == len(supported_databases):
-    RuntimeError(f"You muse have at least one of the following databases installed to use PySimpleSQL:"
-                 f"\n{', '.join(supported_databases)} ")
+    RuntimeError(
+        f"You muse have at least one of the following databases installed to use PySimpleSQL:"
+        f"\n{', '.join(supported_databases)} "
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -170,26 +178,28 @@ AUTOSAVE_MODE: int = 2
 # ---------------------------
 # RECORD SAVE RETURN BITMASKS
 # ---------------------------
-SAVE_FAIL: int = 1     # Save failed due to callback
+SAVE_FAIL: int = 1  # Save failed due to callback
 SAVE_SUCCESS: int = 2  # Save was successful
-SAVE_NONE: int = 4     # There was nothing to save
+SAVE_NONE: int = 4  # There was nothing to save
 
 # ----------------------
 # SEARCH RETURN BITMASKS
 # ----------------------
-SEARCH_FAILED: int = 1    # No result was found
+SEARCH_FAILED: int = 1  # No result was found
 SEARCH_RETURNED: int = 2  # A result was found
-SEARCH_ABORTED: int = 4   # The search was aborted, likely during a callback
-SEARCH_ENDED: int = 8     # We have reached the end of the search
+SEARCH_ABORTED: int = 4  # The search was aborted, likely during a callback
+SEARCH_ENDED: int = 8  # We have reached the end of the search
 
 # ----------------------------
 # DELETE RETURNS BITMASKS
 # ----------------------------
-DELETE_FAILED: int = 1    # No result was found
+DELETE_FAILED: int = 1  # No result was found
 DELETE_RETURNED: int = 2  # A result was found
-DELETE_ABORTED: int = 4   # The search was aborted, likely during a callback
-DELETE_RECURSION_LIMIT_ERROR: int = 8     # We hit max nested levels
-DELETE_CASCADE_RECURSION_LIMIT = 15 # Mysql sets this as 15 when using foreign key CASCADE DELETE
+DELETE_ABORTED: int = 4  # The search was aborted, likely during a callback
+DELETE_RECURSION_LIMIT_ERROR: int = 8  # We hit max nested levels
+DELETE_CASCADE_RECURSION_LIMIT = (
+    15  # Mysql sets this as 15 when using foreign key CASCADE DELETE
+)
 
 # -------
 # CLASSES
@@ -200,6 +210,7 @@ class TableRow(list):
     This is a convenience class used by Tables to associate a primary key with a row of information
     Note: This is typically not used by the end user.
     """
+
     def __init__(self, pk: int, *args, **kwargs):
         self.pk = pk
         super().__init__(*args, **kwargs)
@@ -212,7 +223,7 @@ class TableRow(list):
 
     def __repr__(self):
         # Add some extra information that could be useful for debugging
-        return f'TableRow(pk={self.pk}): {super().__repr__()}'
+        return f"TableRow(pk={self.pk}): {super().__repr__()}"
 
 
 class ElementRow:
@@ -220,6 +231,7 @@ class ElementRow:
     This is a convenience class used by listboxes and comboboxes to associate a primary key with a row of information
     Note: This is typically not used by the end user.
     """
+
     def __init__(self, pk: int, val: Union[str, int]) -> None:
         self.pk = pk
         self.val = val
@@ -253,6 +265,7 @@ class Relationship:
     See the following for more information: `Form.add_relationship` and `Form.auto_add_relationships`
     Note: This class is not typically used the end user,
     """
+
     # TODO: Relationships are table-based only.  Audit code to ensure that we aren't dealing with data_keys
     # store our own instances
     instances = []
@@ -276,12 +289,15 @@ class Relationship:
         :param table: The table to get cascaded children for
         :returns: A unique list of table names
         """
-        rel = [r.child_table for r in cls.instances
-               if r.parent_table == table and r.on_update_cascade]
+        rel = [
+            r.child_table
+            for r in cls.instances
+            if r.parent_table == table and r.on_update_cascade
+        ]
         # make unique
         rel = list(set(rel))
         return rel
-    
+
     @classmethod
     def get_delete_cascade_relationships(cls, table: str) -> List[str]:
         """
@@ -290,8 +306,11 @@ class Relationship:
         :param table: The table to get cascaded children for
         :returns: A unique list of table names
         """
-        rel = [r.child_table for r in cls.instances
-               if r.parent_table == table and r.on_delete_cascade]
+        rel = [
+            r.child_table
+            for r in cls.instances
+            if r.parent_table == table and r.on_delete_cascade
+        ]
         # make unique
         rel = list(set(rel))
         return rel
@@ -307,7 +326,7 @@ class Relationship:
             if r.child_table == table and r.on_update_cascade:
                 return r.parent_table
         return None
-    
+
     @classmethod
     def parent_virtual(cls, table: str, frm: Form) -> bool:
         """
@@ -336,7 +355,7 @@ class Relationship:
             if r.child_table == table and r.on_update_cascade:
                 return r.fk_column
         return None
-    
+
     @classmethod
     def get_delete_cascade_fk_column(cls, table: str) -> Union[str, None]:
         """
@@ -350,9 +369,18 @@ class Relationship:
                 return r.fk_column
         return None
 
-    def __init__(self, join_type: str, child_table: str, fk_column: Union[str, int], parent_table: str,
-                 pk_column: Union[str, int], update_cascade: bool, delete_cascade: bool,
-                 driver: SQLDriver, frm: Form) -> None:
+    def __init__(
+        self,
+        join_type: str,
+        child_table: str,
+        fk_column: Union[str, int],
+        parent_table: str,
+        pk_column: Union[str, int],
+        update_cascade: bool,
+        delete_cascade: bool,
+        driver: SQLDriver,
+        frm: Form,
+    ) -> None:
         """
         Initialize a new Relationship instance
 
@@ -377,7 +405,7 @@ class Relationship:
         self.driver = driver
         self.frm = frm
         Relationship.instances.append(self)
-        
+
     @property
     def on_update_cascade(self):
         if self.update_cascade and self.frm.update_cascade:
@@ -402,13 +430,15 @@ class Relationship:
         """
         Return a more descriptive string for debugging
         """
-        ret = f'Relationship (' \
-              f'\n\tjoin={self.join_type},' \
-              f'\n\tchild_table={self.child_table},' \
-              f'\n\tfk_column={self.fk_column},' \
-              f'\n\tparent_table={self.parent_table},' \
-              f'\n\tpk_column={self.pk_column}' \
-              f'\n)'
+        ret = (
+            f"Relationship ("
+            f"\n\tjoin={self.join_type},"
+            f"\n\tchild_table={self.child_table},"
+            f"\n\tfk_column={self.fk_column},"
+            f"\n\tparent_table={self.parent_table},"
+            f"\n\tpk_column={self.pk_column}"
+            f"\n)"
+        )
 
         return ret
 
@@ -422,8 +452,15 @@ class ElementMap(dict):
     regardless of naming convention.
 
     """
-    def __init__(self, element: sg.Element, dataset: DataSet, column: str, where_column: str = None,
-                 where_value: str = None) -> None:
+
+    def __init__(
+        self,
+        element: sg.Element,
+        dataset: DataSet,
+        column: str,
+        where_column: str = None,
+        where_value: str = None,
+    ) -> None:
         """
         Create a new ElementMap instance
         :param element: A PySimpleGUI Element
@@ -434,18 +471,18 @@ class ElementMap(dict):
         :returns: None
         """
         super().__init__()
-        self['element'] = element
-        self['dataset'] = dataset
-        self['table'] = dataset.table
-        self['column'] = column
-        self['where_column'] = where_column
-        self['where_value'] = where_value
+        self["element"] = element
+        self["dataset"] = dataset
+        self["table"] = dataset.table
+        self["column"] = column
+        self["where_column"] = where_column
+        self["where_value"] = where_value
 
     def __getattr__(self, key: str):
         try:
             return self[key]
         except KeyError:
-            raise KeyError(f'ElementMap has no key {key}.')
+            raise KeyError(f"ElementMap has no key {key}.")
 
     def __setattr__(self, key, value):
         self[key] = value
@@ -460,11 +497,23 @@ class DataSet:
     Note: While users will interact with DataSet objects often in pysimplesql, they typically aren't created manually by
     the user.
     """
+
     instances = []  # Track our own instances
 
-    def __init__(self, data_key: str, frm_reference: Form, table: str, pk_column: str, description_column: str,
-                 query: Optional[str] = '', order_clause: Optional[str] = '', filtered: bool = True,
-                 prompt_save: int = None, save_quiet: bool = None, duplicate_children: bool = None) -> None:
+    def __init__(
+        self,
+        data_key: str,
+        frm_reference: Form,
+        table: str,
+        pk_column: str,
+        description_column: str,
+        query: Optional[str] = "",
+        order_clause: Optional[str] = "",
+        filtered: bool = True,
+        prompt_save: int = None,
+        save_quiet: bool = None,
+        duplicate_children: bool = None,
+    ) -> None:
         """
         Initialize a new `DataSet` instance
 
@@ -490,10 +539,10 @@ class DataSet:
         DataSet.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
-        if query == '':
+        if query == "":
             query = self.driver.default_query(table)
         # No order was passed in, so we will generate generic one
-        if order_clause == '':
+        if order_clause == "":
             order_clause = self.driver.default_order(description_column)
 
         self.key: str = data_key
@@ -504,15 +553,17 @@ class DataSet:
         self.description_column: str = description_column
         self.query: str = query
         self.order_clause: str = order_clause
-        self.join_clause: str = ''
-        self.where_clause: str = ''  # In addition to the generated where clause!
+        self.join_clause: str = ""
+        self.where_clause: str = ""  # In addition to the generated where clause!
         self.dependents: list = []
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[ResultSet, None] = None
         self.search_order: List[str] = []
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
-        self.transform: Optional[Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None]] = None
+        self.transform: Optional[
+            Callable[[ResultRow, Union[TFORM_ENCODE, TFORM_DECODE]], None]
+        ] = None
         self.filtered: bool = filtered
         if prompt_save is None:
             self._prompt_save = self.frm._prompt_save
@@ -564,10 +615,12 @@ class DataSet:
             if dataset.frm != frm:
                 new_instances.append(dataset)
             else:
-                logger.debug(f'Removing DataSet {dataset.key} related to {frm.driver.__class__.__name__}')
+                logger.debug(
+                    f"Removing DataSet {dataset.key} related to {frm.driver.__class__.__name__}"
+                )
                 # we need to get a list of elements to purge from the keygen
                 for s in dataset.selector:
-                    selector_keys.append(s['element'].key)
+                    selector_keys.append(s["element"].key)
 
         # Reset the keygen for selectors and elements from this Form
         # This is probably a little hack-ish, perhaps I should relocate the keygen?
@@ -600,7 +653,9 @@ class DataSet:
         """
         self.search_order = order
 
-    def set_callback(self, callback: str, fctn: Callable[[Form, sg.Window], bool]) -> None:
+    def set_callback(
+        self, callback: str, fctn: Callable[[Form, sg.Window], bool]
+    ) -> None:
         """
         Set DataSet callbacks. A runtime error will be thrown if the callback is not supported.
 
@@ -629,16 +684,24 @@ class DataSet:
                      `PySimpleGUI.Window` instance, and return True or False
         :returns: None
         """
-        logger.info(f'Callback {callback} being set on table {self.table}')
+        logger.info(f"Callback {callback} being set on table {self.table}")
         supported = [
-            'before_save', 'after_save', 'before_delete', 'after_delete', 'before_duplicate', 'after_duplicate',
-            'before_update', 'after_update',  # Aliases for before/after_save
-            'before_search', 'after_search', 'record_changed'
+            "before_save",
+            "after_save",
+            "before_delete",
+            "after_delete",
+            "before_duplicate",
+            "after_duplicate",
+            "before_update",
+            "after_update",  # Aliases for before/after_save
+            "before_search",
+            "after_search",
+            "record_changed",
         ]
         if callback in supported:
             # handle our convenience aliases
-            callback = 'before_save' if callback == 'before_update' else callback
-            callback = 'after_save' if callback == 'after_update' else callback
+            callback = "before_save" if callback == "before_update" else callback
+            callback = "after_save" if callback == "after_update" else callback
             self.callbacks[callback] = fctn
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
@@ -669,7 +732,7 @@ class DataSet:
         :param query: The query string you would like to associate with the table
         :returns: None
         """
-        logger.debug(f'Setting {self.table} query to {query}')
+        logger.debug(f"Setting {self.table} query to {query}")
         self.query = query
 
     def set_join_clause(self, clause: str) -> None:
@@ -681,7 +744,7 @@ class DataSet:
         :param clause: The join clause, such as "LEFT JOIN That on This.pk=That.fk"
         :returns: None
         """
-        logger.debug(f'Setting {self.table} join clause to {clause}')
+        logger.debug(f"Setting {self.table} join clause to {clause}")
         self.join_clause = clause
 
     def set_where_clause(self, clause: str) -> None:
@@ -693,7 +756,9 @@ class DataSet:
         :param clause: The where clause, such as "WHERE pkThis=100"
         :returns: None
         """
-        logger.debug(f'Setting {self.table} where clause to {clause} for DataSet {self.key}')
+        logger.debug(
+            f"Setting {self.table} where clause to {clause} for DataSet {self.key}"
+        )
         self.where_clause = clause
 
     def set_order_clause(self, clause: str) -> None:
@@ -705,7 +770,7 @@ class DataSet:
         :param clause: The order clause, such as "Order by name ASC"
         :returns: None
         """
-        logger.debug(f'Setting {self.table} order clause to {clause}')
+        logger.debug(f"Setting {self.table} order clause to {clause}")
         self.order_clause = clause
 
     def update_column_info(self, column_info: ColumnInfo = None) -> None:
@@ -760,7 +825,7 @@ class DataSet:
                 # if passed custom column name
                 if column is not None and mapped.column != column:
                     continue
-                
+
                 # don't check if there aren't any rows. Fixes checkbox = '' when no rows.
                 if not len(self.frm[mapped.table].rows):
                     continue
@@ -775,14 +840,14 @@ class DataSet:
                             table_val = row[mapped.column]
                 else:
                     table_val = self[mapped.column]
-                    
+
                 if type(mapped.element) is sg.PySimpleGUI.Checkbox:
                     table_val = checkbox_to_bool(table_val)
                     element_val = checkbox_to_bool(element_val)
 
                 # Sanitize things a bit due to empty values being slightly different in the two cases
                 if table_val is None:
-                    table_val = ''
+                    table_val = ""
 
                 # Strip trailing whitespace from strings
                 if type(table_val) is str:
@@ -793,9 +858,13 @@ class DataSet:
                 # Make the comparison
                 if element_val != table_val:
                     dirty = True
-                    logger.debug(f'CHANGED RECORD FOUND!')
-                    logger.debug(f'\telement type: {type(element_val)} column_type: {type(table_val)}')
-                    logger.debug(f'\t{mapped.element.Key}:{element_val} != {mapped.column}:{table_val}')
+                    logger.debug(f"CHANGED RECORD FOUND!")
+                    logger.debug(
+                        f"\telement type: {type(element_val)} column_type: {type(table_val)}"
+                    )
+                    logger.debug(
+                        f"\t{mapped.element.Key}:{element_val} != {mapped.column}:{table_val}"
+                    )
                     return dirty
                 else:
                     dirty = False
@@ -809,7 +878,9 @@ class DataSet:
                         break
         return dirty
 
-    def prompt_save(self, update_elements: bool = True) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
+    def prompt_save(
+        self, update_elements: bool = True
+    ) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
         """
         Prompts the user if they want to save when changes are detected and the current record is about to change.
 
@@ -829,12 +900,19 @@ class DataSet:
         changed = self.records_changed() or vrows
         if changed:
             if self._prompt_save == AUTOSAVE_MODE:
-                save_changes = 'yes'
+                save_changes = "yes"
             else:
-                save_changes = self.frm.popup.yes_no(lang.dataset_prompt_save_title, lang.dataset_prompt_save)
-            if save_changes == 'yes':
+                save_changes = self.frm.popup.yes_no(
+                    lang.dataset_prompt_save_title, lang.dataset_prompt_save
+                )
+            if save_changes == "yes":
                 # save this record's cascaded relationships, last to first
-                if self.frm.save_records(table=self.table, update_elements=update_elements) & SAVE_FAIL:
+                if (
+                    self.frm.save_records(
+                        table=self.table, update_elements=update_elements
+                    )
+                    & SAVE_FAIL
+                ):
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             else:
@@ -845,8 +923,13 @@ class DataSet:
         else:
             return PROMPT_SAVE_NONE
 
-    def requery(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
-                requery_dependents: bool = True) -> None:
+    def requery(
+        self,
+        select_first: bool = True,
+        filtered: bool = True,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+    ) -> None:
         """
         Requeries the table
         The `DataSet` object maintains an internal representation of the actual database table.
@@ -861,30 +944,32 @@ class DataSet:
                            select_first parameter must = True to use this parameter.
         :returns: None
         """
-        join = ''
-        where = ''
-        
+        join = ""
+        where = ""
+
         if not self.filtered:
             filtered = False
 
         if filtered:
-            
+
             # Logic for stopping requery short if parent has no records or current row is virtual
             parent_table = Relationship.get_parent(self.table)
             if parent_table:
-                if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(self.table, self.frm):
-                    self.rows = ResultSet([]) # purge rows
+                if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(
+                    self.table, self.frm
+                ):
+                    self.rows = ResultSet([])  # purge rows
                     if requery_dependents:
                         self.requery_dependents(update_elements=update_elements)
                     if update_elements:
                         self.frm.update_elements(self.table)
                     return
-            
+
             # else, get join/where clause like normal
             join = self.driver.generate_join_clause(self)
             where = self.driver.generate_where_clause(self)
 
-        query = self.query + ' ' + join + ' ' + where + ' ' + self.order_clause
+        query = self.query + " " + join + " " + where + " " + self.order_clause
         # We want to store our sort settings before we wipe out the current ResultSet
         try:
             sort_settings = self.rows.store_sort_settings()
@@ -909,10 +994,15 @@ class DataSet:
                     row[k] = v.rstrip()
 
         if select_first:
-            self.first(update_elements=update_elements, requery_dependents=requery_dependents,
-                       skip_prompt_save=True)  # We don't want to prompt save in this situation, requery already done
+            self.first(
+                update_elements=update_elements,
+                requery_dependents=requery_dependents,
+                skip_prompt_save=True,
+            )  # We don't want to prompt save in this situation, requery already done
 
-    def requery_dependents(self, child: bool = False, update_elements: bool = True) -> None:
+    def requery_dependents(
+        self, child: bool = False, update_elements: bool = True
+    ) -> None:
         """
         Requery parent `DataSet` instances as defined by the relationships of the table
 
@@ -921,16 +1011,25 @@ class DataSet:
         :returns: None
         """
         if child:
-            self.requery(update_elements=update_elements,
-                         requery_dependents=False)  # dependents=False: no recursive dependent requery
+            self.requery(
+                update_elements=update_elements, requery_dependents=False
+            )  # dependents=False: no recursive dependent requery
 
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.on_update_cascade:
-                logger.debug(f"Requerying dependent table {self.frm[rel.child_table].table}")
-                self.frm[rel.child_table].requery_dependents(child=True, update_elements=update_elements)
+                logger.debug(
+                    f"Requerying dependent table {self.frm[rel.child_table].table}"
+                )
+                self.frm[rel.child_table].requery_dependents(
+                    child=True, update_elements=update_elements
+                )
 
-    def first(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False) \
-            -> None:
+    def first(
+        self,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+        skip_prompt_save: bool = False,
+    ) -> None:
         """
         Move to the first record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -942,9 +1041,11 @@ class DataSet:
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
-        logger.debug(f'Moving to the first record of table {self.table}')
+        logger.debug(f"Moving to the first record of table {self.table}")
         if skip_prompt_save is False:
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(
+                update_elements=False
+            )  # don't update self/dependents if we are going to below anyway
 
         self.current_index = 0
         if requery_dependents:
@@ -952,10 +1053,15 @@ class DataSet:
         if update_elements:
             self.frm.update_elements(self.table)
         # callback
-        if 'record_changed' in self.callbacks.keys():
-            self.callbacks['record_changed'](self.frm, self.frm.window)
+        if "record_changed" in self.callbacks.keys():
+            self.callbacks["record_changed"](self.frm, self.frm.window)
 
-    def last(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
+    def last(
+        self,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+        skip_prompt_save: bool = False,
+    ):
         """
         Move to the last record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -967,20 +1073,27 @@ class DataSet:
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
-        logger.debug(f'Moving to the last record of table {self.table}')
+        logger.debug(f"Moving to the last record of table {self.table}")
         if skip_prompt_save is False:
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
-            
+            self.prompt_save(
+                update_elements=False
+            )  # don't update self/dependents if we are going to below anyway
+
         self.current_index = len(self.rows) - 1
         if requery_dependents:
             self.requery_dependents()
         if update_elements:
             self.frm.update_elements(self.table)
         # callback
-        if 'record_changed' in self.callbacks.keys():
-            self.callbacks['record_changed'](self.frm, self.frm.window)
+        if "record_changed" in self.callbacks.keys():
+            self.callbacks["record_changed"](self.frm, self.frm.window)
 
-    def next(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
+    def next(
+        self,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+        skip_prompt_save: bool = False,
+    ):
         """
         Move to the next record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -993,9 +1106,11 @@ class DataSet:
         :returns: None
         """
         if self.current_index < len(self.rows) - 1:
-            logger.debug(f'Moving to the next record of table {self.table}')
+            logger.debug(f"Moving to the next record of table {self.table}")
             if skip_prompt_save is False:
-                self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+                self.prompt_save(
+                    update_elements=False
+                )  # don't update self/dependents if we are going to below anyway
 
             self.current_index += 1
             if requery_dependents:
@@ -1003,10 +1118,15 @@ class DataSet:
             if update_elements:
                 self.frm.update_elements(self.table)
             # callback
-            if 'record_changed' in self.callbacks.keys():
-                self.callbacks['record_changed'](self.frm, self.frm.window)
+            if "record_changed" in self.callbacks.keys():
+                self.callbacks["record_changed"](self.frm, self.frm.window)
 
-    def previous(self, update_elements: bool = True, requery_dependents: bool = True, skip_prompt_save: bool = False):
+    def previous(
+        self,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+        skip_prompt_save: bool = False,
+    ):
         """
         Move to the previous record of the table
         Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -1019,9 +1139,11 @@ class DataSet:
         :returns: None
         """
         if self.current_index > 0:
-            logger.debug(f'Moving to the previous record of table {self.table}')
+            logger.debug(f"Moving to the previous record of table {self.table}")
             if skip_prompt_save is False:
-                self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+                self.prompt_save(
+                    update_elements=False
+                )  # don't update self/dependents if we are going to below anyway
 
             self.current_index -= 1
             if requery_dependents:
@@ -1029,12 +1151,16 @@ class DataSet:
             if update_elements:
                 self.frm.update_elements(self.table)
             # callback
-            if 'record_changed' in self.callbacks.keys():
-                self.callbacks['record_changed'](self.frm, self.frm.window)
+            if "record_changed" in self.callbacks.keys():
+                self.callbacks["record_changed"](self.frm, self.frm.window)
 
-    def search(self, search_string: str, update_elements: bool = True, dependents: bool = True,
-               skip_prompt_save: bool = False) \
-            -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
+    def search(
+        self,
+        search_string: str,
+        update_elements: bool = True,
+        dependents: bool = True,
+        skip_prompt_save: bool = False,
+    ) -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
         Move to the next record in the `DataSet` that contains `search_string`.
         Successive calls will search from the current position, and wrap around back to the beginning.
@@ -1053,24 +1179,32 @@ class DataSet:
         # See if the string is an element name # TODO this is a bit of an ugly hack, but it works
         if search_string in self.frm.window.key_dict.keys():
             search_string = self.frm.window[search_string].get()
-        if search_string == '':
+        if search_string == "":
             return SEARCH_ABORTED
 
-        logger.debug(f'Searching for a record of table {self.table} with search string "{search_string}"')
+        logger.debug(
+            f'Searching for a record of table {self.table} with search string "{search_string}"'
+        )
         # callback
-        if 'before_search' in self.callbacks.keys():
-            if not self.callbacks['before_search'](self.frm, self.frm.window):
+        if "before_search" in self.callbacks.keys():
+            if not self.callbacks["before_search"](self.frm, self.frm.window):
                 return SEARCH_ABORTED
 
-        if skip_prompt_save is False:  # TODO: Should this be before the before_search callback?
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+        if (
+            skip_prompt_save is False
+        ):  # TODO: Should this be before the before_search callback?
+            self.prompt_save(
+                update_elements=False
+            )  # don't update self/dependents if we are going to below anyway
 
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows):
-            logger.debug(f'DEBUG: {self.search_order} {self.rows[0].keys()}')
+            logger.debug(f"DEBUG: {self.search_order} {self.rows[0].keys()}")
         for o in self.search_order:
             # Perform a search for str, from the current position to the end and back by creating a list of all indexes
-            for i in list(range(self.current_index + 1, len(self.rows))) + list(range(0, self.current_index)):
+            for i in list(range(self.current_index + 1, len(self.rows))) + list(
+                range(0, self.current_index)
+            ):
                 if o in self.rows[i].keys():
                     if self.rows[i][o]:
                         if search_string.lower() in str(self.rows[i][o]).lower():
@@ -1082,16 +1216,20 @@ class DataSet:
                                 self.frm.update_elements(self.table)
 
                             # callback
-                            if 'after_search' in self.callbacks.keys():
-                                if not self.callbacks['after_search'](self.frm, self.frm.window):
+                            if "after_search" in self.callbacks.keys():
+                                if not self.callbacks["after_search"](
+                                    self.frm, self.frm.window
+                                ):
                                     self.current_index = old_index
                                     self.requery_dependents()
                                     self.frm.update_elements(self.table)
                                     return SEARCH_ABORTED
 
                             # callback
-                            if 'record_changed' in self.callbacks.keys():
-                                self.callbacks['record_changed'](self.frm, self.frm.window)
+                            if "record_changed" in self.callbacks.keys():
+                                self.callbacks["record_changed"](
+                                    self.frm, self.frm.window
+                                )
 
                             return SEARCH_RETURNED
         return SEARCH_FAILED
@@ -1099,8 +1237,14 @@ class DataSet:
         # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
-    def set_by_index(self, index: int, update_elements: bool = True, dependents: bool = True,
-                     skip_prompt_save: bool = False, omit_elements: List[str] = None) -> None:
+    def set_by_index(
+        self,
+        index: int,
+        update_elements: bool = True,
+        dependents: bool = True,
+        skip_prompt_save: bool = False,
+        omit_elements: List[str] = None,
+    ) -> None:
         """
         Move to the record of the table located at the specified index in DataSet.
          Only one entry in the table is ever considered "Selected"  This is one of several functions that influences
@@ -1114,15 +1258,19 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
-        logger.debug(f'Moving to the record at index {index} on {self.table}')
+        logger.debug(f"Moving to the record at index {index} on {self.table}")
         if omit_elements is None:
             omit_elements = []
 
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
             if len(omit_elements) and self.records_changed(recursive=False):
-                omit_elements = [] # most likely will need to update, either to discard virtual or update after save
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+                omit_elements = (
+                    []
+                )  # most likely will need to update, either to discard virtual or update after save
+            self.prompt_save(
+                update_elements=False
+            )  # don't update self/dependents if we are going to below anyway
 
         self.current_index = index
         if dependents:
@@ -1130,8 +1278,14 @@ class DataSet:
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
 
-    def set_by_pk(self, pk: int, update_elements: bool = True, requery_dependents: bool = True,
-                  skip_prompt_save: bool = False, omit_elements: list[str] = None) -> None:
+    def set_by_pk(
+        self,
+        pk: int,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+        skip_prompt_save: bool = False,
+        omit_elements: list[str] = None,
+    ) -> None:
         """
         Move to the record with this primary key
         This is useful when modifying a record (such as renaming).  The primary key can be stored, the record re-named,
@@ -1147,15 +1301,19 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
-        logger.debug(f'Setting table {self.table} record by primary key {pk}')
+        logger.debug(f"Setting table {self.table} record by primary key {pk}")
         if omit_elements is None:
             omit_elements = []
 
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
             if len(omit_elements) and self.records_changed(recursive=False):
-                omit_elements = [] # most likely will need to update, either to discard virtual or update after save
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+                omit_elements = (
+                    []
+                )  # most likely will need to update, either to discard virtual or update after save
+            self.prompt_save(
+                update_elements=False
+            )  # don't update self/dependents if we are going to below anyway
 
         i = 0
         for r in self.rows:
@@ -1170,7 +1328,9 @@ class DataSet:
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
 
-    def get_current(self, column: str, default: Union[str, int] = "") -> Union[str, int]:
+    def get_current(
+        self, column: str, default: Union[str, int] = ""
+    ) -> Union[str, int]:
         """
         Get the current value for the supplied column
         You can also use indexing of the @Form object to get the current value of a column
@@ -1180,9 +1340,9 @@ class DataSet:
         :param default: A value to return if the record is null
         :returns: The value of the column requested
         """
-        logger.debug(f'Getting current record for {self.table}.{column}')
+        logger.debug(f"Getting current record for {self.table}.{column}")
         if self.rows:
-            if self.get_current_row()[column] != '':
+            if self.get_current_row()[column] != "":
                 return self.get_current_row()[column]
             else:
                 return default
@@ -1191,18 +1351,20 @@ class DataSet:
 
     def set_current(self, column: str, value: Union[str, int]) -> None:
         """
-       Set the current value for the supplied column
-       You can also use indexing of the `Form` object to set the current value of a column
-       I.e. frm[{DataSet}].[{column}] = 'New value'
+        Set the current value for the supplied column
+        You can also use indexing of the `Form` object to set the current value of a column
+        I.e. frm[{DataSet}].[{column}] = 'New value'
 
-       :param column: The column you want to set the value for
-       :param value: A value to set the current record's column to
-       :returns: None
-       """
-        logger.debug(f'Setting current record for {self.table}.{column} = {value}')
+        :param column: The column you want to set the value for
+        :param value: A value to set the current record's column to
+        :returns: None
+        """
+        logger.debug(f"Setting current record for {self.table}.{column} = {value}")
         self.get_current_row()[column] = value
 
-    def get_keyed_value(self, value_column: str, key_column: str, key_value: Union[str, int]) -> Union[str, int]:
+    def get_keyed_value(
+        self, value_column: str, key_column: str, key_value: Union[str, int]
+    ) -> Union[str, int]:
         """
         Return `value_column` where` key_column`=`key_value`.  Useful for datastores with key/value pairs
 
@@ -1230,11 +1392,18 @@ class DataSet:
         :returns: A `ResultRow` object
         """
         if self.rows:
-            self.current_index = self.current_index  # force the current_index to be in bounds! For child reparenting
+            self.current_index = (
+                self.current_index
+            )  # force the current_index to be in bounds! For child reparenting
             return self.rows[self.current_index]
 
-    def add_selector(self, element: sg.Element, data_key: str, where_column: str = None, where_value: str = None) \
-            -> None:
+    def add_selector(
+        self,
+        element: sg.Element,
+        data_key: str,
+        where_column: str = None,
+        where_value: str = None,
+    ) -> None:
         """
         Use an element such as a listbox, combobox or a table as a selector item for this table.
         Note: This is not typically used by the end user, as this is called from the`selector()` convenience function
@@ -1245,14 +1414,28 @@ class DataSet:
         :param where_value: (optional)
         :returns: None
         """
-        if type(element) not in [sg.PySimpleGUI.Listbox, sg.PySimpleGUI.Slider, sg.Combo, sg.Table]:
-            raise RuntimeError(f'add_selector() error: {element} is not a supported element.')
+        if type(element) not in [
+            sg.PySimpleGUI.Listbox,
+            sg.PySimpleGUI.Slider,
+            sg.Combo,
+            sg.Table,
+        ]:
+            raise RuntimeError(
+                f"add_selector() error: {element} is not a supported element."
+            )
 
-        logger.debug(f'Adding {element.Key} as a selector for the {self.table} table.')
-        d = {'element': element, 'data_key': data_key, 'where_column': where_column, 'where_value': where_value}
+        logger.debug(f"Adding {element.Key} as a selector for the {self.table} table.")
+        d = {
+            "element": element,
+            "data_key": data_key,
+            "where_column": where_column,
+            "where_value": where_value,
+        }
         self.selector.append(d)
 
-    def insert_record(self, values: Dict[str: Union[str, int]] = None, skip_prompt_save: bool = False) -> None:
+    def insert_record(
+        self, values: Dict[str : Union[str, int]] = None, skip_prompt_save: bool = False
+    ) -> None:
         """
         Insert a new record virtually in the `DataSet` object. If values are passed, it will initially set those columns
         to the values (I.e. {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the database if
@@ -1266,12 +1449,16 @@ class DataSet:
         # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
         # todo: bring back the values parameter
         if skip_prompt_save is False:
-            self.prompt_save(update_elements=False) # don't update self/dependents if we are going to below anyway
+            self.prompt_save(
+                update_elements=False
+            )  # don't update self/dependents if we are going to below anyway
 
         # Don't insert if parent has no records or is virtual
         parent_table = Relationship.get_parent(self.table)
         if parent_table:
-            if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(self.table, self.frm):
+            if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(
+                self.table, self.frm
+            ):
                 logger.debug(f"{parent_table=} is empty or current row is virtual")
                 return
 
@@ -1296,11 +1483,17 @@ class DataSet:
         self.rows.insert(new_values)
 
         # and move to the new record
-        self.set_by_pk(new_values[self.pk_column], update_elements=True, requery_dependents=True,
-                       skip_prompt_save=True)  # already saved
+        self.set_by_pk(
+            new_values[self.pk_column],
+            update_elements=True,
+            requery_dependents=True,
+            skip_prompt_save=True,
+        )  # already saved
         self.frm.update_elements(self.table)
 
-    def save_record(self, display_message: bool = None, update_elements: bool = True) -> int:
+    def save_record(
+        self, display_message: bool = None, update_elements: bool = True
+    ) -> int:
         """
         Save the currently selected record
         Saves any changes made via the GUI back to the database.  The before_save and after_save `DataSet.callbacks`
@@ -1310,24 +1503,29 @@ class DataSet:
         :param update_elements: Update the GUI elements after saving
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
-        logger.debug(f'Saving records for table {self.table}...')
-        
+        logger.debug(f"Saving records for table {self.table}...")
+
         if display_message is None:
             display_message = not self.save_quiet
-        
+
         # Ensure that there is actually something to save
         if not len(self.rows):
-            self.frm.popup.info(lang.dataset_save_empty, display_message=display_message)
+            self.frm.popup.info(
+                lang.dataset_save_empty, display_message=display_message
+            )
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
-        if 'before_save' in self.callbacks.keys():
-            if self.callbacks['before_save']() is False:
+        if "before_save" in self.callbacks.keys():
+            if self.callbacks["before_save"]() is False:
                 logger.debug("We are not saving!")
                 if update_elements:
                     self.frm.update_elements(self.table)
                 if display_message:
-                    self.frm.popup.ok(lang.dataset_save_callback_false_title, lang.dataset_save_callback_false)
+                    self.frm.popup.ok(
+                        lang.dataset_save_callback_false_title,
+                        lang.dataset_save_callback_false,
+                    )
                 return SAVE_FAIL + SHOW_MESSAGE
 
         # Check right away to see if any records have changed, no need to proceed any further than we have to
@@ -1336,11 +1534,13 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data, unless it's 'keyed' via ?/= 
+        # Note that while saving, we are working with just the current row of data, unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
         # Track the keyed queries we have to run.  Set to None, so we can tell later if there were keyed elements
-        keyed_queries: Optional[List] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
+        keyed_queries: Optional[
+            List
+        ] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
@@ -1352,17 +1552,24 @@ class DataSet:
                 # Looked for keyed elements first
                 if mapped.where_column is not None:
                     if keyed_queries is None:
-                        keyed_queries = []  # Make the list here so != None if keyed elements
+                        keyed_queries = (
+                            []
+                        )  # Make the list here so != None if keyed elements
                     for row in self.rows:
                         if row[mapped.where_column] == mapped.where_value:
                             if row[mapped.column] != element_val:
                                 # This record has changed.  We will save it
                                 row[mapped.column] = element_val  # propagate the value
                                 changed = {mapped.column: element_val}
-                                where_clause = f'WHERE {self.driver.quote_column(mapped.where_column)} = \
-                                                {self.driver.quote_value(mapped.where_value)}'
-                                keyed_queries.append({'column': mapped.column, 'changed_row': changed,
-                                                      'where_clause': where_clause})
+                                where_clause = f"WHERE {self.driver.quote_column(mapped.where_column)} = \
+                                                {self.driver.quote_value(mapped.where_value)}"
+                                keyed_queries.append(
+                                    {
+                                        "column": mapped.column,
+                                        "changed_row": changed,
+                                        "where_clause": where_clause,
+                                    }
+                                )
                 else:
                     current_row[mapped.column] = element_val
 
@@ -1374,7 +1581,9 @@ class DataSet:
             # check if fk
             for mapped in self.frm.element_map:
                 if mapped.dataset == self and mapped.column == cascade_fk_column:
-                    cascade_fk_changed = self.records_changed(column=cascade_fk_column, recursive=False)
+                    cascade_fk_changed = self.records_changed(
+                        column=cascade_fk_column, recursive=False
+                    )
 
         # Update the database from the stored rows
         if self.transform is not None:
@@ -1386,50 +1595,74 @@ class DataSet:
             for q in keyed_queries:
                 # Update the database from the stored rows
                 if self.transform is not None:
-                    self.transform(self, q['changed_row'], TFORM_ENCODE)
-                result = self.driver.save_record(self, q['changed_row'], q['where_clause'])
+                    self.transform(self, q["changed_row"], TFORM_ENCODE)
+                result = self.driver.save_record(
+                    self, q["changed_row"], q["where_clause"]
+                )
                 if result.exception is not None:
-                    self.frm.popup.ok(lang.dataset_save_keyed_fail_title,
-                                      lang.dataset_save_keyed_fail.format_map(LangFormat(exception=result.exception)))
+                    self.frm.popup.ok(
+                        lang.dataset_save_keyed_fail_title,
+                        lang.dataset_save_keyed_fail.format_map(
+                            LangFormat(exception=result.exception)
+                        ),
+                    )
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case, since it's handled here
         else:
             if current_row.virtual:
-                result = self.driver.insert_record(self.table, self.get_current_pk(), self.pk_column, changed_row)
+                result = self.driver.insert_record(
+                    self.table, self.get_current_pk(), self.pk_column, changed_row
+                )
             else:
                 result = self.driver.save_record(self, changed_row)
 
             if result.exception is not None:
-                self.frm.popup.ok(lang.dataset_save_fail_title, 
-                                  lang.dataset_save_fail.format_map(LangFormat(exception=result.exception)))
+                self.frm.popup.ok(
+                    lang.dataset_save_fail_title,
+                    lang.dataset_save_fail.format_map(
+                        LangFormat(exception=result.exception)
+                    ),
+                )
                 self.driver.rollback()
                 return SAVE_FAIL  # Do not show the message in this case, since it's handled here
 
             # Store the pk can we can move to it later - use the value returned in the resultset if possible
             # the expected pk changed from autoincrement and/or concurrent access
-            pk = result.lastrowid if result.lastrowid is not None else self.get_current_pk()
+            pk = (
+                result.lastrowid
+                if result.lastrowid is not None
+                else self.get_current_pk()
+            )
             current_row[self.pk_column] = pk
 
             # then update the current row data
             self.rows[self.current_index] = current_row
 
             # If child changes parent, move index back and requery/requery_dependents
-            if cascade_fk_changed and not current_row.virtual:  # Virtual rows already requery, and have no dependents.
+            if (
+                cascade_fk_changed and not current_row.virtual
+            ):  # Virtual rows already requery, and have no dependents.
                 self.frm[self.table].requery(select_first=False)  # keep spot in table
                 self.frm[self.table].requery_dependents()
 
             # Lets refresh our data
             if current_row.virtual:
-                self.requery(select_first=False,
-                             update_elements=False)  # Requery so that the new  row honors the order clause
+                self.requery(
+                    select_first=False, update_elements=False
+                )  # Requery so that the new  row honors the order clause
                 if update_elements:
-                    self.set_by_pk(pk, skip_prompt_save=True, # Then move to the record
-                                   requery_dependents=False)
-                    self.frm.update_elements(edit_protect_only=True) # only need to reset the Insert button
+                    self.set_by_pk(
+                        pk,
+                        skip_prompt_save=True,  # Then move to the record
+                        requery_dependents=False,
+                    )
+                    self.frm.update_elements(
+                        edit_protect_only=True
+                    )  # only need to reset the Insert button
 
         # callback
-        if 'after_save' in self.callbacks.keys():
-            if not self.callbacks['after_save'](self.frm, self.frm.window):
+        if "after_save" in self.callbacks.keys():
+            if not self.callbacks["after_save"](self.frm, self.frm.window):
                 self.driver.rollback()
                 return SAVE_FAIL + SHOW_MESSAGE
 
@@ -1438,13 +1671,18 @@ class DataSet:
 
         if update_elements:
             self.frm.update_elements(self.table)
-        logger.debug(f'Record Saved!')
+        logger.debug(f"Record Saved!")
         self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
 
         return SAVE_SUCCESS + SHOW_MESSAGE
 
-    def save_record_recursive(self, results: SaveResultsDict, display_message = False, check_prompt_save: bool = False,
-                              update_elements: bool = True) -> SaveResultsDict:
+    def save_record_recursive(
+        self,
+        results: SaveResultsDict,
+        display_message=False,
+        check_prompt_save: bool = False,
+        update_elements: bool = True,
+    ) -> SaveResultsDict:
         """
         Recursively save changes, taking into account the relationships of the tables
         :param results: Used in Form.save_records to collect DataSet.save_record returns. Pass an empty dict to get list
@@ -1461,19 +1699,23 @@ class DataSet:
                     results=results,
                     display_message=display_message,
                     check_prompt_save=check_prompt_save,
-                    update_elements=update_elements
-                    )
+                    update_elements=update_elements,
+                )
         if check_prompt_save and self._prompt_save is False:
             if update_elements:
                 self.frm.update_elements(self.table)
             results[self.table] = PROMPT_SAVE_NONE
             return results
         else:
-            result = self.save_record(display_message=display_message,update_elements=update_elements)
+            result = self.save_record(
+                display_message=display_message, update_elements=update_elements
+            )
             results[self.table] = result
             return results
 
-    def delete_record(self, cascade:bool=True): # TODO: check return type, we return True below
+    def delete_record(
+        self, cascade: bool = True
+    ):  # TODO: check return type, we return True below
         """
         Delete the currently selected record
         The before_delete and after_delete callbacks are run during this process to give some control over the process
@@ -1486,41 +1728,49 @@ class DataSet:
             return
 
         # callback
-        if 'before_delete' in self.callbacks.keys():
-            if not self.callbacks['before_delete'](self.frm, self.frm.window):
+        if "before_delete" in self.callbacks.keys():
+            if not self.callbacks["before_delete"](self.frm, self.frm.window):
                 return
 
         children = []
         if cascade:
             children = Relationship.get_delete_cascade_relationships(self.table)
 
-        msg_children = ', '.join(children)
+        msg_children = ", ".join(children)
         if len(children):
             msg = lang.delete_cascade.format_map(LangFormat(children=msg_children))
         else:
             msg = lang.delete_single
         answer = self.frm.popup.yes_no(lang.delete_title, msg)
-        if answer == 'no':
+        if answer == "no":
             return True
-        
+
         if self.get_current_row().virtual:
             self.rows.purge_virtual()
             self.frm.update_elements(self.table)
-            self.frm.update_elements(edit_protect_only=True) # only need to reset the Insert button
+            self.frm.update_elements(
+                edit_protect_only=True
+            )  # only need to reset the Insert button
             return
 
         # Delete child records first!
         result = self.driver.delete_record(self, True)
         if result == DELETE_RECURSION_LIMIT_ERROR:
-            self.frm.popup.ok(lang.delete_failed_title, 
-                              lang.delete_failed.format_map(LangFormat(exception=lang.delete_recursion_limit_error)))
+            self.frm.popup.ok(
+                lang.delete_failed_title,
+                lang.delete_failed.format_map(
+                    LangFormat(exception=lang.delete_recursion_limit_error)
+                ),
+            )
         elif result.exception is not None:
-            self.frm.popup.ok(lang.delete_failed_title, 
-                              lang.delete_failed.format_map(LangFormat(exception=result.exception)))
+            self.frm.popup.ok(
+                lang.delete_failed_title,
+                lang.delete_failed.format_map(LangFormat(exception=result.exception)),
+            )
 
         # callback
-        if 'after_delete' in self.callbacks.keys():
-            if not self.callbacks['after_delete'](self.frm, self.frm.window):
+        if "after_delete" in self.callbacks.keys():
+            if not self.callbacks["after_delete"](self.frm, self.frm.window):
                 self.driver.rollback()
             else:
                 self.driver.commit()
@@ -1530,8 +1780,10 @@ class DataSet:
         self.requery(select_first=False)
         self.requery_dependents()
         self.frm.update_elements(self.table)
-        
-    def duplicate_record(self, children: bool = None) -> None: # TODO check return type, returns True within
+
+    def duplicate_record(
+        self, children: bool = None
+    ) -> None:  # TODO check return type, returns True within
         """
         Duplicate the currently selected record
         The before_duplicate and after_duplicate callbacks are run during this process to give some control over the process
@@ -1544,41 +1796,64 @@ class DataSet:
             return
 
         # callback
-        if 'before_duplicate' in self.callbacks.keys():
-            if not self.callbacks['before_duplicate'](self.frm, self.frm.window):
+        if "before_duplicate" in self.callbacks.keys():
+            if not self.callbacks["before_duplicate"](self.frm, self.frm.window):
                 return
-            
+
         if children is None:
             children = self.duplicate_children
-            
+
         child_list = []
         if children:
             child_list = Relationship.get_update_cascade_relationships(self.table)
 
-        msg_children = ', '.join(child_list)
-        msg = lang.duplicate_child.format_map(LangFormat(children=msg_children)).splitlines()
-        layout = [[sg.T(line, font='bold')] for line in msg]
+        msg_children = ", ".join(child_list)
+        msg = lang.duplicate_child.format_map(
+            LangFormat(children=msg_children)
+        ).splitlines()
+        layout = [[sg.T(line, font="bold")] for line in msg]
         if len(child_list):
-            answer = sg.Window(lang.duplicate_child_title, [
-                layout,
-                [sg.Button(button_text=lang.duplicate_child_button_dupparent, key='parent',
-                                use_ttk_buttons = themepack.use_ttk_buttons,
-                                pad = themepack.popup_button_pad)],
-                [sg.Button(button_text=lang.duplicate_child_button_dupboth, key='cascade',
-                                use_ttk_buttons = themepack.use_ttk_buttons,
-                                pad = themepack.popup_button_pad)],
-                [sg.Button(button_text=lang.button_cancel, key='cancel',
-                                use_ttk_buttons = themepack.use_ttk_buttons,
-                                pad = themepack.popup_button_pad)],
-                ], keep_on_top=True, modal=True, ttk_theme = themepack.ttk_theme).read(close=True)
-            if answer[0] == 'parent':
+            answer = sg.Window(
+                lang.duplicate_child_title,
+                [
+                    layout,
+                    [
+                        sg.Button(
+                            button_text=lang.duplicate_child_button_dupparent,
+                            key="parent",
+                            use_ttk_buttons=themepack.use_ttk_buttons,
+                            pad=themepack.popup_button_pad,
+                        )
+                    ],
+                    [
+                        sg.Button(
+                            button_text=lang.duplicate_child_button_dupboth,
+                            key="cascade",
+                            use_ttk_buttons=themepack.use_ttk_buttons,
+                            pad=themepack.popup_button_pad,
+                        )
+                    ],
+                    [
+                        sg.Button(
+                            button_text=lang.button_cancel,
+                            key="cancel",
+                            use_ttk_buttons=themepack.use_ttk_buttons,
+                            pad=themepack.popup_button_pad,
+                        )
+                    ],
+                ],
+                keep_on_top=True,
+                modal=True,
+                ttk_theme=themepack.ttk_theme,
+            ).read(close=True)
+            if answer[0] == "parent":
                 children = False
-            elif answer[0] in ['cancel', None]:
+            elif answer[0] in ["cancel", None]:
                 return True
         else:
             msg = lang.duplicate_single
             answer = self.frm.popup.yes_no(lang.duplicate_single_title, msg)
-            if answer == 'no':
+            if answer == "no":
                 return True
         # Store our current pk, so we can move to it if the duplication fails
         pk = self.get_current_pk()
@@ -1587,26 +1862,30 @@ class DataSet:
         result = self.driver.duplicate_record(self, children)
         if result.exception:
             self.driver.rollback()
-            self.frm.popup.ok(lang.duplicate_failed_title, 
-                              lang.duplicate_failed.format_map(LangFormat(exception=result.exception)))
+            self.frm.popup.ok(
+                lang.duplicate_failed_title,
+                lang.duplicate_failed.format_map(
+                    LangFormat(exception=result.exception)
+                ),
+            )
         else:
             pk = result.lastrowid
-                        
+
         # callback
-        if 'after_duplicate' in self.callbacks.keys():
-            if not self.callbacks['after_duplicate'](self.frm, self.frm.window):
+        if "after_duplicate" in self.callbacks.keys():
+            if not self.callbacks["after_duplicate"](self.frm, self.frm.window):
                 self.driver.rollback()
             else:
                 self.driver.commit()
         else:
             self.driver.commit()
         self.driver.commit()
-        
+
         # requery and move to new pk
         self.requery(select_first=False)
         self.set_by_pk(pk, skip_prompt_save=True)
 
-    def get_description_for_pk(self, pk:int) -> Union[str,int,None]:
+    def get_description_for_pk(self, pk: int) -> Union[str, int, None]:
         """
         Get the description from `DataSet.description_column` from the row where the `DataSet.pk_column` = `pk`
 
@@ -1618,7 +1897,9 @@ class DataSet:
                 return row[self.description_column]
         return None
 
-    def table_values(self, columns: List[str] = None, mark_virtual: bool = False) -> List[TableRow]:
+    def table_values(
+        self, columns: List[str] = None, mark_virtual: bool = False
+    ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element. Each
 
@@ -1644,7 +1925,7 @@ class DataSet:
 
         for row in self.rows:
             if mark_virtual:
-                lst = [themepack.marker_virtual] if row.virtual else [' ']
+                lst = [themepack.marker_virtual] if row.virtual else [" "]
             else:
                 lst = []
 
@@ -1652,18 +1933,23 @@ class DataSet:
             pk = None
             for col in all_columns:
                 # Is this the primary key column?
-                if col == pk_column: pk = row[col]
+                if col == pk_column:
+                    pk = row[col]
                 # Skip this column if we aren't supposed to grab it
-                if col not in columns: continue
+                if col not in columns:
+                    continue
                 # Get this column info, including fk descriptions
                 found = False
                 for rel in rels:
                     if col == rel.fk_column:
-                        lst.append(self.frm[rel.parent_table].get_description_for_pk(row[col]))
+                        lst.append(
+                            self.frm[rel.parent_table].get_description_for_pk(row[col])
+                        )
                         found = True
                         break
-                if not found: lst.append(row[col])
-            values.append(TableRow(pk,lst))
+                if not found:
+                    lst.append(row[col])
+            values.append(TableRow(pk, lst))
 
         return values
 
@@ -1680,8 +1966,12 @@ class DataSet:
                 return rel.parent_table
         return self.table  # None could be found, return our own table instead
 
-    def quick_editor(self, pk_update_funct: callable = None, funct_param: any = None,
-                     skip_prompt_save: bool = False) -> None:
+    def quick_editor(
+        self,
+        pk_update_funct: callable = None,
+        funct_param: any = None,
+        skip_prompt_save: bool = False,
+    ) -> None:
         """
         The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.  This is very useful for putting
         a button next to a combobox or listbox so that the available values can be added/edited/deleted easily.
@@ -1695,33 +1985,50 @@ class DataSet:
         global keygen
         global themepack
 
-        if skip_prompt_save is False: self.frm.prompt_save()
+        if skip_prompt_save is False:
+            self.frm.prompt_save()
         # Reset the keygen to keep consistent naming
-        logger.info('Creating Quick Editor window')
+        logger.info("Creating Quick Editor window")
         keygen.reset()
         data_key = self.key
         layout = []
         headings = self.column_info.names()
-        visible = [1] * len(headings); visible[0] = 0
-        col_width=int(55/(len(headings)-1))
-        for i in range(0,len(headings)):
-            headings[i]=headings[i].ljust(col_width,' ')
+        visible = [1] * len(headings)
+        visible[0] = 0
+        col_width = int(55 / (len(headings) - 1))
+        for i in range(0, len(headings)):
+            headings[i] = headings[i].ljust(col_width, " ")
 
         layout.append(
-            [selector(data_key, sg.Table, key=f'{data_key}:quick_editor', num_rows=10, headings=headings, visible_column_map=visible)])
+            [
+                selector(
+                    data_key,
+                    sg.Table,
+                    key=f"{data_key}:quick_editor",
+                    num_rows=10,
+                    headings=headings,
+                    visible_column_map=visible,
+                )
+            ]
+        )
         layout.append([actions(data_key, edit_protect=False)])
-        layout.append([sg.Text('')])
+        layout.append([sg.Text("")])
         layout.append([sg.HorizontalSeparator()])
         for col in self.column_info.names():
-            column=f'{data_key}.{col}'
-            if col!=self.pk_column:
+            column = f"{data_key}.{col}"
+            if col != self.pk_column:
                 layout.append([field(column)])
 
-        quick_win = sg.Window(lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
-                              layout, keep_on_top = True, modal = True, finalize = True,
-                              ttk_theme=themepack.ttk_theme) # Without specifying same ttk_theme,
-                                                             # quick_edit will override user-set theme
-                                                             # in main window
+        quick_win = sg.Window(
+            lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
+            layout,
+            keep_on_top=True,
+            modal=True,
+            finalize=True,
+            ttk_theme=themepack.ttk_theme,
+        )  # Without specifying same ttk_theme,
+        # quick_edit will override user-set theme
+        # in main window
         quick_frm = Form(self.frm.driver, bind_window=quick_win)
 
         # Select the current entry to start with
@@ -1735,11 +2042,13 @@ class DataSet:
             event, values = quick_win.read()
 
             if quick_frm.process_events(event, values):
-                logger.debug(f'PySimpleSQL Quick Editor event handler handled the event {event}!')
-            if event in [sg.WIN_CLOSED,'Exit']:
+                logger.debug(
+                    f"PySimpleSQL Quick Editor event handler handled the event {event}!"
+                )
+            if event in [sg.WIN_CLOSED, "Exit"]:
                 break
             else:
-                logger.debug(f'This event ({event}) is not yet handled.')
+                logger.debug(f"This event ({event}) is not yet handled.")
         quick_win.close()
         self.requery()
         self.frm.update_elements()
@@ -1757,9 +2066,11 @@ class DataSet:
                see example above
         :returns: None
         """
-        for k,v in transforms.items():
-            if not callable(v): RuntimeError(f'Transform for {k} must be callable!')
+        for k, v in transforms.items():
+            if not callable(v):
+                RuntimeError(f"Transform for {k} must be callable!")
             self._simple_transform[k] = v
+
 
 class Form:
     """
@@ -1767,13 +2078,25 @@ class Form:
     Maintains an internal version of the actual database
     `DataSet` objects can be accessed by key, I.e. frm['data_key']
     """
-    instances = []  # Track our instances
-    relationships = [] # Track our relationships
 
-    def __init__(self, driver: SQLDriver, bind_window: sg.Window = None, prefix_data_keys: str = '',
-                 parent: Form = None, filter: str = None, select_first: bool = True, prompt_save: int = PROMPT_MODE,
-                 save_quiet: bool = False, update_cascade: bool = True, delete_cascade: bool = True,
-                 duplicate_children: bool = True, description_column_names: List[str] = None) -> None:
+    instances = []  # Track our instances
+    relationships = []  # Track our relationships
+
+    def __init__(
+        self,
+        driver: SQLDriver,
+        bind_window: sg.Window = None,
+        prefix_data_keys: str = "",
+        parent: Form = None,
+        filter: str = None,
+        select_first: bool = True,
+        prompt_save: int = PROMPT_MODE,
+        save_quiet: bool = False,
+        update_cascade: bool = True,
+        delete_cascade: bool = True,
+        duplicate_children: bool = True,
+        description_column_names: List[str] = None,
+    ) -> None:
         """
         Initialize a new `Form` instance
 
@@ -1828,7 +2151,7 @@ class Form:
         self.delete_cascade: bool = delete_cascade
         self.duplicate_children: int = duplicate_children
         if description_column_names is None:
-            self.description_column_names = ['description', 'name', 'title']
+            self.description_column_names = ["description", "name", "title"]
         else:
             self.description_column_names = description_column_names
 
@@ -1837,10 +2160,12 @@ class Form:
         self.auto_add_datasets(prefix_data_keys)
         win_pb.update(lang.startup_relationships, 50)
         self.auto_add_relationships()
-        self.requery_all(select_first=select_first, update_elements=False, requery_dependents=True)
+        self.requery_all(
+            select_first=select_first, update_elements=False, requery_dependents=True
+        )
         if bind_window is not None:
             win_pb.update(lang.startup_binding, 75)
-            self.window=bind_window
+            self.window = bind_window
             self.popup = Popup()
             self.bind(self.window)
         win_pb.close()
@@ -1853,9 +2178,11 @@ class Form:
         try:
             return self.datasets[key]
         except KeyError:
-            raise RuntimeError(f'The DataSet for `{key}` does not exist.  This can be caused because the database does'
-                    f'not exist, the database user does not have the proper permissions set, or any number of '
-                    f'database configuration issues.')
+            raise RuntimeError(
+                f"The DataSet for `{key}` does not exist.  This can be caused because the database does"
+                f"not exist, the database user does not have the proper permissions set, or any number of "
+                f"database configuration issues."
+            )
 
     def close(self, reset_keygen: bool = True):
         """
@@ -1867,7 +2194,7 @@ class Form:
         DataSet.purge_form(self, reset_keygen)
         self.driver.close()
 
-    def bind(self, win:sg.Window) -> None:
+    def bind(self, win: sg.Window) -> None:
         """
         Bind the PySimpleGUI Window to the Form for the purpose of GUI element, event and relationship mapping.
         This can happen automatically on `Form` creation with the bind parameter and is not typically called by the end
@@ -1877,14 +2204,13 @@ class Form:
         :param win: The PySimpleGUI window
         :returns:  None
         """
-        logger.info('Binding Window to Form')
+        logger.info("Binding Window to Form")
         self.window = win
         self.popup = Popup()
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
-        logger.debug('Binding finished!')
-
+        logger.debug("Binding finished!")
 
     def execute(self, query: str) -> ResultSet:
         """
@@ -1903,22 +2229,24 @@ class Form:
         """
         self.driver.commit()
 
-    def set_callback(self, callback_name:str, fctn:Callable[[Form,sg.Window],Union[None,bool]]) -> None:
+    def set_callback(
+        self, callback_name: str, fctn: Callable[[Form, sg.Window], Union[None, bool]]
+    ) -> None:
         """
-       Set `Form` callbacks. A runtime error will be raised if the callback is not supported.
-       The following callbacks are supported:
-           update_elements Called after elements are updated via `Form.update_elements()`. This allows for other GUI manipulation on each update of the GUI
-           edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
-           edit_disable Called after the editing mode is disabled
-           {element_name} Called while updating MAPPED element.  This overrides the default element update implementation.
-           Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
+        Set `Form` callbacks. A runtime error will be raised if the callback is not supported.
+        The following callbacks are supported:
+            update_elements Called after elements are updated via `Form.update_elements()`. This allows for other GUI manipulation on each update of the GUI
+            edit_enable Called before editing mode is enabled. This can be useful for asking for a password for example
+            edit_disable Called after the editing mode is disabled
+            {element_name} Called while updating MAPPED element.  This overrides the default element update implementation.
+            Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
 
-       :param callback_name: The name of the callback, from the list above
-       :param fctn: The function to call.  Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
-       :returns: None
-       """
-        logger.info(f'Callback {callback_name} being set on Form')
-        supported = ['update_elements', 'edit_enable', 'edit_disable']
+        :param callback_name: The name of the callback, from the list above
+        :param fctn: The function to call.  Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
+        :returns: None
+        """
+        logger.info(f"Callback {callback_name} being set on Form")
+        supported = ["update_elements", "edit_enable", "edit_disable"]
 
         # Add in mapped elements
         for mapped in self.element_map:
@@ -1931,10 +2259,19 @@ class Form:
         if callback_name in supported:
             self.callbacks[callback_name] = fctn
         else:
-            raise RuntimeError(f'Callback "{callback_name}" not supported. callback: {callback_name} supported: {supported}')
+            raise RuntimeError(
+                f'Callback "{callback_name}" not supported. callback: {callback_name} supported: {supported}'
+            )
 
-    def add_dataset(self, data_key: str, table: str, pk_column: str, description_column: str, query: str = '',
-                    order_clause: str = '') -> None:
+    def add_dataset(
+        self,
+        data_key: str,
+        table: str,
+        pk_column: str,
+        description_column: str,
+        query: str = "",
+        order_clause: str = "",
+    ) -> None:
         """
         Manually add a `DataSet` object to the `Form`
         When you attach to a database, PySimpleSQL isn't aware of what it contains until this command is run
@@ -1948,11 +2285,33 @@ class Form:
         :param order_clause: The initial sort order for the query
         :returns: None
         """
-        self.datasets.update({data_key: DataSet(data_key, self, table, pk_column, description_column, query, order_clause)})
-        self[data_key].set_search_order([description_column])  # set a default sort order
+        self.datasets.update(
+            {
+                data_key: DataSet(
+                    data_key,
+                    self,
+                    table,
+                    pk_column,
+                    description_column,
+                    query,
+                    order_clause,
+                )
+            }
+        )
+        self[data_key].set_search_order(
+            [description_column]
+        )  # set a default sort order
 
-    def add_relationship(self, join:str, child_table:str, fk_column:str, parent_table:str, pk_column:str,
-                         update_cascade:bool, delete_cascade:bool) -> None:
+    def add_relationship(
+        self,
+        join: str,
+        child_table: str,
+        fk_column: str,
+        parent_table: str,
+        pk_column: str,
+        update_cascade: bool,
+        delete_cascade: bool,
+    ) -> None:
         """
         Add a foreign key relationship between two dataset of the database
         When you attach a database, PySimpleSQL isn't aware of the relationships contained until dataset are
@@ -1970,13 +2329,29 @@ class Form:
         :returns: None
         """
         self.relationships.append(
-            Relationship(join, child_table, fk_column, parent_table, pk_column,
-                         update_cascade, delete_cascade, self.driver, self))
-        
-    def set_fk_column_cascade(self, child_table:str, fk_column:str, update_cascade:bool = None, delete_cascade:bool = None) -> None:
+            Relationship(
+                join,
+                child_table,
+                fk_column,
+                parent_table,
+                pk_column,
+                update_cascade,
+                delete_cascade,
+                self.driver,
+                self,
+            )
+        )
+
+    def set_fk_column_cascade(
+        self,
+        child_table: str,
+        fk_column: str,
+        update_cascade: bool = None,
+        delete_cascade: bool = None,
+    ) -> None:
         """
         Set a foreign key's update_cascade and delete_cascade behavior.
-        
+
         `Form.auto_add_relationships()` does this automatically from the database schema.
 
         :param child_table: Child table with the foreign key.
@@ -1987,13 +2362,13 @@ class Form:
         """
         for rel in self.relationships:
             if rel.child_table == child_table and rel.fk_column == fk_column:
-                logger.info(f'Updating {fk_column=} relationship.')
+                logger.info(f"Updating {fk_column=} relationship.")
                 if update_cascade is not None:
                     rel.update_cascade = update_cascade
                 if delete_cascade is not None:
                     rel.delete_cascade = delete_cascade
-    
-    def auto_add_datasets(self, prefix_data_keys: str = '') -> None:
+
+    def auto_add_datasets(self, prefix_data_keys: str = "") -> None:
         """
         Automatically add `DataSet` objects from the database by looping through the tables available and creating a
         `DataSet` object for each. Each dataset key is an optional prefix plus the name of the table.
@@ -2004,7 +2379,9 @@ class Form:
         :param prefix_data_keys: Adds a prefix to the auto-generated `DataSet` keys
         :returns: None
         """
-        logger.info('Automatically generating dataset for each table in the sqlite database')
+        logger.info(
+            "Automatically generating dataset for each table in the sqlite database"
+        )
         # Ensure we clear any current dataset so that successive calls will not double the entries
         self.datasets = {}
         tables = self.driver.get_tables()
@@ -2022,9 +2399,10 @@ class Form:
             # Get our pk column
             pk_column = self.driver.pk_column(table)
 
-            data_key= prefix_data_keys + table
+            data_key = prefix_data_keys + table
             logger.debug(
-                f'Adding DataSet "{data_key}" on table {table} to Form with primary key {pk_column} and description of {description_column}')
+                f'Adding DataSet "{data_key}" on table {table} to Form with primary key {pk_column} and description of {description_column}'
+            )
             self.add_dataset(data_key, table, pk_column, description_column)
             self.datasets[data_key].column_info = column_info
 
@@ -2040,19 +2418,34 @@ class Form:
 
         :returns: None
         """
-        logger.info(f'Automatically adding foreign key relationships')
+        logger.info(f"Automatically adding foreign key relationships")
         # Ensure we clear any current dataset so that successive calls will not double the entries
-        self.relationships = [] # clear any relationships already stored
+        self.relationships = []  # clear any relationships already stored
         relationships = self.driver.relationships()
         for r in relationships:
-            logger.debug(f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}')
-            self.add_relationship('LEFT JOIN', r['from_table'], r['from_column'], r['to_table'], r['to_column'],
-                                  r['update_cascade'], r['delete_cascade'])
+            logger.debug(
+                f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}'
+            )
+            self.add_relationship(
+                "LEFT JOIN",
+                r["from_table"],
+                r["from_column"],
+                r["to_table"],
+                r["to_column"],
+                r["update_cascade"],
+                r["delete_cascade"],
+            )
 
     # Map an element to a DataSet.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
-    def map_element(self, element: sg.Element, dataset: DataSet, column: str, where_column: str = None,
-                    where_value: str = None) -> None:
+    def map_element(
+        self,
+        element: sg.Element,
+        dataset: DataSet,
+        column: str,
+        where_column: str = None,
+        where_value: str = None,
+    ) -> None:
         """
         Map a PySimpleGUI element to a specific `DataSet` column.  This is what makes the GUI automatically update to
         the contents of the database.  This happens automatically when a PySimpleGUI Window is bound to a `Form` by
@@ -2067,10 +2460,12 @@ class Form:
         :param where_value: Used for ey, value shorthand TODO: expand on this
         :returns: None
         """
-        logger.debug(f'Mapping element {element.key}')
-        self.element_map.append(ElementMap(element, dataset, column, where_column, where_value))
+        logger.debug(f"Mapping element {element.key}")
+        self.element_map.append(
+            ElementMap(element, dataset, column, where_column, where_value)
+        )
 
-    def auto_map_elements(self, win:sg.Window, keys:List[str]=None) -> None:
+    def auto_map_elements(self, win: sg.Window, keys: List[str] = None) -> None:
         """
         Automatically map PySimpleGUI Elements to `DataSet` columns. A special naming convention has to be used for
         automatic mapping to happen.  Note that `Form.map_element()` can be used to manually map an Element to a column.
@@ -2087,93 +2482,105 @@ class Form:
         :param keys: (optional) Limit the auto mapping to this list of Element keys
         :returns: None
         """
-        logger.info('Automapping elements')
+        logger.info("Automapping elements")
         # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
         self.element_map = []
         for key in win.key_dict.keys():
-            element=win[key]
+            element = win[key]
 
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
                 continue
 
-
             # Process the filter to ensure this element should be mapped to this Form
-            if element.metadata['filter'] == self.filter:
-                element.metadata['Form'] = self
+            if element.metadata["filter"] == self.filter:
+                element.metadata["Form"] = self
 
             # Skip this element if it's an event
-            if element.metadata['type'] == TYPE_EVENT:
+            if element.metadata["type"] == TYPE_EVENT:
                 continue
 
-            if element.metadata['Form'] != self:
+            if element.metadata["Form"] != self:
                 continue
             # If we passed in a custom list of elements
             if keys is not None:
-                if key not in keys: continue
+                if key not in keys:
+                    continue
 
             # Map Record Element
-            if element.metadata['type']==TYPE_RECORD:
+            if element.metadata["type"] == TYPE_RECORD:
                 # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-                data_key = element.metadata['data_key']
-                field = element.metadata['field']
-                if '?' in field:
-                    table_info, where_info = field.split('?')
+                data_key = element.metadata["data_key"]
+                field = element.metadata["field"]
+                if "?" in field:
+                    table_info, where_info = field.split("?")
                 else:
                     table_info = field
                     where_info = None
                 try:
-                    table, col = table_info.split('.')
+                    table, col = table_info.split(".")
                 except ValueError:
                     table, col = table_info, None
 
                 if where_info is None:
-                    where_column=where_value=None
+                    where_column = where_value = None
                 else:
-                    where_column,where_value=where_info.split('=')
+                    where_column, where_value = where_info.split("=")
 
                 # make sure we don't use reserved keywords that could end up in a query
                 for keyword in [table, col, where_column, where_value]:
-                    if keyword is not None and keyword != '':
+                    if keyword is not None and keyword != "":
                         self.driver.check_keyword(keyword)
 
                 # DataSet objects are named after the tables they represent (with an optional prefix)
                 # TODO: How to handle the prefix?
-                if table in self.datasets: # TODO: check in DataSet.table
+                if table in self.datasets:  # TODO: check in DataSet.table
                     if col in self[table].column_info:
                         # Map this element to DataSet.column
-                        self.map_element(element, self[table], col, where_column, where_value)
+                        self.map_element(
+                            element, self[table], col, where_column, where_value
+                        )
 
             # Map Selector Element
-            elif element.metadata['type']==TYPE_SELECTOR:
-                k=element.metadata['table']
-                if k is None: continue
-                if element.metadata['Form'] != self: continue
-                if '?' in k:
-                    table_info, where_info = k.split('?')
-                    where_column, where_value=where_info.split('=')
+            elif element.metadata["type"] == TYPE_SELECTOR:
+                k = element.metadata["table"]
+                if k is None:
+                    continue
+                if element.metadata["Form"] != self:
+                    continue
+                if "?" in k:
+                    table_info, where_info = k.split("?")
+                    where_column, where_value = where_info.split("=")
                 else:
                     table_info = k
                     where_column = where_value = None
                 data_key = table_info
 
                 if data_key in self.datasets:
-                    self[data_key].add_selector(element, data_key, where_column, where_value)
+                    self[data_key].add_selector(
+                        element, data_key, where_column, where_value
+                    )
 
                     # Enable sorting if TableHeading  is present
-                    if type(element) is sg.Table and 'TableHeading' in element.metadata:
-                        table_heading:TableHeadings = element.metadata['TableHeading']
+                    if type(element) is sg.Table and "TableHeading" in element.metadata:
+                        table_heading: TableHeadings = element.metadata["TableHeading"]
                         # We need a whole chain of things to happen when a heading is clicked on:
                         # 1 we need to run the ResultRow.sort_cycle() with the correct column name
                         # 2 and run TableHeading.update_headings() with the Table element, sort_column, sort_reverse
                         # 3 and run update_elements() to see the changes
-                        table_heading.enable_sorting(element, _SortCallbackWrapper(self, data_key, element, table_heading))
-
+                        table_heading.enable_sorting(
+                            element,
+                            _SortCallbackWrapper(
+                                self, data_key, element, table_heading
+                            ),
+                        )
 
                 else:
-                    logger.debug(f'Can not add selector {str(element)}')
+                    logger.debug(f"Can not add selector {str(element)}")
 
-    def set_element_clauses(self, element: sg.Element, where_clause: str = None, order_clause: str = None) -> None:
+    def set_element_clauses(
+        self, element: sg.Element, where_clause: str = None, order_clause: str = None
+    ) -> None:
         """
         Set the where and/or order clauses for the specified element in the element map
 
@@ -2185,9 +2592,11 @@ class Form:
         for mapped in self.element_map:
             if mapped.element == element:
                 mapped.where_clause = where_clause
-                mapped.order_clause =order_clause
+                mapped.order_clause = order_clause
 
-    def map_event(self, event:str, fctn:Callable[[None],None], table:str=None) -> None:
+    def map_event(
+        self, event: str, fctn: Callable[[None], None], table: str = None
+    ) -> None:
         """
         Manually map a PySimpleGUI event (returned by Window.read()) to a callable. The callable will execute
         when the event is detected by `Form.process_events()`. Most users will not have to manually map any events,
@@ -2199,15 +2608,13 @@ class Form:
         :param table: (optional) currently not used
         :returns: None
         """
-        dic = {
-            'event': event,
-            'function': fctn,
-            'table': table
-        }
-        logger.debug(f'Mapping event {event} to function {fctn}')
+        dic = {"event": event, "function": fctn, "table": table}
+        logger.debug(f"Mapping event {event} to function {fctn}")
         self.event_map.append(dic)
 
-    def replace_event(self, event:str ,fctn:Callable[[None],None], table:str=None) -> None:
+    def replace_event(
+        self, event: str, fctn: Callable[[None], None], table: str = None
+    ) -> None:
         """
         Replace an event that was manually mapped with `Form.auto_map_events()` or `Form.map_event()`. The callable will execute
 
@@ -2217,11 +2624,11 @@ class Form:
         :returns: None
         """
         for e in self.event_map:
-            if e['event'] == event:
-                e['function'] = fctn
-                e['table'] = table if table is not None else e['table']
+            if e["event"] == event:
+                e["function"] = fctn
+                e["table"] = table if table is not None else e["table"]
 
-    def auto_map_events(self, win:sg.Window) -> None:
+    def auto_map_events(self, win: sg.Window) -> None:
         """
         Automatically map events. pysimplesql relies on certain events to function properly. This method maps all the
         record navigation (previous, next, etc.) and database actions (insert, delete, save, etc.).  Note that the event
@@ -2232,67 +2639,79 @@ class Form:
         :param win: A PySimpleGUI Window
         :returns: None
         """
-        logger.info(f'Automapping events')
+        logger.info(f"Automapping events")
         # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
         self.event_map = []
 
         for key in win.key_dict.keys():
-            #key = str(key)  # sometimes I end up with an integer element 0? TODO: Research
+            # key = str(key)  # sometimes I end up with an integer element 0? TODO: Research
             element = win[key]
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
-                logger.debug(f'Skipping mapping of {key}')
+                logger.debug(f"Skipping mapping of {key}")
                 continue
-            if element.metadata['Form'] != self:
+            if element.metadata["Form"] != self:
                 continue
-            if element.metadata['type'] == TYPE_EVENT:
-                event_type = element.metadata['event_type']
-                table = element.metadata['table']
-                column = element.metadata['column']
-                function = element.metadata['function']
+            if element.metadata["type"] == TYPE_EVENT:
+                event_type = element.metadata["event_type"]
+                table = element.metadata["table"]
+                column = element.metadata["column"]
+                function = element.metadata["function"]
                 funct = None
 
                 data_key = table
                 data_key = data_key if data_key in self.datasets else None
-                if event_type==EVENT_FIRST:
-                    if data_key: funct=self[data_key].first
-                elif event_type==EVENT_PREVIOUS:
-                    if data_key: funct=self[data_key].previous
-                elif event_type==EVENT_NEXT:
-                    if data_key: funct=self[data_key].next
-                elif event_type==EVENT_LAST:
-                    if data_key: funct=self[data_key].last
-                elif event_type==EVENT_SAVE:
-                    if data_key: funct=self[data_key].save_record
-                elif event_type==EVENT_INSERT:
-                    if data_key: funct=self[data_key].insert_record
-                elif event_type==EVENT_DELETE:
-                    if data_key: funct=self[data_key].delete_record
-                elif event_type==EVENT_DUPLICATE:
-                    if data_key: funct=self[data_key].duplicate_record
-                elif event_type==EVENT_EDIT_PROTECT_DB:
-                    self.edit_protect() # Enable it!
-                    funct=self.edit_protect
-                elif event_type==EVENT_SAVE_DB:
-                    funct=self.save_records
-                elif event_type==EVENT_SEARCH:
+                if event_type == EVENT_FIRST:
+                    if data_key:
+                        funct = self[data_key].first
+                elif event_type == EVENT_PREVIOUS:
+                    if data_key:
+                        funct = self[data_key].previous
+                elif event_type == EVENT_NEXT:
+                    if data_key:
+                        funct = self[data_key].next
+                elif event_type == EVENT_LAST:
+                    if data_key:
+                        funct = self[data_key].last
+                elif event_type == EVENT_SAVE:
+                    if data_key:
+                        funct = self[data_key].save_record
+                elif event_type == EVENT_INSERT:
+                    if data_key:
+                        funct = self[data_key].insert_record
+                elif event_type == EVENT_DELETE:
+                    if data_key:
+                        funct = self[data_key].delete_record
+                elif event_type == EVENT_DUPLICATE:
+                    if data_key:
+                        funct = self[data_key].duplicate_record
+                elif event_type == EVENT_EDIT_PROTECT_DB:
+                    self.edit_protect()  # Enable it!
+                    funct = self.edit_protect
+                elif event_type == EVENT_SAVE_DB:
+                    funct = self.save_records
+                elif event_type == EVENT_SEARCH:
                     # Build the search box name
-                    search_element,command=key.split(':')
-                    search_box=f'{search_element}:search_input'
-                    if data_key: funct=functools.partial(self[data_key].search, search_box)
-                #elif event_type==EVENT_SEARCH_DB:
+                    search_element, command = key.split(":")
+                    search_box = f"{search_element}:search_input"
+                    if data_key:
+                        funct = functools.partial(self[data_key].search, search_box)
+                # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table = table
                     table = self[table].get_related_table_for_column(column)
-                    funct = functools.partial(self[table].quick_editor, self[referring_table].get_current, column)
+                    funct = functools.partial(
+                        self[table].quick_editor,
+                        self[referring_table].get_current,
+                        column,
+                    )
                 elif event_type == EVENT_FUNCTION:
-                    funct=function
+                    funct = function
                 else:
-                    logger.debug(f'Unsupported event_type: {event_type}')
+                    logger.debug(f"Unsupported event_type: {event_type}")
 
                 if funct is not None:
                     self.map_event(key, funct, data_key)
-
 
     def edit_protect(self) -> None:
         """
@@ -2302,15 +2721,15 @@ class Form:
 
         :returns: None
         """
-        logger.debug('Toggling edit protect mode.')
+        logger.debug("Toggling edit protect mode.")
         # Callbacks
         if self._edit_protect:
-            if 'edit_enable' in self.callbacks.keys():
-                if not self.callbacks['edit_enable'](self, self.window):
+            if "edit_enable" in self.callbacks.keys():
+                if not self.callbacks["edit_enable"](self, self.window):
                     return
         else:
-            if 'edit_disable' in self.callbacks.keys():
-                if not self.callbacks['edit_disable'](self, self.window):
+            if "edit_disable" in self.callbacks.keys():
+                if not self.callbacks["edit_disable"](self, self.window):
                     return
 
         self._edit_protect = not self._edit_protect
@@ -2331,32 +2750,33 @@ class Form:
 
         :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
         """
-        user_prompted = False # Has the user been prompted yet?
+        user_prompted = False  # Has the user been prompted yet?
         for data_key in self.datasets:
             if not self[data_key]._prompt_save:
                 continue
 
-            if self[data_key].records_changed(recursive=False): # don't check children
+            if self[data_key].records_changed(recursive=False):  # don't check children
                 # we will only show the popup once, regardless of how many dataset have changed
                 if not user_prompted:
                     user_prompted = True
                     if self._prompt_save == AUTOSAVE_MODE:
-                        save_changes = 'yes'
+                        save_changes = "yes"
                     else:
-                        save_changes = self.popup.yes_no(lang.form_prompt_save_title, 
-                                                         lang.form_prompt_save)
-                    if save_changes != 'yes':
+                        save_changes = self.popup.yes_no(
+                            lang.form_prompt_save_title, lang.form_prompt_save
+                        )
+                    if save_changes != "yes":
                         # update the elements to erase any GUI changes, since we are choosing not to save
                         for data_key in self.datasets:
                             self[data_key].rows.purge_virtual()
                         self.update_elements()
-                        return PROMPT_SAVE_DISCARDED # We did have a change, regardless if the user chose not to save
+                        return PROMPT_SAVE_DISCARDED  # We did have a change, regardless if the user chose not to save
                     break
         if user_prompted:
             self.save_records(check_prompt_save=True)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
-    def set_force_save(self, force:bool=False) -> None:
+    def set_force_save(self, force: bool = False) -> None:
         """
         Force save without checking for changes first, so even an unchanged record will be written back to the database.
 
@@ -2365,8 +2785,13 @@ class Form:
         """
         self.force_save = force
 
-    def save_records(self, table: str = None, cascade_only: bool = False, check_prompt_save: bool = False, \
-            update_elements: bool = True) -> Union[SAVE_SUCCESS,SAVE_FAIL,SAVE_NONE]:
+    def save_records(
+        self,
+        table: str = None,
+        cascade_only: bool = False,
+        check_prompt_save: bool = False,
+        update_elements: bool = True,
+    ) -> Union[SAVE_SUCCESS, SAVE_FAIL, SAVE_NONE]:
         """
         Save records of all `DataSet` objects` associated with this `Form`.
 
@@ -2377,54 +2802,76 @@ class Form:
         :param update_elements: (optional) Passed to `Form.save_record_recursive()` to update_elements.
         :returns: result - can be used with RETURN BITMASKS
         """
-        if check_prompt_save: logger.debug(f'Saving records in all datasets that allow prompt_save...')
-        else: logger.debug(f'Saving records in all datasets...')
-        
+        if check_prompt_save:
+            logger.debug(f"Saving records in all datasets that allow prompt_save...")
+        else:
+            logger.debug(f"Saving records in all datasets...")
+
         display_message = not self.save_quiet
 
         result = 0
         show_message = True
         failed_tables = []
-        
-        if table: tables = [table] # if passed single table
+
+        if table:
+            tables = [table]  # if passed single table
         # for cascade_only, build list of top-level dataset that have children
-        elif cascade_only: tables = [dataset.table for dataset in self.datasets.values()
-                                     if len(Relationship.get_update_cascade_relationships(dataset.table))
-                                     and Relationship.get_parent(dataset.table) is None]
+        elif cascade_only:
+            tables = [
+                dataset.table
+                for dataset in self.datasets.values()
+                if len(Relationship.get_update_cascade_relationships(dataset.table))
+                and Relationship.get_parent(dataset.table) is None
+            ]
         # default behavior, build list of top-level dataset (ones without a parent)
-        else: tables = [dataset.table for dataset in self.datasets.values() if Relationship.get_parent(dataset.table) is None]
-        
+        else:
+            tables = [
+                dataset.table
+                for dataset in self.datasets.values()
+                if Relationship.get_parent(dataset.table) is None
+            ]
+
         # call save_record_recursive on tables, which saves from last to first.
         result_list = []
         for q in tables:
-            res = self[q].save_record_recursive(results={},display_message=False,check_prompt_save=check_prompt_save, \
-                                                update_elements=update_elements)
+            res = self[q].save_record_recursive(
+                results={},
+                display_message=False,
+                check_prompt_save=check_prompt_save,
+                update_elements=update_elements,
+            )
             result_list.append(res)
-        
+
         # flatten list of result dicts
         results = {k: v for d in result_list for k, v in d.items()}
-        logger.debug(f'Form.save_records - results of tables - {results}')
+        logger.debug(f"Form.save_records - results of tables - {results}")
 
         # get tables that failed
         for t, res in results.items():
-            if not res & SHOW_MESSAGE: show_message = False # Only one instance of not showing the message hides all
-            if res & SAVE_FAIL: failed_tables.append(t)
+            if not res & SHOW_MESSAGE:
+                show_message = (
+                    False  # Only one instance of not showing the message hides all
+                )
+            if res & SAVE_FAIL:
+                failed_tables.append(t)
             result |= res
 
         # Build a descriptive message, since the save spans many tables potentially
-        msg = ''
-        msg_tables = ', '.join(failed_tables)
+        msg = ""
+        msg_tables = ", ".join(failed_tables)
         if result & SAVE_FAIL:
             if result & SAVE_SUCCESS:
                 msg = lang.form_save_partial
             msg += lang.form_save_problem.format_map(LangFormat(tables=msg_tables))
-            if show_message: self.popup.ok(lang.form_save_problem_title, msg)
+            if show_message:
+                self.popup.ok(lang.form_save_problem_title, msg)
             return result
         elif result & SAVE_SUCCESS:
             msg = lang.form_save_success
         else:
             msg = lang.form_save_none
-        if show_message: self.popup.info(msg, display_message=display_message)
+        if show_message:
+            self.popup.info(msg, display_message=display_message)
         return result
 
     def set_prompt_save(self, mode: int) -> None:
@@ -2440,7 +2887,12 @@ class Form:
         for data_key in self.datasets:
             self[data_key].set_prompt_save(mode)
 
-    def update_elements(self, target_data_key: str = None, edit_protect_only: bool = False, omit_elements: List[str] = []) -> None:
+    def update_elements(
+        self,
+        target_data_key: str = None,
+        edit_protect_only: bool = False,
+        omit_elements: List[str] = [],
+    ) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form` instance only
         Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances. This
@@ -2452,8 +2904,8 @@ class Form:
         :returns: None
         """
 
-        msg='edit protect' if edit_protect_only else 'PySimpleGUI'
-        logger.debug(f'update_elements(): Updating {msg} elements')
+        msg = "edit protect" if edit_protect_only else "PySimpleGUI"
+        logger.debug(f"update_elements(): Updating {msg} elements")
         win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
 
@@ -2463,59 +2915,77 @@ class Form:
             # disable mapped elements for this table if there are no records in this table or edit protect mode
             disable = len(self[data_key].rows) == 0 or self._edit_protect
             self.update_element_states(data_key, disable)
-            
-            for m in (m for m in self.event_map if m['table'] == self[data_key].table):
+
+            for m in (m for m in self.event_map if m["table"] == self[data_key].table):
                 # Disable delete and mapped elements for this table if there are no records in this table or edit protect mode
-                if ':table_delete' in m['event']:
+                if ":table_delete" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
-                    win[m['event']].update(disabled=disable)
+                    win[m["event"]].update(disabled=disable)
 
                 # Disable duplicate if no rows, edit protect, or current row virtual
-                elif ':table_duplicate' in m['event']:
-                    disable = len(self[data_key].rows) == 0 or self._edit_protect or self[data_key].get_current_row().virtual
-                    win[m['event']].update(disabled=disable)
-                    
-                elif ':table_first' in m['event']:
-                    disable = len(self[data_key].rows) < 2 or self[data_key].current_index == 0
-                    win[m['event']].update(disabled=disable)
-                
-                elif ':table_previous' in m['event']:
-                    disable = len(self[data_key].rows) < 2 or self[data_key].current_index == 0
-                    win[m['event']].update(disabled=disable)
-                    
-                elif ':table_next' in m['event']:
-                    disable = len(self[data_key].rows) < 2 or (self[data_key].current_index == len(self[data_key].rows) - 1)
-                    win[m['event']].update(disabled=disable)
-                    
-                elif ':table_last' in m['event']:
-                    disable = len(self[data_key].rows) < 2 or (self[data_key].current_index == len(self[data_key].rows) - 1)
-                    win[m['event']].update(disabled=disable)
+                elif ":table_duplicate" in m["event"]:
+                    disable = (
+                        len(self[data_key].rows) == 0
+                        or self._edit_protect
+                        or self[data_key].get_current_row().virtual
+                    )
+                    win[m["event"]].update(disabled=disable)
+
+                elif ":table_first" in m["event"]:
+                    disable = (
+                        len(self[data_key].rows) < 2
+                        or self[data_key].current_index == 0
+                    )
+                    win[m["event"]].update(disabled=disable)
+
+                elif ":table_previous" in m["event"]:
+                    disable = (
+                        len(self[data_key].rows) < 2
+                        or self[data_key].current_index == 0
+                    )
+                    win[m["event"]].update(disabled=disable)
+
+                elif ":table_next" in m["event"]:
+                    disable = len(self[data_key].rows) < 2 or (
+                        self[data_key].current_index == len(self[data_key].rows) - 1
+                    )
+                    win[m["event"]].update(disabled=disable)
+
+                elif ":table_last" in m["event"]:
+                    disable = len(self[data_key].rows) < 2 or (
+                        self[data_key].current_index == len(self[data_key].rows) - 1
+                    )
+                    win[m["event"]].update(disabled=disable)
 
                 # Disable insert on children with no parent/virtual parent records or edit protect mode
-                elif ':table_insert' in m['event']:
+                elif ":table_insert" in m["event"]:
                     parent = Relationship.get_parent(data_key)
                     if parent is not None:
-                        disable = len(self[parent].rows) == 0 or self._edit_protect or Relationship.parent_virtual(data_key,self)
+                        disable = (
+                            len(self[parent].rows) == 0
+                            or self._edit_protect
+                            or Relationship.parent_virtual(data_key, self)
+                        )
                     else:
                         disable = self._edit_protect
-                    win[m['event']].update(disabled=disable)
- 
+                    win[m["event"]].update(disabled=disable)
+
                 # Disable db_save when needed
-                elif ':db_save' in m['event']:
+                elif ":db_save" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
                     print(disable)
-                    win[m['event']].update(disabled=disable)
+                    win[m["event"]].update(disabled=disable)
 
                 # Disable table_save when needed
-                elif ':save_table' in m['event']:
+                elif ":save_table" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
-                    win[m['event']].update(disabled=disable)
+                    win[m["event"]].update(disabled=disable)
 
                 # Enable/Disable quick edit buttons
-                elif ':quick_edit' in m['event']:
-                    win[m['event']].update(disabled=disable)
-        if edit_protect_only: return
-
+                elif ":quick_edit" in m["event"]:
+                    win[m["event"]].update(disabled=disable)
+        if edit_protect_only:
+            return
 
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
@@ -2526,11 +2996,12 @@ class Form:
                     continue
 
             # skip updating this element if requested
-            if mapped.element in omit_elements: continue
+            if mapped.element in omit_elements:
+                continue
 
-            if type(mapped.element) is not sg.Text: # don't show markers for sg.Text
+            if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
                 # Show the Required Record marker if the column has notnull set and this is a virtual row
-                marker_key = mapped.element.key + ':marker'
+                marker_key = mapped.element.key + ":marker"
                 try:
                     if mapped.dataset.get_current_row().virtual:
                         # get the column name from the key
@@ -2538,14 +3009,16 @@ class Form:
                         # get notnull from the column info
                         if col in mapped.dataset.column_info.names():
                             if mapped.dataset.column_info[col].notnull:
-                                self.window[marker_key].update(visible=True, text_color = themepack.marker_required_color)
+                                self.window[marker_key].update(
+                                    visible=True,
+                                    text_color=themepack.marker_required_color,
+                                )
                     else:
                         self.window[marker_key].update(visible=False)
                         if self.window is not None:
                             self.window[marker_key].update(visible=False)
                 except AttributeError:
                     self.window[marker_key].update(visible=False)
-
 
             updated_val = None
             # If there is a callback for this element, use it
@@ -2554,8 +3027,12 @@ class Form:
 
             elif mapped.where_column is not None:
                 # We are looking for a key,value pair or similar.  Sift through and see what to put
-                updated_val=mapped.dataset.get_keyed_value(mapped.column, mapped.where_column, mapped.where_value)
-                if type(mapped.element) in [sg.PySimpleGUI.CBox]: # TODO, may need to add more??
+                updated_val = mapped.dataset.get_keyed_value(
+                    mapped.column, mapped.where_column, mapped.where_value
+                )
+                if type(mapped.element) in [
+                    sg.PySimpleGUI.CBox
+                ]:  # TODO, may need to add more??
                     updated_val = checkbox_to_bool(updated_val)
 
             elif type(mapped.element) is sg.PySimpleGUI.Combo:
@@ -2563,8 +3040,10 @@ class Form:
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
                 # see if we can find the relationship to determine which table to get data from
-                target_table=None
-                rels = Relationship.get_relationships_for_table(mapped.dataset.table) # TODO this should be get_relationships_for_data?
+                target_table = None
+                rels = Relationship.get_relationships_for_table(
+                    mapped.dataset.table
+                )  # TODO this should be get_relationships_for_data?
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -2573,18 +3052,20 @@ class Form:
                         break
 
                 if target_table is None:
-                    logger.info(f"Error! Could not find related data for element {mapped.element.key} bound to DataSet "
-                                f"key {mapped.table}, column: {mapped.column}")
+                    logger.info(
+                        f"Error! Could not find related data for element {mapped.element.key} bound to DataSet "
+                        f"key {mapped.table}, column: {mapped.column}"
+                    )
 
                     # we don't want to update the list in this case, as it was most likely supplied and not tied to data
-                    updated_val=mapped.dataset[mapped.column]
+                    updated_val = mapped.dataset[mapped.column]
 
                 # Populate the combobox entries
                 else:
                     lst = []
                     for row in target_table.rows:
                         lst.append(ElementRow(row[pk_column], row[description]))
-    
+
                     # Map the value to the combobox, by getting the description_column and using it to set the value
                     for row in target_table.rows:
                         if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
@@ -2602,21 +3083,31 @@ class Form:
 
                 found = False
                 if len(values):
-                    index = [[v[0] for v in values].index(pk)] # set index to pk
-                    pk_position = index[0] / len(values)  # calculate pk percentage position
+                    index = [[v[0] for v in values].index(pk)]  # set index to pk
+                    pk_position = index[0] / len(
+                        values
+                    )  # calculate pk percentage position
                     found = True
-                else: # if empty
+                else:  # if empty
                     index = []
                     pk_position = 0
 
                 # Update table, and set vertical scroll bar to follow selected element
-                update_table_element(self.window, mapped.element, values, index, pk_position)
+                update_table_element(
+                    self.window, mapped.element, values, index, pk_position
+                )
                 continue
 
-            elif type(mapped.element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.Multiline, sg.PySimpleGUI.Text]:
+            elif type(mapped.element) in [
+                sg.PySimpleGUI.InputText,
+                sg.PySimpleGUI.Multiline,
+                sg.PySimpleGUI.Text,
+            ]:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
-                mapped.element.update('')  # HACK for sqlite query not making needed keys! This will blank it out
+                mapped.element.update(
+                    ""
+                )  # HACK for sqlite query not making needed keys! This will blank it out
                 updated_val = mapped.dataset[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
@@ -2632,9 +3123,9 @@ class Form:
                 else:
                     # update the bytes data
                     mapped.element.update(data=val)
-                updated_val=None # Prevent the update from triggering below, since we are doing it here
+                updated_val = None  # Prevent the update from triggering below, since we are doing it here
             else:
-                sg.popup(f'Unknown element type {type(mapped.element)}')
+                sg.popup(f"Unknown element type {type(mapped.element)}")
 
             # Finally, we will update the actual GUI element!
             if updated_val is not None:
@@ -2643,12 +3134,14 @@ class Form:
         self.update_selectors(target_data_key, omit_elements)
 
         # Run callbacks
-        if 'update_elements' in self.callbacks.keys():
+        if "update_elements" in self.callbacks.keys():
             # Running user update function
-            logger.info('Running the update_elements callback...')
-            self.callbacks['update_elements'](self, self.window)
+            logger.info("Running the update_elements callback...")
+            self.callbacks["update_elements"](self, self.window)
 
-    def update_selectors(self, target_data_key: str = None, omit_elements: List[str] = []) -> None:
+    def update_selectors(
+        self, target_data_key: str = None, omit_elements: List[str] = []
+    ) -> None:
         """
         Updated the GUI elements to reflect values from the database for this `Form` instance only
         Not to be confused with the main `update_elements()`, which updates GUI elements for all `Form` instances.
@@ -2670,36 +3163,47 @@ class Form:
 
             if len(dataset.selector):
                 for e in dataset.selector:
-                    logger.debug(f'update_elements: SELECTOR FOUND')
+                    logger.debug(f"update_elements: SELECTOR FOUND")
                     # skip updating this element if requested
-                    if e['element'] in omit_elements: continue
+                    if e["element"] in omit_elements:
+                        continue
 
-                    element: sg.Element = e['element']
-                    logger.debug(f'{type(element)}')
+                    element: sg.Element = e["element"]
+                    logger.debug(f"{type(element)}")
                     pk_column = dataset.pk_column
                     description_column = dataset.description_column
                     if element.key in self.callbacks:
                         self.callbacks[element.key]()
 
-                    if type(element) == sg.PySimpleGUI.Listbox or type(element) == sg.PySimpleGUI.Combo:
-                        logger.debug(f'update_elements: List/Combo selector found...')
+                    if (
+                        type(element) == sg.PySimpleGUI.Listbox
+                        or type(element) == sg.PySimpleGUI.Combo
+                    ):
+                        logger.debug(f"update_elements: List/Combo selector found...")
                         lst = []
                         for r in dataset.rows:
-                            if e['where_column'] is not None:
-                                if str(r[e['where_column']]) == str(e[
-                                                                        'where_value']):  # TODO: This is kind of a hackish way to check for equality...
-                                    lst.append(ElementRow(r[pk_column], r[description_column]))
+                            if e["where_column"] is not None:
+                                if str(r[e["where_column"]]) == str(
+                                    e["where_value"]
+                                ):  # TODO: This is kind of a hackish way to check for equality...
+                                    lst.append(
+                                        ElementRow(r[pk_column], r[description_column])
+                                    )
                                 else:
                                     pass
                             else:
-                                lst.append(ElementRow(r[pk_column], r[description_column]))
+                                lst.append(
+                                    ElementRow(r[pk_column], r[description_column])
+                                )
 
                         element.update(values=lst, set_to_index=dataset.current_index)
 
                         # set vertical scroll bar to follow selected element (for listboxes only)
                         if type(element) == sg.PySimpleGUI.Listbox:
                             try:
-                                element.set_vscroll_position(dataset.current_index / len(lst))
+                                element.set_vscroll_position(
+                                    dataset.current_index / len(lst)
+                                )
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
 
@@ -2709,10 +3213,10 @@ class Form:
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
-                        logger.debug(f'update_elements: Table selector found...')
+                        logger.debug(f"update_elements: Table selector found...")
                         # Populate entries
                         try:
-                            columns = element.metadata['TableHeading'].columns()
+                            columns = element.metadata["TableHeading"].columns()
                         except KeyError:
                             columns = None  # default to all columns
 
@@ -2724,20 +3228,31 @@ class Form:
 
                         found = False
                         if len(values):
-                            index = [[v.pk for v in values].index(pk)]  # set to index by pk
-                            pk_position = index[0] / len(values)  # calculate pk percentage position
+                            index = [
+                                [v.pk for v in values].index(pk)
+                            ]  # set to index by pk
+                            pk_position = index[0] / len(
+                                values
+                            )  # calculate pk percentage position
                             found = True
                         else:  # if empty
                             index = []
                             pk_position = 0
 
-                        logger.debug(f'Selector:: index:{index} found:{found}')
+                        logger.debug(f"Selector:: index:{index} found:{found}")
 
                         # Update table, and set vertical scroll bar to follow selected element
-                        update_table_element(self.window, element, values, index, pk_position)
+                        update_table_element(
+                            self.window, element, values, index, pk_position
+                        )
 
-    def requery_all(self, select_first: bool = True, filtered: bool = True, update_elements: bool = True,
-                    requery_dependents: bool = True) -> None:
+    def requery_all(
+        self,
+        select_first: bool = True,
+        filtered: bool = True,
+        update_elements: bool = True,
+        requery_dependents: bool = True,
+    ) -> None:
         """
         Requeries all `DataSet` objects associated with this `Form`
         This effectively re-loads the data from the database into `DataSet` objects
@@ -2753,11 +3268,15 @@ class Form:
         :returns: None
         """
         # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
-        logger.info('Requerying all datasets')
+        logger.info("Requerying all datasets")
         for data_key in self.datasets:
             if Relationship.get_parent(data_key) is None:
-                self[data_key].requery(select_first=select_first, filtered=filtered, update_elements=update_elements,
-                                       requery_dependents=requery_dependents)
+                self[data_key].requery(
+                    select_first=select_first,
+                    filtered=filtered,
+                    update_elements=update_elements,
+                    requery_dependents=requery_dependents,
+                )
 
     def process_events(self, event: str, values: list) -> bool:
         """
@@ -2772,21 +3291,23 @@ class Form:
         :returns: True if an event was handled, False otherwise
         """
         if self.window is None:
-            logger.info(f'***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***')
+            logger.info(
+                f"***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***"
+            )
             return False
         elif event:
             for e in self.event_map:
-                if e['event'] == event:
+                if e["event"] == event:
                     logger.debug(f"Executing event {event} via event mapping.")
-                    e['function']()
-                    logger.debug(f'Done processing event!')
+                    e["function"]()
+                    logger.debug(f"Done processing event!")
                     return True
 
             # Check for  selector events
             for data_key, dataset in self.datasets.items():
                 if len(dataset.selector):
                     for e in dataset.selector:
-                        element:sg.Element = e['element']
+                        element: sg.Element = e["element"]
                         if element.key == event and len(dataset.rows) > 0:
                             changed = False  # assume that a change will not take place
                             if type(element) == sg.PySimpleGUI.Listbox:
@@ -2803,15 +3324,21 @@ class Form:
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
-                                dataset.set_by_pk(pk, True, omit_elements=[element])  # no need to update the selector!
+                                dataset.set_by_pk(
+                                    pk, True, omit_elements=[element]
+                                )  # no need to update the selector!
                                 changed = True
                             if changed:
-                                if 'record_changed' in dataset.callbacks.keys():
-                                    dataset.callbacks['record_changed'](self, self.window)
+                                if "record_changed" in dataset.callbacks.keys():
+                                    dataset.callbacks["record_changed"](
+                                        self, self.window
+                                    )
                             return changed
         return False
 
-    def update_element_states(self, table: str, disable: bool = None, visible: bool = None) -> None:
+    def update_element_states(
+        self, table: str, disable: bool = None, visible: bool = None
+    ) -> None:
         """
         Disable/enable and/or show/hide all elements associated with a table.
 
@@ -2824,10 +3351,16 @@ class Form:
             if mapped.table != table:
                 continue
             element = mapped.element
-            if type(element) in [sg.PySimpleGUI.InputText, sg.PySimpleGUI.MLine, sg.PySimpleGUI.Combo,
-                                 sg.PySimpleGUI.Checkbox]:
+            if type(element) in [
+                sg.PySimpleGUI.InputText,
+                sg.PySimpleGUI.MLine,
+                sg.PySimpleGUI.Combo,
+                sg.PySimpleGUI.Checkbox,
+            ]:
                 # if element.Key in self.window.key_dict.keys():
-                logger.debug(f'Updating element {element.Key} to disabled: {disable}, visible: {visible}')
+                logger.debug(
+                    f"Updating element {element.Key} to disabled: {disable}, visible: {visible}"
+                )
                 if disable is not None:
                     element.update(disabled=disable)
                 if visible is not None:
@@ -2849,24 +3382,26 @@ class Utility:
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
+
     pass
 
 
 def process_events(event: str, values: list) -> bool:
     """
-        Process mapped events for ALL Form instances.
+    Process mapped events for ALL Form instances.
 
-        Not to be confused with `Form.process_events()`, which processes events for individual `Form` instances.
-        This should be called once per iteration in your event loop
-        Note: Events handled are responsible for requerying and updating elements as needed
+    Not to be confused with `Form.process_events()`, which processes events for individual `Form` instances.
+    This should be called once per iteration in your event loop
+    Note: Events handled are responsible for requerying and updating elements as needed
 
-        :param event: The event returned by PySimpleGUI.read()
-        :param values: the values returned by PySimpleGUI.read()
-        :returns: True if an event was handled, False otherwise
-        """
+    :param event: The event returned by PySimpleGUI.read()
+    :param values: the values returned by PySimpleGUI.read()
+    :returns: True if an event was handled, False otherwise
+    """
     handled = False
     for i in Form.instances:
-        if i.process_events(event, values): handled=True
+        if i.process_events(event, values):
+            handled = True
     return handled
 
 
@@ -2882,35 +3417,43 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
     for i in Form.instances:
         i.update_elements(data_key, edit_protect_only)
 
+
 def bind(win: sg.Window) -> None:
     """
     Bind ALL forms to window
     Not to be confused with `Form.bind()`, which binds specific forms to the window.
-    
+
     :param win: The PySimpleGUI window to bind all forms to
     :returns: None
     """
     for i in Form.instances:
         i.bind(win)
 
-def simple_transform(dataset:DataSet, row, encode):
+
+def simple_transform(dataset: DataSet, row, encode):
     """
     Convenience transform function that makes it easier to add transforms to your records.
     """
     for col, function in dataset._simple_transform.items():
         if col in row:
-            msg = f'Transforming {col} from {row[col]}'
+            msg = f"Transforming {col} from {row[col]}"
             if encode == TFORM_DECODE:
-                row[col] = function['decode'](row, col)
+                row[col] = function["decode"](row, col)
             else:
-                row[col] = function['encode'](row, col)
-            logger.debug(f'{msg} to {row[col]}')
+                row[col] = function["encode"](row, col)
+            logger.debug(f"{msg} to {row[col]}")
 
-def update_table_element(window: sg.Window, element: Type[sg.Table], values: List[TableRow],
-                 select_rows: List[int], vscroll_position: float = None) -> None:
+
+def update_table_element(
+    window: sg.Window,
+    element: Type[sg.Table],
+    values: List[TableRow],
+    select_rows: List[int],
+    vscroll_position: float = None,
+) -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
-    
+
     Call this function instead of simply calling update() on a sg.Table element.
     The reason is that updating the selection or values will in turn fire more
     changed events, adding up to an endless loop of events.
@@ -2923,14 +3466,19 @@ def update_table_element(window: sg.Window, element: Type[sg.Table], values: Lis
 
     :returns: None
     """
-    element.Widget.unbind("<<TreeviewSelect>>")                         # Disable handling for "<<TreeviewSelect>>" event
+    element.Widget.unbind(
+        "<<TreeviewSelect>>"
+    )  # Disable handling for "<<TreeviewSelect>>" event
     # update element
     element.update(values=values, select_rows=select_rows)
     # set vertical scroll bar to follow selected element
     if vscroll_position is not None:
         element.set_vscroll_position(vscroll_position)
-    window.refresh()                                            # Event handled and bypassed
-    element.widget.bind("<<TreeviewSelect>>", element._treeview_selected) # Enable handling for "<<TreeviewSelect>>" event
+    window.refresh()  # Event handled and bypassed
+    element.widget.bind(
+        "<<TreeviewSelect>>", element._treeview_selected
+    )  # Enable handling for "<<TreeviewSelect>>" event
+
 
 def checkbox_to_bool(value):
     """
@@ -2938,12 +3486,14 @@ def checkbox_to_bool(value):
     :param value: Value to convert into True or False
     :returns: bool
     """
-    return str(value).lower() in ['y','yes','t','true','1']
+    return str(value).lower() in ["y", "yes", "t", "true", "1"]
+
 
 class Popup:
     """
     Popup helper class. Has popup functions for internal use. Stores last info popup as last_info
     """
+
     def __init__(self):
         """
         Create a new Popup instance
@@ -2957,16 +3507,28 @@ class Popup:
         Internal use only. Creates sg.Window with LanguagePack OK button
         """
         msg = msg.splitlines()
-        layout = [[sg.T(line, font='bold')] for line in msg]
-        layout.append(sg.Button(button_text = lang.button_ok, key = 'ok',
-                                use_ttk_buttons = themepack.use_ttk_buttons,
-                                pad = themepack.popup_button_pad))
-        popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
-                              ttk_theme = themepack.ttk_theme, element_justification = "center")
+        layout = [[sg.T(line, font="bold")] for line in msg]
+        layout.append(
+            sg.Button(
+                button_text=lang.button_ok,
+                key="ok",
+                use_ttk_buttons=themepack.use_ttk_buttons,
+                pad=themepack.popup_button_pad,
+            )
+        )
+        popup_win = sg.Window(
+            title,
+            layout=[layout],
+            keep_on_top=True,
+            modal=True,
+            finalize=True,
+            ttk_theme=themepack.ttk_theme,
+            element_justification="center",
+        )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED,'Exit','ok']:
+            if event in [sg.WIN_CLOSED, "Exit", "ok"]:
                 break
         popup_win.close()
 
@@ -2975,25 +3537,44 @@ class Popup:
         Internal use only. Creates sg.Window with LanguagePack Yes/No button
         """
         msg = msg.splitlines()
-        layout = [[sg.T(line, font='bold')] for line in msg]
-        layout.append(sg.Button(button_text = lang.button_yes, key = 'yes',
-                                use_ttk_buttons = themepack.use_ttk_buttons,
-                                pad = themepack.popup_button_pad))
-        layout.append(sg.Button(button_text = lang.button_no, key = 'no',
-                                use_ttk_buttons = themepack.use_ttk_buttons,
-                                pad = themepack.popup_button_pad))
-        popup_win = sg.Window(title, layout= [layout], keep_on_top = True, modal = True, finalize = True,
-                              ttk_theme = themepack.ttk_theme, element_justification = "center")
-        
+        layout = [[sg.T(line, font="bold")] for line in msg]
+        layout.append(
+            sg.Button(
+                button_text=lang.button_yes,
+                key="yes",
+                use_ttk_buttons=themepack.use_ttk_buttons,
+                pad=themepack.popup_button_pad,
+            )
+        )
+        layout.append(
+            sg.Button(
+                button_text=lang.button_no,
+                key="no",
+                use_ttk_buttons=themepack.use_ttk_buttons,
+                pad=themepack.popup_button_pad,
+            )
+        )
+        popup_win = sg.Window(
+            title,
+            layout=[layout],
+            keep_on_top=True,
+            modal=True,
+            finalize=True,
+            ttk_theme=themepack.ttk_theme,
+            element_justification="center",
+        )
+
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED,'Exit','no','yes']:
+            if event in [sg.WIN_CLOSED, "Exit", "no", "yes"]:
                 result = event
                 break
         popup_win.close()
         return result
 
-    def info(self, msg: str, display_message: bool = True, auto_close_seconds: int = None):
+    def info(
+        self, msg: str, display_message: bool = True, auto_close_seconds: int = None
+    ):
         """
         Creates sg.Window with no buttons to display passed in message string, and writes message to
         to self.last_info.
@@ -3013,15 +3594,23 @@ class Popup:
         self.last_info_msg = msg
         if display_message:
             msg = msg.splitlines()
-            layout = [sg.T(line, font='bold') for line in msg]
-            self.popup_info = sg.Window(title = title, layout = [layout], no_titlebar = False,
-                                  keep_on_top = True, finalize = True, 
-                                  alpha_channel = themepack.popup_info_alpha_channel,
-                                  element_justification = "center", ttk_theme = themepack.ttk_theme)
-            threading.Thread(target=self.auto_close,
-                             args=(self.popup_info, auto_close_seconds),
-                             daemon=True).start()
-    
+            layout = [sg.T(line, font="bold") for line in msg]
+            self.popup_info = sg.Window(
+                title=title,
+                layout=[layout],
+                no_titlebar=False,
+                keep_on_top=True,
+                finalize=True,
+                alpha_channel=themepack.popup_info_alpha_channel,
+                element_justification="center",
+                ttk_theme=themepack.ttk_theme,
+            )
+            threading.Thread(
+                target=self.auto_close,
+                args=(self.popup_info, auto_close_seconds),
+                daemon=True,
+            ).start()
+
     def auto_close(self, window: sg.Window, seconds: int):
         """
         Use in a thread to automatically close the passed in sg.Window.
@@ -3034,35 +3623,53 @@ class Popup:
             sleep(1)
             step += 1
         self.close(window)
-    
+
     def close(self, window):
         window.close()
+
 
 class ProgressBar:
     def __init__(self, title: str, max_value: int = 100):
         layout = [
-            [sg.Text('', key='message', size=(31, 1))],
-            [sg.ProgressBar(max_value, orientation='h', size=(30, 20), key='bar', style=themepack.ttk_theme)]
+            [sg.Text("", key="message", size=(31, 1))],
+            [
+                sg.ProgressBar(
+                    max_value,
+                    orientation="h",
+                    size=(30, 20),
+                    key="bar",
+                    style=themepack.ttk_theme,
+                )
+            ],
         ]
 
         self.title = title
         self.max = max
-        self.win = sg.Window(title, layout=layout, keep_on_top=True, finalize=True, ttk_theme=themepack.ttk_theme)
+        self.win = sg.Window(
+            title,
+            layout=layout,
+            keep_on_top=True,
+            finalize=True,
+            ttk_theme=themepack.ttk_theme,
+        )
 
     def update(self, message: str, current_count: int):
-        self.win['message'].update(message)
-        self.win['bar'].update(current_count=current_count)
+        self.win["message"].update(message)
+        self.win["bar"].update(current_count=current_count)
 
     def close(self):
         self.win.close()
+
 
 class LangFormat(dict):
     """
     This is a convenience class used by LanguagePack format_map calls, allowing users to not include expected variables.
     Note: This is typically not used by the end user.
     """
+
     def __missing__(self, key):
         return None
+
 
 class KeyGen:
     """
@@ -3071,7 +3678,8 @@ class KeyGen:
     the screen at the same time, they must have unique names.  The keygen will append a separator and an incremental number
     to keys that would otherwise be duplicates. A global KeyGen instance is created automatically, see `keygen` for info.
     """
-    def __init__(self, separator='!'):
+
+    def __init__(self, separator="!"):
         """
         Create a new KeyGen instance
 
@@ -3081,7 +3689,7 @@ class KeyGen:
         self._keygen = {}
         self._separator = separator
 
-    def get(self, key:str, separator:str=None) -> str:
+    def get(self, key: str, separator: str = None) -> str:
         """
         Get a generated key from the `KeyGen`
 
@@ -3093,14 +3701,16 @@ class KeyGen:
         :param separator: (optional) override the default separator wth this separator
         :returns: None
         """
-        if separator is None: separator = self._separator
+        if separator is None:
+            separator = self._separator
 
         # Generate a unique key by attaching a sequential integer to the end
         if key not in self._keygen:
             self._keygen[key] = 0
         return_key = key
-        if self._keygen[key] > 0: return_key += f'{separator}{str(self._keygen[key])}'  # only modify the key if it is a duplicate!
-        logger.debug(f'Key generated: {return_key}')
+        if self._keygen[key] > 0:
+            return_key += f"{separator}{str(self._keygen[key])}"  # only modify the key if it is a duplicate!
+        logger.debug(f"Key generated: {return_key}")
         self._keygen[key] += 1
         return return_key
 
@@ -3123,7 +3733,7 @@ class KeyGen:
         """
         self._keygen = {}
 
-    def reset_from_form(self, frm:Form) -> None:
+    def reset_from_form(self, frm: Form) -> None:
         """
         Reset keys from the keygen that were from mapped PySimpleGUI elements of that `Form`
 
@@ -3134,23 +3744,24 @@ class KeyGen:
         for mapped in frm.element_map:
             self.reset_key(mapped.element.key)
 
+
 # create a global KeyGen instance
-keygen = KeyGen(separator=':')
+keygen = KeyGen(separator=":")
 """This is a global keygen instance for general purpose use. See `KeyGen` for more info"""
 
 # Convenience dicts for example database connection
 postgres_examples = {
-    'host': 'tommy2.heliohost.org',
-    'user': 'pysimplesql_user',
-    'password': 'pysimplesql',
-    'database': 'pysimplesql_examples'
+    "host": "tommy2.heliohost.org",
+    "user": "pysimplesql_user",
+    "password": "pysimplesql",
+    "database": "pysimplesql_examples",
 }
 
 mysql_examples = {
-    'host': 'tommy2.heliohost.org',
-    'user': 'pysimplesql_user',
-    'password': 'pysimplesql',
-    'database': 'pysimplesql_examples'
+    "host": "tommy2.heliohost.org",
+    "user": "pysimplesql_user",
+    "password": "pysimplesql",
+    "database": "pysimplesql_examples",
 }
 
 
@@ -3173,14 +3784,24 @@ class Convenience:
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
+
     pass
 
 
-
-
-def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = None, label: str = '',
-          no_label: bool = False, label_above: bool = False, quick_editor: bool = True, filter=None, key=None,
-          use_ttk_buttons = None, pad = None, **kwargs) -> sg.Column:
+def field(
+    field: str,
+    element: Type[sg.Element] = sg.I,
+    size: Tuple[int, int] = None,
+    label: str = "",
+    no_label: bool = False,
+    label_above: bool = False,
+    quick_editor: bool = True,
+    filter=None,
+    key=None,
+    use_ttk_buttons=None,
+    pad=None,
+    **kwargs,
+) -> sg.Column:
     """
     Convenience function for adding PySimpleGUI elements to the Window, so they are properly configured for pysimplesql
     The automatic functionality of pysimplesql relies on accompanying metadata so that the `Form.auto_add_elements()`
@@ -3206,66 +3827,153 @@ def field(field: str, element: Type[sg.Element] = sg.I, size: Tuple[int, int] = 
     """
     # TODO: See what the metadata does after initial setup is complete - is it needed anymore?
     global keygen
-    
+
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
     if pad is None:
         pad = themepack.quick_editor_button_pad
 
     # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
-    if '?' in field:
-        table_info, where_info = field.split('?')
-        label_text = where_info.split('=')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
+    if "?" in field:
+        table_info, where_info = field.split("?")
+        label_text = (
+            where_info.split("=")[1].replace("fk", "").replace("_", " ").capitalize()
+            + ":"
+        )
     else:
         table_info = field
-        label_text = table_info.split('.')[1].replace('fk', '').replace('_', ' ').capitalize() + ':'
-    table, column = table_info.split('.')
+        label_text = (
+            table_info.split(".")[1].replace("fk", "").replace("_", " ").capitalize()
+            + ":"
+        )
+    table, column = table_info.split(".")
 
     key = field if key is None else key
     key = keygen.get(key)
 
-
-    if 'values' in kwargs:
-        first_param=kwargs['values']
-        del kwargs['values']  # make sure we don't put it in twice
+    if "values" in kwargs:
+        first_param = kwargs["values"]
+        del kwargs["values"]  # make sure we don't put it in twice
     else:
-        first_param=''
+        first_param = ""
 
-    if element.__name__ == 'Multiline':
-        layout_element = element(first_param, key=key, size=size or themepack.default_mline_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
+    if element.__name__ == "Multiline":
+        layout_element = element(
+            first_param,
+            key=key,
+            size=size or themepack.default_mline_size,
+            metadata={
+                "type": TYPE_RECORD,
+                "Form": None,
+                "filter": filter,
+                "field": field,
+                "data_key": key,
+            },
+            **kwargs,
+        )
     else:
-        layout_element = element(first_param, key=key, size=size or themepack.default_element_size, metadata={'type': TYPE_RECORD, 'Form': None, 'filter': filter, 'field': field, 'data_key': key}, **kwargs)
-    layout_label =  sg.T(label_text if label == '' else label, size=themepack.default_label_size, key=f'{key}:label')
-    layout_marker = sg.Column([[sg.T(themepack.marker_required, key=f'{key}:marker', text_color=sg.theme_background_color(), visible=True)]], pad=(0, 0)) # Marker for required (notnull) records
-    if element.__name__ == 'Text': # don't show markers for sg.Text
+        layout_element = element(
+            first_param,
+            key=key,
+            size=size or themepack.default_element_size,
+            metadata={
+                "type": TYPE_RECORD,
+                "Form": None,
+                "filter": filter,
+                "field": field,
+                "data_key": key,
+            },
+            **kwargs,
+        )
+    layout_label = sg.T(
+        label_text if label == "" else label,
+        size=themepack.default_label_size,
+        key=f"{key}:label",
+    )
+    layout_marker = sg.Column(
+        [
+            [
+                sg.T(
+                    themepack.marker_required,
+                    key=f"{key}:marker",
+                    text_color=sg.theme_background_color(),
+                    visible=True,
+                )
+            ]
+        ],
+        pad=(0, 0),
+    )  # Marker for required (notnull) records
+    if element.__name__ == "Text":  # don't show markers for sg.Text
         if no_label:
             layout = [[layout_element]]
         elif label_above:
             layout = [[layout_label], [layout_element]]
         else:
-            layout = [[layout_label , layout_element]]
-    else:        
+            layout = [[layout_label, layout_element]]
+    else:
         if no_label:
             layout = [[layout_marker, layout_element]]
         elif label_above:
             layout = [[layout_label], [layout_marker, layout_element]]
         else:
-            layout = [[layout_label , layout_marker, layout_element]]
+            layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_QUICK_EDIT, 'table': table, 'column': column, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_QUICK_EDIT,
+            "table": table,
+            "column": column,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.quick_edit) is bytes:
-            layout[-1].append(sg.B('', key=keygen.get(f'{key}.quick_edit'), size=(1, 1), image_data=themepack.quick_edit, metadata=meta,
-                                   use_ttk_buttons = use_ttk_buttons, pad = pad))
+            layout[-1].append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}.quick_edit"),
+                    size=(1, 1),
+                    image_data=themepack.quick_edit,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                )
+            )
         else:
-            layout[-1].append(sg.B(themepack.quick_edit, key=keygen.get(f'{key}.quick_edit'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad))
-    #return layout
-    return sg.Col(layout=layout, pad=(0,0)) # TODO: Does this actually need wrapped in a sg.Col???
+            layout[-1].append(
+                sg.B(
+                    themepack.quick_edit,
+                    key=keygen.get(f"{key}.quick_edit"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                )
+            )
+    # return layout
+    return sg.Col(
+        layout=layout, pad=(0, 0)
+    )  # TODO: Does this actually need wrapped in a sg.Col???
 
-def actions(table: str, key=None, default: bool = True, edit_protect: bool = None, navigation: bool = None,
-            insert: bool = None, delete: bool = None, duplicate: bool = None, save: bool = None, search: bool = None,
-            search_size: Tuple[int, int] = (30, 1), bind_return_key: bool = True, filter: str = None,
-            use_ttk_buttons: bool = None, pad = None, **kwargs) -> sg.Column:
+
+def actions(
+    table: str,
+    key=None,
+    default: bool = True,
+    edit_protect: bool = None,
+    navigation: bool = None,
+    insert: bool = None,
+    delete: bool = None,
+    duplicate: bool = None,
+    save: bool = None,
+    search: bool = None,
+    search_size: Tuple[int, int] = (30, 1),
+    bind_return_key: bool = True,
+    filter: str = None,
+    use_ttk_buttons: bool = None,
+    pad=None,
+    **kwargs,
+) -> sg.Column:
     """
     Allows for easily adding record navigation and record action elements to the PySimpleGUI window
     The navigation elements are generated automatically (first, previous, next, last and search).  The action elements
@@ -3306,7 +4014,7 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
     """
     global keygen
     global themepack
-    
+
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
     if pad is None:
@@ -3319,84 +4027,361 @@ def actions(table: str, key=None, default: bool = True, edit_protect: bool = Non
     duplicate = default if duplicate is None else duplicate
     save = default if save is None else save
     search = default if search is None else search
-    key = f'{table}:' if key is None else f'{key}:'
+    key = f"{table}:" if key is None else f"{key}:"
 
     layout = []
 
     # Form-level events
     if edit_protect:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_EDIT_PROTECT_DB, 'table': None, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_EDIT_PROTECT_DB,
+            "table": None,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.edit_protect) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}edit_protect'), size=(1, 1), image_data=themepack.edit_protect, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}edit_protect"),
+                    size=(1, 1),
+                    image_data=themepack.edit_protect,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
         else:
-            layout.append(sg.B(themepack.edit_protect, key=keygen.get(f'{key}edit_protect'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    themepack.edit_protect,
+                    key=keygen.get(f"{key}edit_protect"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
     if save:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SAVE_DB, 'table': None, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_SAVE_DB,
+            "table": None,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.save) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}db_save'), image_data=themepack.save, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}db_save"),
+                    image_data=themepack.save,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
         else:
-            layout.append(sg.B(themepack.save, key=keygen.get(f'{key}db_save'), metadata=meta))
+            layout.append(
+                sg.B(themepack.save, key=keygen.get(f"{key}db_save"), metadata=meta)
+            )
 
     # DataSet-level events
     if navigation:
         # first
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_FIRST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_FIRST,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.first) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_first'), size=(1, 1), image_data=themepack.first, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        else:
-            layout.append(sg.B(themepack.first, key=keygen.get(f'{key}table_first'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        # previous
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_PREVIOUS, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
-        if type(themepack.previous) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_previous'), size=(1, 1), image_data=themepack.previous, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        else:
-            layout.append(sg.B(themepack.previous, key=keygen.get(f'{key}table_previous'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        # next
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_NEXT, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
-        if type(themepack.next) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_next'), size=(1, 1), image_data=themepack.next, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        else:
-            layout.append(sg.B(themepack.next, key=keygen.get(f'{key}table_next'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        # last
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_LAST, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
-        if type(themepack.last) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_last'), size=(1, 1), image_data=themepack.last, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-        else:
-            layout.append(sg.B(themepack.last, key=keygen.get(f'{key}table_last'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
-    if duplicate:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DUPLICATE, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
-        if type(themepack.duplicate) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_duplicate'), size=(1, 1), image_data=themepack.duplicate, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_first"),
+                    size=(1, 1),
+                    image_data=themepack.first,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
         else:
             layout.append(
-                sg.B(themepack.duplicate, key=keygen.get(f'{key}table_duplicate'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+                sg.B(
+                    themepack.first,
+                    key=keygen.get(f"{key}table_first"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        # previous
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_PREVIOUS,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
+        if type(themepack.previous) is bytes:
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_previous"),
+                    size=(1, 1),
+                    image_data=themepack.previous,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        else:
+            layout.append(
+                sg.B(
+                    themepack.previous,
+                    key=keygen.get(f"{key}table_previous"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        # next
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_NEXT,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
+        if type(themepack.next) is bytes:
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_next"),
+                    size=(1, 1),
+                    image_data=themepack.next,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        else:
+            layout.append(
+                sg.B(
+                    themepack.next,
+                    key=keygen.get(f"{key}table_next"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        # last
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_LAST,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
+        if type(themepack.last) is bytes:
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_last"),
+                    size=(1, 1),
+                    image_data=themepack.last,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        else:
+            layout.append(
+                sg.B(
+                    themepack.last,
+                    key=keygen.get(f"{key}table_last"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+    if duplicate:
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_DUPLICATE,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
+        if type(themepack.duplicate) is bytes:
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_duplicate"),
+                    size=(1, 1),
+                    image_data=themepack.duplicate,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
+        else:
+            layout.append(
+                sg.B(
+                    themepack.duplicate,
+                    key=keygen.get(f"{key}table_duplicate"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
     if insert:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_INSERT, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_INSERT,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.insert) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_insert'), size=(1, 1), image_data=themepack.insert, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_insert"),
+                    size=(1, 1),
+                    image_data=themepack.insert,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
         else:
-            layout.append(sg.B(themepack.insert, key=keygen.get(f'{key}table_insert'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    themepack.insert,
+                    key=keygen.get(f"{key}table_insert"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
     if delete:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_DELETE, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_DELETE,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.delete) is bytes:
-            layout.append(sg.B('', key=keygen.get(f'{key}table_delete'), size=(1, 1), image_data=themepack.delete, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}table_delete"),
+                    size=(1, 1),
+                    image_data=themepack.delete,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
         else:
-            layout.append(sg.B(themepack.delete, key=keygen.get(f'{key}table_delete'), metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs))
+            layout.append(
+                sg.B(
+                    themepack.delete,
+                    key=keygen.get(f"{key}table_delete"),
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                )
+            )
     if search:
-        meta = {'type': TYPE_EVENT, 'event_type': EVENT_SEARCH, 'table': table, 'column': None, 'function': None, 'Form': None, 'filter': filter}
+        meta = {
+            "type": TYPE_EVENT,
+            "event_type": EVENT_SEARCH,
+            "table": table,
+            "column": None,
+            "function": None,
+            "Form": None,
+            "filter": filter,
+        }
         if type(themepack.search) is bytes:
-            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B('', key=keygen.get(f'{key}search_button'),
-                                                                                               bind_return_key=bind_return_key, size=(1, 1),
-                                                                                               image_data=themepack.delete, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs)]
+            layout += [
+                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                sg.B(
+                    "",
+                    key=keygen.get(f"{key}search_button"),
+                    bind_return_key=bind_return_key,
+                    size=(1, 1),
+                    image_data=themepack.delete,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                ),
+            ]
         else:
-            layout+=[sg.Input('', key=keygen.get(f'{key}search_input'), size=search_size),sg.B(themepack.search, key=keygen.get(f'{key}search_button'),
-                                                                                               bind_return_key=bind_return_key, metadata=meta, use_ttk_buttons = use_ttk_buttons, pad = pad, **kwargs)]
-    return sg.Col(layout=[layout], pad=(0,0))
+            layout += [
+                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                sg.B(
+                    themepack.search,
+                    key=keygen.get(f"{key}search_button"),
+                    bind_return_key=bind_return_key,
+                    metadata=meta,
+                    use_ttk_buttons=use_ttk_buttons,
+                    pad=pad,
+                    **kwargs,
+                ),
+            ]
+    return sg.Col(layout=[layout], pad=(0, 0))
 
 
-
-def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, int] = None, filter: str = None,
-             key: str = None, **kwargs) -> sg.Element:
+def selector(
+    table: str,
+    element: Type[sg.Element] = sg.LBox,
+    size: Tuple[int, int] = None,
+    filter: str = None,
+    key: str = None,
+    **kwargs,
+) -> sg.Element:
     """
     Selectors in pysimplesql are special elements that allow the user to change records in the database application.
     For example, Listboxes, Comboboxes and Tables all provide a convenient way to users to choose which record they
@@ -3416,54 +4401,74 @@ def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, i
     """
     global keygen
 
-    key = f'{table}:selector' if key is None else key
-    key=keygen.get(key)
+    key = f"{table}:selector" if key is None else key
+    key = keygen.get(key)
 
-    meta = {'type': TYPE_SELECTOR, 'table': table, 'Form': None, 'filter': filter}
+    meta = {"type": TYPE_SELECTOR, "table": table, "Form": None, "filter": filter}
     if element == sg.Listbox:
-        layout = element(values=(), size=size or themepack.default_element_size, key=key,
-                    select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
-                    enable_events=True, metadata=meta)
+        layout = element(
+            values=(),
+            size=size or themepack.default_element_size,
+            key=key,
+            select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+            enable_events=True,
+            metadata=meta,
+        )
     elif element == sg.Slider:
-        layout = element(enable_events=True, size=size or themepack.default_element_size, orientation='h',
-                          disable_number_display=True, key=key, metadata=meta)
+        layout = element(
+            enable_events=True,
+            size=size or themepack.default_element_size,
+            orientation="h",
+            disable_number_display=True,
+            key=key,
+            metadata=meta,
+        )
     elif element == sg.Combo:
         w = themepack.default_element_size[0]
-        layout = element(values=(), size=size or (w, 10), readonly=True, enable_events=True, key=key,
-                          auto_size_text=False, metadata=meta)
+        layout = element(
+            values=(),
+            size=size or (w, 10),
+            readonly=True,
+            enable_events=True,
+            key=key,
+            auto_size_text=False,
+            metadata=meta,
+        )
     elif element == sg.Table:
         # Check if the headings arg is a Table heading...
-        if kwargs['headings'].__class__.__name__ == 'TableHeadings':
+        if kwargs["headings"].__class__.__name__ == "TableHeadings":
             # Overwrite the kwargs from the TableHeading info
-            kwargs['visible_column_map'] = kwargs['headings'].visible_map()
-            kwargs['col_widths'] = kwargs['headings'].width_map()
-            kwargs['auto_size_columns'] = False  # let the col_widths handle it
+            kwargs["visible_column_map"] = kwargs["headings"].visible_map()
+            kwargs["col_widths"] = kwargs["headings"].width_map()
+            kwargs["auto_size_columns"] = False  # let the col_widths handle it
             # Store the TableHeadings object in metadata to complete setup on auto_add_elements()
-            meta['TableHeading'] = kwargs['headings']
+            meta["TableHeading"] = kwargs["headings"]
         else:
-            required_kwargs = ['headings', 'visible_column_map', 'num_rows']
+            required_kwargs = ["headings", "visible_column_map", "num_rows"]
             for kwarg in required_kwargs:
                 if kwarg not in kwargs:
-                    raise RuntimeError(f'DataSet selectors must use the {kwarg} keyword argument.')
+                    raise RuntimeError(
+                        f"DataSet selectors must use the {kwarg} keyword argument."
+                    )
 
         # Create other kwargs that are required
-        kwargs['enable_events'] = True
-        kwargs['select_mode'] = sg.TABLE_SELECT_MODE_BROWSE
-        kwargs['justification'] = 'left'
+        kwargs["enable_events"] = True
+        kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
+        kwargs["justification"] = "left"
 
         # Create a narrow column for displaying a * character for virtual rows. This will have to be the 2nd column right after the pk
-        kwargs['headings'].insert(0,'')
-        kwargs['visible_column_map'].insert(0,1)
-        if 'col_widths' in kwargs:
-            kwargs['col_widths'].insert(0,2)
+        kwargs["headings"].insert(0, "")
+        kwargs["visible_column_map"].insert(0, 1)
+        if "col_widths" in kwargs:
+            kwargs["col_widths"].insert(0, 2)
 
         # Make an empty list of values
-        vals = [[''] * len(kwargs['headings'])]
+        vals = [[""] * len(kwargs["headings"])]
 
         # Change the headings parameter to be a list so the heading doesn't display dicts when it first loads
         # The TableHeadings instance is already stored in metadata
-        if kwargs['headings'].__class__.__name__ == 'TableHeadings':
-            kwargs['headings'] = kwargs['headings'].heading_names()
+        if kwargs["headings"].__class__.__name__ == "TableHeadings":
+            kwargs["headings"] = kwargs["headings"].heading_names()
 
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
     else:
@@ -3471,15 +4476,18 @@ def selector(table: str, element: Type[sg.Element] = sg.LBox, size: Tuple[int, i
 
     return layout
 
+
 class TableHeadings(list):
     """
     This is a convenience class used to build table headings for PySimpleGUI.  In addition, `TableHeading` objects
     can sort columns in ascending or descending order by clicking on the column in the heading in the PySimpleGUI Table
     element if the sort_enable parameter is set to True.
     """
+
     # store our instances
     instances = []
-    def __init__(self, sort_enable:bool=True) -> None:
+
+    def __init__(self, sort_enable: bool = True) -> None:
         """
         Create a new TableHeadings object
 
@@ -3493,7 +4501,9 @@ class TableHeadings(list):
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
-    def add_column(self, column: str, heading_column: str, width: int, visible: bool = True) -> None:
+    def add_column(
+        self, column: str, heading_column: str, width: int, visible: bool = True
+    ) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the order that this method is called.
         Note that the primary key column does not need to be included, as primary keys are stored internally in the
@@ -3507,7 +4517,7 @@ class TableHeadings(list):
                         want to display.
         :returns: None
         """
-        self.append({'heading': heading_column, 'column': column})
+        self.append({"heading": heading_column, "column": column})
         self._width_map.append(width)
         self._visible_map.append(visible)
 
@@ -3517,7 +4527,7 @@ class TableHeadings(list):
 
         :returns: a list of heading names
         """
-        return [c['heading'] for c in self]
+        return [c["heading"] for c in self]
 
     def columns(self):
         """
@@ -3525,10 +4535,9 @@ class TableHeadings(list):
 
         :returns: a list of column names
         """
-        return [c['column'] for c in self if c['column'] is not None]
+        return [c["column"] for c in self if c["column"] is not None]
 
-
-    def visible_map(self) -> List[Union[bool,int]]:
+    def visible_map(self) -> List[Union[bool, int]]:
         """
         Convenience method for creating PySimpleGUI tables
 
@@ -3542,9 +4551,11 @@ class TableHeadings(list):
 
         :returns: a list column widths for use with th PySimpleGUI Table col_widths parameter
         """
-        return[x for x in self._width_map]
+        return [x for x in self._width_map]
 
-    def update_headings(self, element:sg.Table, sort_column=None, sort_order:int = None) -> None:
+    def update_headings(
+        self, element: sg.Table, sort_column=None, sort_order: int = None
+    ) -> None:
         """
         Perform the actual update to the PySimpleGUI Table heading
         Note: Not typically called by the end user
@@ -3560,22 +4571,21 @@ class TableHeadings(list):
         try:
             asc = themepack.sort_asc_marker
         except AttributeError:
-            asc = '\u25BC'
+            asc = "\u25BC"
         try:
             desc = themepack.sort_desc_marker
         except AttributeError:
-            desc = '\u25B2'
+            desc = "\u25B2"
 
         for i, x in zip(range(len(self)), self):
             # Clear the direction markers
-            x['heading'] = x['heading'].replace(asc, '').replace(desc, '')
-            if x['column'] == sort_column and sort_column is not None:
+            x["heading"] = x["heading"].replace(asc, "").replace(desc, "")
+            if x["column"] == sort_column and sort_column is not None:
                 if sort_order != ResultSet.SORT_NONE:
-                    x['heading'] += asc if sort_order == ResultSet.SORT_ASC else desc
-            element.Widget.heading(i, text=x['heading'], anchor='w')
+                    x["heading"] += asc if sort_order == ResultSet.SORT_ASC else desc
+            element.Widget.heading(i, text=x["heading"], anchor="w")
 
-
-    def enable_sorting(self, element:sg.Table, fn:callable) -> None:
+    def enable_sorting(self, element: sg.Table, fn: callable) -> None:
         """
         Enable the sorting callbacks for each column index
         Note: Not typically used by the end user. Called from `Form.auto_map_elements()`
@@ -3586,19 +4596,24 @@ class TableHeadings(list):
         """
         if self._sort_enable:
             for i in range(len(self)):
-                if self[i]['column'] is not None:
-                    element.widget.heading(i, command=functools.partial(fn, self[i]['column']))
+                if self[i]["column"] is not None:
+                    element.widget.heading(
+                        i, command=functools.partial(fn, self[i]["column"])
+                    )
         self.update_headings(element)
 
-    def insert(self, idx, heading_column:str, column:str=None, *args, **kwargs):
-        super().insert(idx,{'heading': heading_column, 'column': column})
+    def insert(self, idx, heading_column: str, column: str = None, *args, **kwargs):
+        super().insert(idx, {"heading": heading_column, "column": column})
+
 
 class _SortCallbackWrapper:
     """
     Internal class used when sg.Table column headers are clicked.
     """
-    
-    def __init__(self,frm_reference: Form, data_key: str, element: sg.Element, table_heading):
+
+    def __init__(
+        self, frm_reference: Form, data_key: str, element: sg.Element, table_heading
+    ):
         """
         Create a new _SortCallbackWrapper object
 
@@ -3611,18 +4626,20 @@ class _SortCallbackWrapper:
         self.frm: Form = frm_reference
         self.data_key = data_key
         self.element = element
-        self.table_heading:TableHeadings = table_heading
-    
+        self.table_heading: TableHeadings = table_heading
+
     def __call__(self, column):
         # store the pk:
         pk = self.frm[self.data_key].get_current_pk()
         sort_order = self.frm[self.data_key].rows.sort_cycle(column, self.data_key)
         # We only need to update the selectors not all elements, so first set by the primary key,
         # then update_selectors()
-        self.frm[self.data_key].set_by_pk(pk, update_elements=False, requery_dependents=False,
-                                 skip_prompt_save=True)
+        self.frm[self.data_key].set_by_pk(
+            pk, update_elements=False, requery_dependents=False, skip_prompt_save=True
+        )
         self.frm.update_selectors(self.data_key)
         self.table_heading.update_headings(self.element, column, sort_order)
+
 
 # ======================================================================================================================
 # THEMEPACKS
@@ -3642,23 +4659,22 @@ class ThemePack:
         sg.Button(ss.themepack.search, key='search_button')
 
     """
+
     default = {
         # Theme to use with ttk widgets.
-        #-------------------------------
+        # -------------------------------
         # Choices (on Windows) include:
         # 'default', 'winnative', 'clam', 'alt', 'classic', 'vista', 'xpnative'
-        'ttk_theme': 'default',
-        
+        "ttk_theme": "default",
         # Defaults for actions() buttons & popups
-        #----------------------------------------
-        'use_ttk_buttons' : True,
-        'quick_editor_button_pad' : (3,0),
-        'action_button_pad' : (3,0),
-        'popup_button_pad' : (5,5),
-        
+        # ----------------------------------------
+        "use_ttk_buttons": True,
+        "quick_editor_button_pad": (3, 0),
+        "action_button_pad": (3, 0),
+        "popup_button_pad": (5, 5),
         # Action buttons
-        #----------------------------------------
-        #fmt: off
+        # ----------------------------------------
+        # fmt: off
         'edit_protect': b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAGJ3pUWHRSYXcgcHJvZmlsZSB0eXBlIGV4aWYAAHjarVdZsuQmEPznFD4CVSwFx2GN8A18fCeiUG/zZtoRfnrdQoCKpDJJaDP++Xuav/DH7L3xQVLMMVr8+ewzFxSS3X/5+ibrr299sKfwUm/uBkaVw93tRynav6A+PF44Y1B9rTdJWzhpILoDX39ujbzK/Rkk6nnXk9dAeexCzEmeoVYN1LTjBUU//oa1b+vZvFQIstQDBnLMw5Gz13faCNz+FHwSvlGPftZllJ0jc92iBkNCXqZ3J9A+J+glyadk3rN/l96Sz0Xr3Vsuo+YIhV82UHird/cw/DywuxHxa0MaVj6mo585e5pz7NkVH5HRqIq6kk0nDDpWpNxdr0Vcgk9AWa4r40q22AbKu2224mqUicHKNOSpU6FJ47o3aoDoebDgztzYXXXJCWduYImcXxdNFjDWwSC7xsOAM+/4xkLXuPkar1HCyJ3QlQnBCK/8eJnfNf6Xy8zZVorIpjtXwMVL14CxmFvf6AVCaCpv4UrwuZR++6SfJVWPbivNCRMstu4QNdBDW+7i2aFfwH0vITLSNQBShLEDwJADAzaSCxTJCrMQIY8JBBUgZ+e5ggEKgTtAssfSYCOMJYOx8Y7Q1ZcDR17V8CYQEVx0Am6wpkCW9wH6EZ+goRJc8CGEGCQkE3Io0UUfQ4xR4jK5Ik68BIkikiRLSS75FFJMklLKqWTODh4YcsySU865FDYFAxXEKuhfUFO5uuprqLFKTTXX0iCf5ltosUlLLbfSubsOm+ixS0899zLIDDjF8COMOGSkkUeZ0Np0088w45SZZp7lZk1Z/bj+A2ukrPHF1OonN2uoNSInBC07CYszMMaewLgsBiBoXpzZRN7zYm5xZjNjUQQGyLC4MZ0WY6DQD+Iw6ebuwdxXvJmQvuKN/8ScWdT9H8wZUPfJ2y9Y62ufaxdjexWunFqH1Yf2kYrhVNamVr66TynlKlOengN5/LcEGP4KxHWInT2n0cr1xiiwKpqr29qb9N20X8QeqQ3otEeYEQ7Zhv8Wzwe+GvfAM1dnenTIwYWrtgGOx36Irqbh40boXZ/c+kIE7qMbO5TnvkHCis3bIDg8XHF6chNb7J6V/eJuroIbTVENSTP6svMDvy+0XHshmR5tTeD9qwlyrVEs7X5E0/jiNv4MvwpXtAz1F4VY69XV55qzhkiIP1hDlCaIj5JZ+dfAn3fpUV9AbzzYncCMhbdhYrPaWRmmYguAmve8cpu2VdHBGCsm00U61EoTqyfs9zP14vf0cU5C6rcg13kE60uVNti9of4BbOgHbANYYzUJt84cKNukAodmqmTNMBLk9wvSoRSXe1bEZubhaYjSBE35JHSTNtBx5x2ScjsdEf1fUJcVyvwAex7YEbB1cTTvdw+mEx6nIIVviHQJ0ZZpSHCJoUsI0lEhYL7DteDKESzAt+ULu6dtZnabpu1Pes7vunUgfbfDXfDQqtO8IsuKgszGA2KVNktdJxhEa1Snj8jMR05JjkhNsSKauQ6XcXDArCKssNX4G60e+mGIXczhuFvvd3icEarivBezf8WCwg2XdgGn2q0RbEJasLQXHza31s6oiYH0trbDzzxSb9ZIoDMVGM4YpMRikr2pC1xHeS2cmjunis2g5N5QYkJnSR43KwREPRx4/hOeeeAcVTsi2zNAMAp7Yl363YQDk8p7DLa6uvlCYF4pP5z4Uwib+pK8Tgp7+4hBZYUj1vBtJ/u35j530Vs15+bF6eLBjymhtucH0MVI9aq82poT5TAm/Lx8T522rV9Km1ZWnYRiE1Z/3WxjfDfCF3vQfK+6RjQQeir12E0Rqg8tgBp1y1axTSVtkpyJuko2azhjb61AfnL4TaDOvsnvpztN6X350aqrGoxP4zEXbQkZvzwUUIIyovDRCk4dDe6x9/413X6sYeak4u7rwX23S5on2+n9eHQ+/jdDP63l1n05sPPJSvTdbOsW6nCMWxTw4kCqieHKAqnnDpwUZ+Yft+wPTyz3+rv97qRR3MOS0m2C1by7oDu7dcR2FV6PSH8+RHwiuhNST0LKAXLOMtTqw5eiOWV3V9LZYb4V0nU3v1QYzoHmX+RGJBpl98L8AAABhGlDQ1BJQ0MgcHJvZmlsZQAAeJx9kT1Iw0AcxV9TpUVaBO0gopChOlkQFXHUKhShQqgVWnUwufQLmjQkLS6OgmvBwY/FqoOLs64OroIg+AHi5Oik6CIl/i8ptIjx4Lgf7+497t4BQqPMNKtrHND0qplKxMVMdlUMvCKIPoQxDFFmljEnSUl4jq97+Ph6F+NZ3uf+HGE1ZzHAJxLPMsOsEm8QT29WDc77xBFWlFXic+Ixky5I/Mh1xeU3zgWHBZ4ZMdOpeeIIsVjoYKWDWdHUiKeIo6qmU76QcVnlvMVZK9dY6578haGcvrLMdZpDSGARS5AgQkENJZRRRYxWnRQLKdqPe/gHHb9ELoVcJTByLKACDbLjB/+D391a+ckJNykUB7pfbPtjBAjsAs26bX8f23bzBPA/A1d6219pADOfpNfbWvQI6N0GLq7bmrIHXO4AA0+GbMqO5Kcp5PPA+xl9UxbovwV61tzeWvs4fQDS1FXyBjg4BEYLlL3u8e5gZ2//nmn19wNkDXKhWfC+CAAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB+QIEg0fJQXnbmsAAAKVSURBVDjLhZJPSFRRFMa/c++b55tGTZpSMZRStCyJFlEoLkSyWtQiyI1FUWRtIooWFS2yKHcG0aICN1IWCNWmQhfixqQokDAHpY3lFJiTZo7ju/e9e0+LwP6o9W3O6vvxfeccwjK6dPEirrS2IkmUE2loeCGkTBFwjIAxw4yinh4AAC0HMIlbSL0zmHs72SV7extldjaElDOS6CoDNwCgsLsbYjmA+q6Rk//xaN6p5kbRfIJDIjZK5YbWtjHQWRCNYqS+fukEmQebIYQTD3R6eJ7z883W83C8LZRpucRIJkl6HtZWVNBIIgH5t3n2fhUIBmxNu1K6WmdSUIl2aJLIab4MGEFhcvz41OfPgyGwuIIkA0Cc01o1KaXBzIC7Clnjd2j2yWFS1WsSBR2POiURNvX1/arw6W4ZYlEHjqD1YaAH5+f9XCEIvq8QiTgAiIIgNGZ4stDZ1ZIqaWwBfk9QFJdwBcOEpsv31UoiwFoGEUFKB8YYWLb7Ubk6FSZvLyQWAPD+1WPM2HKExlxXyt9mrWE34pIxhqJRD9ZastZ2Z2a/Pg2NRenZiQUAAUDHbmBvEzayj0FfF3qx2ArWWpMQPwMqpWbSGbXGy3KCdWdSf+xMAMDBZxorD5kGt67b8/KqGDwHImIpBRsTGiLsiXpuMOcvPrlYGMzlXulOxPbdI17biCwxTsYwMXOn6zovBQGbL6SWBjAzAGwgMNjNY7fuJnj7QxhZ8EFk5RxRyqL49JclP1YCgNYa/f3910pKSvLi8Tjp+TR9Q36XjhYf4NmxtFQTaHueXhJAZWVlcF0X1loeHR0NBgYG3sRisZORSGTo29QUampr8S8Jay2mp6dzieh1ZWXljpqamtogCIbCMPyvGQB+AKK0L000MH1KAAAAAElFTkSuQmCC',
         'quick_edit': b'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',
         'save': b'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',
@@ -3669,45 +4685,39 @@ class ThemePack:
         'insert': b'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',
         'delete': b'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',
         'duplicate': b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw1AUhU9TRZGKQztIcchQnSyIFnHUKhShQqgVWnUweekfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfE1cVJ0UVKvC8ptIjxwuN9nHfP4b37AKFZZZrVMwFoum1mUkkxl18V+14hIIAwokjIzDLmJCkN3/q6p16quzjP8u/7swbVgsWAgEg8ywzTJt4gnt60Dc77xBFWllXic+Jxky5I/Mh1xeM3ziWXBZ4ZMbOZeeIIsVjqYqWLWdnUiBPEMVXTKV/Ieaxy3uKsVeusfU/+wlBBX1nmOq0RpLCIJUgQoaCOCqqwEaddJ8VChs6TPv6o65fIpZCrAkaOBdSgQXb94H/we7ZWcWrSSwolgd4Xx/kYBfp2gVbDcb6PHad1AgSfgSu94681gZlP0hsdLXYEDG0DF9cdTdkDLneA4SdDNmVXCtISikXg/Yy+KQ+Eb4GBNW9u7XOcPgBZmlX6Bjg4BMZKlL3u8+7+7rn929Oe3w9rHnKk7x4JKQAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAAd0SU1FB+cCARMnD1HzB0IAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAABJUlEQVQ4y6WTT2qDQBTGvxnLwFTETZfZZCu9hPdwJei2B3GThZcovUJAkx6hdXqBisxOycI/YF43VWxiTEo+eAy8gW9+35sZMMYeAWxM0zwAoEvFOSfbtvcA1piIAdhEUfTieR4451iSUgqu634BcMamaZqHoihoqqZpLtYv0WpqTFprIiLK85x836elKJP6GOKMBr7vU5ZldIuSJCEhxHY0GPBuldaaDMOg5akBqOsaYRjO7vV9j6sEZVnO9rXWBIAelk7uug5VVQHAuEopIYTA2S2cEgRBMDv9OI7/EIBzflcEblnWu1IK92gNQA2Ip2rbdsSeI5garf77DqSUx+ktfAP4TNP02XGcq9i73Q51Xb+dxRFCbA3DWPwHUsojgFfG2NMPCKbWh17KiKEAAAAASUVORK5CYII=',
-        #fmt: on
-        'search': 'Search',
-        
+        # fmt: on
+        "search": "Search",
         # Markers
-        #----------------------------------------
-        'marker_virtual': '\u2731',
-        'marker_required': '\u2731',
-        'marker_required_color': 'red2',
-        
+        # ----------------------------------------
+        "marker_virtual": "\u2731",
+        "marker_required": "\u2731",
+        "marker_required_color": "red2",
         # Sorting icons
-        #----------------------------------------
-        'sort_asc_marker': '\u25BC',
-        'sort_desc_marker': '\u25B2',
-        
+        # ----------------------------------------
+        "sort_asc_marker": "\u25BC",
+        "sort_desc_marker": "\u25B2",
         # Info Popup defaults
-        #----------------------------------------
-        'popup_info_auto_close_seconds' : 1,
-        'popup_info_alpha_channel' : .85,
-
+        # ----------------------------------------
+        "popup_info_auto_close_seconds": 1,
+        "popup_info_alpha_channel": 0.85,
         # Default sizes for elements
-        #---------------------------
+        # ---------------------------
         # Label Size
         # Sets the default label (text) size when `field()` is used.
         # A label is static text that is displayed near the element to describe what it is.
-        'default_label_size' : (20, 1), # (width, height)
-
+        "default_label_size": (20, 1),  # (width, height)
         # Element Size
         # Sets the default element size when `field()` is used.
         # The size= parameter of `field()` will override this.
-        'default_element_size' : (30, 1), # (width, height)
-
+        "default_element_size": (30, 1),  # (width, height)
         # Mline size
         # Sets the default multi-line text size when `field()` is used.
         # The size= parameter of `field()` will override this.
-        'default_mline_size' : (30, 7), # (width, height)
+        "default_mline_size": (30, 7),  # (width, height)
     }
     """Default Themepack"""
 
-    def __init__(self, tp_dict:Dict[str,str] = {}) -> None:
+    def __init__(self, tp_dict: Dict[str, str] = {}) -> None:
         self.tp_dict = ThemePack.default
 
     def __getattr__(self, key):
@@ -3719,8 +4729,8 @@ class ThemePack:
                 return ThemePack.default[key]
             except KeyError:
                 raise AttributeError(f"ThemePack object has no attribute '{key}'")
-            
-    def __call__(self, tp_dict:Dict[str,str] = {}) -> None:
+
+    def __call__(self, tp_dict: Dict[str, str] = {}) -> None:
         """
         Update the ThemePack object from tp_dict
 
@@ -3745,11 +4755,11 @@ class ThemePack:
                 'sort_desc_marker': string eg '', f'',  unicode
             }
         For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder
-      	Remember to us b'' around the string.
+        Remember to us b'' around the string.
 
-      	For Text buttons, yan can even add Emoji's.
-      	https://carpedm20.github.io/emoji/ and copy-paste the 'Python Unicode name:' (less the variable)
-      	Format like f'\N{WASTEBASKET} Delete',
+        For Text buttons, yan can even add Emoji's.
+        https://carpedm20.github.io/emoji/ and copy-paste the 'Python Unicode name:' (less the variable)
+        Format like f'\N{WASTEBASKET} Delete',
 
         :param tp_dict: (optional) A dict formatted as above to create the ThemePack from. If one is not supplied, a
                         default ThemePack will be generated.  Any keys not present in the supplied tp_dict will be
@@ -3759,9 +4769,11 @@ class ThemePack:
         """
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
-        if tp_dict == {}: tp_dict = ThemePack.default
+        if tp_dict == {}:
+            tp_dict = ThemePack.default
 
         self.tp_dict = tp_dict
+
 
 # set a default themepack
 themepack = ThemePack()
@@ -3778,113 +4790,102 @@ class LanguagePack:
     want to change one aspect of the default LanguagePack. Example:
         lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
     """
+
     default = {
-        
-    # ------------------------
-    # Buttons
-    # ------------------------
-    'button_cancel' : ' Cancel ',
-    'button_ok' : '  OK  ',
-    'button_yes' : ' Yes ',
-    'button_no' : '  No  ',
-    
-    # ------------------------
-    # Startup progress bar
-    # ------------------------
-    'startup_form' : 'Creating Form',
-    'startup_init' : 'Initializing',
-    'startup_datasets' : 'Adding datasets',
-    'startup_relationships' : 'Adding relationships',
-    'startup_binding' : 'Binding window to Form',
-
-    # ------------------------
-    # Progress bar displayed during sqldriver operations
-    # ------------------------
-    'sqldriver_init' : '{name} connection',
-    'sqldriver_connecting' : 'Connecting to database',
-    'sqldriver_execute' : 'executing SQL commands',
-
-    # ------------------------
-    # Info Popup Title - universal
-    # ------------------------
-    'info_popup_title': 'Info',
-
-    # ------------------------
-    # Info Popups - no buttons
-    # ------------------------
-    # Form save_records
-    # ------------------------
-    'form_save_success': 'Updates saved successfully.',
-    'form_save_none': 'There were no updates to save.',
-    # DataSet save_record
-    # ------------------------
-    'dataset_save_empty': 'There were no updates to save.',
-    'dataset_save_none': 'There were no changes to save!',
-    'dataset_save_success': 'Updates saved successfully.',
-
-    # ------------------------
-    # Yes No Popups
-    # ------------------------
-    # Form prompt_save
-    # ------------------------
-    'form_prompt_save_title': 'Unsaved Changes',
-    'form_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
-    # DataSet prompt_save
-    # ------------------------
-    'dataset_prompt_save_title': 'Unsaved Changes',
-    'dataset_prompt_save': 'You have unsaved changes!\nWould you like to save them first?',
-
-    # ------------------------
-    # Ok Popups
-    # ------------------------
-    # Form save_records
-    # ------------------------
-    'form_save_problem_title' : 'Problem Saving',
-    'form_save_partial': 'Some updates were saved successfully;',
-    'form_save_problem': 'There was a problem saving updates to the following tables:\n{tables}.',
-    # DataSet save_record
-    'dataset_save_callback_false_title': 'Callback Prevented Save',
-    'dataset_save_callback_false': 'Updates not saved.',
-    
-    'dataset_save_keyed_fail_title': 'Problem Saving',
-    'dataset_save_keyed_fail': 'Query failed: {exception}.',
-
-    'dataset_save_fail_title': 'Problem Saving',
-    'dataset_save_fail': 'Query failed: {exception}.',
-
-    # ------------------------
-    # Custom Popups
-    # ------------------------
-    # DataSet delete_record
-    # ------------------------
-    'delete_title': 'Confirm Deletion',
-    'delete_cascade': 'Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!',
-    'delete_single': 'Are you sure you want to delete this record?',
-    # Failed Ok Popup
-    'delete_failed_title': 'Problem Deleting',
-    'delete_failed': 'Query failed: {exception}.',
-    'delete_recursion_limit_error' : 'Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT',
-
-    # Dataset duplicate_record
-    # ------------------------
-    # Msg prepend to front of parent duplicate
-    'duplicate_prepend' : 'Copy of ',
-    # Popup when record has children
-    'duplicate_child_title': 'Confirm Duplication',
-    'duplicate_child': 'This record has child records:\n(in {children})\nWhich records would you like to duplicate?',
-    'duplicate_child_button_dupparent': 'Only duplicate this record.',
-    'duplicate_child_button_dupboth': 'Duplicate this record and its children.',
-    # Popup when record is single
-    'duplicate_single_title': 'Confirm Duplication',
-    'duplicate_single': 'Are you sure you want to duplicate this record?',
-    # Failed Ok Popup
-    'duplicate_failed_title': 'Problem Duplicating',
-    'duplicate_failed': 'Query failed: {exception}.',
-
-    # ------------------------
-    # Quick Editor
-    # ------------------------
-    'quick_edit_title': 'Quick Edit - {data_key}'
+        # ------------------------
+        # Buttons
+        # ------------------------
+        "button_cancel": " Cancel ",
+        "button_ok": "  OK  ",
+        "button_yes": " Yes ",
+        "button_no": "  No  ",
+        # ------------------------
+        # Startup progress bar
+        # ------------------------
+        "startup_form": "Creating Form",
+        "startup_init": "Initializing",
+        "startup_datasets": "Adding datasets",
+        "startup_relationships": "Adding relationships",
+        "startup_binding": "Binding window to Form",
+        # ------------------------
+        # Progress bar displayed during sqldriver operations
+        # ------------------------
+        "sqldriver_init": "{name} connection",
+        "sqldriver_connecting": "Connecting to database",
+        "sqldriver_execute": "executing SQL commands",
+        # ------------------------
+        # Info Popup Title - universal
+        # ------------------------
+        "info_popup_title": "Info",
+        # ------------------------
+        # Info Popups - no buttons
+        # ------------------------
+        # Form save_records
+        # ------------------------
+        "form_save_success": "Updates saved successfully.",
+        "form_save_none": "There were no updates to save.",
+        # DataSet save_record
+        # ------------------------
+        "dataset_save_empty": "There were no updates to save.",
+        "dataset_save_none": "There were no changes to save!",
+        "dataset_save_success": "Updates saved successfully.",
+        # ------------------------
+        # Yes No Popups
+        # ------------------------
+        # Form prompt_save
+        # ------------------------
+        "form_prompt_save_title": "Unsaved Changes",
+        "form_prompt_save": "You have unsaved changes!\nWould you like to save them first?",
+        # DataSet prompt_save
+        # ------------------------
+        "dataset_prompt_save_title": "Unsaved Changes",
+        "dataset_prompt_save": "You have unsaved changes!\nWould you like to save them first?",
+        # ------------------------
+        # Ok Popups
+        # ------------------------
+        # Form save_records
+        # ------------------------
+        "form_save_problem_title": "Problem Saving",
+        "form_save_partial": "Some updates were saved successfully;",
+        "form_save_problem": "There was a problem saving updates to the following tables:\n{tables}.",
+        # DataSet save_record
+        "dataset_save_callback_false_title": "Callback Prevented Save",
+        "dataset_save_callback_false": "Updates not saved.",
+        "dataset_save_keyed_fail_title": "Problem Saving",
+        "dataset_save_keyed_fail": "Query failed: {exception}.",
+        "dataset_save_fail_title": "Problem Saving",
+        "dataset_save_fail": "Query failed: {exception}.",
+        # ------------------------
+        # Custom Popups
+        # ------------------------
+        # DataSet delete_record
+        # ------------------------
+        "delete_title": "Confirm Deletion",
+        "delete_cascade": "Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!",
+        "delete_single": "Are you sure you want to delete this record?",
+        # Failed Ok Popup
+        "delete_failed_title": "Problem Deleting",
+        "delete_failed": "Query failed: {exception}.",
+        "delete_recursion_limit_error": "Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT",
+        # Dataset duplicate_record
+        # ------------------------
+        # Msg prepend to front of parent duplicate
+        "duplicate_prepend": "Copy of ",
+        # Popup when record has children
+        "duplicate_child_title": "Confirm Duplication",
+        "duplicate_child": "This record has child records:\n(in {children})\nWhich records would you like to duplicate?",
+        "duplicate_child_button_dupparent": "Only duplicate this record.",
+        "duplicate_child_button_dupboth": "Duplicate this record and its children.",
+        # Popup when record is single
+        "duplicate_single_title": "Confirm Duplication",
+        "duplicate_single": "Are you sure you want to duplicate this record?",
+        # Failed Ok Popup
+        "duplicate_failed_title": "Problem Duplicating",
+        "duplicate_failed": "Query failed: {exception}.",
+        # ------------------------
+        # Quick Editor
+        # ------------------------
+        "quick_edit_title": "Quick Edit - {data_key}",
     }
     """Default LanguagePack"""
 
@@ -3900,7 +4901,7 @@ class LanguagePack:
                 return type(self).default[key]
             except KeyError:
                 raise AttributeError(f"LanguagePack object has no attribute '{key}'")
-            
+
     def __call__(self, lp_dict={}):
         """
         Update the LanguagePack instance
@@ -3908,9 +4909,11 @@ class LanguagePack:
         """
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
-        if lp_dict == {}: lp_dict = type(self).default
+        if lp_dict == {}:
+            lp_dict = type(self).default
 
         self.lp_dict = lp_dict
+
 
 # set a default languagepack
 lang = LanguagePack()
@@ -3932,7 +4935,9 @@ class Abstractions:
 
     Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
     """
+
     pass
+
 
 # ======================================================================================================================
 # COLUMN ABSTRACTION
@@ -3951,8 +4956,24 @@ class Column:
         :language: python
         :caption: Example code
     """
-    def __init__(self, name: str, domain: str, notnull: bool, default: None, pk: bool, virtual: bool = False):
-        self._column={'name': name, 'domain': domain, 'notnull': notnull, 'default': default, 'pk': pk, 'virtual': virtual}
+
+    def __init__(
+        self,
+        name: str,
+        domain: str,
+        notnull: bool,
+        default: None,
+        pk: bool,
+        virtual: bool = False,
+    ):
+        self._column = {
+            "name": name,
+            "domain": domain,
+            "notnull": notnull,
+            "default": default,
+            "pk": pk,
+            "virtual": virtual,
+        }
 
     def __str__(self):
         return f"Column: {self._column}"
@@ -3960,7 +4981,7 @@ class Column:
     def __repr__(self):
         return f"Column: {self._column}"
 
-    def __getitem__(self,item):
+    def __getitem__(self, item):
         return self._column[item]
 
     def __setitem__(self, key, value):
@@ -3976,7 +4997,7 @@ class Column:
         return self._column[key]
 
     def __setattr__(self, key, value):
-        if key == '_column':
+        if key == "_column":
             super().__setattr__(key, value)
         else:
             self._column[key] = value
@@ -3993,7 +5014,7 @@ class Column:
         domain = self.domain
 
         # String type casting
-        if domain in ['TEXT', 'VARCHAR', 'CHAR']:
+        if domain in ["TEXT", "VARCHAR", "CHAR"]:
             if type(value) is int:
                 value = str(value)
             elif type(value) is bool:
@@ -4002,35 +5023,44 @@ class Column:
                 value = str(value)
 
         # Integer type casting
-        elif domain in ['INT', 'INTEGER', 'BOOLEAN']:
+        elif domain in ["INT", "INTEGER", "BOOLEAN"]:
             try:
                 value = int(value)
             except ValueError:
                 value = str(value)
 
         # float type casting
-        elif domain in ['REAL', 'DOUBLE', 'DECIMAL', 'FLOAT']:
+        elif domain in ["REAL", "DOUBLE", "DECIMAL", "FLOAT"]:
             try:
                 value = float(value)
             except ValueError:
                 value = str(value)
 
         # Date casting
-        elif domain == 'DATE':
+        elif domain == "DATE":
             try:
-                value = datetime.strptime(value, '%Y-%m-%d').date()
+                value = datetime.strptime(value, "%Y-%m-%d").date()
             except TypeError:
-                logger.debug(f'Unable to cast {value} to a datetime.date object.  Casting to string instead.')
+                logger.debug(
+                    f"Unable to cast {value} to a datetime.date object.  Casting to string instead."
+                )
                 value = str(value)
 
         # other date/time casting
-        elif domain in ['TIME', 'DATETIME', 'TIMESTAMP']: # TODO: i'm sure there is a lot of work to do here
+        elif domain in [
+            "TIME",
+            "DATETIME",
+            "TIMESTAMP",
+        ]:  # TODO: i'm sure there is a lot of work to do here
             try:
                 value = datetime.date(value)
             except TypeError:
-                logger.debug(f'Unable to case datetime/time/timestamp.  Casting to string instead.')
+                logger.debug(
+                    f"Unable to case datetime/time/timestamp.  Casting to string instead."
+                )
                 value = str(value)
         return value
+
 
 class ColumnInfo(List):
     """
@@ -4046,54 +5076,69 @@ class ColumnInfo(List):
         :language: python
         :caption: Example code
     """
+
     def __init__(self, driver: SQLDriver, table: str):
         self.driver = driver
         self.table = table
 
         # List of required SQL types to check against when user sets custom values
         self._domains = [
-            'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME', 'DATE',
-            'DATETIME', 'TIMESTAMP'
+            "TEXT",
+            "VARCHAR",
+            "CHAR",
+            "INTEGER",
+            "REAL",
+            "DOUBLE",
+            "FLOAT",
+            "DECIMAL",
+            "BOOLEAN",
+            "TIME",
+            "DATE",
+            "DATETIME",
+            "TIMESTAMP",
         ]
 
         # Defaults to use for Null values returned from the database. These can be overwritten by the user and support
         # function calls as well by using ColumnInfo.set_null_default() and ColumnInfo.set_null_defaults()
         self.null_defaults = {
-            'TEXT': 'New Record',
-            'VARCHAR': 'New Record',
-            'CHAR' : 'New Record',
-            'INT': 0,
-            'INTEGER': 0,
-            'REAL': 0.0,
-            'DOUBLE': 0.0,
-            'FLOAT': 0.0,
-            'DECIMAL': 0.0,
-            'BOOLEAN': 0,
-            'TIME': lambda x: datetime.now().strftime("%H:%M:%S"),
-            'DATE': lambda x: date.today().strftime("%Y-%m-%d"),
-            'TIMESTAMP': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'DATETIME': lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "TEXT": "New Record",
+            "VARCHAR": "New Record",
+            "CHAR": "New Record",
+            "INT": 0,
+            "INTEGER": 0,
+            "REAL": 0.0,
+            "DOUBLE": 0.0,
+            "FLOAT": 0.0,
+            "DECIMAL": 0.0,
+            "BOOLEAN": 0,
+            "TIME": lambda x: datetime.now().strftime("%H:%M:%S"),
+            "DATE": lambda x: date.today().strftime("%Y-%m-%d"),
+            "TIMESTAMP": lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "DATETIME": lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         super().__init__()
 
     def __contains__(self, item):
         if isinstance(item, str):
-            return self._contains_key_value_pair('name', item)
+            return self._contains_key_value_pair("name", item)
         else:
             return super().__contains__(item)
-    def __getitem__(self,item):
+
+    def __getitem__(self, item):
         if isinstance(item, str):
             return next((i for i in self if i.name == item), None)
         else:
             return super().__getitem__(item)
-    def pk_column(self) -> Union[str,None]:
+
+    def pk_column(self) -> Union[str, None]:
         """
         Get the pk_column for this colection of column_info
 
         :returns: A string containing the column name of the PK column, or None if one was not found
         """
         for c in self:
-            if c.pk: return c.name
+            if c.pk:
+                return c.name
         return None
 
     def names(self) -> List[str]:
@@ -4102,9 +5147,9 @@ class ColumnInfo(List):
 
         :returns: List of column names
         """
-        return self._get_list('name')
+        return self._get_list("name")
 
-    def col_name(self, idx:int) -> str:
+    def col_name(self, idx: int) -> str:
         """
         Get the column name located at the specified index in this collection of `Column`s
 
@@ -4129,14 +5174,14 @@ class ColumnInfo(List):
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
                 table = self.driver.quote_table(self.table)
-                q = f'SELECT {default} AS val FROM {table};' # TODO: may need AS column to support all databases?
+                q = f"SELECT {default} AS val FROM {table};"  # TODO: may need AS column to support all databases?
                 rows = self.driver.execute(q)
                 if rows.exception is None:
-                    default = rows.fetchone()['val']
+                    default = rows.fetchone()["val"]
                     d[c.name] = default
                     continue
                 else:
-                    logger.warning(f'There was an exception getting the default: {e}')
+                    logger.warning(f"There was an exception getting the default: {e}")
 
             # The stored default is a literal value, lets try to use it:
             if default is None:
@@ -4145,15 +5190,19 @@ class ColumnInfo(List):
                 except KeyError:
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
-               
+
                 # skip primary keys
                 if not c.pk:
                     # put default in description_column
                     if c.name == dataset.description_column:
                         default = null_default
 
-                    # put defaults in other fields 
-                    elif domain not in ['TEXT', 'VARCHAR', 'CHAR']: # (don't put 'New Record' in other txt fields)
+                    # put defaults in other fields
+                    elif domain not in [
+                        "TEXT",
+                        "VARCHAR",
+                        "CHAR",
+                    ]:  # (don't put 'New Record' in other txt fields)
                         # If our default is callable, call it.
                         if callable(null_default):
                             default = null_default()
@@ -4162,13 +5211,18 @@ class ColumnInfo(List):
                             default = null_default
             else:
                 # Load the default that was fetched from the database during ColumnInfo creation
-                if domain in ['TEXT', 'VARCHAR', 'CHAR']:
+                if domain in ["TEXT", "VARCHAR", "CHAR"]:
                     # strip quotes from default strings as they seem to get passed with some database-stored defaults
-                    default = c.default.strip('"\'')  # strip leading and trailing quotes
+                    default = c.default.strip(
+                        "\"'"
+                    )  # strip leading and trailing quotes
 
             d[c.name] = default
-            logger.debug(f'Default fetched from database function. Default value is: {default}')
-        if dataset.transform is not None: dataset.transform(dataset, d, TFORM_DECODE)
+            logger.debug(
+                f"Default fetched from database function. Default value is: {default}"
+            )
+        if dataset.transform is not None:
+            dataset.transform(dataset, d, TFORM_DECODE)
         return d
 
     def set_null_default(self, domain: str, value: object) -> None:
@@ -4180,11 +5234,13 @@ class ColumnInfo(List):
         :returns: None
         """
         if domain not in self._domains:
-            RuntimeError(f'Unsupported SQL Type: {domain}. Supported types are: {self._domains}')
+            RuntimeError(
+                f"Unsupported SQL Type: {domain}. Supported types are: {self._domains}"
+            )
 
         self.null_defaults[domain] = value
 
-    def set_null_defaults(self, null_defaults:dict) -> None:
+    def set_null_defaults(self, null_defaults: dict) -> None:
         """
         Set Null defaults for all SQL types
 
@@ -4195,9 +5251,12 @@ class ColumnInfo(List):
         """
         # Check if the null_defaults dict has all the required keys:
         if not all(key in null_defaults for key in self._domains):
-            RuntimeError(f'The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._domains}')
+            RuntimeError(
+                f"The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._domains}"
+            )
 
         self.null_defaults = null_defaults
+
     def get_virtual_names(self) -> List[str]:
         """
         Get a list of virtual column names
@@ -4206,19 +5265,22 @@ class ColumnInfo(List):
         """
         return [c for c in self if not c.virtual]
 
-    def _contains_key_value_pair(self, key, value): #used by __contains__
+    def _contains_key_value_pair(self, key, value):  # used by __contains__
         for d in self:
             if key in d and d[key] == value:
                 return True
         return False
 
-    def _looks_like_function(self, s:str): # TODO: check if something looks like a statement for complex defaults?  Regex?
+    def _looks_like_function(
+        self, s: str
+    ):  # TODO: check if something looks like a statement for complex defaults?  Regex?
         # check if the string is empty
         if not s:
             return False
 
         # If the entire string is in all caps, it looks like a function (like in MySQL CURRENT_TIMESTAMP)
-        if s.isupper(): return True
+        if s.isupper():
+            return True
 
         # find the index of the first opening parenthesis
         open_paren_index = s.find("(")
@@ -4247,7 +5309,6 @@ class ColumnInfo(List):
         return [d[key] for d in self]
 
 
-
 # ======================================================================================================================
 # DATABASE ABSTRACTION
 # ======================================================================================================================
@@ -4267,10 +5328,10 @@ class ResultRow:
     a ResultSet.
     """
 
-    def __init__(self, row:dict, original_index=None, virtual=False):
+    def __init__(self, row: dict, original_index=None, virtual=False):
         self.row = row
         self.original_index = original_index
-        self.virtual=virtual
+        self.virtual = virtual
 
     def __str__(self):
         return f"ResultRow: {self.row}"
@@ -4303,6 +5364,7 @@ class ResultRow:
         # return a copy of this row
         return ResultRow(self.row.copy(), virtual=self.virtual)
 
+
 class ResultSet:
     """
     The ResultSet class is a generic result class so that working with the resultset of the different supported
@@ -4317,13 +5379,19 @@ class ResultSet:
     Note: The lastrowid is set by the caller, but by pysimplesql convention, the lastrowid should only be set after
     and INSERT statement is executed.
     """
+
     # Store class-related constants
     SORT_NONE = 0
     SORT_ASC = 1
     SORT_DESC = 2
 
-    def __init__(self, rows: List[Dict[str, any]] = [], lastrowid: int = None, exception: str = None,
-                 column_info: ColumnInfo = None) -> None:
+    def __init__(
+        self,
+        rows: List[Dict[str, any]] = [],
+        lastrowid: int = None,
+        exception: str = None,
+        column_info: ColumnInfo = None,
+    ) -> None:
         """
         Create a new ResultSet instance
 
@@ -4356,17 +5424,16 @@ class ResultSet:
     def __contains__(self, item):
         return item in self.rows
 
-    def __getitem__(self,item):
+    def __getitem__(self, item):
         return self.rows[item]
 
-    def __setitem__(self, idx:int, new_row:ResultRow):
+    def __setitem__(self, idx: int, new_row: ResultRow):
         # carry over the original_index
         try:
             new_row.original_index = self.rows[idx].original_index
         except AttributeError:
             pass
-        self.rows[idx]=new_row
-
+        self.rows[idx] = new_row
 
     def __len__(self):
         return len(self.rows)
@@ -4381,6 +5448,7 @@ class ResultSet:
         :returns: A `ResultRow` object
         """
         return self.rows[0] if len(self.rows) else []
+
     def fetchall(self) -> ResultSet:
         """
         ResultSets don't actually support a fetchall(), since the rows are already returned. This is more of a
@@ -4411,7 +5479,7 @@ class ResultSet:
         # Purge virtual rows from the list
         self.rows = [row for row in self.rows if not row.virtual]
 
-    def sort_by_column(self, column: str, table: str, reverse = False) -> None:
+    def sort_by_column(self, column: str, table: str, reverse=False) -> None:
         """
         Sort the `ResultSet` by column.
         Using the mapped relationships of the database, foreign keys will automatically sort based on the
@@ -4423,26 +5491,35 @@ class ResultSet:
         :returns: None
         """
         # Target sorting by this ResultSet
-        rows = self         # search criteria is based on rows
-        target_col = column # Looking in rows for this column
-        target_val = column # to be equal to the same column in self.rows
+        rows = self  # search criteria is based on rows
+        target_col = column  # Looking in rows for this column
+        target_val = column  # to be equal to the same column in self.rows
 
         # We don't want to sort by foreign keys directly - we want to sort by the description column of the foreign
         # table that the foreign key references
         rels = Relationship.get_relationships_for_table(table)
         for rel in rels:
             if column == rel.fk_column:
-                rows = rel.frm[rel.parent_table].rows # change the rows used for sort criteria
+                rows = rel.frm[
+                    rel.parent_table
+                ].rows  # change the rows used for sort criteria
                 target_col = rel.pk_column  # change our target column to look in
-                target_val = rel.frm[rel.parent_table].description_column # and return the value in this column
+                target_val = rel.frm[
+                    rel.parent_table
+                ].description_column  # and return the value in this column
                 break
         try:
-            self.rows = sorted(self.rows, key=lambda x: next(r[target_val] for r in rows if r[target_col] == x[column]),
-                               reverse=reverse)
+            self.rows = sorted(
+                self.rows,
+                key=lambda x: next(
+                    r[target_val] for r in rows if r[target_col] == x[column]
+                ),
+                reverse=reverse,
+            )
         except KeyError:
-            logger.debug(f'ResultSet could not sort by column {column}. KeyError.')
+            logger.debug(f"ResultSet could not sort by column {column}. KeyError.")
 
-    def sort_by_index(self,index:int, table:str, reverse=False):
+    def sort_by_index(self, index: int, table: str, reverse=False):
         """
         Sort the `ResultSet` by column index
         Using the mapped relationships of the database, foreign keys will automatically sort based on the
@@ -4456,10 +5533,11 @@ class ResultSet:
         try:
             column = list(self[0].keys())[index]
         except IndexError:
-            logger.debug(f'ResultSet could not sort by column index {index}. IndexError.')
+            logger.debug(
+                f"ResultSet could not sort by column index {index}. IndexError."
+            )
             return
         self.sort_by_column(column, table, reverse)
-
 
     def store_sort_settings(self) -> list:
         """
@@ -4470,7 +5548,7 @@ class ResultSet:
         """
         return [self.sort_column, self.sort_reverse]
 
-    def load_sort_settings(self, sort_settings:list) -> None:
+    def load_sort_settings(self, sort_settings: list) -> None:
         """
         Load a previously stored sort setting. Sort settings are just the sort columm and reverse setting
 
@@ -4479,7 +5557,6 @@ class ResultSet:
         self.sort_column = sort_settings[0]
         self.sort_reverse = sort_settings[1]
 
-
     def sort_reset(self) -> None:
         """
         Reset the sort order to the original when this ResultSet was created.  Each ResultRow has the original order
@@ -4487,10 +5564,14 @@ class ResultSet:
 
         :returns: None
         """
-        self.rows = sorted(self.rows, key=lambda x: x.original_index if x.original_index is not None else float('inf'))
+        self.rows = sorted(
+            self.rows,
+            key=lambda x: x.original_index
+            if x.original_index is not None
+            else float("inf"),
+        )
 
-
-    def sort(self, table:str) -> None:
+    def sort(self, table: str) -> None:
         """
         Sort according to the internal sort_column and sort_reverse variables
         This is a good way to re-sort without changing the sort_cycle
@@ -4503,7 +5584,7 @@ class ResultSet:
         else:
             self.sort_by_column(self.sort_column, table, self.sort_reverse)
 
-    def sort_cycle(self, column:str, table:str) -> int:
+    def sort_cycle(self, column: str, table: str) -> int:
         """
         Cycle between original sort order of the ResultSet, ASC by column, and DESC by column with each call
 
@@ -4516,21 +5597,23 @@ class ResultSet:
             self.sort_column = column
             self.sort_reverse = False
             self.sort(table)
-            ret =  ResultSet.SORT_ASC
+            ret = ResultSet.SORT_ASC
         else:
             if not self.sort_reverse:
                 self.sort_reverse = True
                 self.sort(table)
                 ret = ResultSet.SORT_DESC
             else:
-                self.sort_reverse=False
+                self.sort_reverse = False
                 self.sort_column = None
                 self.sort(table)
                 ret = ResultSet.SORT_NONE
         return ret
 
+
 class ReservedKeywordError(Exception):
     pass
+
 
 class SQLDriver:
     """
@@ -4548,11 +5631,19 @@ class SQLDriver:
     ResultSet.lastrowid should always be None unless and INSERT query is executed with SQLDriver.execute() or a record
     is inserted with SQLDriver.insert_record()
     """
+
     # ---------------------------------------------------------------------
     # MUST implement
     # in order to function
     # ---------------------------------------------------------------------
-    def __init__(self, name:str, placeholder='%s', table_quote='', column_quote='', value_quote="'"):
+    def __init__(
+        self,
+        name: str,
+        placeholder="%s",
+        table_quote="",
+        column_quote="",
+        value_quote="'",
+    ):
         """
         Create a new SQLDriver instance
         This must be overridden in the derived class, which must call super().__init__(), and when finished call
@@ -4563,7 +5654,9 @@ class SQLDriver:
         self.con = None
         self.name = name
         self._check_reserved_keywords = True
-        self.win_pb = ProgressBar(lang.sqldriver_init.format_map(LangFormat(name=name)), 100)
+        self.win_pb = ProgressBar(
+            lang.sqldriver_init.format_map(LangFormat(name=name)), 100
+        )
         self.win_pb.update(lang.sqldriver_connecting, 0)
 
         # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
@@ -4571,12 +5664,16 @@ class SQLDriver:
         # needed to satisfy SQL requirements
 
         # The placeholder for values in the query string.  This is typically '?' or'%s'
-        self.placeholder = placeholder                     # override this in derived __init__()
+        self.placeholder = placeholder  # override this in derived __init__()
 
         # These se the quote characters for tables, columns and values.  It varies between different databases
-        self.quote_table_char = table_quote                # override this in derived __init__() (defaults to no quotes)
-        self.quote_column_char = column_quote              # override this in derived __init__() (defaults to no quotes)
-        self.quote_value_char = value_quote                # override this in derived __init__() (defaults to single quotes)
+        self.quote_table_char = (
+            table_quote  # override this in derived __init__() (defaults to no quotes)
+        )
+        self.quote_column_char = (
+            column_quote  # override this in derived __init__() (defaults to no quotes)
+        )
+        self.quote_value_char = value_quote  # override this in derived __init__() (defaults to single quotes)
 
     def check_reserved_keywords(self, value: bool) -> None:
         """
@@ -4597,7 +5694,13 @@ class SQLDriver:
         """
         raise NotImplementedError
 
-    def execute(self, query, values=None, column_info: ColumnInfo = None, auto_commit_rollback: bool = False):
+    def execute(
+        self,
+        query,
+        values=None,
+        column_info: ColumnInfo = None,
+        auto_commit_rollback: bool = False,
+    ):
         """
         Implements the native SQL implementation's execute() command.
 
@@ -4610,7 +5713,7 @@ class SQLDriver:
         """
         raise NotImplementedError
 
-    def execute_script(self, script: str, silent: bool=False):
+    def execute_script(self, script: str, silent: bool = False):
         raise NotImplementedError
 
     def get_tables(self):
@@ -4619,7 +5722,7 @@ class SQLDriver:
     def column_info(self, table):
         raise NotImplementedError
 
-    def pk_column(self,table):
+    def pk_column(self, table):
         raise NotImplementedError
 
     def relationships(self):
@@ -4637,7 +5740,8 @@ class SQLDriver:
         max_pk = self.max_pk(table, pk_column)
         if max_pk is not None:
             return max_pk + 1
-        else: return 1
+        else:
+            return 1
 
     def check_keyword(self, keyword: str, key: str = None) -> None:
         """
@@ -4649,15 +5753,17 @@ class SQLDriver:
         :param key: The key in the RESERVED set to check in
         :returns: None
         """
-        if not self.check_reserved_keywords: return
+        if not self.check_reserved_keywords:
+            return
 
         if key is None:
             # First try using the name of the driver
-            key = self.name.lower() if self.name.lower() in RESERVED else 'common'
+            key = self.name.lower() if self.name.lower() in RESERVED else "common"
 
-        if keyword.upper() in RESERVED[key] or keyword.upper in RESERVED['common']:
+        if keyword.upper() in RESERVED[key] or keyword.upper in RESERVED["common"]:
             raise ReservedKeywordError(
-                f"`{keyword}` is a reserved keyword and cannot be used for table or column names.")
+                f"`{keyword}` is a reserved keyword and cannot be used for table or column names."
+            )
 
     # ---------------------------------------------------------------------
     # MAY need to be implemented
@@ -4665,13 +5771,13 @@ class SQLDriver:
     # Override any of the following methods as needed.
     # ---------------------------------------------------------------------
     def quote_table(self, table: str):
-        return f'{self.quote_table_char}{table}{self.quote_table_char}'
+        return f"{self.quote_table_char}{table}{self.quote_table_char}"
 
     def quote_column(self, column: str):
-        return f'{self.quote_column_char}{column}{self.quote_column_char}'
+        return f"{self.quote_column_char}{column}{self.quote_column_char}"
 
     def quote_value(self, value: str):
-        return f'{self.quote_value_char}{value}{self.quote_value_char}'
+        return f"{self.quote_value_char}{value}{self.quote_value_char}"
 
     def commit(self):
         self.con.commit()
@@ -4683,28 +5789,28 @@ class SQLDriver:
         self.con.close()
 
     def default_query(self, table):
-        table=self.quote_table(table)
-        return f'SELECT {table}.* FROM {table}'
+        table = self.quote_table(table)
+        return f"SELECT {table}.* FROM {table}"
 
     def default_order(self, description_column):
         description_column = self.quote_column(description_column)
-        return f' ORDER BY {description_column} ASC'
+        return f" ORDER BY {description_column} ASC"
 
-    def relationship_to_join_clause(self, r_obj:Relationship):
+    def relationship_to_join_clause(self, r_obj: Relationship):
         parent = self.quote_table(r_obj.parent_table)
         child = self.quote_table(r_obj.child_table)
         fk = self.quote_column(r_obj.fk_column)
         pk = self.quote_column(r_obj.pk_column)
 
-        return f'{r_obj.join_type} {parent} ON {child}.{fk}={parent}.{pk}'
+        return f"{r_obj.join_type} {parent} ON {child}.{fk}={parent}.{pk}"
 
     def min_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MIN({pk_column}) FROM {table}")
-        return rows.fetchone()[f'MAX({pk_column})']
+        return rows.fetchone()[f"MAX({pk_column})"]
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) FROM {table}")
-        return rows.fetchone()[f'MAX({pk_column})']
+        return rows.fetchone()[f"MAX({pk_column})"]
 
     def generate_join_clause(self, dataset: DataSet) -> str:
         """
@@ -4715,12 +5821,11 @@ class SQLDriver:
         :returns: A join string to be used in a sqlite3 query
         :rtype: str
         """
-        join = ''
+        join = ""
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
-                join += f' {self.relationship_to_join_clause(r)}'
-        return join if dataset.join_clause == '' else dataset.join_clause
-
+                join += f" {self.relationship_to_join_clause(r)}"
+        return join if dataset.join_clause == "" else dataset.join_clause
 
     def generate_where_clause(self, dataset: DataSet) -> str:
         """
@@ -4731,30 +5836,35 @@ class SQLDriver:
         :returns: A where clause string to be used in a sqlite3 query
         :rtype: str
         """
-        where = ''
+        where = ""
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
                 if r.on_update_cascade:
                     table = dataset.table
                     parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
-                    if parent_pk == '':
-                        parent_pk = 'NULL' # passed so that children without cascade-filtering parent aren't displayed
-                    clause=f' WHERE {table}.{r.fk_column}={str(parent_pk)}'
-                    if where != '':
-                        clause = clause.replace('WHERE', 'AND')
+                    if parent_pk == "":
+                        parent_pk = "NULL"  # passed so that children without cascade-filtering parent aren't displayed
+                    clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
+                    if where != "":
+                        clause = clause.replace("WHERE", "AND")
                     where += clause
 
-        if where == '':
+        if where == "":
             # There was no where clause from Relationships..
             where = dataset.where_clause
         else:
             # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
-            where = where + ' ' + dataset.where_clause.replace('WHERE', 'AND')
+            where = where + " " + dataset.where_clause.replace("WHERE", "AND")
 
         return where
 
-    def generate_query(self, dataset: DataSet, join_clause: bool = True, where_clause: bool = True,
-                       order_clause: bool = True) -> str:
+    def generate_query(
+        self,
+        dataset: DataSet,
+        join_clause: bool = True,
+        where_clause: bool = True,
+        order_clause: bool = True,
+    ) -> str:
         """
         Generate a query string using the relationships that have been set
 
@@ -4774,56 +5884,77 @@ class SQLDriver:
         q += f' {dataset.order_clause if order_clause else ""}'
         return q
 
-    def delete_record(self, dataset: DataSet, cascade=True): # TODO: get ON DELETE CASCADE from db
+    def delete_record(
+        self, dataset: DataSet, cascade=True
+    ):  # TODO: get ON DELETE CASCADE from db
         # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
         pk = dataset.get_current(dataset.pk_column)
-        
+
         # Create clauses
-        delete_clause = f'DELETE FROM {table} ' # leave a space at end for joining
-        where_clause = f'WHERE {table}.{pk_column} = {pk}'
+        delete_clause = f"DELETE FROM {table} "  # leave a space at end for joining
+        where_clause = f"WHERE {table}.{pk_column} = {pk}"
 
         # Delete child records first!
         if cascade:
             recursion = 0
-            result = self.delete_record_recursive(dataset, '', where_clause, table, pk_column, recursion)
-        
+            result = self.delete_record_recursive(
+                dataset, "", where_clause, table, pk_column, recursion
+            )
+
         # Then delete self
         if result == DELETE_RECURSION_LIMIT_ERROR:
             return DELETE_RECURSION_LIMIT_ERROR
         q = delete_clause + where_clause + ";"
         return self.execute(q)
-    
-    def delete_record_recursive(self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion):
+
+    def delete_record_recursive(
+        self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion
+    ):
         for child in Relationship.get_delete_cascade_relationships(dataset.key):
             # Check to make sure we arn't at recursion limit
-            recursion += 1 # Increment, since this is a child
+            recursion += 1  # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
                 return DELETE_RECURSION_LIMIT_ERROR
 
             # Get data for query
-            fk_column = self.quote_column(Relationship.get_delete_cascade_fk_column(child))
+            fk_column = self.quote_column(
+                Relationship.get_delete_cascade_fk_column(child)
+            )
             pk_column = self.quote_column(dataset.frm[child].pk_column)
             child_table = self.quote_table(child)
-            select_clause = f'SELECT {child_table}.{pk_column} FROM {child} '
-            delete_clause = f'DELETE FROM {child} WHERE {pk_column} IN '
+            select_clause = f"SELECT {child_table}.{pk_column} FROM {child} "
+            delete_clause = f"DELETE FROM {child} WHERE {pk_column} IN "
 
             # Create new inner join and add it to beginning of passed in inner_join
-            inner_join_clause = f'INNER JOIN {parent} ON {parent}.{pk_column} = {child}.{fk_column} {inner_join}'
+            inner_join_clause = f"INNER JOIN {parent} ON {parent}.{pk_column} = {child}.{fk_column} {inner_join}"
 
             # Call function again to create recursion
-            result = self.delete_record_recursive(dataset.frm[child], inner_join_clause,
-                                                  where_clause, child, self.quote_column(dataset.frm[child].pk_column), recursion)
+            result = self.delete_record_recursive(
+                dataset.frm[child],
+                inner_join_clause,
+                where_clause,
+                child,
+                self.quote_column(dataset.frm[child].pk_column),
+                recursion,
+            )
 
             # Break out of recursive call if at recursion limit
             if result == DELETE_RECURSION_LIMIT_ERROR:
                 return DELETE_RECURSION_LIMIT_ERROR
-            
+
             # Create query and execute
-            q = delete_clause + "(" + select_clause + inner_join_clause + where_clause + ");"
+            q = (
+                delete_clause
+                + "("
+                + select_clause
+                + inner_join_clause
+                + where_clause
+                + ");"
+            )
             self.execute(q)
-            logger.debug(f'Delete query executed: {q}')
+            logger.debug(f"Delete query executed: {q}")
 
             # Reset limit for next Child stack
             recursion = 0
@@ -4833,25 +5964,29 @@ class SQLDriver:
         ## This can be done using * syntax without having to know the schema of the table
         ## (other than the name of the primary key). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        description = self.quote_value(f"{lang.duplicate_prepend}{dataset.get_description_for_pk(dataset.get_current_pk())}")
+        description = self.quote_value(
+            f"{lang.duplicate_prepend}{dataset.get_description_for_pk(dataset.get_current_pk())}"
+        )
         table = self.quote_table(dataset.table)
         tmp_table = self.quote_table(f"temp_{dataset.table}")
         pk_column = self.quote_column(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
-        
+
         # Create tmp table, update pk column in temp and insert into table
-        query= [f'DROP TABLE IF EXISTS {tmp_table};',
-                f'CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE {pk_column}=\
-                    {dataset.get_current(dataset.pk_column)};',
-                f'UPDATE {tmp_table} SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)};',
-                f'UPDATE {tmp_table} SET {description_column} = {description}',
-                f'INSERT INTO {table} SELECT * FROM {tmp_table};',
-                f'DROP TABLE IF EXISTS {tmp_table};',
-               ]
+        query = [
+            f"DROP TABLE IF EXISTS {tmp_table};",
+            f"CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE {pk_column}=\
+                    {dataset.get_current(dataset.pk_column)};",
+            f"UPDATE {tmp_table} SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)};",
+            f"UPDATE {tmp_table} SET {description_column} = {description}",
+            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
+            f"DROP TABLE IF EXISTS {tmp_table};",
+        ]
         for q in query:
             res = self.execute(q)
-            if res.exception: return res
-            
+            if res.exception:
+                return res
+
         # Now we save the new pk
         pk = res.lastrowid
 
@@ -4861,34 +5996,48 @@ class SQLDriver:
         if children:
             for _ in dataset.frm.datasets:
                 for r in dataset.frm.relationships:
-                    if r.parent_table == dataset.table and r.on_update_cascade and (r.child_table not in child_duplicated):
+                    if (
+                        r.parent_table == dataset.table
+                        and r.on_update_cascade
+                        and (r.child_table not in child_duplicated)
+                    ):
                         child = self.quote_table(r.child_table)
                         tmp_child = self.quote_table(f"temp_{r.child_table}")
-                        pk_column = self.quote_column(dataset.frm[r.child_table].pk_column)
+                        pk_column = self.quote_column(
+                            dataset.frm[r.child_table].pk_column
+                        )
                         fk_column = self.quote_column(r.fk_column)
                         # Update children's pk_columns to NULL and set correct parent PK value.
-                        queries = [f'DROP TABLE IF EXISTS {tmp_child};',
-                                   f'CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
-                                       {dataset.get_current(dataset.pk_column)};',
-                                   f'UPDATE {tmp_child} SET {pk_column} = NULL;', # don't next_pk(), because child can be plural.
-                                   f'UPDATE {tmp_child} SET {fk_column} = {pk}',
-                                   f'INSERT INTO {child} SELECT * FROM {tmp_child};',
-                                   f'DROP TABLE IF EXISTS {tmp_child};',
-                                  ]
+                        queries = [
+                            f"DROP TABLE IF EXISTS {tmp_child};",
+                            f"CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
+                                       {dataset.get_current(dataset.pk_column)};",
+                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",  # don't next_pk(), because child can be plural.
+                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
+                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
+                            f"DROP TABLE IF EXISTS {tmp_child};",
+                        ]
                         for q in queries:
                             res = self.execute(q)
-                            if res.exception: return res
-                            
+                            if res.exception:
+                                return res
+
                         child_duplicated.append(r.child_table)
         # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
-    def save_record(self, dataset: DataSet, changed_row: dict, where_clause: str = None) -> ResultSet:
+    def save_record(
+        self, dataset: DataSet, changed_row: dict, where_clause: str = None
+    ) -> ResultSet:
         pk = dataset.get_current_pk()
         pk_column = dataset.pk_column
 
         # Remove the pk column and any virtual columns
-        changed_row = {self.quote_column(k): v for k,v in changed_row.items() if k != pk_column and k not in dataset.column_info.get_virtual_names()}
+        changed_row = {
+            self.quote_column(k): v
+            for k, v in changed_row.items()
+            if k != pk_column and k not in dataset.column_info.get_virtual_names()
+        }
 
         # Set empty fields to None
         for k, v in changed_row.items():
@@ -4908,14 +6057,13 @@ class SQLDriver:
         values = [v for v in changed_row.values()]
 
         result = self.execute(query, tuple(values))
-        result.lastrowid = None # manually clear th rowid since it is not needed for updated records (we already know the key)
+        result.lastrowid = None  # manually clear th rowid since it is not needed for updated records (we already know the key)
         return result
 
-
-    def insert_record(self, table:str, pk:int, pk_column:str, row:dict):
+    def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # Remove the pk column
         row = {self.quote_column(k): v for k, v in row.items() if k != pk_column}
-        
+
         # Set empty fields to None
         for k, v in row.items():
             if v == "":
@@ -4929,16 +6077,19 @@ class SQLDriver:
         values = [value for key, value in row.items()]
         return self.execute(query, tuple(values))
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 # SQLITE3 DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
-    def __init__(self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None):
-        super().__init__(name='SQLite', placeholder='?')
+    def __init__(
+        self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None
+    ):
+        super().__init__(name="SQLite", placeholder="?")
 
         new_database = False
         if db_path is not None:
-            logger.info(f'Opening database: {db_path}')
+            logger.info(f"Opening database: {db_path}")
             new_database = not os.path.isfile(db_path)
             self.connect(db_path)  # Open our database
 
@@ -4948,17 +6099,17 @@ class Sqlite(SQLDriver):
             new_database = False
             self.imported_database = True
 
-        self.win_pb.update(lang.sqldriver_execute,50)
+        self.win_pb.update(lang.sqldriver_execute, 50)
         self.con.row_factory = sqlite3.Row
         if sql_commands is not None and new_database:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
+            logger.info(f"Executing sql commands passed in")
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
         if sql_script is not None and new_database:
             # run SQL script from the file if the database does not yet exist
-            logger.info('Executing sql script from file passed in')
+            logger.info("Executing sql script from file passed in")
             self.execute_script(sql_script)
 
         self.db_path = db_path
@@ -4967,8 +6118,16 @@ class Sqlite(SQLDriver):
     def connect(self, database):
         self.con = sqlite3.connect(database)
 
-    def execute(self, query, values=None, silent=False, column_info = None, auto_commit_rollback: bool = False):
-        if not silent:logger.info(f'Executing query: {query} {values}')
+    def execute(
+        self,
+        query,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
 
         cursor = self.con.cursor()
         exception = None
@@ -4976,7 +6135,9 @@ class Sqlite(SQLDriver):
             cur = cursor.execute(query, values) if values else cursor.execute(query)
         except sqlite3.Error as e:
             exception = e
-            logger.warning(f'Execute exception: {type(e).__name__}: {e}, using query: {query}')
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
             if auto_commit_rollback:
                 self.rollback()
         else:
@@ -4991,13 +6152,12 @@ class Sqlite(SQLDriver):
         lastrowid = cursor.lastrowid if cursor.lastrowid is not None else None
         return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
 
-
     def close(self):
         # Only do cleanup if this is not an imported database
         if not self.imported_database:
             # optimize the database for long-term benefits
-            if self.db_path != ':memory:':
-                q = 'PRAGMA optimize;'
+            if self.db_path != ":memory:":
+                q = "PRAGMA optimize;"
                 self.con.execute(q)
             # Close the connection
             self.con.close()
@@ -5005,32 +6165,35 @@ class Sqlite(SQLDriver):
     def get_tables(self):
         q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.execute(q, silent=True)
-        return [row['name'] for row in cur]
+        return [row["name"] for row in cur]
 
     def column_info(self, table):
         # Return a list of column names
-        q = f'PRAGMA table_info({table})'
+        q = f"PRAGMA table_info({table})"
         rows = self.execute(q, silent=True)
-        names=[]
+        names = []
         col_info = ColumnInfo(self, table)
 
         for row in rows:
-            name = row['name']
+            name = row["name"]
             names.append(name)
-            domain = row['type']
-            notnull = row['notnull']
-            default = row['dflt_value']
-            pk = row['pk']
-            col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
+            domain = row["type"]
+            notnull = row["notnull"]
+            default = row["dflt_value"]
+            pk = row["pk"]
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
 
         return col_info
 
-    def pk_column(self,table):
-        q = f'PRAGMA table_info({table})'
+    def pk_column(self, table):
+        q = f"PRAGMA table_info({table})"
         row = self.execute(q, silent=True).fetchone()
 
-        return row['name'] if 'name' in row else None
-
+        return row["name"] if "name" in row else None
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -5040,28 +6203,27 @@ class Sqlite(SQLDriver):
             rows = self.execute(f"PRAGMA foreign_key_list({from_table})", silent=True)
 
             for row in rows:
-                dic={}
+                dic = {}
                 # Add the relationship if it's in the requery list
-                if row['on_update'] == 'CASCADE':
-                    dic['update_cascade'] = True
+                if row["on_update"] == "CASCADE":
+                    dic["update_cascade"] = True
                 else:
-                    dic['update_cascade'] = False
-                if row['on_delete'] == 'CASCADE':
-                    dic['delete_cascade'] = True
+                    dic["update_cascade"] = False
+                if row["on_delete"] == "CASCADE":
+                    dic["delete_cascade"] = True
                 else:
-                    dic['delete_cascade'] = False
-                dic['from_table'] = from_table
-                dic['to_table'] = row['table']
-                dic['from_column'] = row['from']
-                dic['to_column'] = row ['to']
+                    dic["delete_cascade"] = False
+                dic["from_table"] = from_table
+                dic["to_table"] = row["table"]
+                dic["from_column"] = row["from"]
+                dic["to_column"] = row["to"]
                 relationships.append(dic)
         return relationships
 
-    def execute_script(self,script):
-        with open(script, 'r') as file:
-            logger.info(f'Loading script {script} into database.')
+    def execute_script(self, script):
+        with open(script, "r") as file:
+            logger.info(f"Loading script {script} into database.")
             self.con.executescript(file.read())
-
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -5075,8 +6237,16 @@ class Flatfile(Sqlite):
     database file.  Each timem records are saved, the contents of the internal SQlite database are written back out
     to the file. This makes working with flatfile data as easy and consistent as any other database.
     """
-    def __init__(self, file_path: str, delimiter: str = ',', quotechar: str = '"', header_row_num: int = 0,
-                 table: str = None, pk_col: str = None) -> None:
+
+    def __init__(
+        self,
+        file_path: str,
+        delimiter: str = ",",
+        quotechar: str = '"',
+        header_row_num: int = 0,
+        table: str = None,
+        pk_col: str = None,
+    ) -> None:
         """
         Create a new Flatfile driver instance
 
@@ -5097,25 +6267,27 @@ class Flatfile(Sqlite):
         """
 
         # First up the SQLite driver that we derived from
-        super().__init__(':memory:')  # use an in-memory database
+        super().__init__(":memory:")  # use an in-memory database
 
         # Store our Flatfile-specific information
-        self.name = 'Flatfile'
-        self.placeholder = '?'  # update
-        self.connect(':memory:')
+        self.name = "Flatfile"
+        self.placeholder = "?"  # update
+        self.connect(":memory:")
         self.file_path = file_path
         self.delimiter = delimiter
         self.quotechar = quotechar
         self.header_row_num = header_row_num
-        self.pk_col = pk_col if pk_col is not None else 'pk'
+        self.pk_col = pk_col if pk_col is not None else "pk"
         self.pk_col_is_virtual = False
-        self.table = table if table is not None else 'Flatfile'
+        self.table = table if table is not None else "Flatfile"
         self.con.row_factory = sqlite3.Row
-        self.pre_header = [] # Store any text up to the header line, so they can be restored
+        self.pre_header = (
+            []
+        )  # Store any text up to the header line, so they can be restored
 
         # Open the CSV file and read the header row to get column names
-        with open(file_path, 'r') as f:
-            reader = csv.reader(f, delimiter = self.delimiter, quotechar=self.quotechar)
+        with open(file_path, "r") as f:
+            reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
             # skip lines as determined by header_row_num
             for i in range(self.header_row_num):
                 self.pre_header.append(next(reader))
@@ -5129,24 +6301,24 @@ class Flatfile(Sqlite):
             self.pk_col_is_virtual = True
 
         # Construct the SQL commands to create the table to represent the flatfile data
-        q_cols = ''
+        q_cols = ""
         for col in self.columns:
             if col == self.pk_col:
                 q_cols += f'{col} {"INTEGER PRIMARY KEY AUTOINCREMENT" if self.pk_col_is_virtual else "PRIMARY KEY"}'
             else:
-                q_cols += f'{col} TEXT'
+                q_cols += f"{col} TEXT"
 
             if col != self.columns[-1]:
-                q_cols += ', '
+                q_cols += ", "
 
-        query = f'CREATE TABLE {self.table} ({q_cols})'
+        query = f"CREATE TABLE {self.table} ({q_cols})"
         self.execute(query)
 
         # Load the CSV data into the table
-        with open(self.file_path, 'r') as f:
-            reader = csv.reader(f, delimiter = self.delimiter, quotechar=self.quotechar)
+        with open(self.file_path, "r") as f:
+            reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
             # advance to past the header column
-            for i in range(self.header_row_num+1):
+            for i in range(self.header_row_num + 1):
                 next(reader)
 
             # We only want to insert the pk_column if it is not virtual. We will remove it now, as it has already
@@ -5161,8 +6333,9 @@ class Flatfile(Sqlite):
         self.commit()  # commit them all at the end
         self.win_pb.close()
 
-
-    def save_record(self, dataset: DataSet, changed_row: dict, where_clause: str = None) -> ResultSet:
+    def save_record(
+        self, dataset: DataSet, changed_row: dict, where_clause: str = None
+    ) -> ResultSet:
         # Have SQlite save this record
         result = super().save_record(dataset, changed_row, where_clause)
 
@@ -5174,9 +6347,11 @@ class Flatfile(Sqlite):
             dataset.rows[dataset.current_index] = changed_row
 
             # open the CSV file for writing
-            with open(self.file_path, 'w', newline='\n') as csvfile:
+            with open(self.file_path, "w", newline="\n") as csvfile:
                 # create a csv writer object
-                writer = csv.writer(csvfile, delimiter=self.delimiter, quotechar=self.quotechar)
+                writer = csv.writer(
+                    csvfile, delimiter=self.delimiter, quotechar=self.quotechar
+                )
 
                 # Skip the number of lines defined by header_row_num. Write out the stored pre_header lines
                 for line in self.pre_header:
@@ -5190,8 +6365,7 @@ class Flatfile(Sqlite):
                 for r in dataset.rows:
                     rows.append([r[c] for c in self.columns])
 
-
-                logger.debug(f'Writing the following data to {self.file_path}')
+                logger.debug(f"Writing the following data to {self.file_path}")
                 logger.debug(rows)
                 writer.writerows(rows)
 
@@ -5202,8 +6376,10 @@ class Flatfile(Sqlite):
 # MYSQL DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Mysql(SQLDriver):
-    def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
-        super().__init__(name='MySQL')
+    def __init__(
+        self, host, user, password, database, sql_script=None, sql_commands=None
+    ):
+        super().__init__(name="MySQL")
 
         self.name = "MySQL"
         self.host = host
@@ -5212,38 +6388,48 @@ class Mysql(SQLDriver):
         self.database = database
         self.con = self.connect()
 
-        self.win_pb.update('Executing SQL commands', 50)
+        self.win_pb.update("Executing SQL commands", 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
+            logger.info(f"Executing sql commands passed in")
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
-            logger.info('Executing sql script from file passed in')
+            logger.info("Executing sql script from file passed in")
             self.execute_script(sql_script)
 
         self.win_pb.close()
 
     def connect(self):
         con = mysql.connector.connect(
-            host = self.host,
-            user = self.user,
-            password = self.password,
-            database = self.database
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database,
         )
         return con
 
-    def execute(self, query, values=None, silent=False, column_info=None, auto_commit_rollback: bool = False):
-        if not silent: logger.info(f'Executing query: {query} {values}')
+    def execute(
+        self,
+        query,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
         cursor = self.con.cursor(dictionary=True)
         exception = None
         try:
             cursor.execute(query, values) if values else cursor.execute(query)
         except mysql.connector.Error as e:
             exception = e.msg
-            logger.warning(f'Execute exception: {type(e).__name__}: {e}, using query: {query}')
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
             if auto_commit_rollback:
                 self.rollback()
         else:
@@ -5255,16 +6441,16 @@ class Mysql(SQLDriver):
         except:
             rows = []
 
-        lastrowid=cursor.lastrowid if cursor.lastrowid else None
+        lastrowid = cursor.lastrowid if cursor.lastrowid else None
 
         return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
 
-
     def get_tables(self):
-        query = "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
+        query = (
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
+        )
         rows = self.execute(query, [self.database], silent=True)
-        return [row['table_name'] for row in rows]
-
+        return [row["table_name"] for row in rows]
 
     def column_info(self, table):
         # Return a list of column names
@@ -5273,60 +6459,63 @@ class Mysql(SQLDriver):
         col_info = ColumnInfo(self, table)
 
         for row in rows:
-            name = row['Field']
+            name = row["Field"]
             # Capitalize and get rid of the extra information of the row type I.e. varchar(255) becomes VARCHAR
-            domain = row['Type'].split('(')[0].upper()
-            notnull = True if row['Null'] == 'NO' else False
-            default = row['Default']
-            pk = True if row['Key'] == 'PRI' else False
-            col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
+            domain = row["Type"].split("(")[0].upper()
+            notnull = True if row["Null"] == "NO" else False
+            default = row["Default"]
+            pk = True if row["Key"] == "PRI" else False
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
 
         return col_info
 
-
-    def pk_column(self,table):
+    def pk_column(self, table):
         query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)
         cur = self.execute(query, silent=True)
         row = cur.fetchone()
-        return row['Column_name'] if row else None
+        return row["Column_name"] if row else None
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
-        tables= self.get_tables()
+        tables = self.get_tables()
         relationships = []
         for from_table in tables:
             query = "SELECT * FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
-            rows=self.execute(query, (from_table,), silent=True)
+            rows = self.execute(query, (from_table,), silent=True)
 
             for row in rows:
                 dic = {}
                 # Get the constraint information
-                on_update, on_delete = self.constraint(row['CONSTRAINT_NAME'])
-                if on_update == 'CASCADE':
-                    dic['update_cascade'] = True
+                on_update, on_delete = self.constraint(row["CONSTRAINT_NAME"])
+                if on_update == "CASCADE":
+                    dic["update_cascade"] = True
                 else:
-                    dic['update_cascade'] = False
-                if on_delete == 'CASCADE':
-                    dic['delete_cascade'] = True
+                    dic["update_cascade"] = False
+                if on_delete == "CASCADE":
+                    dic["delete_cascade"] = True
                 else:
-                    dic['delete_cascade'] = False
-                dic['from_table'] = row['TABLE_NAME']
-                dic['to_table'] = row['REFERENCED_TABLE_NAME']
-                dic['from_column'] = row['COLUMN_NAME']
-                dic['to_column'] = row['REFERENCED_COLUMN_NAME']
+                    dic["delete_cascade"] = False
+                dic["from_table"] = row["TABLE_NAME"]
+                dic["to_table"] = row["REFERENCED_TABLE_NAME"]
+                dic["from_column"] = row["COLUMN_NAME"]
+                dic["to_column"] = row["REFERENCED_COLUMN_NAME"]
                 relationships.append(dic)
         return relationships
 
     def execute_script(self, script):
-        with open(script, 'r') as file:
-            logger.info(f'Loading script {script} into database.')
+        with open(script, "r") as file:
+            logger.info(f"Loading script {script} into database.")
             # TODO
 
     # Not required for SQLDriver
-    def constraint(self,constraint_name):
+    def constraint(self, constraint_name):
         query = f"SELECT UPDATE_RULE, DELETE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
         rows = self.execute(query, silent=True)
-        return rows[0]['UPDATE_RULE'], rows[0]['DELETE_RULE']
+        return rows[0]["UPDATE_RULE"], rows[0]["DELETE_RULE"]
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -5335,7 +6524,9 @@ class Mysql(SQLDriver):
 # MariaDB is a fork of MySQL and backward compatible.  It technically does not need its own driver, but that could
 # change in the future, plus having its own named class makes it more clear for the end user.
 class Maria(Mysql):
-    def __init__(self, host, user, password, database, sql_script=None, sql_commands=None):
+    def __init__(
+        self, host, user, password, database, sql_script=None, sql_commands=None
+    ):
         super().__init__(host, user, password, database, sql_script, sql_commands)
         self.name = "MariaDB"
 
@@ -5344,8 +6535,17 @@ class Maria(Mysql):
 # POSTGRES DRIVER
 # ----------------------------------------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
-    def __init__(self,host,user,password,database,sql_script=None, sql_commands=None, sync_sequences=False):
-        super().__init__(name='Postgres', table_quote='"')
+    def __init__(
+        self,
+        host,
+        user,
+        password,
+        database,
+        sql_script=None,
+        sql_commands=None,
+        sync_sequences=False,
+    ):
+        super().__init__(name="Postgres", table_quote='"')
 
         self.host = host
         self.user = user
@@ -5363,14 +6563,14 @@ class Postgres(SQLDriver):
             q = "SELECT sequence_name FROM information_schema.sequences;"
             sequences = self.execute(q, silent=True)
             for s in sequences:
-                seq = s['sequence_name']
+                seq = s["sequence_name"]
 
                 # get the max pk for this table
                 q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)'"
                 rows = self.execute(q, silent=True, auto_commit_rollback=True)
-                row=rows.fetchone()
-                table = row['table_name']
-                pk_column = row['column_name']
+                row = rows.fetchone()
+                table = row["table_name"]
+                pk_column = row["column_name"]
                 max_pk = self.max_pk(table, pk_column)
 
                 # update the sequence
@@ -5382,37 +6582,47 @@ class Postgres(SQLDriver):
                     q = f"SELECT setval('{seq}', 1, false);"
                 self.execute(q, silent=True, auto_commit_rollback=True)
 
-        self.win_pb.update('executing SQL commands', 50)
+        self.win_pb.update("executing SQL commands", 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
-            logger.info(f'Executing sql commands passed in')
+            logger.info(f"Executing sql commands passed in")
             logger.debug(sql_commands)
             self.con.executescript(sql_commands)
             self.con.commit()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
-            logger.info('Executing sql script from file passed in')
+            logger.info("Executing sql script from file passed in")
             self.execute_script(sql_script)
         self.win_pb.close()
 
     def connect(self):
         con = psycopg2.connect(
-            host = self.host,
-            user = self.user,
-            password = self.password,
-            database = self.database
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database,
         )
         return con
 
-    def execute(self, query:str, values=None, silent=False, column_info=None, auto_commit_rollback: bool = False):
-        if not silent: logger.info(f'Executing query: {query} {values}')
+    def execute(
+        self,
+        query: str,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
         cursor = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         exception = None
         try:
             cursor.execute(query, values) if values else cursor.execute(query)
         except psycopg2.Error as e:
             exception = e
-            logger.warning(f'Execute exception: {type(e).__name__}: {e}, using query: {query}')
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
             if auto_commit_rollback:
                 self.rollback()
         else:
@@ -5426,13 +6636,15 @@ class Postgres(SQLDriver):
 
         # In Postgres, the cursor does not return a lastrowid.  We will not set it here, we will instead set it in
         # save_records() due to the RETURNING stement of the query
-        return ResultSet([dict(row) for row in rows], exception=exception, column_info=column_info)
+        return ResultSet(
+            [dict(row) for row in rows], exception=exception, column_info=column_info
+        )
 
     def get_tables(self):
         query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
-        #query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
+        # query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
         rows = self.execute(query, silent=True)
-        return [row['table_name'] for row in rows]
+        return [row["table_name"] for row in rows]
 
     def column_info(self, table: str) -> ColumnInfo:
         # Return a list of column names
@@ -5442,17 +6654,21 @@ class Postgres(SQLDriver):
         col_info = ColumnInfo(self, table)
         pk_column = self.pk_column(table)
         for row in rows:
-            name = row['column_name']
-            domain = row['data_type'].upper()
-            notnull = False if row['is_nullable'] == 'YES' else True
-            default = row['column_default']
+            name = row["column_name"]
+            domain = row["data_type"].upper()
+            notnull = False if row["is_nullable"] == "YES" else True
+            default = row["column_default"]
             # Fix the default value by removing the datatype that is appended to the end
             if default is not None:
-                if '::' in default:
-                    default = default[:default.index('::')]
+                if "::" in default:
+                    default = default[: default.index("::")]
 
             pk = True if name == pk_column else False
-            col_info.append(Column(name=name, domain=domain, notnull=notnull, default=default, pk=pk))
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
 
         return col_info
 
@@ -5460,11 +6676,11 @@ class Postgres(SQLDriver):
         query = f"SELECT column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = '{table}' "
         cur = self.execute(query, silent=True)
         row = cur.fetchone()
-        return row['column_name'] if row else None
+        return row["column_name"] if row else None
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
-        tables= self.get_tables()
+        tables = self.get_tables()
         relationships = []
         for from_table in tables:
             query = f"SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, confdeltype,"
@@ -5474,50 +6690,53 @@ class Postgres(SQLDriver):
             query += f"JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND a2.attnum = ANY(confkey) "
             query += f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
 
-
-            rows=self.execute(query, (from_table,), silent=True)
+            rows = self.execute(query, (from_table,), silent=True)
 
             for row in rows:
                 dic = {}
                 # Get the constraint information
-                #constraint = self.constraint(row['conname'])
-                if row['confupdtype'] == 'c':
-                    dic['update_cascade'] = True
+                # constraint = self.constraint(row['conname'])
+                if row["confupdtype"] == "c":
+                    dic["update_cascade"] = True
                 else:
-                    dic['update_cascade'] = False
-                if row['confdeltype'] == 'c':
-                    dic['delete_cascade'] = True
+                    dic["update_cascade"] = False
+                if row["confdeltype"] == "c":
+                    dic["delete_cascade"] = True
                 else:
-                    dic['delete_cascade'] = False
-                dic['from_table'] = row['conrelid'].strip('"')
-                dic['to_table'] = row['confrelid'].strip('"')
-                dic['from_column'] = row['column_name']
-                dic['to_column'] = row['referenced_column_name']
+                    dic["delete_cascade"] = False
+                dic["from_table"] = row["conrelid"].strip('"')
+                dic["to_table"] = row["confrelid"].strip('"')
+                dic["from_column"] = row["column_name"]
+                dic["to_column"] = row["referenced_column_name"]
                 relationships.append(dic)
         return relationships
 
     def min_pk(self, table: str, pk_column: str) -> int:
         table = self.quote_table(table)
         pk_column = self.quote_column(pk_column)
-        rows = self.execute(f'SELECT COALESCE(MIN({pk_column}), 0) AS min_pk FROM {table};', silent=True)
-        return rows.fetchone()[f'min_pk']
+        rows = self.execute(
+            f"SELECT COALESCE(MIN({pk_column}), 0) AS min_pk FROM {table};", silent=True
+        )
+        return rows.fetchone()[f"min_pk"]
 
     def max_pk(self, table: str, pk_column: str) -> int:
         table = self.quote_table(table)
         pk_column = self.quote_column(pk_column)
-        rows = self.execute(f'SELECT COALESCE(MAX({pk_column}), 0) AS max_pk FROM {table};', silent=True)
-        return rows.fetchone()[f'max_pk']
+        rows = self.execute(
+            f"SELECT COALESCE(MAX({pk_column}), 0) AS max_pk FROM {table};", silent=True
+        )
+        return rows.fetchone()[f"max_pk"]
 
     def next_pk(self, table: str, pk_column: str) -> int:
         # Working with case-sensitive tables is painful in Postgres.  First, the sequence must be quoted in a manner
         # similar to tables, then the quoted sequence name has to be also surrounded in single quotes to be treated
         # literally and prevent folding of the casing.
-        seq = f'{table}_{pk_column}_seq' # build the default sequence name
-        seq = self.quote_table(seq) # quote it like a table
+        seq = f"{table}_{pk_column}_seq"  # build the default sequence name
+        seq = self.quote_table(seq)  # quote it like a table
 
-        q=f"SELECT nextval('{seq}') LIMIT 1;" # wrap the quoted string in singe quotes.  Phew!
+        q = f"SELECT nextval('{seq}') LIMIT 1;"  # wrap the quoted string in singe quotes.  Phew!
         rows = self.execute(q, silent=True)
-        return rows.fetchone()['nextval']
+        return rows.fetchone()["nextval"]
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # insert_record() for Postgres is a little different from the rest. Instead of relying on an autoincrement, we
@@ -5536,12 +6755,15 @@ class Postgres(SQLDriver):
     def execute_script(self, script):
         pass
 
+
 # --------------------------
 # TYPEDDICTS AND TYPEALIASES
 # --------------------------
 SaveResultsDict = Dict[str, int]
 CallbacksDict = Dict[str, Callable[[Form, sg.Window], Union[None, bool]]]
-PromptSaveValue = int #Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
+PromptSaveValue = (
+    int  # Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
+)
 
 
 class SimpleTransform(TypedDict):
@@ -5556,6 +6778,6 @@ SimpleTransformsDict = Dict[str, SimpleTransform]
 # ALIASES
 # ======================================================================================================================
 languagepack = lang
-Database=Form
-Table=DataSet
-record = field # for reverse capability
+Database = Form
+Table = DataSet
+record = field  # for reverse capability

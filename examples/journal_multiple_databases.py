@@ -109,4 +109,3 @@ Learnings from this example:
 - using Tables as Form.selector() element types
 - Using the TableHeadings() function to define sortable table headings
 """
-
