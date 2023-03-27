@@ -90,10 +90,40 @@ except (ModuleNotFoundError, ImportError):
     # Use common as minimum default
     RESERVED = {
         "common": [
-            "SELECT", "INSERT", "DELETE", "UPDATE", "DROP", "CREATE", "ALTER", "WHERE",
-            "FROM", "INNER", "JOIN", "AND", "OR", "LIKE", "ON", "IN", "SET", "BY",
-            "GROUP", "ORDER", "LEFT", "OUTER", "IF", "END", "THEN", "LOOP", "AS", 
-            "ELSE", "FOR", "CASE", "WHEN", "MIN", "MAX", "DISTINCT",
+            "SELECT",
+            "INSERT",
+            "DELETE",
+            "UPDATE",
+            "DROP",
+            "CREATE",
+            "ALTER",
+            "WHERE",
+            "FROM",
+            "INNER",
+            "JOIN",
+            "AND",
+            "OR",
+            "LIKE",
+            "ON",
+            "IN",
+            "SET",
+            "BY",
+            "GROUP",
+            "ORDER",
+            "LEFT",
+            "OUTER",
+            "IF",
+            "END",
+            "THEN",
+            "LOOP",
+            "AS",
+            "ELSE",
+            "FOR",
+            "CASE",
+            "WHEN",
+            "MIN",
+            "MAX",
+            "DISTINCT",
         ],
     }
 
@@ -215,7 +245,7 @@ class TableRow(list):
 
     """
     Convenience class used by Tables to associate a primary key with a row of data.
-    
+
     Note: This is typically not used by the end user.
     """
 
@@ -237,9 +267,9 @@ class TableRow(list):
 class ElementRow:
 
     """
-    Convenience class used by listboxes and comboboxes to associate a primary key with 
+    Convenience class used by listboxes and comboboxes to associate a primary key with
     a row of data.
-    
+
     Note: This is typically not used by the end user.
     """
 
@@ -274,9 +304,9 @@ class Relationship:
     """
     Used to track primary/foreign key relationships in the database.
 
-    See the following for more information: `Form.add_relationship` and 
+    See the following for more information: `Form.add_relationship` and
     `Form.auto_add_relationships`.
-    
+
     Note: This class is not typically used the end user,
     """
 
@@ -507,14 +537,14 @@ class ElementMap(dict):
 class DataSet:
 
     """
-    This class is used for an internal representation of database tables.
+    `DataSet` objects are used for an internal representation of database tables.
 
-    `DataSet` instances are added by the
-    `Form` methods: `Form.add_table` `Form.auto_add_tables` # TODO refactor:rename these
-    A `DataSet` is synonymous for a SQL Table (though you can technically have multiple `DataSet` objects referencing
-    the same table, with each `DataSet` object having its own sorting, where clause, etc.)
-    Note: While users will interact with DataSet objects often in pysimplesql, they typically aren't created manually by
-    the user.
+    `DataSet` instances are added by the following `Form` methods: `Form.add_table`,
+    `Form.auto_add_tables`. A `DataSet` is synonymous for a SQL Table (though you can 
+    technically have multiple `DataSet` objects referencing the same table, with each 
+    `DataSet` object having its own sorting, where clause, etc.).
+    Note: While users will interact with DataSet objects often in pysimplesql, they 
+    typically aren't created manually by the user.
     """
 
     instances = []  # Track our own instances
@@ -536,23 +566,30 @@ class DataSet:
         """
         Initialize a new `DataSet` instance.
 
-        :param data_key: The name you are assigning to this `DataSet` object (I.e. 'people')
+        :param data_key: The name you are assigning to this `DataSet` object (I.e. 
+            'people').
         :param frm_reference: This is a reference to the @ Form object, for convenience
         :param table: Name of the table
-        :param pk_column: The name of the column containing the primary key for this table
-        :param description_column: The name of the column used for display to users (normally in a combobox or listbox)
-        :param query: You can optionally set an initial query here. If none is provided, it will default to
-               "SELECT * FROM {query}"
-        :param order_clause: The sort order of the returned query. If none is provided it will default to
-               "ORDER BY {description_column} ASC"
-        :param filtered: (optional) If True, the relationships will be considered and an appropriate WHERE clause will
-               be generated. False will display all records in query.
-        :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save changes when dirty records are present.
-                            Two modes avaialable, (if pysimplesql is imported as `ss`) use:
-                            `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                            `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
-        :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on save. Error popups will still be shown.
-        :param duplicate_children: (optional) Default: Set in `Form`. If record has children, prompt user to choose to duplicate current record, or both.
+        :param pk_column: The name of the column containing the primary key for this 
+            table.
+        :param description_column: The name of the column used for display to users 
+            (normally in a combobox or listbox).
+        :param query: You can optionally set an initial query here. If none is provided,
+            it will default to "SELECT * FROM {table}"
+        :param order_clause: The sort order of the returned query. If none is provided 
+            it will default to "ORDER BY {description_column} ASC"
+        :param filtered: (optional) If True, the relationships will be considered and an
+            appropriate WHERE clause will be generated. False will display all records 
+            in the table.
+        :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save 
+            changes when dirty records are present. There are two modes available, 
+            (if pysimplesql is imported as `ss`) use:
+            `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+            `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+        :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on
+            save. Error popups will still be shown.
+        :param duplicate_children: (optional) Default: Set in `Form`. If record has 
+            children, prompt user to choose to duplicate current record, or both.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -635,7 +672,8 @@ class DataSet:
                 new_instances.append(dataset)
             else:
                 logger.debug(
-                    f"Removing DataSet {dataset.key} related to {frm.driver.__class__.__name__}"
+                    f"Removing DataSet {dataset.key} related to "
+                    f"{frm.driver.__class__.__name__}"
                 )
                 # we need to get a list of elements to purge from the keygen
                 for s in dataset.selector:
@@ -656,7 +694,8 @@ class DataSet:
 
         :param mode: a constant value. If pysimplesql is imported as `ss`, use:
                     `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                    `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+                    `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are
+                     present.
         :returns: None
         """
         self._prompt_save = mode
@@ -680,28 +719,35 @@ class DataSet:
         supported.
 
         The following callbacks are supported:
-            before_save   called before a record is saved. The save will continue if the callback returns true, or the
-                          record will rollback if the callback returns false.
-            after_save    called after a record is saved. The save will commit to the database if the callback returns
-                          true, else it will rollback the transaction
+            before_save   called before a record is saved. The save will continue if the
+                callback returns true, or the record will rollback if the callback 
+                returns false.
+            after_save    called after a record is saved. The save will commit to the 
+                database if the callback returns true, else it will rollback the
+                transaction
             before_update Alias for before_save
             after_update  Alias for after_save
-            before_delete called before a record is deleted.  The delete will move forward if the callback returns true,
-                          else the transaction will rollback
-            after_delete  called after a record is deleted. The delete will commit to the database if the callback
-                          returns true, else it will rollback the transaction
-            before_duplicate called before a record is duplicate.  The duplicate will move forward if the callback
-                             returns true, else the transaction will rollback
-            after_duplicate  called after a record is duplicate. The duplicate will commit to the database if the
-                             callback returns true, else it will rollback the transaction
-            before_search called before searching.  The search will continue if the callback returns True
-            after_search  called after a search has been performed.  The record change will undo if the callback returns
-                          False
+            before_delete called before a record is deleted.  The delete will move 
+                forward if the callback returns true, else the transaction will rollback
+            after_delete  called after a record is deleted. The delete will commit to 
+                the database if the callback returns true, else it will rollback the 
+                transaction
+            before_duplicate called before a record is duplicate.  The duplicate will 
+                move forward if the callback returns true, else the transaction will 
+                rollback
+            after_duplicate  called after a record is duplicate. The duplicate will 
+                commit to the database if the callback returns true, else it will 
+                rollback the transaction
+            before_search called before searching.  The search will continue if the 
+                callback returns True
+            after_search  called after a search has been performed.  The record change 
+                will undo if the callback returns False
             record_changed called after a record has changed (previous,next, etc.)
 
         :param callback: The name of the callback, from the list above
-        :param fctn: The function to call.  Note, the function must take in two parameters, a `Form` instance, and a
-                     `PySimpleGUI.Window` instance, and return True or False
+        :param fctn: The function to call.  Note, the function must take in two 
+            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, and 
+            return True or False
         :returns: None
         """
         logger.info(f"Callback {callback} being set on table {self.table}")
