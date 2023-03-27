@@ -1540,17 +1540,21 @@ class DataSet:
         self, values: Dict[str : Union[str, int]] = None, skip_prompt_save: bool = False
     ) -> None:
         """
-        Insert a new record virtually in the `DataSet` object. If values are passed, it
-        will initially set those columns to the values (I.e. {'name': 'New Record',
-        'note': ''}), otherwise they will be fetched from the database if present.
+        Insert a new record virtually in the `DataSet` object. 
+        
+        If values are passed, it will initially set those columns to the values (I.e. 
+        {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the 
+        database if present.
 
         :param values: column:value pairs
-        :param skip_prompt_save: Skip prompting the user to save dirty records before the insert
+        :param skip_prompt_save: Skip prompting the user to save dirty records before 
+            the insert.
         :returns: None
         """
         # todo: you don't add a record if there isn't a parent!!!
-        # todo: this is currently filtered out by enabling of the element, but it should be filtered here too!
-        # todo: bring back the values parameter
+        # todo: this is currently filtered out by enabling of the element, but it should
+        #  be filtered here too!
+        # todo: bring back the values parameter?
         if skip_prompt_save is False:
             self.prompt_save(
                 update_elements=False
@@ -1582,7 +1586,7 @@ class DataSet:
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
-        # Insert the new values using RecordSet.insert(). This will mark the new row as virtual!
+        # Insert the new values using RecordSet.insert(), marking the new row as virtual
         self.rows.insert(new_values)
 
         # and move to the new record
@@ -1604,7 +1608,8 @@ class DataSet:
         before_save and after_save `DataSet.callbacks` will call your
         own functions for error checking if needed!.
 
-        :param display_message: Displays a message "Updates saved successfully", otherwise is silent on success
+        :param display_message: Displays a message "Updates saved successfully", 
+            otherwise is silent on success.
         :param update_elements: Update the GUI elements after saving
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
@@ -1633,16 +1638,19 @@ class DataSet:
                     )
                 return SAVE_FAIL + SHOW_MESSAGE
 
-        # Check right away to see if any records have changed, no need to proceed any further than we have to
+        # Check right away to see if any records have changed, no need to proceed any 
+        # further than we have to.
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
             self.frm.popup.info(lang.dataset_save_none, display_message=display_message)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data, unless it's 'keyed' via ?/=
+        # Note that while saving, we are working with just the current row of data, 
+        # unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
-        # Track the keyed queries we have to run.  Set to None, so we can tell later if there were keyed elements
+        # Track the keyed queries we have to run.  Set to None, so we can tell later if 
+        # there were keyed elements
         keyed_queries: Optional[
             List
         ] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
@@ -1650,7 +1658,7 @@ class DataSet:
         # Propagate GUI data back to the stored current_row
         for mapped in self.frm.element_map:
             if mapped.dataset == self:
-                # convert the data into the correct data type using the domain in ColumnInfo
+                # convert the data into the correct type using the domain in ColumnInfo
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
                 # Looked for keyed elements first
@@ -1711,7 +1719,7 @@ class DataSet:
                         ),
                     )
                     self.driver.rollback()
-                    return SAVE_FAIL  # Do not show the message in this case, since it's handled here
+                    return SAVE_FAIL  # Do not show the message in this case
         else:
             if current_row.virtual:
                 result = self.driver.insert_record(
@@ -1728,10 +1736,11 @@ class DataSet:
                     ),
                 )
                 self.driver.rollback()
-                return SAVE_FAIL  # Do not show the message in this case, since it's handled here
+                return SAVE_FAIL  # Do not show the message in this case
 
-            # Store the pk can we can move to it later - use the value returned in the resultset if possible
-            # the expected pk changed from autoincrement and/or concurrent access
+            # Store the pk, so we can move to it later - use the value returned in the
+            # resultset if possible. The expected pk may have changed from autoincrement
+            # and/or concurrent access.
             pk = (
                 result.lastrowid
                 if result.lastrowid is not None
@@ -1770,7 +1779,8 @@ class DataSet:
                 self.driver.rollback()
                 return SAVE_FAIL + SHOW_MESSAGE
 
-        # If we made it here, we can commit the changes, since the save and insert above do not commit or rollback
+        # If we made it here, we can commit the changes, since the save and insert above
+        # do not commit or rollback
         self.driver.commit()
 
         if update_elements:
@@ -1790,12 +1800,12 @@ class DataSet:
         """
         Recursively save changes, taking into account the relationships of the tables.
 
-        :param results: Used in Form.save_records to collect DataSet.save_record returns. Pass an empty dict to get list
-               of {table : result}
-        :param display_message: Passed to DataSet.save_record. Displays a message "Updates saved successfully", otherwise
-               is silent on success
-        :param check_prompt_save: Used when called from Form.prompt_save. Updates elements without saving if individual
-               `DataSet._prompt_save()` is False.
+        :param results: Used in Form.save_records to collect DataSet.save_record 
+            returns. Pass an empty dict to get list of {table : result}
+        :param display_message: Passed to DataSet.save_record. Displays a message 
+            that updates were saved successfully, otherwise is silent on success.
+        :param check_prompt_save: Used when called from Form.prompt_save. Updates 
+            elements without saving if individual `DataSet._prompt_save()` is False.
         :returns: dict of {table : results}
         """
         for rel in self.frm.relationships:
@@ -1827,7 +1837,8 @@ class DataSet:
         The before_delete and after_delete callbacks are run during this process
         to give some control over the process.
 
-        :param cascade: Delete child records (as defined by `Relationship`s that were set up) before deleting this record
+        :param cascade: Delete child records (as defined by `Relationship`s that were 
+            set up) before deleting this record.
         :returns: None
         """
         # Ensure that there is actually something to delete
@@ -1897,7 +1908,8 @@ class DataSet:
         The before_duplicate and after_duplicate callbacks are run during this
         process to give some control over the process.
 
-        :param cascade: Duplicate child records (as defined by `Relationship`s that were set up) before duplicating this record
+        :param children: Duplicate child records (as defined by `Relationship`s that 
+            were set up) before duplicating this record.
         :returns: None
         """
         # Ensure that there is actually something to duplicate
@@ -1996,7 +2008,10 @@ class DataSet:
 
     def get_description_for_pk(self, pk: int) -> Union[str, int, None]:
         """
-        Get the description from `DataSet.description_column` from the row where the `DataSet.pk_column` = `pk`.
+        Get the description from the `DataSet` on the matching pk.
+        
+        Return the desctription from `DataSet.description_column` for the row where the 
+        `DataSet.pk_column` = `pk`.
 
         :param pk: The primary key from which to find the description for
         :returns: The value found in the description column, or None if nothing is found
@@ -2015,7 +2030,8 @@ class DataSet:
         :param columns: A list of column names to create table values for.
                         Defaults to getting them from the `DataSet.rows` `ResultSet`.
         :param mark_virtual: Place a marker next to virtual records
-        :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table element values
+        :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table 
+            element values.
         """
         global themepack
 
@@ -2082,11 +2098,14 @@ class DataSet:
         skip_prompt_save: bool = False,
     ) -> None:
         """
-        The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.  This is very useful for putting
-        a button next to a combobox or listbox so that the available values can be added/edited/deleted easily.
-        Note: This is not typically used by the end user, as it can be configured from the `field()` convenience function.
+        The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.  
+        This is very useful for putting a button next to a combobox or listbox so that 
+        the available values can be added/edited/deleted easily.
+        Note: This is not typically used by the end user, as it can be configured from 
+        the `field()` convenience function.
 
-        :param pk_update_funct: (optional) A function to call to determine the pk to select by default when the quick editor loads
+        :param pk_update_funct: (optional) A function to call to determine the pk to 
+            select by default when the quick editor loads.
         :param funct_param: (optional) A parameter to pass to the `pk_update_funct`
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
         :returns: None
@@ -2186,7 +2205,8 @@ class DataSet:
 class Form:
 
     """
-    @orm class
+    `Form` class.
+    
     Maintains an internal version of the actual database
     `DataSet` objects can be accessed by key, I.e. frm['data_key'].
     """
@@ -5341,8 +5361,9 @@ class ColumnInfo(List):
 
     def default_row_dict(self, dataset: DataSet) -> dict:
         """
-        Return a dictionary of a table row with all defaults assigned. This is useful
-        for inserting new records to prefill the GUI elements.
+        Return a dictionary of a table row with all defaults assigned. 
+        
+        This is useful for inserting new records to prefill the GUI elements.
 
         :param dataset: a pysimplesql DataSet object
         :returns: dict
@@ -5355,7 +5376,8 @@ class ColumnInfo(List):
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
                 table = self.driver.quote_table(self.table)
-                q = f"SELECT {default} AS val FROM {table};"  # TODO: may need AS column to support all databases?
+                # TODO: may need AS column to support all databases?
+                q = f"SELECT {default} AS val FROM {table};"  
                 rows = self.driver.execute(q)
                 if rows.exception is None:
                     default = rows.fetchone()["val"]
