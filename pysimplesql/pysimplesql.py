@@ -540,10 +540,10 @@ class DataSet:
     `DataSet` objects are used for an internal representation of database tables.
 
     `DataSet` instances are added by the following `Form` methods: `Form.add_table`,
-    `Form.auto_add_tables`. A `DataSet` is synonymous for a SQL Table (though you can 
-    technically have multiple `DataSet` objects referencing the same table, with each 
+    `Form.auto_add_tables`. A `DataSet` is synonymous for a SQL Table (though you can
+    technically have multiple `DataSet` objects referencing the same table, with each
     `DataSet` object having its own sorting, where clause, etc.).
-    Note: While users will interact with DataSet objects often in pysimplesql, they 
+    Note: While users will interact with DataSet objects often in pysimplesql, they
     typically aren't created manually by the user.
     """
 
@@ -566,29 +566,29 @@ class DataSet:
         """
         Initialize a new `DataSet` instance.
 
-        :param data_key: The name you are assigning to this `DataSet` object (I.e. 
+        :param data_key: The name you are assigning to this `DataSet` object (I.e.
             'people').
         :param frm_reference: This is a reference to the @ Form object, for convenience
         :param table: Name of the table
-        :param pk_column: The name of the column containing the primary key for this 
+        :param pk_column: The name of the column containing the primary key for this
             table.
-        :param description_column: The name of the column used for display to users 
+        :param description_column: The name of the column used for display to users
             (normally in a combobox or listbox).
         :param query: You can optionally set an initial query here. If none is provided,
             it will default to "SELECT * FROM {table}"
-        :param order_clause: The sort order of the returned query. If none is provided 
+        :param order_clause: The sort order of the returned query. If none is provided
             it will default to "ORDER BY {description_column} ASC"
         :param filtered: (optional) If True, the relationships will be considered and an
-            appropriate WHERE clause will be generated. False will display all records 
+            appropriate WHERE clause will be generated. False will display all records
             in the table.
-        :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save 
-            changes when dirty records are present. There are two modes available, 
+        :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save
+            changes when dirty records are present. There are two modes available,
             (if pysimplesql is imported as `ss`) use:
             `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
             `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
         :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on
             save. Error popups will still be shown.
-        :param duplicate_children: (optional) Default: Set in `Form`. If record has 
+        :param duplicate_children: (optional) Default: Set in `Form`. If record has
             children, prompt user to choose to duplicate current record, or both.
         :returns: None
         """
@@ -720,33 +720,33 @@ class DataSet:
 
         The following callbacks are supported:
             before_save   called before a record is saved. The save will continue if the
-                callback returns true, or the record will rollback if the callback 
+                callback returns true, or the record will rollback if the callback
                 returns false.
-            after_save    called after a record is saved. The save will commit to the 
+            after_save    called after a record is saved. The save will commit to the
                 database if the callback returns true, else it will rollback the
                 transaction
             before_update Alias for before_save
             after_update  Alias for after_save
-            before_delete called before a record is deleted.  The delete will move 
+            before_delete called before a record is deleted.  The delete will move
                 forward if the callback returns true, else the transaction will rollback
-            after_delete  called after a record is deleted. The delete will commit to 
-                the database if the callback returns true, else it will rollback the 
+            after_delete  called after a record is deleted. The delete will commit to
+                the database if the callback returns true, else it will rollback the
                 transaction
-            before_duplicate called before a record is duplicate.  The duplicate will 
-                move forward if the callback returns true, else the transaction will 
+            before_duplicate called before a record is duplicate.  The duplicate will
+                move forward if the callback returns true, else the transaction will
                 rollback
-            after_duplicate  called after a record is duplicate. The duplicate will 
-                commit to the database if the callback returns true, else it will 
+            after_duplicate  called after a record is duplicate. The duplicate will
+                commit to the database if the callback returns true, else it will
                 rollback the transaction
-            before_search called before searching.  The search will continue if the 
+            before_search called before searching.  The search will continue if the
                 callback returns True
-            after_search  called after a search has been performed.  The record change 
+            after_search  called after a search has been performed.  The record change
                 will undo if the callback returns False
             record_changed called after a record has changed (previous,next, etc.)
 
         :param callback: The name of the callback, from the list above
-        :param fctn: The function to call.  Note, the function must take in two 
-            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, and 
+        :param fctn: The function to call.  Note, the function must take in two
+            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, and
             return True or False
         :returns: None
         """
@@ -777,14 +777,16 @@ class DataSet:
         Set a transform on the data for this `DataSet`.
 
         Here you can set custom a custom transform to both decode data from the
-        database and encode data written to the database. This allows you to have dates stored as timestamps in the
-        database yet work with a human-readable format in the GUI and within PySimpleSQL. This transform happens only
-        while PySimpleSQL actually reads from or writes to the database.
+        database and encode data written to the database. This allows you to have dates 
+        stored as timestamps in the database yet work with a human-readable format in 
+        the GUI and within PySimpleSQL. This transform happens only while PySimpleSQL 
+        actually reads from or writes to the database.
 
-        :param fn: A callable function to preform encode/decode. This function should take three arguments: query, row
-        (which will be populated by a dictionary of the row data), and an encode parameter (1 to encode, 0 to decode -
-        see constants `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at a time.
-        See the example `journal_with_data_manipulation.py` for a usage example.
+        :param fn: A callable function to preform encode/decode. This function should 
+        take three arguments: query, row (which will be populated by a dictionary of the
+        row data), and an encode parameter (1 to encode, 0 to decode - see constants 
+        `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at
+        a time. See the example `journal_with_data_manipulation.py` for a usage example.
         :returns: None
         """
         self.transform = fn
@@ -793,7 +795,8 @@ class DataSet:
         """
         Set the query string for the `DataSet`.
 
-        This is more for advanced users.  It defaults to "SELECT * FROM {table};" This can override the default
+        This is more for advanced users.  It defaults to "SELECT * FROM {table};" This 
+        can override the default
 
         :param query: The query string you would like to associate with the table
         :returns: None
@@ -805,7 +808,8 @@ class DataSet:
         """
         Set the `DataSet` object's join string.
 
-        This is more for advanced users, as it will automatically generate from the database Relationships otherwise.
+        This is more for advanced users, as it will automatically generate from the 
+        database Relationships otherwise.
 
         :param clause: The join clause, such as "LEFT JOIN That on This.pk=That.fk"
         :returns: None
@@ -831,7 +835,8 @@ class DataSet:
         """
         Set the `DataSet` object's order clause.
 
-        This is more for advanced users, as it will automatically generate from the database Relationships otherwise.
+        This is more for advanced users, as it will automatically generate from the 
+        database Relationships otherwise.
 
         :param clause: The order clause, such as "Order by name ASC"
         :returns: None
@@ -841,11 +846,13 @@ class DataSet:
 
     def update_column_info(self, column_info: ColumnInfo = None) -> None:
         """
-        Generate column information for the `DataSet` object.  This may need done, for
-        example, when a manual query using joins is used.
-
-        This is more for advanced users.
-        :param column_info: (optional) A `ColumnInfo` instance. Defaults to being generated by the `SQLDriver`
+        Generate column information for the `DataSet` object.  
+        
+        This may need done, for example, when a manual query using joins is used. This 
+        is more for advanced users.
+        
+        :param column_info: (optional) A `ColumnInfo` instance. Defaults to being 
+            generated by the `SQLDriver`.
         :returns: None
         """
         # Now we need to set  new column names, as the query could have changed
@@ -859,9 +866,10 @@ class DataSet:
         Set the `DataSet` object's description column.
 
         This is the column that will display in Listboxes, Comboboxes, Tables, etc.
-        By default, this is initialized to either the 'description','name' or 'title' column, or the 2nd column of the
-        table if none of those columns exist.
-        This method allows you to specify a different column to use as the description for the record.
+        By default, this is initialized to either the 'description','name' or 'title' 
+        column, or the 2nd column of the table if none of those columns exist. This
+        method allows you to specify a different column to use as the description for 
+        the record.
 
         :param column: The name of the column to use
         :returns: None
@@ -870,8 +878,10 @@ class DataSet:
 
     def records_changed(self, column: str = None, recursive=True) -> bool:
         """
-        Checks if records have been changed by comparing PySimpleGUI control values with
-        the stored DataSet values.
+        Checks if records have been changed.
+         
+        This is done by comparing PySimpleGUI control values with the stored `DataSet`
+        values.
 
         :param column: Limit the changed records search to just the supplied column name
         :param recursive: True to check related `DataSet` instances
