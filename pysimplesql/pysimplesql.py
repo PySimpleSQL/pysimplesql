@@ -52,7 +52,7 @@ Naming conventions can fall under 4 categories:
     element - a Window element
     element_key -  a window element key
 ----------------------------------------------------------------------------------------
-"""
+"""  # noqa: E501
 
 # The first two imports are for docstrings
 from __future__ import annotations
@@ -69,19 +69,19 @@ import threading
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
 try:
-    from .language_pack import *
+    from .language_pack import *  # noqa: F403
 except (
     ModuleNotFoundError,
-    ImportError,
-):  # ImportError for 'attempted relative import with no known parent package'
+    ImportError,  # for 'attempted relative import with no known parent package'
+):
     pass
 
 try:
-    from .theme_pack import *
+    from .theme_pack import *  # noqa: F403
 except (
     ModuleNotFoundError,
-    ImportError,
-):  # ImportError for 'attempted relative import with no known parent package'
+    ImportError,  # for 'attempted relative import with no known parent package'
+):
     pass
 
 try:
@@ -665,9 +665,8 @@ class DataSet:
         Set the prompt to save action when navigating records.
 
         :param mode: a constant value. If pysimplesql is imported as `ss`, use:
-                    `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                    `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are
-                     present.
+            - `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+            - `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
         :returns: None
         """
         self._prompt_save = mode
@@ -1656,34 +1655,34 @@ class DataSet:
         ] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
         # Propagate GUI data back to the stored current_row
-        for mapped in self.frm.element_map:
-            if mapped.dataset == self:
-                # convert the data into the correct type using the domain in ColumnInfo
-                element_val = self.column_info[mapped.column].cast(mapped.element.get())
+        for mapped in [m for m in self.frm.element_map if m.dataset == self]:
+            # convert the data into the correct type using the domain in ColumnInfo
+            element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
-                # Looked for keyed elements first
-                if mapped.where_column is not None:
-                    if keyed_queries is None:
-                        keyed_queries = (
-                            []
-                        )  # Make the list here so != None if keyed elements
-                    for row in self.rows:
-                        if row[mapped.where_column] == mapped.where_value:
-                            if row[mapped.column] != element_val:
-                                # This record has changed.  We will save it
-                                row[mapped.column] = element_val  # propagate the value
-                                changed = {mapped.column: element_val}
-                                where_clause = f"WHERE {self.driver.quote_column(mapped.where_column)} = \
-                                                {self.driver.quote_value(mapped.where_value)}"
-                                keyed_queries.append(
-                                    {
-                                        "column": mapped.column,
-                                        "changed_row": changed,
-                                        "where_clause": where_clause,
-                                    }
-                                )
-                else:
-                    current_row[mapped.column] = element_val
+            # Looked for keyed elements first
+            if mapped.where_column is not None:
+                if keyed_queries is None:
+                    keyed_queries = (
+                        []
+                    )  # Make the list here so != None if keyed elements
+                for row in self.rows:
+                    if row[mapped.where_column] == mapped.where_value:
+                        if row[mapped.column] != element_val:
+                            # This record has changed.  We will save it
+                            row[mapped.column] = element_val  # propagate the value
+                            changed = {mapped.column: element_val}
+                            where_col = self.driver.quote_column(mapped.where_column)
+                            where_val = self.driver.quote_value(mapped.where_value)
+                            where_clause = f"WHERE {where_col} = {where_val}"
+                            keyed_queries.append(
+                                {
+                                    "column": mapped.column,
+                                    "changed_row": changed,
+                                    "where_clause": where_clause,
+                                }
+                            )
+            else:
+                current_row[mapped.column] = element_val
 
         changed_row = dict(current_row.items())
         cascade_fk_changed = False
@@ -2028,7 +2027,7 @@ class DataSet:
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
 
         :param columns: A list of column names to create table values for.
-                        Defaults to getting them from the `DataSet.rows` `ResultSet`.
+            Defaults to getting them from the `DataSet.rows` `ResultSet`.
         :param mark_virtual: Place a marker next to virtual records
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
@@ -2189,13 +2188,13 @@ class DataSet:
         Example:
         -------
         {'entry_date' : {
-            'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'),
-            'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(),
+            'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'), # fmt: skip
+            'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(), # fmt: skip
         }}
-        :param transforms: A dict of dicts containing either 'encode' or 'decode' along with a callable to do the transform.
-               see example above
+        :param transforms: A dict of dicts containing either 'encode' or 'decode' along
+            with a callable to do the transform. See example above
         :returns: None
-        """
+        """  # noqa: E501
         for k, v in transforms.items():
             if not callable(v):
                 RuntimeError(f"Transform for {k} must be callable!")
@@ -2234,23 +2233,32 @@ class Form:
 
         :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
         :param bind_window: Bind this window to the `Form`
-        :param prefix_data_keys: (optional) prefix auto generated data_key names with this value. Example 'data_'
+        :param prefix_data_keys: (optional) prefix auto generated data_key names with
+            this value. Example 'data_'
         :param parent: (optional)Parent `Form` to base dataset off of
-        :param filter: (optional) Only import elements with the same filter set. Typically set with `field()`, but can
-                       also be set manually as a dict with the key 'filter' set in the element's metadata
-        :param select_first: (optional) Default:True. For each top-level parent, selects first row, populating children
-                             as well.
-        :param prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when dirty records are present.
-                            Two modes available, (if pysimplesql is imported as `ss`) use:
-                            `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                            `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
-        :param save_quiet: (optional) Default:False. True to skip info popup on save. Error popups will still be shown.
-        :param update_cascade: (optional) Default:True. Requery and filter child table on selected parent primary key. (ON UPDATE CASCADE in SQL)
-        :param delete_cascade: (optional) Default:True. Delete the dependent child records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
-        :param duplicate_children: (optional) Default:True. If record has children, prompt user to choose to duplicate current record, or both.
-        :param description_column_names: (optional) A list of names to use for the DataSet object's description column, displayed in Listboxes, Comboboxes, and Tables instead of the primary key.
-                                         The first matching column of the table is given priority. If no match is found, the second column is used.
-                                         Default list: ['description', 'name', 'title'].
+        :param filter: (optional) Only import elements with the same filter set.
+            Typically set with `field()`, but can also be set manually as a dict with
+            the key 'filter' set in the element's metadata
+        :param select_first: (optional) Default:True. For each top-level parent, selects
+            first row, populating children as well.
+        :param prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when
+            dirty records are present.
+            Two modes available, (if pysimplesql is imported as `ss`) use:
+            - `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+            - `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+        :param save_quiet: (optional) Default:False. True to skip info popup on save.
+            Error popups will still be shown.
+        :param update_cascade: (optional) Default:True. Requery and filter child table
+            on selected parent primary key. (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: (optional) Default:True. Delete the dependent child
+            records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
+        :param duplicate_children: (optional) Default:True. If record has children,
+            prompt user to choose to duplicate current record, or both.
+        :param description_column_names: (optional) A list of names to use for the
+            DataSet object's description column, displayed in Listboxes, Comboboxes, and
+            Tables instead of the primary key. The first matching column of the table is
+            given priority. If no match is found, the second column is used. Default
+            list: ['description', 'name', 'title'].
         :returns: None
         """
         win_pb = ProgressBar(lang.startup_form)
@@ -2310,9 +2318,9 @@ class Form:
             return self.datasets[key]
         except KeyError:
             raise RuntimeError(
-                f"The DataSet for `{key}` does not exist.  This can be caused because the database does"
-                f"not exist, the database user does not have the proper permissions set, or any number of "
-                f"database configuration issues."
+                f"The DataSet for `{key}` does not exist. This can be caused because "
+                f"the database does not exist, the database user does not have the "
+                f"proper permissions set, or any number of db configuration issues."
             )
 
     def close(self, reset_keygen: bool = True):
@@ -2373,11 +2381,13 @@ class Form:
         enabled. This can be useful for asking for a password for example edit_disable
         Called after the editing mode is disabled.
 
-            {element_name} Called while updating MAPPED element.  This overrides the default element update implementation.
-            Note that the {element_name} callback function needs to return a value to pass to Win[element].update()
+            {element_name} Called while updating MAPPED element.  This overrides the
+            default element update implementation. Note that the {element_name} callback
+            function needs to return a value to pass to Win[element].update()
 
         :param callback_name: The name of the callback, from the list above
-        :param fctn: The function to call.  Note, the function must take in two parameters, a Form instance, and a PySimpleGUI.Window instance
+        :param fctn: The function to call.  Note, the function must take in two
+            parameters, a Form instance, and a PySimpleGUI.Window instance
         :returns: None
         """
         logger.info(f"Callback {callback_name} being set on Form")
@@ -2395,7 +2405,8 @@ class Form:
             self.callbacks[callback_name] = fctn
         else:
             raise RuntimeError(
-                f'Callback "{callback_name}" not supported. callback: {callback_name} supported: {supported}'
+                f'Callback "{callback_name}" not supported. callback: {callback_name} '
+                f"supported: {supported}"
             )
 
     def add_dataset(
@@ -2413,11 +2424,14 @@ class Form:
         `Form.auto_add_datasets()` does this automatically, which is called when a
         `Form` is created.
 
-        :param data_key: The key to give this `DataSet`.  Use frm['data_key'] to access it.
+        :param data_key: The key to give this `DataSet`.  Use frm['data_key'] to access
+            it.
         :param table: The name of the table in the database
         :param pk_column: The primary key column of the table in the database
-        :param description_column: The column to be used to display to users in listboxes, comboboxes, etc.
-        :param query: The initial query for the table.  Auto generates "SELECT * FROM {table}" if none is passed
+        :param description_column: The column to be used to display to users in
+            listboxes, comboboxes, etc.
+        :param query: The initial query for the table.  Auto generates "SELECT * FROM
+            {table}" if none is passed
         :param order_clause: The initial sort order for the query
         :returns: None
         """
@@ -2456,13 +2470,16 @@ class Form:
         automatically from the schema of the database, which also happens automatically
         when a `Form` is created.
 
-        :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT JOIN')
+        :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN',
+            'RIGHT JOIN')
         :param child_table: The child table containing the foreign key
         :param fk_column: The foreign key column of the child table
         :param parent_table: The parent table containing the primary key
         :param pk_column: The primary key column of the parent table
-        :param update_cascade: Requery and filter child table results on selected parent primary key (ON UPDATE CASCADE in SQL)
-        :param delete_cascade: Delete the dependent child records if the parent table record is deleted (ON UPDATE DELETE in SQL)
+        :param update_cascade: Requery and filter child table results on selected parent
+            primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table
+            record is deleted (ON UPDATE DELETE in SQL)
         :returns: None
         """
         self.relationships.append(
@@ -2489,12 +2506,15 @@ class Form:
         """
         Set a foreign key's update_cascade and delete_cascade behavior.
 
-        `Form.auto_add_relationships()` does this automatically from the database schema.
+        `Form.auto_add_relationships()` does this automatically from the database
+        schema.
 
         :param child_table: Child table with the foreign key.
         :param fk_column: Foreign key column of the child table.
-        :param update_cascade: True to requery and filter child table on selected parent primary key.
-        :param delete_cascade: True to delete dependent child records if parent record is deleted.
+        :param update_cascade: True to requery and filter child table on selected parent
+            primary key.
+        :param delete_cascade: True to delete dependent child records if parent record
+            is deleted.
         :returns: None
         """
         for rel in self.relationships:
@@ -2520,7 +2540,7 @@ class Form:
         logger.info(
             "Automatically generating dataset for each table in the sqlite database"
         )
-        # Ensure we clear any current dataset so that successive calls will not double the entries
+        # Clear any current dataset so successive calls won't double the entries
         self.datasets = {}
         tables = self.driver.get_tables()
         for table in tables:
@@ -2539,7 +2559,8 @@ class Form:
 
             data_key = prefix_data_keys + table
             logger.debug(
-                f'Adding DataSet "{data_key}" on table {table} to Form with primary key {pk_column} and description of {description_column}'
+                f'Adding DataSet "{data_key}" on table {table} to Form with primary '
+                f"key {pk_column} and description of {description_column}"
             )
             self.add_dataset(data_key, table, pk_column, description_column)
             self.datasets[data_key].column_info = column_info
@@ -2559,12 +2580,13 @@ class Form:
         :returns: None
         """
         logger.info("Automatically adding foreign key relationships")
-        # Ensure we clear any current dataset so that successive calls will not double the entries
+        # Clear any current rels so that successive calls will not double the entries
         self.relationships = []  # clear any relationships already stored
         relationships = self.driver.relationships()
         for r in relationships:
             logger.debug(
-                f'Adding relationship {r["from_table"]}.{r["from_column"]} = {r["to_table"]}.{r["to_column"]}'
+                f'Adding relationship {r["from_table"]}.{r["from_column"]} = '
+                f'{r["to_table"]}.{r["to_column"]}'
             )
             self.add_relationship(
                 "LEFT JOIN",
@@ -2627,7 +2649,7 @@ class Form:
         :returns: None
         """
         logger.info("Automapping elements")
-        # clear out any previously mapped elements to ensure successive calls doesn't produce duplicates
+        # Clear previously mapped elements so successive calls won't produce duplicates
         self.element_map = []
         for key in win.key_dict.keys():
             element = win[key]
@@ -2653,7 +2675,8 @@ class Form:
 
             # Map Record Element
             if element.metadata["type"] == TYPE_RECORD:
-                # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+                # Does this record imply a where clause (indicated by ?)
+                # If so, we can strip out the information we need
                 data_key = element.metadata["data_key"]
                 field = element.metadata["field"]
                 if "?" in field:
@@ -2676,7 +2699,8 @@ class Form:
                     if keyword is not None and keyword != "":
                         self.driver.check_keyword(keyword)
 
-                # DataSet objects are named after the tables they represent (with an optional prefix)
+                # DataSet objects are named after the tables they represent
+                # (with an optional prefix)
                 # TODO: How to handle the prefix?
                 if table in self.datasets:  # TODO: check in DataSet.table
                     if col in self[table].column_info:
@@ -2708,10 +2732,12 @@ class Form:
                     # Enable sorting if TableHeading  is present
                     if type(element) is sg.Table and "TableHeading" in element.metadata:
                         table_heading: TableHeadings = element.metadata["TableHeading"]
-                        # We need a whole chain of things to happen when a heading is clicked on:
-                        # 1 we need to run the ResultRow.sort_cycle() with the correct column name
-                        # 2 and run TableHeading.update_headings() with the Table element, sort_column, sort_reverse
-                        # 3 and run update_elements() to see the changes
+                        # We need a whole chain of things to happen
+                        # when a heading is clicked on:
+                        # 1 Run the ResultRow.sort_cycle() with the correct column name
+                        # 2 Run TableHeading.update_headings() with the:
+                        #   Table element, sort_column, sort_reverse
+                        # 3 Run update_elements() to see the changes
                         table_heading.enable_sorting(
                             element,
                             _SortCallbackWrapper(
@@ -2749,8 +2775,10 @@ class Form:
         using the bind parameter of `Form` creation, or by executing
         `Form.auto_map_elements()`.
 
-        :param event: The event to watch for, as returned by PySimpleGUI Window.read() (an element name for example)
-        :param fctn: The callable to run when the event is detected. It should take no parameters and have no return value
+        :param event: The event to watch for, as returned by PySimpleGUI Window.read()
+            (an element name for example)
+        :param fctn: The callable to run when the event is detected. It should take no
+            parameters and have no return value
         :param table: (optional) currently not used
         :returns: None
         """
@@ -2765,8 +2793,10 @@ class Form:
         Replace an event that was manually mapped with `Form.auto_map_events()` or
         `Form.map_event()`. The callable will execute.
 
-        :param event: The event to watch for, as returned by PySimpleGUI Window.read() (an element name for example)
-        :param fctn: The callable to run when the event is detected. It should take no parameters and have no return value
+        :param event: The event to watch for, as returned by PySimpleGUI Window.read()
+            (an element name for example)
+        :param fctn: The callable to run when the event is detected. It should take no
+            parameters and have no return value
         :param table: (optional) currently not used
         :returns: None
         """
@@ -2788,11 +2818,11 @@ class Form:
         :returns: None
         """
         logger.info("Automapping events")
-        # clear out any previously mapped events to ensure successive calls doesn't produce duplicates
+        # Clear mapped events to ensure successive calls won't produce duplicates
         self.event_map = []
 
         for key in win.key_dict.keys():
-            # key = str(key)  # sometimes I end up with an integer element 0? TODO: Research
+            # key = str(key)  # sometimes end up with an integer element 0?TODO:Research
             element = win[key]
             # Skip this element if there is no metadata present
             if type(element.metadata) is not dict:
@@ -2898,7 +2928,8 @@ class Form:
         The helps prevent data entry loss when performing an action that changes the
         current record of a `DataSet`.
 
-        :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
+        :returns: One of the prompt constant values: PROMPT_SAVE_PROCEED,
+            PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
         """
         user_prompted = False  # Has the user been prompted yet?
         for data_key in self.datasets:
@@ -2906,7 +2937,7 @@ class Form:
                 continue
 
             if self[data_key].records_changed(recursive=False):  # don't check children
-                # we will only show the popup once, regardless of how many dataset have changed
+                # only show popup once, regardless of how many dataset have changed
                 if not user_prompted:
                     user_prompted = True
                     if self._prompt_save == AUTOSAVE_MODE:
@@ -2916,11 +2947,13 @@ class Form:
                             lang.form_prompt_save_title, lang.form_prompt_save
                         )
                     if save_changes != "yes":
-                        # update the elements to erase any GUI changes, since we are choosing not to save
+                        # update the elements to erase any GUI changes,
+                        # since we are choosing not to save
                         for data_key in self.datasets:
                             self[data_key].rows.purge_virtual()
                         self.update_elements()
-                        return PROMPT_SAVE_DISCARDED  # We did have a change, regardless if the user chose not to save
+                        # We did have a change, regardless if the user chose not to save
+                        return PROMPT_SAVE_DISCARDED
                     break
         if user_prompted:
             self.save_records(check_prompt_save=True)
@@ -2946,11 +2979,14 @@ class Form:
         """
         Save records of all `DataSet` objects` associated with this `Form`.
 
-        :param table: Name of table to save, as well as any cascaded relationships. Used in `DataSet.prompt_save()`
-        :param cascade_only: Save only tables with cascaded relationships. Default False.
-        :param check_prompt_save: Passed to `DataSet.save_record_recursive` to check if individual `DataSet` has prompt_save enabled.
-                                  Used when `DataSet.save_records()` is called from `Form.prompt_save()`.
-        :param update_elements: (optional) Passed to `Form.save_record_recursive()` to update_elements.
+        :param table: Name of table to save, as well as any cascaded relationships.
+            Used in `DataSet.prompt_save()`
+        :param cascade_only: Save only tables with cascaded relationships. Default
+            False.
+        :param check_prompt_save: Passed to `DataSet.save_record_recursive` to check if
+            individual `DataSet` has prompt_save enabled. Used when
+            `DataSet.save_records()` is called from `Form.prompt_save()`.
+        :param update_elements: (optional) Passed to `Form.save_record_recursive()`
         :returns: result - can be used with RETURN BITMASKS
         """
         if check_prompt_save:
@@ -3032,7 +3068,7 @@ class Form:
 
         :param mode: a constant value. If pysimplesql is imported as `ss`, use:
                     `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                    `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+                    `ss.AUTOSAVE_MODE` to autosave when unsaved changes are present.
         :returns: None
         """
         self._prompt_save = mode
@@ -3051,8 +3087,10 @@ class Form:
         updates GUI elements for all `Form` instances. This method also executes
         `update_selectors()`, which updates selector elements.
 
-        :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
-        :param edit_protect_only: (optional) If true, only update items affected by edit_protect
+        :param target_data_key: (optional) dataset key to update elements for, otherwise
+            updates elements for all datasets
+        :param edit_protect_only: (optional) If true, only update items affected by
+            edit_protect
         :param omit_elements: A list of elements to omit updating
         :returns: None
         """
@@ -3064,12 +3102,14 @@ class Form:
         for data_key in self.datasets:
             if target_data_key is not None and data_key != target_data_key:
                 continue
-            # disable mapped elements for this table if there are no records in this table or edit protect mode
+            # disable mapped elements for this table if
+            # there are no records in this table or edit protect mode
             disable = len(self[data_key].rows) == 0 or self._edit_protect
             self.update_element_states(data_key, disable)
 
             for m in (m for m in self.event_map if m["table"] == self[data_key].table):
-                # Disable delete and mapped elements for this table if there are no records in this table or edit protect mode
+                # Disable delete and mapped elements for this table if there are no
+                # records in this table or edit protect mode
                 if ":table_delete" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
                     win[m["event"]].update(disabled=disable)
@@ -3109,7 +3149,8 @@ class Form:
                     )
                     win[m["event"]].update(disabled=disable)
 
-                # Disable insert on children with no parent/virtual parent records or edit protect mode
+                # Disable insert on children with no parent/virtual parent records or
+                # edit protect mode
                 elif ":table_insert" in m["event"]:
                     parent = Relationship.get_parent(data_key)
                     if parent is not None:
@@ -3142,7 +3183,8 @@ class Form:
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
         for mapped in self.element_map:
-            # If the optional target_data_key parameter was passed, we will only update elements bound to that table
+            # If the optional target_data_key parameter was passed, we will only update
+            # elements bound to that table
             if target_data_key is not None:
                 if mapped.table != self[target_data_key].table:
                     continue
@@ -3152,7 +3194,8 @@ class Form:
                 continue
 
             if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
-                # Show the Required Record marker if the column has notnull set and this is a virtual row
+                # Show the Required Record marker if the column has notnull set and
+                # this is a virtual row
                 marker_key = mapped.element.key + ":marker"
                 try:
                     if mapped.dataset.get_current_row().virtual:
@@ -3178,7 +3221,8 @@ class Form:
                 self.callbacks[mapped.element.key]()
 
             elif mapped.where_column is not None:
-                # We are looking for a key,value pair or similar.  Sift through and see what to put
+                # We are looking for a key,value pair or similar.
+                # Sift through and see what to put
                 updated_val = mapped.dataset.get_keyed_value(
                     mapped.column, mapped.where_column, mapped.where_value
                 )
@@ -3191,7 +3235,7 @@ class Form:
                 # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
-                # see if we can find the relationship to determine which table to get data from
+                # Find the relationship to determine which table to get data from
                 target_table = None
                 rels = Relationship.get_relationships_for_table(
                     mapped.dataset.table
@@ -3205,11 +3249,13 @@ class Form:
 
                 if target_table is None:
                     logger.info(
-                        f"Error! Could not find related data for element {mapped.element.key} bound to DataSet "
+                        f"Error! Could not find related data for element "
+                        f"{mapped.element.key} bound to DataSet "
                         f"key {mapped.table}, column: {mapped.column}"
                     )
 
-                    # we don't want to update the list in this case, as it was most likely supplied and not tied to data
+                    # we don't want to update the list in this case, as it was most
+                    # likely supplied and not tied to data
                     updated_val = mapped.dataset[mapped.column]
 
                 # Populate the combobox entries
@@ -3218,7 +3264,8 @@ class Form:
                     for row in target_table.rows:
                         lst.append(ElementRow(row[pk_column], row[description]))
 
-                    # Map the value to the combobox, by getting the description_column and using it to set the value
+                    # Map the value to the combobox, by getting the description_column
+                    # and using it to set the value
                     for row in target_table.rows:
                         if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
                             for entry in lst:
@@ -3228,7 +3275,8 @@ class Form:
                             break
                     mapped.element.update(values=lst)
             elif type(mapped.element) is sg.PySimpleGUI.Table:
-                # Tables use an array of arrays for values.  Note that the headings can't be changed.
+                # Tables use an array of arrays for values.  Note that the headings
+                # can't be changed.
                 values = mapped.dataset.table_values()
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
@@ -3257,7 +3305,7 @@ class Form:
                 # For text objects, lets clear it first...
                 mapped.element.update(
                     ""
-                )  # HACK for sqlite query not making needed keys! This will blank it out
+                )  # HACK for sqlite query not making needed keys! This will clear
                 updated_val = mapped.dataset[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
@@ -3267,13 +3315,14 @@ class Form:
 
                 try:
                     val = eval(val)
-                except:
+                except:  # noqa: E722
                     # treat it as a filename
                     mapped.element.update(val)
                 else:
                     # update the bytes data
                     mapped.element.update(data=val)
-                updated_val = None  # Prevent the update from triggering below, since we are doing it here
+                # Prevent the update from triggering below, since we are doing it here
+                updated_val = None
             else:
                 sg.popup(f"Unknown element type {type(mapped.element)}")
 
@@ -3297,7 +3346,8 @@ class Form:
         instance only. Not to be confused with the main `update_elements()`, which
         updates GUI elements for all `Form` instances.
 
-        :param target_data_key: (optional) dataset key to update elements for, otherwise updates elements for all datasets
+        :param target_data_key: (optional) dataset key to update elements for, otherwise
+            updates elements for all datasets
         :param omit_elements: A list of elements to omit updating
         :returns: None
         """
@@ -3336,7 +3386,7 @@ class Form:
                             if e["where_column"] is not None:
                                 if str(r[e["where_column"]]) == str(
                                     e["where_value"]
-                                ):  # TODO: This is kind of a hackish way to check for equality...
+                                ):  # TODO: Kind of a hackish way to check for equality.
                                     lst.append(
                                         ElementRow(r[pk_column], r[description_column])
                                     )
@@ -3349,7 +3399,8 @@ class Form:
 
                         element.update(values=lst, set_to_index=dataset.current_index)
 
-                        # set vertical scroll bar to follow selected element (for listboxes only)
+                        # set vertical scroll bar to follow selected element
+                        # (for listboxes only)
                         if type(element) == sg.PySimpleGUI.Listbox:
                             try:
                                 element.set_vscroll_position(
@@ -3359,8 +3410,8 @@ class Form:
                                 element.set_vscroll_position(0)
 
                     elif type(element) == sg.PySimpleGUI.Slider:
-                        # We need to re-range the element depending on the number of records
-                        l = len(dataset.rows)
+                        # Re-range the element depending on the number of records
+                        l = len(dataset.rows)  # noqa: E741
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
@@ -3373,7 +3424,8 @@ class Form:
 
                         values = dataset.table_values(columns, mark_virtual=True)
 
-                        # Get the primary key to select.  We have to use the list above instead of getting it directly
+                        # Get the primary key to select.
+                        # Use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
                         pk = dataset.get_current_pk()
 
@@ -3392,7 +3444,7 @@ class Form:
 
                         logger.debug(f"Selector:: index:{index} found:{found}")
 
-                        # Update table, and set vertical scroll bar to follow selected element
+                        # Update table, and set vertical scroll bar to follow
                         update_table_element(
                             self.window, element, values, index, pk_position
                         )
@@ -3405,20 +3457,24 @@ class Form:
         requery_dependents: bool = True,
     ) -> None:
         """
-        Requeries all `DataSet` objects associated with this `Form`. This effectively re-
-        loads the data from the database into `DataSet` objects.
+        Requeries all `DataSet` objects associated with this `Form`. This effectively
+        re-loads the data from the database into `DataSet` objects.
 
-        :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If True, the first record will be
-                             selected after the requery
-        :param filtered: passed to `DataSet.requery()`. If True, the relationships will be considered and an appropriate
-                        WHERE clause will be generated. False will display all records from the table.
-        :param update_elements: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.update_elements()`. Note
-                       that the select_first parameter must = True to use this parameter.
-        :param requery_dependents: passed to `DataSet.requery()` -> `DataSet.first()` to `Form.requery_dependents()`.
-                                   Note that the select_first parameter must = True to use this parameter.
+        :param select_first: passed to `DataSet.requery()` -> `DataSet.first()`. If
+            True, the first record will be selected after the requery
+        :param filtered: passed to `DataSet.requery()`. If True, the relationships will
+            be considered and an appropriate WHERE clause will be generated. False will
+            display all records from the table.
+        :param update_elements: passed to `DataSet.requery()` -> `DataSet.first()` to
+            `Form.update_elements()`. Note that the select_first parameter must = True
+            to use this parameter.
+        :param requery_dependents: passed to `DataSet.requery()` -> `DataSet.first()` to
+            `Form.requery_dependents()`. Note that the select_first parameter
+            must = True to use this parameter.
         :returns: None
         """
-        # TODO: It would make sense to reorder these, and put filtered first, then select_first/update/dependents
+        # TODO: It would make sense to reorder these, and put filtered first
+        # then select_first/update/dependents
         logger.info("Requerying all datasets")
         for data_key in self.datasets:
             if Relationship.get_parent(data_key) is None:
@@ -3433,9 +3489,10 @@ class Form:
         """
         Process mapped events for this specific `Form` instance.
 
-        Not to be confused with the main `process_events()`, which processes events for ALL `Form` instances.
-        This should be called once per iteration in your event loop
-        Note: Events handled are responsible for requerying and updating elements as needed
+        Not to be confused with the main `process_events()`, which processes events for
+        ALL `Form` instances. This should be called once per iteration in your event
+        loop. Note: Events handled are responsible for requerying and updating elements
+        as needed.
 
         :param event: The event returned by PySimpleGUI.read()
         :param values: the values returned by PySimpleGUI.read()
@@ -3443,7 +3500,8 @@ class Form:
         """
         if self.window is None:
             logger.info(
-                "***** Form appears to be unbound.  Do you have frm.bind(win) in your code? ***"
+                "***** Form appears to be unbound. "
+                "Do you have frm.bind(win) in your code? *****"
             )
             return False
         elif event:
@@ -3510,7 +3568,8 @@ class Form:
             ]:
                 # if element.Key in self.window.key_dict.keys():
                 logger.debug(
-                    f"Updating element {element.Key} to disabled: {disable}, visible: {visible}"
+                    f"Updating element {element.Key} to disabled: "
+                    f"{disable}, visible: {visible}"
                 )
                 if disable is not None:
                     element.update(disabled=disable)
@@ -3518,9 +3577,9 @@ class Form:
                     element.update(visible=visible)
 
 
-# ======================================================================================================================
+# =====================================================================================
 # MAIN PYSIMPLESQL UTILITY FUNCTIONS
-# ======================================================================================================================
+# =====================================================================================
 # These functions exist as utilities to the pysimplesql module
 
 
@@ -3535,7 +3594,9 @@ def docker_image_installed(client, image: str) -> bool:
     try:
         client.images.get(image)
         return True
-    except:  # This isn't a great solution, but ss will not require docker this way
+
+    # This isn't a great solution, but ss will not require docker this way
+    except: # noqa: E722
         return False
 
 
@@ -3614,7 +3675,8 @@ class Utility:
     See the documentation for the following utility functions:
     `process_events()`, `update_elements()`, `bind()`, `simple_transform()`, `KeyGen()`,
 
-    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    Note: This is a dummy class that exists purely to enhance documentation and has no
+    use to the end user.
     """
 
     pass
@@ -3624,9 +3686,10 @@ def process_events(event: str, values: list) -> bool:
     """
     Process mapped events for ALL Form instances.
 
-    Not to be confused with `Form.process_events()`, which processes events for individual `Form` instances.
-    This should be called once per iteration in your event loop
-    Note: Events handled are responsible for requerying and updating elements as needed
+    Not to be confused with `Form.process_events()`, which processes events for
+    individual `Form` instances. This should be called once per iteration in your event
+    loop. Note: Events handled are responsible for requerying and updating elements as
+    needed.
 
     :param event: The event returned by PySimpleGUI.read()
     :param values: the values returned by PySimpleGUI.read()
@@ -3645,8 +3708,10 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
     Not to be confused with `Form.update_elements()`, which updates GUI elements for
     individual `Form` instances.
 
-    :param data_key: (optional) key of `DataSet` to update elements for, otherwise updates elements for all datasets
-    :param edit_protect_only: (optional) If true, only update items affected by edit_protect
+    :param data_key: (optional) key of `DataSet` to update elements for, otherwise
+        updates elements for all datasets.
+    :param edit_protect_only: (optional) If true, only update items affected by
+        edit_protect.
     :returns: None
     """
     for i in Form.instances:
@@ -3655,8 +3720,8 @@ def update_elements(data_key: str = None, edit_protect_only: bool = False) -> No
 
 def bind(win: sg.Window) -> None:
     """
-    Bind ALL forms to window. Not to be confused with `Form.bind()`, which binds specific
-    forms to the window.
+    Bind ALL forms to window. Not to be confused with `Form.bind()`, which binds
+    specific forms to the window.
 
     :param win: The PySimpleGUI window to bind all forms to
     :returns: None
@@ -3698,7 +3763,8 @@ def update_table_element(
     :param element: The sg.Table element to be updated.
     :param values: A list of table rows to update the sg.Table with.
     :param select_rows: List of rows to select as if user did.
-    :param vscroll_position: From 0 to 1.0, the percentage from the top to move scrollbar to.
+    :param vscroll_position: From 0 to 1.0, the percentage from the top to move
+        scrollbar to.
 
     :returns: None
     """
@@ -3826,8 +3892,10 @@ class Popup:
         themepack.popup_info_auto_close_seconds.
 
         :param msg: String to display as message
-        :param display_message: (optional) By default True. False only writes [title,msg] to self.last_info
-        :param auto_close_seconds: (optional) Gets value from themepack.info_popup_auto_close_seconds by default.
+        :param display_message: (optional) By default True. False only writes
+            [title,msg] to self.last_info.
+        :param auto_close_seconds: (optional) Gets value from
+            themepack.info_popup_auto_close_seconds by default.
         :returns: None
         """
         """
@@ -3940,7 +4008,8 @@ class KeyGen:
         """
         Create a new KeyGen instance.
 
-        :param separator: The default separator that goes between the key and the incremental number
+        :param separator: The default separator that goes between the key and the
+            incremental number
         :returns: None
         """
         self._keygen = {}
@@ -3950,11 +4019,12 @@ class KeyGen:
         """
         Get a generated key from the `KeyGen`.
 
-        :param key: The key from which to generate the new key.  If the key has not been used before, then it will be
-                    returned unmodified.  For each successive call with the same key, it will be appended with the
-                    separator character and an incremental number.  For example, if the key 'button' was passed to
-                    `KeyGen.get()` 3 times in a row, then the keys 'button', 'button:1', and 'button:2' would be
-                    returned respectively.
+        :param key: The key from which to generate the new key.  If the key has not been
+            used before, then it will be returned unmodified.  For each successive call
+            with the same key, it will be appended with the separator character and an
+            incremental number.  For example, if the key 'button' was passed to
+            `KeyGen.get()` 3 times in a row, then the keys 'button', 'button:1', and
+            'button:2' would be returned respectively.
         :param separator: (optional) override the default separator wth this separator
         :returns: None
         """
@@ -3966,7 +4036,8 @@ class KeyGen:
             self._keygen[key] = 0
         return_key = key
         if self._keygen[key] > 0:
-            return_key += f"{separator}{str(self._keygen[key])}"  # only modify the key if it is a duplicate!
+            # only modify the key if it is a duplicate!
+            return_key += f"{separator}{str(self._keygen[key])}"
         logger.debug(f"Key generated: {return_key}")
         self._keygen[key] += 1
         return return_key
@@ -4027,11 +4098,12 @@ mysql_examples = {
 }
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
-# ----------------------------------------------------------------------------------------------------------------------
-# Convenience functions aide in building PySimpleGUI interfaces that work well with pysimplesql.
-# TODO: How to save Form in metadata?  Perhaps give forms names and reference them that way??
+# -------------------------------------------------------------------------------------
+# Convenience functions aide in building PySimpleGUI interfaces
+# that work well with pysimplesql.
+# TODO: How to save Form in metadata?  Perhaps give forms names and reference them?
 #       For example - give forms names!  and reference them by name string
 #       They could even be converted later to a real form during form creation?
 
@@ -4046,7 +4118,8 @@ class Convenience:
     functionality pysimplesql has to offer. See the documentation for the following
     convenience functions: `field()`, `selector()`, `actions()`, `TableHeadings`.
 
-    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    Note: This is a dummy class that exists purely to enhance documentation and has no
+    use to the end user.
     """
 
     pass
@@ -4067,29 +4140,34 @@ def field(
     **kwargs,
 ) -> sg.Column:
     """
-    Convenience function for adding PySimpleGUI elements to the Window, so they are properly configured for pysimplesql
-    The automatic functionality of pysimplesql relies on accompanying metadata so that the `Form.auto_add_elements()`
-    can pick them up. This convenience function will create a text label, along with an element with the above metadata
-    already set up for you.
-    Note: The element key will default to the record name if none is supplied.
-    See `set_label_size()`, `set_element_size()` and `set_mline_size()` for setting default sizes of these elements.
+    Convenience function for adding PySimpleGUI elements to the Window, so they are
+    properly configured for pysimplesql. The automatic functionality of pysimplesql
+    relies on accompanying metadata so that the `Form.auto_add_elements()` can pick them
+    up. This convenience function will create a text label, along with an element with
+    the above metadata already set up for you. Note: The element key will default to the
+    record name if none is supplied. See `set_label_size()`, `set_element_size()` and
+    `set_mline_size()` for setting default sizes of these elements.
 
     :param field: The database record in the form of table.column I.e. 'Journal.entry'
     :param element: (optional) The element type desired (defaults to PySimpleGUI.Input)
-    :param size: Overrides the default element size that was set with `set_element_size()` for this element only
-    :param label: The text/label will automatically be generated from the column name. If a different text/label is
-                 desired, it can be specified here.
+    :param size: Overrides the default element size that was set with
+        `set_element_size()` for this element only.
+    :param label: The text/label will automatically be generated from the column name.
+        If a different text/label is desired, it can be specified here.
     :param no_label: Do not automatically generate a label for this element
-    :param label_above: Place the label above the element instead of to the left of the element
-    :param quick_editor: For records that reference another table, place a quick edit button next to the element
-    :param filter: Can be used to reference different `Form`s in the same layout.  Use a matching filter when creating
-            the `Form` with the filter parameter.
-    :param key: (optional) The key to give this element. See note above about the default auto generated key
-    :param kwargs: Any additional arguments will be passed on to the PySimpleGUI element.
-    :returns: Element(s) to be used in the creation of PySimpleGUI layouts.  Note that this function actually creates
-              multiple Elements wrapped in a PySimpleGUI Column, but can be treated as a single Element.
+    :param label_above: Place the label above the element instead of to the left.
+    :param quick_editor: For records that reference another table, place a quick edit
+        button next to the element
+    :param filter: Can be used to reference different `Form`s in the same layout. Use a
+        matching filter when creating the `Form` with the filter parameter.
+    :param key: (optional) The key to give this element. See note above about the
+        default auto generated key.
+    :param kwargs: Any additional arguments will be passed to the PySimpleGUI element.
+    :returns: Element(s) to be used in the creation of PySimpleGUI layouts.  Note that
+        this function actually creates multiple Elements wrapped in a PySimpleGUI
+        Column, but can be treated as a single Element.
     """
-    # TODO: See what the metadata does after initial setup is complete - is it needed anymore?
+    # TODO: See what the metadata does after initial setup is complete - needed anymore?
     global keygen
 
     if use_ttk_buttons is None:
@@ -4097,7 +4175,7 @@ def field(
     if pad is None:
         pad = themepack.quick_editor_button_pad
 
-    # Does this record imply a where clause (indicated by ?) If so, we can strip out the information we need
+    # if Record imply a where clause (indicated by ?) If so, strip out the info we need
     if "?" in field:
         table_info, where_info = field.split("?")
         label_text = (
@@ -4246,36 +4324,43 @@ def actions(
     full control over what is available to the user of your database application. Check
     out `ThemePacks` to give any of these autogenerated controls a custom look!.
 
-    Note: By default, the base element keys generated for PySimpleGUI will be table!action using the name of the table
-    passed in the table parameter plus the action strings below separated by a colon: (I.e. Journal:table_insert)
-    edit_protect, db_save, table_first, table_previous, table_next, table_last, table_duplicate, table_insert,
-    table_delete, search_input, search_button.
-    If you supply a key with the key parameter, then these additional strings will be appended to that key. Also note
-    that these autogenerated keys also pass through the `KeyGen`, so it's possible that these keys could be
-    selector:table_last!1, selector:table_last!2, etc.
+    Note: By default, the base element keys generated for PySimpleGUI will be
+    `table:action` using the name of the table passed in the table parameter plus the
+    action strings below separated by a colon: (I.e. Journal:table_insert) edit_protect,
+    db_save, table_first, table_previous, table_next, table_last, table_duplicate,
+    table_insert, table_delete, search_input, search_button. If you supply a key with
+    the key parameter, then these additional strings will be appended to that key. Also
+    note that these autogenerated keys also pass through the `KeyGen`, so it's possible
+    that these keys could be table_last:action!1, table_last:action!2, etc.
 
     :param table: The table name that this "element" will provide actions for
     :param key: (optional) The base key to give the generated elements
-    :param default: Default edit_protect, navigation, insert, delete, save and search to either true or false (defaults
-                    to True) The individual keyword arguments will trump the default parameter.  This allows for
-                    starting with all actions defualting to False, then individual ones can be enabled with True - or
-                    the opposite by defaulting them all to True, and disabling the ones not needed with False.
-    :param edit_protect: An edit protection mode to prevent accidental changes in the database. It is a button that
-                    toggles the ability on and off to prevent accidental changes in the database by enabling/disabling
-                    the insert, edit, duplicate, delete and save buttons.
-    :param navigation: The standard << < > >> (First, previous, next, last) buttons for navigation
+    :param default: Default edit_protect, navigation, insert, delete, save and search to
+        either true or false (defaults to True) The individual keyword arguments will
+        trump the default parameter.  This allows for starting with all actions
+        defaulting to False, then individual ones can be enabled with True - or the
+        opposite by defaulting them all to True, and disabling the ones not needed with
+        False.
+    :param edit_protect: An edit protection mode to prevent accidental changes in the
+        database. It is a button that toggles the ability on and off to prevent
+        accidental changes in the database by enabling/disabling the insert, edit,
+        duplicate, delete and save buttons.
+    :param navigation: The standard << < > >> (First, previous, next, last) buttons for
+        navigation
     :param insert: Button to insert new records
     :param delete: Button to delete current record
     :param duplicate: Button to duplicate current record
-    :param save: Button to save record.  Note that the save button feature saves changes made to any table, therefore
-                 only one save button is needed per window.
-    :param search: A search Input element. Size can be specified with the `search_size` parameter
+    :param save: Button to save record.  Note that the save button feature saves changes
+        made to any table, therefore only one save button is needed per window.
+    :param search: A search Input element. Size can be specified with the `search_size`
+        parameter
     :param search_size: The size of the search input element
-    :param bind_return_key: Bind the return key to the search button. Defaults to true
-    :param filter: Can be used to reference different `Form`s in the same layout.  Use a matching filter when creating
-            the `Form` with the filter parameter.
-    :returns: An element to be used in the creation of PySimpleGUI layouts.  Note that this is technically multiple
-              elements wrapped in a PySimpleGUI.Column, but acts as one element for the purpose of layout building.
+    :param bind_return_key: Bind the return key to the search button. Defaults to true.
+    :param filter: Can be used to reference different `Form`s in the same layout.  Use a
+        matching filter when creating the `Form` with the filter parameter.
+    :returns: An element to be used in the creation of PySimpleGUI layouts.  Note that
+        this is technically multiple elements wrapped in a PySimpleGUI.Column, but acts
+        as one element for the purpose of layout building.
     """
     global keygen
     global themepack
@@ -4655,14 +4740,17 @@ def selector(
     normal PySimpleGUI element.
 
     :param table: The table name in the database that this selector will act on
-    :param element: The type of element you would like to use as a selector (defaults to a Listbox)
+    :param element: The type of element you would like to use as a selector (defaults to
+        a Listbox)
     :param size: The desired size of this selector element
-    :param filter: Can be used to reference different `Form`s in the same layout.  Use a matching filter when creating
-                   the `Form` with the filter parameter.
-    :param key: (optional) The key to give to this selector. If no key is provided, it will default to table:selector
-                using the table specified in the table parameter. This is also passed through the keygen, so if
-                selectors all use the default name, they will be made unique. I.e. Journal:selector!1, Journal:selector!2, etc.
-    :param kwargs: Any additional arguments supplied will be passed on to the PySimpleGUI element
+    :param filter: Can be used to reference different `Form`s in the same layout. Use a
+        matching filter when creating the `Form` with the filter parameter.
+    :param key: (optional) The key to give to this selector. If no key is provided, it
+        will default to table:selector using the table specified in the table parameter.
+        This is also passed through the keygen, so if selectors all use the default
+        name, they will be made unique. ie: Journal:selector!1, Journal:selector!2, etc.
+    :param kwargs: Any additional arguments supplied will be passed on to the
+        PySimpleGUI element.
     """
     global keygen
 
@@ -4706,7 +4794,8 @@ def selector(
             kwargs["visible_column_map"] = kwargs["headings"].visible_map()
             kwargs["col_widths"] = kwargs["headings"].width_map()
             kwargs["auto_size_columns"] = False  # let the col_widths handle it
-            # Store the TableHeadings object in metadata to complete setup on auto_add_elements()
+            # Store the TableHeadings object in metadata
+            # to complete setup on auto_add_elements()
             meta["TableHeading"] = kwargs["headings"]
         else:
             required_kwargs = ["headings", "visible_column_map", "num_rows"]
@@ -4721,7 +4810,8 @@ def selector(
         kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
         kwargs["justification"] = "left"
 
-        # Create a narrow column for displaying a * character for virtual rows. This will have to be the 2nd column right after the pk
+        # Create a narrow column for displaying a * character for virtual rows.
+        # This will have to be the 2nd column right after the pk
         kwargs["headings"].insert(0, "")
         kwargs["visible_column_map"].insert(0, 1)
         if "col_widths" in kwargs:
@@ -4730,7 +4820,8 @@ def selector(
         # Make an empty list of values
         vals = [[""] * len(kwargs["headings"])]
 
-        # Change the headings parameter to be a list so the heading doesn't display dicts when it first loads
+        # Change the headings parameter to be a list so
+        # the heading doesn't display dicts when it first loads
         # The TableHeadings instance is already stored in metadata
         if kwargs["headings"].__class__.__name__ == "TableHeadings":
             kwargs["headings"] = kwargs["headings"].heading_names()
@@ -4780,9 +4871,9 @@ class TableHeadings(list):
         :param heading_column: The name of this columns heading (title)
         :param column: The name of the column in the database the heading column is for
         :param width: The width for this column to display within the Table element
-        :param visible: True if the column is visible.  Typically, the only hidden column would be the primary key column
-                        if any. This is also useful if the `DataSet.rows` `ResultSet` has some information that you don't
-                        want to display.
+        :param visible: True if the column is visible.  Typically, the only hidden
+            column would be the primary key column if any. This is also useful if the
+            `DataSet.rows` `ResultSet` has information that you don't want to display.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
@@ -4810,7 +4901,8 @@ class TableHeadings(list):
         """
         Convenience method for creating PySimpleGUI tables.
 
-        :returns: a list of visible columns for use with th PySimpleGUI Table visible_column_map parameter
+        :returns: a list of visible columns for use with th PySimpleGUI Table
+            visible_column_map parameter
         """
         return list(self._visible_map)
 
@@ -4818,7 +4910,8 @@ class TableHeadings(list):
         """
         Convenience method for creating PySimpleGUI tables.
 
-        :returns: a list column widths for use with th PySimpleGUI Table col_widths parameter
+        :returns: a list column widths for use with th PySimpleGUI Table col_widths
+            parameter
         """
         return list(self._width_map)
 
@@ -4831,12 +4924,14 @@ class TableHeadings(list):
 
         :param element: The PySimpleGUI Table element
         :param sort_column: The column to show the sort direction indicators on
-        :param sort_order: A ResultSet SORT_* constant (ResultSet.SORT_NONE, ResultSet.SORT_ASC, ResultSet.SORT_DESC)
+        :param sort_order: A ResultSet SORT_* constant (ResultSet.SORT_NONE,
+            ResultSet.SORT_ASC, ResultSet.SORT_DESC)
         :returns: None
         """
         global themepack
 
-        # Load in our marker characters.  We will use them to both display the sort direction and to detect current direction
+        # Load in our marker characters.  We will use them to both display the
+        # sort direction and to detect current direction
         try:
             asc = themepack.sort_asc_marker
         except AttributeError:
@@ -4857,10 +4952,11 @@ class TableHeadings(list):
     def enable_sorting(self, element: sg.Table, fn: callable) -> None:
         """
         Enable the sorting callbacks for each column index.
-        Note: Not typically used by the end user. Called from `Form.auto_map_elements()`.
+        Note: Not typically used by the end user. Called from `Form.auto_map_elements()`
 
         :param element: The PySimpleGUI Table element associated with this TableHeading
-        :param fn: A callback functions to run when a heading is clicked. The callback should take one column parameter.
+        :param fn: A callback functions to run when a heading is clicked. The callback
+            should take one column parameter.
         :returns: None
         """
         if self._sort_enable:
@@ -4900,8 +4996,8 @@ class _SortCallbackWrapper:
         # store the pk:
         pk = self.frm[self.data_key].get_current_pk()
         sort_order = self.frm[self.data_key].rows.sort_cycle(column, self.data_key)
-        # We only need to update the selectors not all elements, so first set by the primary key,
-        # then update_selectors()
+        # We only need to update the selectors not all elements,
+        # so first set by the primary key, then update_selectors()
         self.frm[self.data_key].set_by_pk(
             pk, update_elements=False, requery_dependents=False, skip_prompt_save=True
         )
@@ -4909,24 +5005,26 @@ class _SortCallbackWrapper:
         self.table_heading.update_headings(self.element, column, sort_order)
 
 
-# ======================================================================================================================
+# ======================================================================================
 # THEMEPACKS
-# ======================================================================================================================
+# ======================================================================================
 # Change the look and feel of your database application all in one place.
 class ThemePack:
 
     """
-    ThemePacks are user-definable objects that allow for the look and feel of database applications built with
-    PySimpleGUI + pysimplesql.  This includes everything from icons, the ttk themes, to sounds. Pysimplesql comes with
-    3 pre-made ThemePacks: default (aka ss_small), ss_large and ss_text. Creating your own is easy as well! In fact, a
-    ThemePack can be as simple as one line if you just want to change one aspect of the default ThemePack. Example:
+    ThemePacks are user-definable objects that allow for the look and feel of database
+    applications built with PySimpleGUI + pysimplesql.  This includes everything from
+    icons, the ttk themes, to sounds. Pysimplesql comes with 3 pre-made ThemePacks:
+    default (aka ss_small), ss_large and ss_text. Creating your own is easy as well! In
+    fact, a ThemePack can be as simple as one line if you just want to change one aspect
+    of the default ThemePack. Example:
         my_tp = {'search': 'Click here to search'} # I want a different search button.
 
-    Once a ThemePack is created, it's very easy to use.  Here is a very simple example of using a ThemePack:
+    Once a ThemePack is created, it's very easy to use.  Here is a very simple example
+    of using a ThemePack:
         ss.themepack(my_tp_dict_variable)
         # make a search button, using the 'search' key from the ThemePack
         sg.Button(ss.themepack.search, key='search_button')
-
     """
 
     default = {
@@ -4944,16 +5042,16 @@ class ThemePack:
         # Action buttons
         # ----------------------------------------
         # fmt: off
-        'edit_protect': b'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',
-        'quick_edit': b'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',
-        'save': b'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',
-        'first': b'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',
-        'previous': b'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',
-        'next': b'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',
-        'last': b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAHInpUWHRSYXcgcHJvZmlsZSB0eXBlIGV4aWYAAHjarVdr0uQoDvzPKfYIIAQSx+EZsTeY429iRNX36t6emClHlW2MhZQppSg3//rvcv/Bhziw4ySaS84eHy5cqOJC/fmU5zd4fn7txt+LT+Pu9YAwFHGO51aqza8YT+8X7hqhfR53ak9IzdC1bAbjXplwMT46iXE644HNUJnnIheVj642OuduEx9X7BvlMf0ysu/dxwEWoDQSZkWiGUP0z68eD+L5VnwVvxjHPB8LrmMk9wxdFAHIp/BeAPqPAH0C+V65r+i/rr6AT9XG4xcss2GEix8fhPQz+A/EHxaOL4/oywN9MfwN5LWGrjVPdJUzEM2WUd5ddPY7mNgAeXxeyzgE34RreY6CQ331HeQM333D0UMJBJCXCxxGqGGF+Zx76HCRaZLgTNQpPmMahQp1sBQi7yMsEjA2wCDFTtOBOo708iU865ZnvR4UK4+AqRRgLOCVXx7udw//zuHW6hui4PWFFfyinblwYzO3fzELhIRlvKUH4HsY/f5D/uxUZUzbMCsCrL4dEy2Fd27Fh+eIeQnnUxXByTADgAhrJzgTIhjwOcQUcvBCJCEARwVBFZ5TZGpgIKREA04Sx5jJCaFksDbekfDMpUSZ9jC0CUSkmKOAG9QUyGJOyB9hRQ7VFBOnlHKSpC6VVHPMnFPOWfIWuSpRWJJkEVEpUjUqa9KsoqpFa6ESoYGp5CJFSym1kqtYqMJWxfyKkUYtNm6p5SZNW2m1I30699Rzl6699DpoxAGZGHnI0FFGncFNKMXkmWaeMnWWWRdybcXFK628ZOkqq75YM1a/HX+DtWCs0cPUnicv1jDqRK6JsOUkbc7AGBoDGJfNABKaNmdeAzNt5jZnvhCKIhGcTJsbN8JmDBTyDJRWeHH3Zu6PeHNJ/4g3+n/MuU3dv8GcA3XfefuBtbH7XH8YO1W4MfUR1Yc5ldTh6z1+fjrH+cPQWj/Odv+OGUUevebk/Fy2WfwqWxH3eO1+NuLnCeSunEGMLElnOsIdw1d3zFAbgVNg9cuz2dONzlkHXNBMewaSVTM9k1MrvadlE1BrU4O9KrpqCPlZdO8GPp8XesZzuWqPk/riaD61OKYjOiaVReNZaVsbXlq2W5/RQRYCOLdxSkOilHM7a4Gvs7i1I0pSs5Qu0e6oDM4Wi26j3h5ImEjB+jhWkPJTl0XjMAfbgl8SZ4/aHBu9VdM80YGN4WOfx+ZidtOTGF5oemafY6D+OMQdcY3jji8DfjcLKSOesljt1o2CnQvwPnMBDklfyNdzDwL6DLU9dxCXFBb3ixXJQPk9b0KP7oWd0XLrwWahxDtEji/mEQh70XEeT+QGdandbh3tNYTMIy59Ch0HZAi2c2VCLp5bZKwg9V4r3hXmDJOCG7ZCr7AyQ7KQ4M0s75Ay0LC1V2RBx/8SySs0hHTzJAEX9Cv25nQAqmFmQ7wibXNqhxSC5OXDo5sC6enjFBO08SRMKkCDP2TglBEsRGSjQvHCTbmGQBq784wEGyIjFigJ7LUbCZChb5G8A5nnLbcSNK+HidAfm1p3lt9MriicmY6/LUIRTnmVQsLrZheSp9eDURo+7/wx51F38H8EsVj6juWCFNFGJqUPiOXtvDuxIEHGZb2PnbAHgr0H/3yGZBs6I6OTAr7y+OLSZCR26QbJmOgJSW/R8NUQPUVViYfpHzKuRJ33xs0WrZpnRX+ZfZowtthNJFGSQHD4i1RFnSd7VFqEom76f6FhdrkqJiZFO3lpWOv9SFhru6fmq5DtSkY4YFLQ8qYDehbTp2pPVhfgHWpw8EmlsIO8nkdDJRQ5gSkyFghcBUYo9BvJerx1mFih8hJHM0WGXPUYj8W5+7KclSj5dbtJt0XwZ0nXY9Tt7ILu3sKigs3723+Uf3j5rwEMn7ATdhpSzXve3rvrPv/efaN5Vn5UthnRyHTVZ5Krg6eEZUBjY3LY56lomcZ4T3H0W+YQZO18U2HrfzOMxi5v4GK9AZKuB63Re28n3bns0rWSQSYupi8p7z7kvhjvg8tWr2Ygd87VsB/c+7T87bqdFsvzjj818PqUNxjDP5iFFgpVPfcKE90vm9D6jINgdNyujtRdsYXDWmV9R6P+FQxov0X+YzCI4X1Z3W3TrFtgUXlHptHmo9FLO83MQ3Q+6beQRjmO1T4T6Df5lbgbp/XRyLtQK1nAW6nQjc57+MeBlnYqrDcato1xyFa+lYx00e8F/B5abLU7OKJ8fTVyofvw6OgMVPTui2JfA5PeUo+t5d0S7ab1Vb9RzIDSPZO9oGvEgxzAic1IDWhF2l7yjf1K84YptHHwh17gjtFy1sdOFXu0M3Wjad0rmBPdW2oN/FNfbDukntPbULdBxj9m2yfuwtd6uxfU6jP70SqxoCXJuoZ8+4XU//nZ/VMDlpAL/7Kx/f8ft4CagUAxhhQAAAGEaUNDUElDQyBwcm9maWxlAAB4nH2RPUjDQBzFX1OlRVoE7SCikKE6WRAVcdQqFKFCqBVadTC59AuaNCQtLo6Ca8HBj8Wqg4uzrg6ugiD4AeLk6KToIiX+Lym0iPHguB/v7j3u3gFCo8w0q2sc0PSqmUrExUx2VQy8Iog+hDEMUWaWMSdJSXiOr3v4+HoX41ne5/4cYTVnMcAnEs8yw6wSbxBPb1YNzvvEEVaUVeJz4jGTLkj8yHXF5TfOBYcFnhkx06l54gixWOhgpYNZ0dSIp4ijqqZTvpBxWeW8xVkr11jrnvyFoZy+ssx1mkNIYBFLkCBCQQ0llFFFjFadFAsp2o97+Acdv0QuhVwlMHIsoAINsuMH/4Pf3Vr5yQk3KRQHul9s+2MECOwCzbptfx/bdvME8D8DV3rbX2kAM5+k19ta9Ajo3QYurtuasgdc7gADT4Zsyo7kpynk88D7GX1TFui/BXrW3N5a+zh9ANLUVfIGODgERguUve7x7mBnb/+eafX3A2QNcqFZ8L4IAAAABmJLR0QAAAAAAAD5Q7t/AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH5AgSDSALge9JmAAAAmVJREFUOMul002IzHEYwPHv8///5/8yM7tN+6KstVjWoha7FFG4KCfSejnYUqREcZO8XIj2QG22ljipPXBgtYqbgyiFC/LWlDhsWYY1M7sz/jP/3+OwLybGyXP8PT2fnt/z+z2iqlSGiADw5/m/8s50Yunx26yYlaKn7wG4CQEUoFgs0H3piVha1oa4x5rTd6mrSaKqiAjWNPA2W6pvSvn5Wt95P3goprv6HiEirD/QS/OS1ZqIOdrSkNCxkrk8lh+f6WQG4OmYt3Flc+HzRNS2rz+bzk1MsP3iQ4r571zdVju/vtZnXdcC3o2FLZnQzJT9BjyYKCm3RkO6ljW31iXc9NCHTl7f6QfgZxlyBQMWxqmYyW8gIRRKhvZUnBsvRyXVkFq4p+15evPZewBEQEEVBGJSDYhBsazUJTwakj4fxg3L22c3p5L+OwCDEBoLWyqLKl4BRylGSm3g4bkOHvB4JPQWLZizuPv4lS2KEBqh3gK7agcSEapF0g/wPBfPc6mvCQh+jDy91XvwmREIsfExWGgVQA1hJCQDj8B1qfE9zEh6+NzekzuAL4pQFgsHRaoDEWWxiQcuftwnCH+8uH50y5G6uaOfAFQEQ2wKqHaF8iSQ9H0y6TfDF3Z2bOVM/mNjx6apH2xhbAcb/gZEhGSNbXLjP7NRNvNq8PCmI8DH+LV1WGIDFErlUpTNjecCW3KOVUFML8WK3cdcb8PBTtp7Wk8ByZbllTtktXWfWMXSnrWr95+ft3foG6o6uQ+qytfMdxobW0DzU001MTBwAoAXr95w5eZ9yKSnLBuIMMYgIpPA/8QvIrDsXeANF4MAAAAASUVORK5CYII=',
-        'insert': b'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',
-        'delete': b'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',
-        'duplicate': b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw1AUhU9TRZGKQztIcchQnSyIFnHUKhShQqgVWnUweekfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfE1cVJ0UVKvC8ptIjxwuN9nHfP4b37AKFZZZrVMwFoum1mUkkxl18V+14hIIAwokjIzDLmJCkN3/q6p16quzjP8u/7swbVgsWAgEg8ywzTJt4gnt60Dc77xBFWllXic+Jxky5I/Mh1xeM3ziWXBZ4ZMbOZeeIIsVjqYqWLWdnUiBPEMVXTKV/Ieaxy3uKsVeusfU/+wlBBX1nmOq0RpLCIJUgQoaCOCqqwEaddJ8VChs6TPv6o65fIpZCrAkaOBdSgQXb94H/we7ZWcWrSSwolgd4Xx/kYBfp2gVbDcb6PHad1AgSfgSu94681gZlP0hsdLXYEDG0DF9cdTdkDLneA4SdDNmVXCtISikXg/Yy+KQ+Eb4GBNW9u7XOcPgBZmlX6Bjg4BMZKlL3u8+7+7rn929Oe3w9rHnKk7x4JKQAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAAd0SU1FB+cCARMnD1HzB0IAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAABJUlEQVQ4y6WTT2qDQBTGvxnLwFTETZfZZCu9hPdwJei2B3GThZcovUJAkx6hdXqBisxOycI/YF43VWxiTEo+eAy8gW9+35sZMMYeAWxM0zwAoEvFOSfbtvcA1piIAdhEUfTieR4451iSUgqu634BcMamaZqHoihoqqZpLtYv0WpqTFprIiLK85x836elKJP6GOKMBr7vU5ZldIuSJCEhxHY0GPBuldaaDMOg5akBqOsaYRjO7vV9j6sEZVnO9rXWBIAelk7uug5VVQHAuEopIYTA2S2cEgRBMDv9OI7/EIBzflcEblnWu1IK92gNQA2Ip2rbdsSeI5garf77DqSUx+ktfAP4TNP02XGcq9i73Q51Xb+dxRFCbA3DWPwHUsojgFfG2NMPCKbWh17KiKEAAAAASUVORK5CYII=',
+        'edit_protect': b'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', # noqa: E501
+        'quick_edit': b'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', # noqa: E501
+        'save': b'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', # noqa: E501
+        'first': b'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', # noqa: E501
+        'previous': b'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', # noqa: E501
+        'next': b'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', # noqa: E501
+        'last': b'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', # noqa: E501
+        'insert': b'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', # noqa: E501
+        'delete': b'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', # noqa: E501
+        'duplicate': b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw1AUhU9TRZGKQztIcchQnSyIFnHUKhShQqgVWnUweekfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfE1cVJ0UVKvC8ptIjxwuN9nHfP4b37AKFZZZrVMwFoum1mUkkxl18V+14hIIAwokjIzDLmJCkN3/q6p16quzjP8u/7swbVgsWAgEg8ywzTJt4gnt60Dc77xBFWllXic+Jxky5I/Mh1xeM3ziWXBZ4ZMbOZeeIIsVjqYqWLWdnUiBPEMVXTKV/Ieaxy3uKsVeusfU/+wlBBX1nmOq0RpLCIJUgQoaCOCqqwEaddJ8VChs6TPv6o65fIpZCrAkaOBdSgQXb94H/we7ZWcWrSSwolgd4Xx/kYBfp2gVbDcb6PHad1AgSfgSu94681gZlP0hsdLXYEDG0DF9cdTdkDLneA4SdDNmVXCtISikXg/Yy+KQ+Eb4GBNW9u7XOcPgBZmlX6Bjg4BMZKlL3u8+7+7rn929Oe3w9rHnKk7x4JKQAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAAd0SU1FB+cCARMnD1HzB0IAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAABJUlEQVQ4y6WTT2qDQBTGvxnLwFTETZfZZCu9hPdwJei2B3GThZcovUJAkx6hdXqBisxOycI/YF43VWxiTEo+eAy8gW9+35sZMMYeAWxM0zwAoEvFOSfbtvcA1piIAdhEUfTieR4451iSUgqu634BcMamaZqHoihoqqZpLtYv0WpqTFprIiLK85x836elKJP6GOKMBr7vU5ZldIuSJCEhxHY0GPBuldaaDMOg5akBqOsaYRjO7vV9j6sEZVnO9rXWBIAelk7uug5VVQHAuEopIYTA2S2cEgRBMDv9OI7/EIBzflcEblnWu1IK92gNQA2Ip2rbdsSeI5garf77DqSUx+ktfAP4TNP02XGcq9i73Q51Xb+dxRFCbA3DWPwHUsojgFfG2NMPCKbWh17KiKEAAAAASUVORK5CYII=', # noqa: E501
         # fmt: on
         "search": "Search",
         # Markers
@@ -4973,7 +5071,7 @@ class ThemePack:
         # ---------------------------
         # Label Size
         # Sets the default label (text) size when `field()` is used.
-        # A label is static text that is displayed near the element to describe what it is.
+        # A label is static text that is displayed near the element to describe it.
         "default_label_size": (20, 1),  # (width, height)
         # Element Size
         # Sets the default element size when `field()` is used.
@@ -4992,7 +5090,8 @@ class ThemePack:
         self.tp_dict = ThemePack.default
 
     def __getattr__(self, key):
-        # Try to get the key from the internal tp_dict first.  If it fails, then check the default dict.
+        # Try to get the key from the internal tp_dict first.
+        # If it fails, then check the default dict.
         try:
             return self.tp_dict[key]
         except KeyError:
@@ -5025,19 +5124,16 @@ class ThemePack:
                 'sort_asc_marker': string eg '', f'',  unicode
                 'sort_desc_marker': string eg '', f'',  unicode
             }
-        For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder
+        For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder # fmt: skip
         Remember to us b'' around the string.
 
-        For Text buttons, yan can even add Emoji's.
-        https://carpedm20.github.io/emoji/ and copy-paste the 'Python Unicode name:' (less the variable)
-        Format like f'\N{WASTEBASKET} Delete',
-
-        :param tp_dict: (optional) A dict formatted as above to create the ThemePack from. If one is not supplied, a
-                        default ThemePack will be generated.  Any keys not present in the supplied tp_dict will be
-                        generated from the default values.  Additionally, tp_dict may contain additional keys not
-                        specified in the minimal default ThemePack
+        :param tp_dict: (optional) A dict formatted as above to create the ThemePack
+            from. If one is not supplied, a default ThemePack will be generated.  Any
+            keys not present in the supplied tp_dict will be generated from the default
+            values.  Additionally, tp_dict may contain additional keys not specified in
+            the minimal default ThemePack.
         :returns: None
-        """
+        """  # noqa: E501
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
         if tp_dict == {}:
@@ -5050,9 +5146,9 @@ class ThemePack:
 themepack = ThemePack()
 
 
-# ======================================================================================================================
+# ======================================================================================
 # LANGUAGEPACKS
-# ======================================================================================================================
+# ======================================================================================
 # Change the language text used throughout the program.
 class LanguagePack:
 
@@ -5060,9 +5156,10 @@ class LanguagePack:
     LanguagePacks are user-definable collections of strings that allow for localization
     of strings and messages presented to the end user.
 
-    Creating your own is easy as well! In fact, a LanguagePack can be as simple as one line if you just
-    want to change one aspect of the default LanguagePack. Example:
-        lp_en = {'save_success': 'SAVED!'} # I want the save popup to display this text in English in all caps
+    Creating your own is easy as well! In fact, a LanguagePack can be as simple as one
+    line if you just want to change one aspect of the default LanguagePack. Example:
+        # I want the save popup to display this text in English in all caps
+        lp_en = {'save_success': 'SAVED!'}
     """
 
     default = {
@@ -5109,20 +5206,12 @@ class LanguagePack:
         # Form prompt_save
         # ------------------------
         "form_prompt_save_title": "Unsaved Changes",
-        "form_prompt_save": "You have unsaved changes!\nWould you like to save them first?",
-        # DataSet prompt_save
-        # ------------------------
+        "form_prompt_save": "You have unsaved changes!\nWould you like to save them first?",  # fmt: skip # noqa: E501
         "dataset_prompt_save_title": "Unsaved Changes",
-        "dataset_prompt_save": "You have unsaved changes!\nWould you like to save them first?",
-        # ------------------------
-        # Ok Popups
-        # ------------------------
-        # Form save_records
-        # ------------------------
+        "dataset_prompt_save": "You have unsaved changes!\nWould you like to save them first?",  # fmt: skip # noqa: E501
         "form_save_problem_title": "Problem Saving",
         "form_save_partial": "Some updates were saved successfully;",
-        "form_save_problem": "There was a problem saving updates to the following tables:\n{tables}.",
-        # DataSet save_record
+        "form_save_problem": "There was a problem saving updates to the following tables:\n{tables}.",  # fmt: skip # noqa: E501
         "dataset_save_callback_false_title": "Callback Prevented Save",
         "dataset_save_callback_false": "Updates not saved.",
         "dataset_save_keyed_fail_title": "Problem Saving",
@@ -5135,19 +5224,16 @@ class LanguagePack:
         # DataSet delete_record
         # ------------------------
         "delete_title": "Confirm Deletion",
-        "delete_cascade": "Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!",
+        "delete_cascade": "Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!",  # fmt: skip # noqa: E501
         "delete_single": "Are you sure you want to delete this record?",
         # Failed Ok Popup
         "delete_failed_title": "Problem Deleting",
         "delete_failed": "Query failed: {exception}.",
-        "delete_recursion_limit_error": "Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT",
-        # Dataset duplicate_record
-        # ------------------------
-        # Msg prepend to front of parent duplicate
+        "delete_recursion_limit_error": "Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT",  # fmt: skip # noqa: E501
         "duplicate_prepend": "Copy of ",
         # Popup when record has children
         "duplicate_child_title": "Confirm Duplication",
-        "duplicate_child": "This record has child records:\n(in {children})\nWhich records would you like to duplicate?",
+        "duplicate_child": "This record has child records:\n(in {children})\nWhich records would you like to duplicate?",  # fmt: skip # noqa: E501
         "duplicate_child_button_dupparent": "Only duplicate this record.",
         "duplicate_child_button_dupboth": "Duplicate this record and its children.",
         # Popup when record is single
@@ -5169,7 +5255,8 @@ class LanguagePack:
         self.lp_dict = type(self).default
 
     def __getattr__(self, key):
-        # Try to get the key from the internal lp_dict first.  If it fails, then check the default dict.
+        # Try to get the key from the internal lp_dict first.
+        # If it fails, then check the default dict.
         try:
             return self.lp_dict[key]
         except KeyError:
@@ -5192,11 +5279,11 @@ class LanguagePack:
 lang = LanguagePack()
 
 
-# ======================================================================================================================
+# ======================================================================================
 # ABSTRACTION LAYERS
-# ======================================================================================================================
+# ======================================================================================
 # Database abstraction layers for a uniform API
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 
 
 # This is a dummy class for documenting convenience functions
@@ -5210,18 +5297,19 @@ class Abstractions:
     accomplished. `Column`, `ColumnInfo`, `ResultRow `, `ResultSet`, `SQLDriver`,
     `Sqlite`, `Mysql`, `Postgres`.
 
-    Note: This is a dummy class that exists purely to enhance documentation and has no use to the end user.
+    Note: This is a dummy class that exists purely to enhance documentation and has no
+    use to the end user.
     """
 
     pass
 
 
-# ======================================================================================================================
+# ======================================================================================
 # COLUMN ABSTRACTION
-# ======================================================================================================================
-# The column abstraction hides the complexity of dealing with SQL columns, getting their names, default values, data
-# types, primary key status and notnull status
-# ----------------------------------------------------------------------------------------------------------------------
+# ======================================================================================
+# The column abstraction hides the complexity of dealing with SQL columns, getting their
+# names, default values, data types, primary key status and notnull status
+# --------------------------------------------------------------------------------------
 class Column:
 
     """
@@ -5323,7 +5411,8 @@ class Column:
                 value = datetime.strptime(value, "%Y-%m-%d").date()
             except TypeError:
                 logger.debug(
-                    f"Unable to cast {value} to a datetime.date object.  Casting to string instead."
+                    f"Unable to cast {value} to a datetime.date object. "
+                    f"Casting to string instead."
                 )
                 value = str(value)
 
@@ -5337,7 +5426,7 @@ class Column:
                 value = datetime.date(value)
             except TypeError:
                 logger.debug(
-                    "Unable to case datetime/time/timestamp.  Casting to string instead."
+                    "Unable to case datetime/time/timestamp. Casting to string instead."
                 )
                 value = str(value)
         return value
@@ -5348,12 +5437,14 @@ class ColumnInfo(List):
     """
     Column Information Class.
 
-    The `ColumnInfo` class is a custom container that behaves like a List containing a collection of `Columns`. This
-    class is responsible for maintaining information about all the columns (`Column`) in a table. While the
-    individual `Column` elements of this collection contain information such as default values, primary key status,
-    SQL data type, column name, and the notnull status - this class ties them all together into a collection and adds
-    functionality to set default values for null columns and retrieve a dict representing a table row with all defaults
-    already assigned. See example below:
+    The `ColumnInfo` class is a custom container that behaves like a List containing a
+    collection of `Columns`. This class is responsible for maintaining information about
+    all the columns (`Column`) in a table. While the individual `Column` elements of
+    this collection contain information such as default values, primary key status, SQL
+    data type, column name, and the notnull status - this class ties them all together
+    into a collection and adds functionality to set default values for null columns and
+    retrieve a dict representing a table row with all defaults already assigned.
+    See example below:
     .. literalinclude:: ../doc_examples/ColumnInfo.1.py
         :language: python
         :caption: Example code
@@ -5380,8 +5471,9 @@ class ColumnInfo(List):
             "TIMESTAMP",
         ]
 
-        # Defaults to use for Null values returned from the database. These can be overwritten by the user and support
-        # function calls as well by using ColumnInfo.set_null_default() and ColumnInfo.set_null_defaults()
+        # Defaults to use for Null values returned from the database. These can be
+        # overwritten by the user and support function calls as well by using
+        # ColumnInfo.set_null_default() and ColumnInfo.set_null_defaults()
         self.null_defaults = {
             "TEXT": "New Record",
             "VARCHAR": "New Record",
@@ -5416,7 +5508,8 @@ class ColumnInfo(List):
         """
         Get the pk_column for this colection of column_info.
 
-        :returns: A string containing the column name of the PK column, or None if one was not found
+        :returns: A string containing the column name of the PK column, or None if one
+            was not found
         """
         for c in self:
             if c.pk:
@@ -5497,9 +5590,11 @@ class ColumnInfo(List):
                         else:
                             default = null_default
             else:
-                # Load the default that was fetched from the database during ColumnInfo creation
+                # Load the default that was fetched from the database
+                # during ColumnInfo creation
                 if domain in ["TEXT", "VARCHAR", "CHAR"]:
-                    # strip quotes from default strings as they seem to get passed with some database-stored defaults
+                    # strip quotes from default strings as they seem to get passed with
+                    # some database-stored defaults
                     default = c.default.strip(
                         "\"'"
                     )  # strip leading and trailing quotes
@@ -5516,8 +5611,10 @@ class ColumnInfo(List):
         """
         Set a Null default for a single SQL type.
 
-        :param domain: The SQL type to set the default for ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
-        :param value: The new value to set the SQL type to. This can be a literal or even a callable
+        :param domain: The SQL type to set the default for
+            ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
+        :param value: The new value to set the SQL type to. This can be a literal or
+            even a callable
         :returns: None
         """
         if domain not in self._domains:
@@ -5531,15 +5628,17 @@ class ColumnInfo(List):
         """
         Set Null defaults for all SQL types.
 
-        supported types:  'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE', 'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME',
-        'DATE', 'DATETIME', 'TIMESTAMP'
-        :param null_defaults: A dict of SQL types and default values. This can be a literal or even a callable
+        supported types:  'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE',
+            'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME', 'DATE', 'DATETIME', 'TIMESTAMP'
+        :param null_defaults: A dict of SQL types and default values. This can be a
+            literal or even a callable
         :returns: None
         """
         # Check if the null_defaults dict has all the required keys:
         if not all(key in null_defaults for key in self._domains):
             RuntimeError(
-                f"The supplied null_defaults dictionary does not havle all required SQL types. Required: {self._domains}"
+                f"The supplied null_defaults dictionary does not havle all required SQL"
+                f" types. Required: {self._domains}"
             )
 
         self.null_defaults = null_defaults
@@ -5548,7 +5647,8 @@ class ColumnInfo(List):
         """
         Get a list of virtual column names.
 
-        :returns: A List of column names that are virtual, or [] if none are present in this collections
+        :returns: A List of column names that are virtual, or [] if none are present in
+            this collections
         """
         return [c for c in self if not c.virtual]
 
@@ -5565,7 +5665,8 @@ class ColumnInfo(List):
         if not s:
             return False
 
-        # If the entire string is in all caps, it looks like a function (like in MySQL CURRENT_TIMESTAMP)
+        # If the entire string is in all caps, it looks like a function
+        # (like in MySQL CURRENT_TIMESTAMP)
         if s.isupper():
             return True
 
@@ -5592,17 +5693,19 @@ class ColumnInfo(List):
         return True
 
     def _get_list(self, key: str) -> List:
-        # returns a list of any key in the underlying Column instances. For example, column names, types, defaults, etc.
+        # returns a list of any key in the underlying Column instances. For example,
+        # column names, types, defaults, etc.
         return [d[key] for d in self]
 
 
-# ======================================================================================================================
+# ======================================================================================
 # DATABASE ABSTRACTION
-# ======================================================================================================================
-# The database abstraction hides the complexity of dealing with multiple databases.  The concept relies on individual
-# "drivers" that derive from the SQLDriver class, and return a generic ResultSet instance, which contains a collection
-# of generic ResultRow instances.
-# ----------------------------------------------------------------------------------------------------------------------
+# ======================================================================================
+# The database abstraction hides the complexity of dealing with multiple databases. The
+# concept relies on individual "drivers" that derive from the SQLDriver class, and
+# return a generic ResultSet instance, which contains a collection of generic ResultRow
+# instances.
+# --------------------------------------------------------------------------------------
 class ResultRow:
 
     """
@@ -5662,13 +5765,14 @@ class ResultSet:
     collection of `ResultRow`s, along with the lastrowid and any exception returned by
     the underlying `SQLDriver` when a query is executed.
 
-    ResultSets can be thought up as rows of information.  Iterating through a ResultSet is very simple:
-        rows:ResultSet = driver.execute('SELECT * FROM Journal;')
+    ResultSets can be thought up as rows of information.  Iterating through a ResultSet
+    is very simple:
+        ResultSet = driver.execute('SELECT * FROM Journal;')
         for row in rows:
             print(row['title'])
 
-    Note: The lastrowid is set by the caller, but by pysimplesql convention, the lastrowid should only be set after
-    and INSERT statement is executed.
+    Note: The lastrowid is set by the caller, but by pysimplesql convention, the
+    lastrowid should only be set after and INSERT statement is executed.
     """
 
     # Store class-related constants
@@ -5686,10 +5790,13 @@ class ResultSet:
         """
         Create a new ResultSet instance.
 
-        :param rows: a list of dicts representing a row of data, with each key being a column name
-        :param lastrowid: The primary key of an inserted item
-        :exception: If an exception was encountered during the query, it will be passed along here
-        :column_info: a `ColumnInfo` object can be supplied so that column information can be accessed
+        :param rows: a list of dicts representing a row of data, with each key being a
+            column name
+        :param lastrowid: The primary key of an inserted item.
+        :exception: If an exception was encountered during the query, it will be passed
+            along here
+        :column_info: a `ColumnInfo` object can be supplied so that column information
+            can be accessed
         """
         self.rows = [ResultRow(r, i) for r, i in zip(rows, range(len(rows)))]
         self.lastrowid = lastrowid
@@ -5760,7 +5867,8 @@ class ResultSet:
         :param idx: The index where the row should be inserted (default to last index)
         :returns: None
         """
-        # Insert a new row manually.  This will mark the row as virtual, as it did not come from the database.
+        # Insert a new row manually.
+        # This will mark the row as virtual, as it did not come from the database.
         self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
 
     def purge_virtual(self) -> None:
@@ -5788,8 +5896,8 @@ class ResultSet:
         target_col = column  # Looking in rows for this column
         target_val = column  # to be equal to the same column in self.rows
 
-        # We don't want to sort by foreign keys directly - we want to sort by the description column of the foreign
-        # table that the foreign key references
+        # We don't want to sort by foreign keys directly -we want to sort by the
+        # description column of the foreign table that the foreign key references
         rels = Relationship.get_relationships_for_table(table)
         for rel in rels:
             if column == rel.fk_column:
@@ -5871,7 +5979,8 @@ class ResultSet:
         Sort according to the internal sort_column and sort_reverse variables. This is a
         good way to re-sort without changing the sort_cycle.
 
-        :param table: The table associated with this ResultSet.  Passed along to `ResultSet.sort_by_column()`
+        :param table: The table associated with this ResultSet.  Passed along to
+            `ResultSet.sort_by_column()`
         :returns: None
         """
         if self.sort_column is None:
@@ -5886,7 +5995,8 @@ class ResultSet:
 
         :param column: The column name to cycle the sort on
         :param table: The table that the column belongs to
-        :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or ResultSet.SORT_DESC
+        :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or
+            ResultSet.SORT_DESC
         """
         if column != self.sort_column:
             # We are going to sort by a new column.  Default to ASC
@@ -5920,15 +6030,17 @@ class SQLDriver:
     code below is broken into methods that **MUST** be implemented in the derived class,
     methods that.
 
-    **SHOULD** be implemented in the derived class, and methods that **MAY** need to be implemented in the derived class
-    for it to work as expected. Most derived drivers will at least partially work by implementing the **MUST** have
-    methods.
+    **SHOULD** be implemented in the derived class, and methods that **MAY** need to be
+    implemented in the derived class for it to work as expected. Most derived drivers
+    will at least partially work by implementing the **MUST** have methods.
 
-    See the source code for `Sqlite`, `Mysql` and `Postgres` for examples of how to construct your own driver.
+    See the source code for `Sqlite`, `Mysql` and `Postgres` for examples of how to
+    construct your own driver.
 
-    NOTE: SQLDriver.execute() should return a ResultSet instance.  Additionally, py pysimplesql convention, the
-    ResultSet.lastrowid should always be None unless and INSERT query is executed with SQLDriver.execute() or a record
-    is inserted with SQLDriver.insert_record()
+    NOTE: SQLDriver.execute() should return a ResultSet instance.  Additionally, by
+    pysimplesql convention, the ResultSet.lastrowid should always be None unless and
+    INSERT query is executed with SQLDriver.execute() or a record is inserted with\
+    SQLDriver.insert_record()
     """
 
     # ---------------------------------------------------------------------
@@ -5957,21 +6069,23 @@ class SQLDriver:
         )
         self.win_pb.update(lang.sqldriver_connecting, 0)
 
-        # Each database type expects their SQL prepared in a certain way.  Below are defaults for how various elements
-        # in the SQL string should be quoted and represented as placeholders. Override these in the derived class as
-        # needed to satisfy SQL requirements
+        # Each database type expects their SQL prepared in a certain way.  Below are
+        # defaults for how various elements in the SQL string should be quoted and
+        # represented as placeholders. Override these in the derived class as needed to
+        # satisfy SQL requirements
 
         # The placeholder for values in the query string.  This is typically '?' or'%s'
         self.placeholder = placeholder  # override this in derived __init__()
 
-        # These se the quote characters for tables, columns and values.  It varies between different databases
-        self.quote_table_char = (
-            table_quote  # override this in derived __init__() (defaults to no quotes)
-        )
-        self.quote_column_char = (
-            column_quote  # override this in derived __init__() (defaults to no quotes)
-        )
-        self.quote_value_char = value_quote  # override this in derived __init__() (defaults to single quotes)
+        # These are the quote characters for tables, columns and values.
+        # It varies between different databases
+
+        # override this in derived __init__() (defaults to no quotes)
+        self.quote_table_char = table_quote
+        # override this in derived __init__() (defaults to no quotes)
+        self.quote_column_char = column_quote
+        # override this in derived __init__() (defaults to single quotes)
+        self.quote_value_char = value_quote
 
     def check_reserved_keywords(self, value: bool) -> None:
         """
@@ -5979,7 +6093,8 @@ class SQLDriver:
         keywords.  By default, all SQLDrivers will check for their respective keywords.
         You can choose to disable this feature with this method.
 
-        :param value: True to check for reserved keywords in field names, false to skip this check
+        :param value: True to check for reserved keywords in field names, false to skip
+            this check
         :return: None
         """
         self._check_reserved_keywords = value
@@ -6009,8 +6124,9 @@ class SQLDriver:
         :param query: The query string to execute
         :param values: Values to pass into the query to replace the placeholders
         :param column_info: An optional ColumnInfo object
-        :param auto_commit_rollback: Automatically commit or rollback depending on whether an exception was handled. Set
-            to False by default.  Set to True to have exceptions and commit/rollbacks happen automatically
+        :param auto_commit_rollback: Automatically commit or rollback depending on
+            whether an exception was handled. Set to False by default.  Set to True to
+            have exceptions and commit/rollbacks happen automatically
         :return:
         """
         raise NotImplementedError
@@ -6035,9 +6151,10 @@ class SQLDriver:
     # based on specifics of the database
     # ---------------------------------------------------------------------
     # This is a generic way to estimate the next primary key to be generated.
-    # Note that this is not always a reliable way, as manual inserts which assign a primary key value don't always
-    # update the sequencer for the given database.  This is just a default way to "get things working", but the best
-    # bet is to override this in the derived class and get the value right from the sequencer.
+    # Note that this is not always a reliable way, as manual inserts which assign a
+    # primary key value don't always update the sequencer for the given database.  This
+    # is just a default way to "get things working", but the best bet is to override
+    # this in the derived class and get the value right from the sequencer.
     def next_pk(self, table: str, pk_column: str) -> int:
         max_pk = self.max_pk(table, pk_column)
         if max_pk is not None:
@@ -6066,7 +6183,8 @@ class SQLDriver:
 
         if keyword.upper() in RESERVED[key] or keyword.upper in RESERVED["common"]:
             raise ReservedKeywordError(
-                f"`{keyword}` is a reserved keyword and cannot be used for table or column names."
+                f"`{keyword}` is a reserved keyword and cannot be used for table or "
+                f"column names."
             )
 
     # ---------------------------------------------------------------------
@@ -6147,8 +6265,11 @@ class SQLDriver:
                 if r.on_update_cascade:
                     table = dataset.table
                     parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
+
+                    # Children without cascade-filtering parent aren't displayed
                     if parent_pk == "":
-                        parent_pk = "NULL"  # passed so that children without cascade-filtering parent aren't displayed
+                        parent_pk = "NULL"
+
                     clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
                     if where != "":
                         clause = clause.replace("WHERE", "AND")
@@ -6158,7 +6279,8 @@ class SQLDriver:
             # There was no where clause from Relationships..
             where = dataset.where_clause
         else:
-            # There was an auto-generated portion of the where clause.  We will add the table's where clause to it
+            # There was an auto-generated portion of the where clause.
+            # We will add the table's where clause to it
             where = where + " " + dataset.where_clause.replace("WHERE", "AND")
 
         return where
@@ -6174,11 +6296,11 @@ class SQLDriver:
         Generate a query string using the relationships that have been set.
 
         :param dataset: A `DataSet` object
-        :param join_clause: True if you want the join clause auto-generated, False if not
+        :param join_clause: True to auto-generate `join` clause, False to not
         :type join_clause: bool
-        :param where_clause: True if you want the where clause auto-generated, False if not
+        :param where_clause: True to auto-generate `where` clause, False to not
         :type where_clause: bool
-        :param order_clause: True if you want the order by clause auto-generated, False if not
+        :param order_clause: True to auto-generate `order by` clause, False to not
         :type order_clause: bool
         :returns: a query string for use with sqlite3
         :rtype: str
@@ -6233,7 +6355,8 @@ class SQLDriver:
             delete_clause = f"DELETE FROM {child} WHERE {pk_column} IN "
 
             # Create new inner join and add it to beginning of passed in inner_join
-            inner_join_clause = f"INNER JOIN {parent} ON {parent}.{pk_column} = {child}.{fk_column} {inner_join}"
+            inner_join_clause = f"INNER JOIN {parent} ON {parent}.{pk_column} = "
+            inner_join_clause += f"{child}.{fk_column} {inner_join}"
 
             # Call function again to create recursion
             result = self.delete_record_recursive(
@@ -6265,28 +6388,31 @@ class SQLDriver:
             recursion = 0
 
     def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
-        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id
-        ## This can be done using * syntax without having to know the schema of the table
-        ## (other than the name of the primary key). The trick is to create a temporary table
+        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
+        ## This can be done using * syntax without knowing the schema of the table
+        ## (other than primary key column). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
         description = self.quote_value(
-            f"{lang.duplicate_prepend}{dataset.get_description_for_pk(dataset.get_current_pk())}"
+            f"{lang.duplicate_prepend}"
+            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
         )
         table = self.quote_table(dataset.table)
         tmp_table = self.quote_table(f"temp_{dataset.table}")
         pk_column = self.quote_column(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
 
+        # fmt: off
         # Create tmp table, update pk column in temp and insert into table
         query = [
             f"DROP TABLE IF EXISTS {tmp_table};",
             f"CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE {pk_column}=\
-                    {dataset.get_current(dataset.pk_column)};",
-            f"UPDATE {tmp_table} SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)};",
+                    {dataset.get_current(dataset.pk_column)};", # noqa: E501
+            f"UPDATE {tmp_table} SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)};", # noqa: E501
             f"UPDATE {tmp_table} SET {description_column} = {description}",
             f"INSERT INTO {table} SELECT * FROM {tmp_table};",
             f"DROP TABLE IF EXISTS {tmp_table};",
         ]
+        # fmt: on
         for q in query:
             res = self.execute(q)
             if res.exception:
@@ -6312,23 +6438,31 @@ class SQLDriver:
                             dataset.frm[r.child_table].pk_column
                         )
                         fk_column = self.quote_column(r.fk_column)
-                        # Update children's pk_columns to NULL and set correct parent PK value.
+
+                        # fmt: off
+                        # Update children's pk_columns to NULL and set correct parent
+                        # PK value.
                         queries = [
                             f"DROP TABLE IF EXISTS {tmp_child};",
                             f"CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
-                                       {dataset.get_current(dataset.pk_column)};",
-                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",  # don't next_pk(), because child can be plural.
+                                       {dataset.get_current(dataset.pk_column)};", # noqa: E501
+                            
+                            # don't next_pk(), because child can be plural.
+                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
+                            
                             f"UPDATE {tmp_child} SET {fk_column} = {pk}",
                             f"INSERT INTO {child} SELECT * FROM {tmp_child};",
                             f"DROP TABLE IF EXISTS {tmp_child};",
                         ]
+                        # fmt: on
                         for q in queries:
                             res = self.execute(q)
                             if res.exception:
                                 return res
 
                         child_duplicated.append(r.child_table)
-        # If we made it here, we can return the pk.  Since the pk was stored earlier, we will just send and empty ResultSet
+        # If we made it here, we can return the pk.  Since the pk was stored earlier,
+        # we will just send and empty ResultSet
         return ResultSet(lastrowid=pk)
 
     def save_record(
@@ -6358,11 +6492,13 @@ class SQLDriver:
             where_clause = f"WHERE {pk_column} = {pk}"
 
         # Generate an UPDATE query
-        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row.keys())} {where_clause};"
+        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row.keys())} {where_clause};"  # fmt: skip # noqa: E501
         values = list(changed_row.values())
 
         result = self.execute(query, tuple(values))
-        result.lastrowid = None  # manually clear th rowid since it is not needed for updated records (we already know the key)
+        # manually clear the rowid since it is not needed for updated records
+        # (we already know the key)
+        result.lastrowid = None
         return result
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
@@ -6378,14 +6514,15 @@ class SQLDriver:
         table = self.quote_table(table)
 
         # Remove the primary key column to ensure autoincrement is used!
-        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES ({','.join(self.placeholder for _ in range(len(row)))}); "
+        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES "
+        query += f"({','.join(self.placeholder for _ in range(len(row)))}); "
         values = [value for key, value in row.items()]
         return self.execute(query, tuple(values))
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 # SQLITE3 DRIVER
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
     def __init__(
         self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None
@@ -6451,7 +6588,7 @@ class Sqlite(SQLDriver):
 
         try:
             rows = cur.fetchall()
-        except:
+        except:  # noqa: E722
             rows = []
 
         lastrowid = cursor.lastrowid if cursor.lastrowid is not None else None
@@ -6468,7 +6605,8 @@ class Sqlite(SQLDriver):
             self.con.close()
 
     def get_tables(self):
-        q = 'SELECT name FROM sqlite_master WHERE type="table" AND name NOT like "sqlite%";'
+        q = "SELECT name FROM sqlite_master "
+        q += 'WHERE type="table" AND name NOT like "sqlite%";'
         cur = self.execute(q, silent=True)
         return [row["name"] for row in cur]
 
@@ -6531,10 +6669,11 @@ class Sqlite(SQLDriver):
             self.con.executescript(file.read())
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 # FLATFILE DRIVER
-# ----------------------------------------------------------------------------------------------------------------------
-# The CSV driver uses SQlite3 in the background to use pysimplesql directly with CSV files
+# --------------------------------------------------------------------------------------
+# The CSV driver uses SQlite3 in the background
+# to use pysimplesql directly with CSV files
 class Flatfile(Sqlite):
 
     """
@@ -6560,18 +6699,24 @@ class Flatfile(Sqlite):
         Create a new Flatfile driver instance.
 
         :param file_path: The path to the flatfile
-        :param delimiter: The delimiter for the flatfile. Defaults to ','.  Tabs ('\t') are another popular option
-        :param quotechar: The quoting character specified by the flatfile. Defaults to '"'
-        :param header_row_num: The row containing the header column names.  Defaults to 0
+        :param delimiter: The delimiter for the flatfile. Defaults to ','.  Tabs ('\t')
+            are another popular option
+        :param quotechar: The quoting character specified by the flatfile.
+            Defaults to '"'
+        :param header_row_num: The row containing the header column names.
+            Defaults to 0
         :param table: The name to give this table in pysimplesql. Default is 'Flatfile'
-        :param pk_col: The column name that acts as a primary key for the dataset. See below how to use this parameter:
-                       - If no pk_col parameter is supplied, then a generic primary key column named 'pk' will be generated
-                         with AUTO INCREMENT and PRIMARY KEY set.  This is a virtual column and will not be written back
-                         out to the flatfile.
-                       - If the pk_col parameter is supplied, and it exists in the header row, then it will be used
-                         as the primary key for the dataset.  If this column does not exist in the header row, then a
-                         virtual primary key column with this name will be created with AUTO INCREMENT and PRIMARY KEY set.
-                         As above, the virtual primary key column that was created will not be written to the flatfile.
+        :param pk_col: The column name that acts as a primary key for the dataset. See
+            below how to use this parameter:
+           - If no pk_col parameter is supplied, then a generic primary key column named
+             'pk' will be generated with AUTO INCREMENT and PRIMARY KEY set. This is a
+             virtual column and will not be written back out to the flatfile.
+           - If the pk_col parameter is supplied, and it exists in the header row, then
+             it will be used as the primary key for the dataset.  If this column does
+             not exist in the header row, then a virtual primary key column with this
+             name will be created with AUTO INCREMENT and PRIMARY KEY set. As above, the
+             virtual primary key column that was created will not be written to the
+             flatfile.
         """
         # First up the SQLite driver that we derived from
         super().__init__(":memory:")  # use an in-memory database
@@ -6611,7 +6756,7 @@ class Flatfile(Sqlite):
         q_cols = ""
         for col in self.columns:
             if col == self.pk_col:
-                q_cols += f'{col} {"INTEGER PRIMARY KEY AUTOINCREMENT" if self.pk_col_is_virtual else "PRIMARY KEY"}'
+                q_cols += f'{col} {"INTEGER PRIMARY KEY AUTOINCREMENT" if self.pk_col_is_virtual else "PRIMARY KEY"}'  # fmt: skip # noqa: E501
             else:
                 q_cols += f"{col} TEXT"
 
@@ -6628,12 +6773,13 @@ class Flatfile(Sqlite):
             for _i in range(self.header_row_num + 1):
                 next(reader)
 
-            # We only want to insert the pk_column if it is not virtual. We will remove it now, as it has already
-            # served its purpose to create the table
+            # We only want to insert the pk_column if it is not virtual. We will remove
+            # it now, as it has already served its purpose to create the table
             if self.pk_col_is_virtual:
                 self.columns.remove(self.pk_col)
 
-            query = f'INSERT INTO {self.table} ({", ".join(self.columns)}) VALUES ({", ".join(["?" for col in self.columns])})'
+            query = f'INSERT INTO {self.table} ({", ".join(self.columns)}) VALUES '
+            query += f'({", ".join(["?" for col in self.columns])})'
             for row in reader:
                 self.execute(query, row)
 
@@ -6660,14 +6806,16 @@ class Flatfile(Sqlite):
                     csvfile, delimiter=self.delimiter, quotechar=self.quotechar
                 )
 
-                # Skip the number of lines defined by header_row_num. Write out the stored pre_header lines
+                # Skip the number of lines defined by header_row_num.
+                # Write out the stored pre_header lines
                 for line in self.pre_header:
                     writer.writerow(line)
 
                 # write the header row
                 writer.writerow(list(self.columns))
 
-                # write the ResultSet out.  Use our columns to exclude the possible virtual pk
+                # write the ResultSet out.
+                # Use our columns to exclude the possible virtual pk
                 rows = []
                 for r in dataset.rows:
                     rows.append([r[c] for c in self.columns])
@@ -6679,9 +6827,9 @@ class Flatfile(Sqlite):
         return result
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 # MYSQL DRIVER
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 class Mysql(SQLDriver):
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
@@ -6745,7 +6893,7 @@ class Mysql(SQLDriver):
 
         try:
             rows = cursor.fetchall()
-        except:
+        except:  # noqa: E722
             rows = []
 
         lastrowid = cursor.lastrowid if cursor.lastrowid else None
@@ -6767,7 +6915,8 @@ class Mysql(SQLDriver):
 
         for row in rows:
             name = row["Field"]
-            # Capitalize and get rid of the extra information of the row type I.e. varchar(255) becomes VARCHAR
+            # Capitalize and get rid of the extra information of the row type
+            # I.e. varchar(255) becomes VARCHAR
             domain = row["Type"].split("(")[0].upper()
             notnull = True if row["Null"] == "NO" else False
             default = row["Default"]
@@ -6791,7 +6940,8 @@ class Mysql(SQLDriver):
         tables = self.get_tables()
         relationships = []
         for from_table in tables:
-            query = "SELECT * FROM information_schema.key_column_usage WHERE referenced_table_name IS NOT NULL AND table_name = %s"
+            query = "SELECT * FROM information_schema.key_column_usage WHERE "
+            query += "referenced_table_name IS NOT NULL AND table_name = %s"
             rows = self.execute(query, (from_table,), silent=True)
 
             for row in rows:
@@ -6820,16 +6970,19 @@ class Mysql(SQLDriver):
 
     # Not required for SQLDriver
     def constraint(self, constraint_name):
-        query = f"SELECT UPDATE_RULE, DELETE_RULE FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = '{constraint_name}'"
+        query = "SELECT UPDATE_RULE, DELETE_RULE FROM "
+        query += "INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = "
+        query += f"'{constraint_name}'"
         rows = self.execute(query, silent=True)
         return rows[0]["UPDATE_RULE"], rows[0]["DELETE_RULE"]
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 # MARIA DRIVER
-# ----------------------------------------------------------------------------------------------------------------------
-# MariaDB is a fork of MySQL and backward compatible.  It technically does not need its own driver, but that could
-# change in the future, plus having its own named class makes it more clear for the end user.
+# --------------------------------------------------------------------------------------
+# MariaDB is a fork of MySQL and backward compatible.  It technically does not need its
+# own driver, but that could change in the future, plus having its own named class makes
+# it more clear for the end user.
 class Maria(Mysql):
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
@@ -6838,9 +6991,9 @@ class Maria(Mysql):
         self.name = "MariaDB"
 
 
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 # POSTGRES DRIVER
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
     def __init__(
         self,
@@ -6861,19 +7014,21 @@ class Postgres(SQLDriver):
         self.con = self.connect()
 
         # experiment to see if I can make a nocase collation
-        # query = "CREATE COLLATION NOCASE (provider = icu, locale = 'und-u-ks-level2');"
+        # query ="CREATE COLLATION NOCASE (provider = icu, locale = 'und-u-ks-level2');"
         # self.execute(query)
 
         if sync_sequences:
-            # synchronize the sequences with the max pk for each table. This is useful if manual records were inserted
-            # without calling nextval() to update the sequencer
+            # synchronize the sequences with the max pk for each table. This is useful
+            # if manual records were inserted without calling nextval() to update the
+            # sequencer
             q = "SELECT sequence_name FROM information_schema.sequences;"
             sequences = self.execute(q, silent=True)
             for s in sequences:
                 seq = s["sequence_name"]
 
                 # get the max pk for this table
-                q = f"SELECT column_name, table_name FROM information_schema.columns WHERE column_default LIKE 'nextval(%{seq}%)'"
+                q = "SELECT column_name, table_name FROM information_schema.columns "
+                q += f"WHERE column_default LIKE 'nextval(%{seq}%)'"
                 rows = self.execute(q, silent=True, auto_commit_rollback=True)
                 row = rows.fetchone()
                 table = row["table_name"]
@@ -6881,7 +7036,8 @@ class Postgres(SQLDriver):
                 max_pk = self.max_pk(table, pk_column)
 
                 # update the sequence
-                # TODO: This needs fixed.  pysimplesql_user does have permissions on the sequence, but this still bombs out
+                # TODO: This needs fixed.  pysimplesql_user does have permissions on the
+                # sequence, but this still bombs out
                 seq = self.quote_table(seq)
                 if max_pk > 0:
                     q = f"SELECT setval('{seq}', {max_pk});"
@@ -6941,14 +7097,16 @@ class Postgres(SQLDriver):
         except psycopg2.ProgrammingError:
             rows = []
 
-        # In Postgres, the cursor does not return a lastrowid.  We will not set it here, we will instead set it in
-        # save_records() due to the RETURNING stement of the query
+        # In Postgres, the cursor does not return a lastrowid.  We will not set it here,
+        # we will instead set it in save_records() due to the RETURNING stement of the
+        # query
         return ResultSet(
             [dict(row) for row in rows], exception=exception, column_info=column_info
         )
 
     def get_tables(self):
-        query = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+        query = "SELECT table_name FROM information_schema.tables WHERE "
+        query += "table_schema='public' AND table_type='BASE TABLE';"
         # query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
         rows = self.execute(query, silent=True)
         return [row["table_name"] for row in rows]
@@ -6980,7 +7138,10 @@ class Postgres(SQLDriver):
         return col_info
 
     def pk_column(self, table):
-        query = f"SELECT column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = '{table}' "
+        query = "SELECT column_name FROM information_schema.table_constraints tc JOIN "
+        query += "information_schema.key_column_usage kcu ON tc.constraint_name = "
+        query += "kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND "
+        query += f"tc.table_name = '{table}' "
         cur = self.execute(query, silent=True)
         row = cur.fetchone()
         return row["column_name"] if row else None
@@ -6990,11 +7151,14 @@ class Postgres(SQLDriver):
         tables = self.get_tables()
         relationships = []
         for from_table in tables:
-            query = "SELECT conname, conrelid::regclass, confrelid::regclass, confupdtype, confdeltype,"
-            query += "a1.attname AS column_name, a2.attname AS referenced_column_name "
+            query = "SELECT conname, conrelid::regclass, confrelid::regclass, "
+            query += "confupdtype, confdeltype, a1.attname AS column_name, a2.attname "
+            query += "AS referenced_column_name "
             query += "FROM pg_constraint "
-            query += "JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND a1.attnum = ANY(conkey) "
-            query += "JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND a2.attnum = ANY(confkey) "
+            query += "JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND "
+            query += "a1.attnum = ANY(conkey) "
+            query += "JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND "
+            query += "a2.attnum = ANY(confkey) "
             query += f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
 
             rows = self.execute(query, (from_table,), silent=True)
@@ -7035,24 +7199,27 @@ class Postgres(SQLDriver):
         return rows.fetchone()["max_pk"]
 
     def next_pk(self, table: str, pk_column: str) -> int:
-        # Working with case-sensitive tables is painful in Postgres.  First, the sequence must be quoted in a manner
-        # similar to tables, then the quoted sequence name has to be also surrounded in single quotes to be treated
+        # Working with case-sensitive tables is painful in Postgres.  First, the
+        # sequence must be quoted in a manner similar to tables, then the quoted
+        # sequence name has to be also surrounded in single quotes to be treated
         # literally and prevent folding of the casing.
         seq = f"{table}_{pk_column}_seq"  # build the default sequence name
         seq = self.quote_table(seq)  # quote it like a table
 
-        q = f"SELECT nextval('{seq}') LIMIT 1;"  # wrap the quoted string in singe quotes.  Phew!
+        # wrap the quoted string in singe quotes.  Phew!
+        q = f"SELECT nextval('{seq}') LIMIT 1;"
         rows = self.execute(q, silent=True)
         return rows.fetchone()["nextval"]
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
-        # insert_record() for Postgres is a little different from the rest. Instead of relying on an autoincrement, we
-        # first already "reserved" a primary key earlier, so we will use it directly
-        # quote appropriately
+        # insert_record() for Postgres is a little different from the rest. Instead of
+        # relying on an autoincrement, we first already "reserved" a primary key
+        # earlier, so we will use it directly quote appropriately
         table = self.quote_table(table)
 
         # Remove the primary key column to ensure autoincrement is used!
-        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES ({','.join('%s' for _ in range(len(row)))}); "
+        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES "
+        query += f"({','.join('%s' for _ in range(len(row)))}); "
         values = [value for key, value in row.items()]
         result = self.execute(query, tuple(values))
 
@@ -7081,9 +7248,9 @@ class SimpleTransform(TypedDict):
 SimpleTransformsDict = Dict[str, SimpleTransform]
 
 
-# ======================================================================================================================
+# ======================================================================================
 # ALIASES
-# ======================================================================================================================
+# ======================================================================================
 languagepack = lang
 Database = Form
 Table = DataSet
