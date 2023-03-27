@@ -1540,14 +1540,14 @@ class DataSet:
         self, values: Dict[str : Union[str, int]] = None, skip_prompt_save: bool = False
     ) -> None:
         """
-        Insert a new record virtually in the `DataSet` object. 
-        
-        If values are passed, it will initially set those columns to the values (I.e. 
-        {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the 
+        Insert a new record virtually in the `DataSet` object.
+
+        If values are passed, it will initially set those columns to the values (I.e.
+        {'name': 'New Record', 'note': ''}), otherwise they will be fetched from the
         database if present.
 
         :param values: column:value pairs
-        :param skip_prompt_save: Skip prompting the user to save dirty records before 
+        :param skip_prompt_save: Skip prompting the user to save dirty records before
             the insert.
         :returns: None
         """
@@ -1608,7 +1608,7 @@ class DataSet:
         before_save and after_save `DataSet.callbacks` will call your
         own functions for error checking if needed!.
 
-        :param display_message: Displays a message "Updates saved successfully", 
+        :param display_message: Displays a message "Updates saved successfully",
             otherwise is silent on success.
         :param update_elements: Update the GUI elements after saving
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
@@ -1638,18 +1638,18 @@ class DataSet:
                     )
                 return SAVE_FAIL + SHOW_MESSAGE
 
-        # Check right away to see if any records have changed, no need to proceed any 
+        # Check right away to see if any records have changed, no need to proceed any
         # further than we have to.
         if not self.records_changed(recursive=False) and self.frm.force_save is False:
             self.frm.popup.info(lang.dataset_save_none, display_message=display_message)
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data, 
+        # Note that while saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
-        # Track the keyed queries we have to run.  Set to None, so we can tell later if 
+        # Track the keyed queries we have to run.  Set to None, so we can tell later if
         # there were keyed elements
         keyed_queries: Optional[
             List
@@ -1800,11 +1800,11 @@ class DataSet:
         """
         Recursively save changes, taking into account the relationships of the tables.
 
-        :param results: Used in Form.save_records to collect DataSet.save_record 
+        :param results: Used in Form.save_records to collect DataSet.save_record
             returns. Pass an empty dict to get list of {table : result}
-        :param display_message: Passed to DataSet.save_record. Displays a message 
+        :param display_message: Passed to DataSet.save_record. Displays a message
             that updates were saved successfully, otherwise is silent on success.
-        :param check_prompt_save: Used when called from Form.prompt_save. Updates 
+        :param check_prompt_save: Used when called from Form.prompt_save. Updates
             elements without saving if individual `DataSet._prompt_save()` is False.
         :returns: dict of {table : results}
         """
@@ -1837,7 +1837,7 @@ class DataSet:
         The before_delete and after_delete callbacks are run during this process
         to give some control over the process.
 
-        :param cascade: Delete child records (as defined by `Relationship`s that were 
+        :param cascade: Delete child records (as defined by `Relationship`s that were
             set up) before deleting this record.
         :returns: None
         """
@@ -1908,7 +1908,7 @@ class DataSet:
         The before_duplicate and after_duplicate callbacks are run during this
         process to give some control over the process.
 
-        :param children: Duplicate child records (as defined by `Relationship`s that 
+        :param children: Duplicate child records (as defined by `Relationship`s that
             were set up) before duplicating this record.
         :returns: None
         """
@@ -2009,8 +2009,8 @@ class DataSet:
     def get_description_for_pk(self, pk: int) -> Union[str, int, None]:
         """
         Get the description from the `DataSet` on the matching pk.
-        
-        Return the desctription from `DataSet.description_column` for the row where the 
+
+        Return the desctription from `DataSet.description_column` for the row where the
         `DataSet.pk_column` = `pk`.
 
         :param pk: The primary key from which to find the description for
@@ -2030,7 +2030,7 @@ class DataSet:
         :param columns: A list of column names to create table values for.
                         Defaults to getting them from the `DataSet.rows` `ResultSet`.
         :param mark_virtual: Place a marker next to virtual records
-        :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table 
+        :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
         global themepack
@@ -2098,13 +2098,13 @@ class DataSet:
         skip_prompt_save: bool = False,
     ) -> None:
         """
-        The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.  
-        This is very useful for putting a button next to a combobox or listbox so that 
+        The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.
+        This is very useful for putting a button next to a combobox or listbox so that
         the available values can be added/edited/deleted easily.
-        Note: This is not typically used by the end user, as it can be configured from 
+        Note: This is not typically used by the end user, as it can be configured from
         the `field()` convenience function.
 
-        :param pk_update_funct: (optional) A function to call to determine the pk to 
+        :param pk_update_funct: (optional) A function to call to determine the pk to
             select by default when the quick editor loads.
         :param funct_param: (optional) A parameter to pass to the `pk_update_funct`
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
@@ -2206,7 +2206,7 @@ class Form:
 
     """
     `Form` class.
-    
+
     Maintains an internal version of the actual database
     `DataSet` objects can be accessed by key, I.e. frm['data_key'].
     """
@@ -5361,8 +5361,8 @@ class ColumnInfo(List):
 
     def default_row_dict(self, dataset: DataSet) -> dict:
         """
-        Return a dictionary of a table row with all defaults assigned. 
-        
+        Return a dictionary of a table row with all defaults assigned.
+
         This is useful for inserting new records to prefill the GUI elements.
 
         :param dataset: a pysimplesql DataSet object
@@ -5377,7 +5377,7 @@ class ColumnInfo(List):
             if self._looks_like_function(default):
                 table = self.driver.quote_table(self.table)
                 # TODO: may need AS column to support all databases?
-                q = f"SELECT {default} AS val FROM {table};"  
+                q = f"SELECT {default} AS val FROM {table};"
                 rows = self.driver.execute(q)
                 if rows.exception is None:
                     default = rows.fetchone()["val"]
