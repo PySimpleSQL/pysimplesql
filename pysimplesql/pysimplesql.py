@@ -3522,6 +3522,88 @@ class Form:
 # MAIN PYSIMPLESQL UTILITY FUNCTIONS
 # ======================================================================================================================
 # These functions exist as utilities to the pysimplesql module
+
+
+def docker_image_installed(client, image: str) -> bool:
+    """
+    Check if the specified Docker image is installed locally.
+
+    :param client: A Docker client object
+    :param image: The Docker image, including the tag ("pysimplesql/examples:postgres")
+    :return: True if the image is installed, False otherwise
+    """
+    try:
+        client.images.get(image)
+        return True
+    except:  # This isn't a great solution, but ss will not require docker this way
+        return False
+
+
+def docker_image_is_latest(client, image: str) -> bool:
+    """
+    Check if a new version of a Docker image is available for download.
+
+    :param image: The Docker image, including the tag ("pysimplesql/examples:postgres")
+    :return: True if a newer version is available, False otherwise
+    """
+    # Split the image name and tag
+    image_name, image_tag = image.split(":")
+
+    # Get the installed image and the latest available image
+    installed_image = client.images.get(image)
+    latest_image = client.images.get(f"{image_name}:{image_tag}")
+
+    # Compare the IDs of the installed and latest images
+    return installed_image.id == latest_image.id
+
+
+def docker_image_pull(client, image: str, latest: bool = True) -> None:
+    """
+    Pull the supplied docker image, displaying a progress bar.
+
+    :param client: A docker client object
+    :param latest: Ensure that the latest docker image is used (updates the local image)
+    :return:
+    """
+    # Check if the installed image is installed, and if it is the latest.
+    # Also check to see if the latest was requested in the function call
+    if docker_image_installed(client, image):
+        if docker_image_is_latest(client, image):
+            return
+        else:
+            if not latest:
+                return
+
+    # Pull the Docker image and stream the output to the progress bar
+    started = False  # Has the first download started?
+    layers = 0  # Number of fs layers to download
+    progress = 0  # The progress, against the number of layers to download
+
+    for line in client.api.pull(image, stream=True, decode=True):
+        # print(line)
+        if "status" in line:
+            if line["status"] == "Pulling fs layer":
+                # count the layers we will be downloading
+                layers += 1
+            elif line["status"] == "Downloading" and not started:
+                # We have started the first download.  We should now have an accurate
+                # count of the number of fs layers for progress update.
+                # Create a progress bar with a maximum value of the number of layers
+                started = True
+                progress_bar = ProgressBar(
+                    title="Pulling Docker image", max_value=layers
+                )
+                progress_bar.update("waiting on downloads to start.", progress)
+            elif line["status"] == "Pull complete":
+                progress += 1
+                message = f"Puling {image}\n{progress} of {layers} layers complete."
+                progress_bar.update(message=message, current_count=progress)
+        elif "error" in line:
+            raise Exception(line["error"])
+    # Close the progress bar
+    progress_bar.close()
+
+
 # This is a dummy class for documenting utility functions
 class Utility:
 
@@ -3798,7 +3880,7 @@ class Popup:
 class ProgressBar:
     def __init__(self, title: str, max_value: int = 100):
         layout = [
-            [sg.Text("", key="message", size=(31, 1))],
+            [sg.Text("", key="message", size=(50, 2))],
             [
                 sg.ProgressBar(
                     max_value,
