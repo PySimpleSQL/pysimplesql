@@ -5362,7 +5362,9 @@ class ColumnInfo(List):
                     d[c.name] = default
                     continue
                 else:
-                    logger.warning(f"There was an exception getting the default: {e}")
+                    logger.warning(
+                        f"There was an exception getting the default: {rows.exception}"
+                    )
 
             # The stored default is a literal value, lets try to use it:
             if default is None:
