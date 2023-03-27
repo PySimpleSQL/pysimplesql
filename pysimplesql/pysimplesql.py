@@ -1242,6 +1242,7 @@ class DataSet:
     ) -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
         Move to the next record in the `DataSet` that contains `search_string`.
+
         Successive calls will search from the current position, and wrap around back to
         the beginning. The search order from `DataSet.set_search_order()` will be used.
         If the search order is not set by the user, it will default to the description
@@ -1377,18 +1378,20 @@ class DataSet:
         omit_elements: list[str] = None,
     ) -> None:
         """
-        Move to the record with this primary key. This is useful when modifying a record
-        (such as renaming).  The primary key can be stored, the record re-named, and
-        then the current record selection updated regardless of the new sort order.
+        Move to the record with this primary key.
 
+        This is useful when modifying a record (such as renaming).  The primary key can
+        be stored, the record re-named, and then the current record selection updated
+        regardless of the new sort order.
         Only one entry in the table is ever considered "Selected"  This is one of
         several functions that influences which record is currently selected. See
         `DataSet.first()`, `DataSet.previous()`, `DataSet.next()`, `DataSet.last()`,
         `DataSet.search()`, `DataSet.set_by_pk()`, `DataSet.set_by_index()`.
 
         :param pk: The record to move to containing the primary key
-        :param update_elements: (optional) Update the GUI elements after switching records
-        :param requery_dependents: (optional) Requery dependents after switching records?
+        :param update_elements: (optional) Update the GUI elements after switching
+            records.
+        :param requery_dependents: (optional) Requery dependents after switching records
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
@@ -1425,8 +1428,10 @@ class DataSet:
         self, column: str, default: Union[str, int] = ""
     ) -> Union[str, int]:
         """
-        Get the current value for the supplied column. You can also use indexing of the
-        @Form object to get the current value of a column I.e. frm[{DataSet}].[{column}].
+        Get the current value for the supplied column.
+
+        You can also use indexing of the `Form` object to get the current value of a
+        column I.e. frm[{DataSet}].[{column}].
 
         :param column: The column you want to get the value from
         :param default: A value to return if the record is null
@@ -1445,8 +1450,8 @@ class DataSet:
         """
         Set the current value for the supplied column.
 
-        You can also use indexing of the `Form` object to set the current value of a column
-        I.e. frm[{DataSet}].[{column}] = 'New value'.
+        You can also use indexing of the `Form` object to set the current value of a
+        column. I.e. frm[{DataSet}].[{column}] = 'New value'.
 
         :param column: The column you want to set the value for
         :param value: A value to set the current record's column to
@@ -1459,8 +1464,9 @@ class DataSet:
         self, value_column: str, key_column: str, key_value: Union[str, int]
     ) -> Union[str, int]:
         """
-        Return `value_column` where` key_column`=`key_value`.  Useful for datastores
-        with key/value pairs.
+        Return `value_column` where` key_column`=`key_value`.
+
+        Useful for datastores with key/value pairs.
 
         :param value_column: The column to fetch the value from
         :param key_column: The column in which to search for the value
@@ -1499,8 +1505,11 @@ class DataSet:
         where_value: str = None,
     ) -> None:
         """
-        Use an element such as a listbox, combobox or a table as a selector item for this table.
-        Note: This is not typically used by the end user, as this is called from the`selector()` convenience function.
+        Use an element such as a listbox, combobox or a table as a selector item for
+        this table.
+
+        Note: This is not typically used by the end user, as this is called from the
+        `selector()` convenience function.
 
         :param element: the PySimpleGUI element used as a selector element
         :param data_key: the `DataSet` item this selector will operate on
