@@ -1,26 +1,29 @@
 """
 # **pysimplesql** User's Manual.
 
-## DISCLAIMER:
-While **pysimplesql** works with and was inspired by the excellent PySimpleGUI™ project, it has no affiliation.
+## DISCLAIMER: While **pysimplesql** works with and was inspired by the excellent 
+PySimpleGUI™ project, it has no affiliation.
 
-## Rapidly build and deploy database applications in Python
-**pysimplesql** binds PySimpleGUI to various databases for rapid, effortless database application development. Makes a
-great replacement for MS Access or LibreOffice Base! Have the full power and language features of Python while having
-the power and control of managing your own codebase. **pysimplesql** not only allows for super simple automatic control
-(not one single line of SQL needs written to use **pysimplesql**), but also allows for very low level control for
-situations that warrant it.
+## Rapidly build and deploy database applications in Python **pysimplesql** binds 
+PySimpleGUI to various databases for rapid, effortless database application 
+development. Makes a great replacement for MS Access or LibreOffice Base! Have the 
+full power and language features of Python while having the power and control of 
+managing your own codebase. **pysimplesql** not only allows for super simple 
+automatic control (not one single line of SQL needs written to use **pysimplesql**), 
+but also allows for very low level control for situations that warrant it.
 
-------------------------------------------------------------------------------------------------------------------------
-NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE
-------------------------------------------------------------------------------------------------------------------------
-There is a lot of ambiguity with database terminology, as many terms are used interchangeably in some circumstances, but
-not in others.  The Internet has post after post debating this topic.  See one example here:
-https://dba.stackexchange.com/questions/65609/column-vs-field-have-i-been-using-these-terms-incorrectly
-To avoid confusion in the source code, specific naming conventions will be used whenever possible
+----------------------------------------------------------------------------------------
+NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE 
+----------------------------------------------------------------------------------------
+There is a lot of ambiguity with database terminology, as many terms are used 
+interchangeably in some circumstances, but not in others.  The Internet has post after 
+post debating this topic.  See one example here: 
+https://dba.stackexchange.com/questions/65609/column-vs-field-have-i-been-using-these-terms-incorrectly  # fmt: skip
+To avoid confusion in the source code, specific naming conventions will be used whenever 
+possible.
 
 Naming conventions can fall under 4 categories:
-- referencing the actual database (variables, functions, etc. that relate to the database)
+- referencing the database (variables, functions, etc. that relate to the database)
 - referencing the `DataSet` (variables, functions, etc. that relate to the `DataSet`)
 - referencing pysimplesql
 - referencing PySimpleGUI
@@ -48,7 +51,7 @@ Naming conventions can fall under 4 categories:
     win, window - A PySimpleGUI Window object
     element - a Window element
     element_key -  a window element key
-------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------
 """
 
 # The first two imports are for docstrings
@@ -84,13 +87,45 @@ except (
 try:
     from .reserved_sql_keywords import ADAPTERS as RESERVED
 except (ModuleNotFoundError, ImportError):
-    # Use common as minium default
-    # fmt: off
-    RESERVED = {"common": ["SELECT", "INSERT", "DELETE", "UPDATE", "DROP", "CREATE", "ALTER",
-                           "WHERE", "FROM", "INNER", "JOIN", "AND", "OR", "LIKE", "ON", "IN",
-                           "SET", "BY", "GROUP", "ORDER", "LEFT", "OUTER", "IF", "END", "THEN",
-                           "LOOP", "AS", "ELSE", "FOR", "CASE", "WHEN", "MIN", "MAX", "DISTINCT",]}
-    # fmt: on
+    # Use common as minimum default
+    RESERVED = {
+        "common": [
+            "SELECT",
+            "INSERT",
+            "DELETE",
+            "UPDATE",
+            "DROP",
+            "CREATE",
+            "ALTER",
+            "WHERE",
+            "FROM",
+            "INNER",
+            "JOIN",
+            "AND",
+            "OR",
+            "LIKE",
+            "ON",
+            "IN",
+            "SET",
+            "BY",
+            "GROUP",
+            "ORDER",
+            "LEFT",
+            "OUTER",
+            "IF",
+            "END",
+            "THEN",
+            "LOOP",
+            "AS",
+            "ELSE",
+            "FOR",
+            "CASE",
+            "WHEN",
+            "MIN",
+            "MAX",
+            "DISTINCT",
+        ]
+    }
 
 # Load database backends if present
 supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile"]
@@ -115,8 +150,8 @@ except ModuleNotFoundError:
 
 if failed_modules == len(supported_databases):
     RuntimeError(
-        f"You muse have at least one of the following databases installed to use PySimpleSQL:"
-        f"\n{', '.join(supported_databases)} "
+        f"You muse have at least one of the following databases installed to use "
+        f"PySimpleSQL:\n{', '.join(supported_databases)} "
     )
 
 
