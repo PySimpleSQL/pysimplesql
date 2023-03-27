@@ -90,41 +90,11 @@ except (ModuleNotFoundError, ImportError):
     # Use common as minimum default
     RESERVED = {
         "common": [
-            "SELECT",
-            "INSERT",
-            "DELETE",
-            "UPDATE",
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "WHERE",
-            "FROM",
-            "INNER",
-            "JOIN",
-            "AND",
-            "OR",
-            "LIKE",
-            "ON",
-            "IN",
-            "SET",
-            "BY",
-            "GROUP",
-            "ORDER",
-            "LEFT",
-            "OUTER",
-            "IF",
-            "END",
-            "THEN",
-            "LOOP",
-            "AS",
-            "ELSE",
-            "FOR",
-            "CASE",
-            "WHEN",
-            "MIN",
-            "MAX",
-            "DISTINCT",
-        ]
+            "SELECT", "INSERT", "DELETE", "UPDATE", "DROP", "CREATE", "ALTER", "WHERE",
+            "FROM", "INNER", "JOIN", "AND", "OR", "LIKE", "ON", "IN", "SET", "BY",
+            "GROUP", "ORDER", "LEFT", "OUTER", "IF", "END", "THEN", "LOOP", "AS", 
+            "ELSE", "FOR", "CASE", "WHEN", "MIN", "MAX", "DISTINCT",
+        ],
     }
 
 # Load database backends if present
@@ -244,7 +214,8 @@ DELETE_CASCADE_RECURSION_LIMIT = (
 class TableRow(list):
 
     """
-    This is a convenience class used by Tables to associate a primary key with a row of information
+    Convenience class used by Tables to associate a primary key with a row of data.
+    
     Note: This is typically not used by the end user.
     """
 
@@ -266,7 +237,9 @@ class TableRow(list):
 class ElementRow:
 
     """
-    This is a convenience class used by listboxes and comboboxes to associate a primary key with a row of information
+    Convenience class used by listboxes and comboboxes to associate a primary key with 
+    a row of data.
+    
     Note: This is typically not used by the end user.
     """
 
@@ -299,13 +272,14 @@ class ElementRow:
 class Relationship:
 
     """
-    This class is used to track primary/foreign key relationships in the database.
+    Used to track primary/foreign key relationships in the database.
 
-    See the following for more information: `Form.add_relationship` and `Form.auto_add_relationships`
+    See the following for more information: `Form.add_relationship` and 
+    `Form.auto_add_relationships`.
+    
     Note: This class is not typically used the end user,
     """
 
-    # TODO: Relationships are table-based only.  Audit code to ensure that we aren't dealing with data_keys
     # store our own instances
     instances = []
 
