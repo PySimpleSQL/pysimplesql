@@ -7,6 +7,12 @@ testing purposes.
 """
 import docker
 from pysimplesql import ProgressBar
+import time
+import logging
+
+# Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 def docker_image_installed(client: docker.client, image: str) -> bool:
@@ -67,7 +73,6 @@ def docker_image_pull(client, image: str, latest: bool = True) -> None:
     progress = 0  # The progress, against the number of layers to download
 
     for line in client.api.pull(image, stream=True, decode=True):
-        # print(line)
         if "status" in line:
             if line["status"] == "Pulling fs layer":
                 # count the layers we will be downloading
@@ -107,22 +112,37 @@ def docker_container_start(
         all=True, filters={"name": container_name}
     )
 
-    if existing_containers:
-        # If the container exists, start it if it's not running
-        container = existing_containers[0]
-        if container.status != "running":
-            container.start()
-    else:
+    if not existing_containers:
         # If the container doesn't exist, create it
-        print("CREATING CONTAINER")
-
-        container = client.containers.run(
+        logger.info(f"The {container_name} container does not exist. Creating...")
+        progress_bar = ProgressBar(title="Creating Docker container", max_value=100)
+        progress_bar.update("Creating container...", 25)
+        container = client.containers.create(
             image=image,
             name=container_name,
             environment=environment,
-            detach=True,
             ports={"5432/tcp": ("127.0.0.1", 5432)},
-            auto_remove=True,
+            # auto_remove=True,
         )
+        progress_bar.update("Finished container creation.", 100)
+        progress_bar.close()
+
+    # Now we can start the container
+    logger.info(f"Starting container {container_name}...")
+    container = client.containers.get(container_name)
+    print(f"container_status: {container.status}")
+    if container.status != "running":
+        container.start()
+
+    # Wait for the container to be fully initialized
+    time.sleep(1)
+    while True:
+        container.reload()
+        if container.status == "running":
+            logs = container.logs().decode("utf-8")
+            if "database system is ready to accept connections" in logs:
+                print("READY")
+                break
+        time.sleep(5)
 
     return container

@@ -100,6 +100,7 @@ while True:
 
     if event == sg.WIN_CLOSED or event == "Exit":
         # Ensure proper closing of our resources
+        driver.close()
         frm.close()
         win.close()
         docker_container.stop()
