@@ -1,6 +1,6 @@
 "Sqlite3 binding for PySimpleGUI"
 
-from .pysimplesql import * # noqa: F403
+from .pysimplesql import *  # noqa: F403
 from update_checker import UpdateChecker  # pip install update-checker
 
 
