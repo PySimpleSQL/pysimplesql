@@ -54,3 +54,31 @@ ignore = [
     "D211", #No blank lines allowed before class docstring
     "D212", #Multi-line docstring summary should start at the first line
     ]
+    
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    # PySimpleSql excludes
+    "examples", # excluded for now
+    
+    # Ruff default excludes
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]

@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 """
 ChatGPT prompt:
 I'm working on language localization for my python application.

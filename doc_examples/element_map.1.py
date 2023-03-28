@@ -1,3 +1,5 @@
+# ruff: noqa: F821
+
 map = {
     "element": element,  # a PySimpleGUI element
     "query": query,  # a DataSet object

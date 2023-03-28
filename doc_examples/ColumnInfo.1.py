@@ -1,7 +1,11 @@
-# Set the null value default for INTEGERS to 10; When reading from the database, if an INTEGER is Null, this value will be set
+# ruff: noqa: F821
+
+# Set the null value default for INTEGERS to 10;
+# When reading from the database, if an INTEGER is Null, this value will be set
 frm["Journal"].column_info.set_null_default("INTEGER", 10)
 
-# Provide a complete custom set of null defaults: note: All supported keys must be included
+# Provide a complete custom set of null defaults:
+# note: All supported keys must be included
 null_defaults = {
     "TEXT": "New Record",
     "VARCHAR": "New Record",
