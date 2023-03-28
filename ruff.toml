@@ -32,9 +32,9 @@ select = [
 #     "PT", #flake8-pytest-style
 #     "Q", #flake8-quotes
 #     "RSE", #flake8-raise
-#     "RET", #flake8-return
+    "RET", #flake8-return
 #     "SLF", #flake8-self
-#     "SIM", #flake8-simplify
+    "SIM", #flake8-simplify
 #     "TID", #flake8-tidy-imports
 #     "TCH", #flake8-type-checking
 #     "ARG", #flake8-unused-arguments
@@ -53,4 +53,7 @@ select = [
 ignore = [
     "D211", #No blank lines allowed before class docstring
     "D212", #Multi-line docstring summary should start at the first line
+    # Will do below later
+    "SIM102", #Use a single `if` statement instead of nested `if` statements
+    "SIM114", #Combine `if` branches using logical `or` operator
     ]
