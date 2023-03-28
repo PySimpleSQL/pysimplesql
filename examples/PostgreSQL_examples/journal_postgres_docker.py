@@ -11,8 +11,8 @@ logging.basicConfig(level=logging.INFO)
 # POSTGRESQL EXAMPLE USING DOCKER TO PROVIDE A POSTGRES SERVER
 # Note that docker must be installed and configured properly on your local machine.
 # Load in the docker image and create a container to run the Postgres server.
-# See the Journal.sql file in PostgreSQL_examples to see the SQL statements used to
-# create this database.
+# See the Journal.sql file in the PostgreSQL_examples folder to see the SQL statements
+# used to create this database.
 environment = {
     "POSTGRES_USER": "pysimplesql_user",
     "POSTGRES_PASSWORD": "pysimplesql",
