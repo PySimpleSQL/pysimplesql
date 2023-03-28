@@ -103,7 +103,7 @@ while True:
         driver.close()
         frm.close()
         win.close()
-        docker_container.stop()
+        # docker_container.stop()
         docker_client.close()
         break
     elif ss.process_events(

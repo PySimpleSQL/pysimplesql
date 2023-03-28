@@ -120,8 +120,9 @@ def docker_container_start(
         container = client.containers.create(
             image=image,
             name=container_name,
-            environment=environment,
+            # environment=environment,
             ports={"5432/tcp": ("127.0.0.1", 5432)},
+            detach=True
             # auto_remove=True,
         )
         progress_bar.update("Finished container creation.", 100)
@@ -135,7 +136,6 @@ def docker_container_start(
         container.start()
 
     # Wait for the container to be fully initialized
-    time.sleep(1)
     while True:
         container.reload()
         if container.status == "running":
