@@ -1,4 +1,5 @@
-# Get the of the first column selecting a `Column` from the stored `ColumnInfo` collection
+# Get the of the first column selecting a
+# `Column` from the stored `ColumnInfo` collection
 col_name = frm["Journal"].column_info[0]["name"]  # uses subscript notation
 col_name = frm["Journal"].column_info[0].name  # uses the name property
 

@@ -1,6 +1,6 @@
 """Database bindings for PySimpleGUI"""
 
-from .pysimplesql import *
+from .pysimplesql import *  # noqa: F403
 from update_checker import UpdateChecker  # pip install update-checker
 
 
@@ -44,5 +44,7 @@ if result is not None:
         f"(released {result.release_date}) " if result.release_date is not None else ""
     )
     print(
-        f"***** pysimplesql update from {__version__} to {result.available_version} {release_date} available! Be sure to run pip3 install pysimplesql --upgrade *****"
+        f"***** pysimplesql update from {__version__} to "
+        f"{result.available_version} {release_date} available! "
+        f"Be sure to run pip3 install pysimplesql --upgrade *****"
     )
