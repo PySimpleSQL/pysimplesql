@@ -56,7 +56,11 @@ ignore = [
     ]
 
 [per-file-ignores]
-"examples/*" = ["E501"]
+"examples/*" = [
+    "E501",
+    "F403",
+    "F405",
+    ]
 "doc_examples/*" = ["F821"]
 "pysimplesql/language_pack.py" = ["E501"]
 "pysimplesql/theme_pack.py" = ["E501"]
