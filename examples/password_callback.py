@@ -12,10 +12,10 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 # Here are our callback functions
 def enable(db,win):
     res=sg.popup_get_text('Enter password for edit mode.\n(Hint: it is 1234)')
-    return True if res=='1234' else False
+    return res == '1234'
 def disable(db,win):
     res = sg.popup_yes_no('Are you sure you want to disabled edit mode?')
-    return True if res == 'Yes' else False
+    return res == 'Yes'
 
 # Define our layout. We will use the ss.record convenience function to create the controls
 layout = [

@@ -18,11 +18,7 @@ win = sg.Window('SELECT A DATABASE TO USE', layout=layout_selection, finalize=Tr
 selected_driver = None
 while True:
     event, values = win.read()
-
-    if event == sg.WIN_CLOSED or event == 'Exit':
-        selected_driver='sqlite'  # default to the SQLite driver
-    else:
-        selected_driver = event
+    selected_driver = 'sqlite' if (event == sg.WIN_CLOSED or event == 'Exit') else event
     break
 win.close()
 
