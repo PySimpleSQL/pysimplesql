@@ -62,27 +62,18 @@ import PySimpleGUI as sg
 import functools
 import os.path
 import logging
+import contextlib
 
 # For threaded info popup
 from time import sleep
 import threading
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
-try:
+with contextlib.suppress(ModuleNotFoundError, ImportError):
     from .language_pack import *  # noqa: F403
-except (
-    ModuleNotFoundError,
-    ImportError,  # for 'attempted relative import with no known parent package'
-):
-    pass
 
-try:
+with contextlib.suppress(ModuleNotFoundError, ImportError):
     from .theme_pack import *  # noqa: F403
-except (
-    ModuleNotFoundError,
-    ImportError,  # for 'attempted relative import with no known parent package'
-):
-    pass
 
 try:
     from .reserved_sql_keywords import ADAPTERS as RESERVED
@@ -293,8 +284,7 @@ class Relationship:
         :param table: The table to get relationships for
         :returns: A list of @Relationship objects
         """
-        rel = [r for r in cls.instances if r.child_table == table]
-        return rel
+        return [r for r in cls.instances if r.child_table == table]
 
     @classmethod
     def get_update_cascade_relationships(cls, table: str) -> List[str]:
@@ -311,8 +301,7 @@ class Relationship:
             if r.parent_table == table and r.on_update_cascade
         ]
         # make unique
-        rel = list(set(rel))
-        return rel
+        return list(set(rel))
 
     @classmethod
     def get_delete_cascade_relationships(cls, table: str) -> List[str]:
@@ -329,8 +318,7 @@ class Relationship:
             if r.parent_table == table and r.on_delete_cascade
         ]
         # make unique
-        rel = list(set(rel))
-        return rel
+        return list(set(rel))
 
     @classmethod
     def get_parent(cls, table: str) -> Union[str, None]:
@@ -427,17 +415,11 @@ class Relationship:
 
     @property
     def on_update_cascade(self):
-        if self.update_cascade and self.frm.update_cascade:
-            return True
-        else:
-            return False
+        return bool(self.update_cascade and self.frm.update_cascade)
 
     @property
     def on_delete_cascade(self):
-        if self.delete_cascade and self.frm.delete_cascade:
-            return True
-        else:
-            return False
+        return bool(self.delete_cascade and self.frm.delete_cascade)
 
     def __str__(self):
         """Return a join clause when cast to a string."""
@@ -445,7 +427,7 @@ class Relationship:
 
     def __repr__(self):
         """Return a more descriptive string for debugging."""
-        ret = (
+        return (
             f"Relationship ("
             f"\n\tjoin={self.join_type},"
             f"\n\tchild_table={self.child_table},"
@@ -454,8 +436,6 @@ class Relationship:
             f"\n\tpk_column={self.pk_column}"
             f"\n)"
         )
-
-        return ret
 
 
 class ElementMap(dict):
@@ -861,9 +841,8 @@ class DataSet:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.rows:
-            if self.get_current_row().virtual:
-                return True
+        if self.rows and self.get_current_row().virtual:
+            return True
 
         dirty = False
         # First check the current record to see if it's dirty
@@ -920,8 +899,7 @@ class DataSet:
                         f"{mapped.column}:{table_val}"
                     )
                     return dirty
-                else:
-                    dirty = False
+                dirty = False
 
         # handle recursive checking next
         if recursive:
@@ -972,13 +950,13 @@ class DataSet:
                 ):
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
-            else:
-                self.rows.purge_virtual()
-                if vrows and update_elements:
-                    self.frm.update_elements(self.table)
-                return PROMPT_SAVE_DISCARDED
-        else:
-            return PROMPT_SAVE_NONE
+            # if no
+            self.rows.purge_virtual()
+            if vrows and update_elements:
+                self.frm.update_elements(self.table)
+            return PROMPT_SAVE_DISCARDED
+        # if no changes
+        return PROMPT_SAVE_NONE
 
     def requery(
         self,
@@ -1122,7 +1100,7 @@ class DataSet:
         if update_elements:
             self.frm.update_elements(self.table)
         # callback
-        if "record_changed" in self.callbacks.keys():
+        if "record_changed" in self.callbacks:
             self.callbacks["record_changed"](self.frm, self.frm.window)
 
     def last(
@@ -1157,7 +1135,7 @@ class DataSet:
         if update_elements:
             self.frm.update_elements(self.table)
         # callback
-        if "record_changed" in self.callbacks.keys():
+        if "record_changed" in self.callbacks:
             self.callbacks["record_changed"](self.frm, self.frm.window)
 
     def next(
@@ -1193,7 +1171,7 @@ class DataSet:
             if update_elements:
                 self.frm.update_elements(self.table)
             # callback
-            if "record_changed" in self.callbacks.keys():
+            if "record_changed" in self.callbacks:
                 self.callbacks["record_changed"](self.frm, self.frm.window)
 
     def previous(
@@ -1229,7 +1207,7 @@ class DataSet:
             if update_elements:
                 self.frm.update_elements(self.table)
             # callback
-            if "record_changed" in self.callbacks.keys():
+            if "record_changed" in self.callbacks:
                 self.callbacks["record_changed"](self.frm, self.frm.window)
 
     def search(
@@ -1261,7 +1239,7 @@ class DataSet:
         """
         # See if the string is an element name
         # TODO this is a bit of an ugly hack, but it works
-        if search_string in self.frm.window.key_dict.keys():
+        if search_string in self.frm.window.key_dict:
             search_string = self.frm.window[search_string].get()
         if search_string == "":
             return SEARCH_ABORTED
@@ -1271,7 +1249,7 @@ class DataSet:
             f'with search string "{search_string}"'
         )
         # callback
-        if "before_search" in self.callbacks.keys():
+        if "before_search" in self.callbacks:
             if not self.callbacks["before_search"](self.frm, self.frm.window):
                 return SEARCH_ABORTED
 
@@ -1291,33 +1269,30 @@ class DataSet:
             for i in list(range(self.current_index + 1, len(self.rows))) + list(
                 range(0, self.current_index)
             ):
-                if o in self.rows[i].keys():
-                    if self.rows[i][o]:
-                        if search_string.lower() in str(self.rows[i][o]).lower():
-                            old_index = self.current_index
-                            self.current_index = i
-                            if requery_dependents:
+                if o in self.rows[i] and self.rows[i][o]:
+                    if search_string.lower() in str(self.rows[i][o]).lower():
+                        old_index = self.current_index
+                        self.current_index = i
+                        if requery_dependents:
+                            self.requery_dependents()
+                        if update_elements:
+                            self.frm.update_elements(self.table)
+
+                        # callback
+                        if "after_search" in self.callbacks:
+                            if not self.callbacks["after_search"](
+                                self.frm, self.frm.window
+                            ):
+                                self.current_index = old_index
                                 self.requery_dependents()
-                            if update_elements:
                                 self.frm.update_elements(self.table)
+                                return SEARCH_ABORTED
 
-                            # callback
-                            if "after_search" in self.callbacks.keys():
-                                if not self.callbacks["after_search"](
-                                    self.frm, self.frm.window
-                                ):
-                                    self.current_index = old_index
-                                    self.requery_dependents()
-                                    self.frm.update_elements(self.table)
-                                    return SEARCH_ABORTED
+                        # callback
+                        if "record_changed" in self.callbacks:
+                            self.callbacks["record_changed"](self.frm, self.frm.window)
 
-                            # callback
-                            if "record_changed" in self.callbacks.keys():
-                                self.callbacks["record_changed"](
-                                    self.frm, self.frm.window
-                                )
-
-                            return SEARCH_RETURNED
+                        return SEARCH_RETURNED
         return SEARCH_FAILED
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
@@ -1415,8 +1390,7 @@ class DataSet:
             if r[self.pk_column] == pk:
                 self.current_index = i
                 break
-            else:
-                i += 1
+            i += 1
 
         if requery_dependents:
             self.requery_dependents()
@@ -1440,10 +1414,8 @@ class DataSet:
         if self.rows:
             if self.get_current_row()[column] != "":
                 return self.get_current_row()[column]
-            else:
-                return default
-        else:
             return default
+        return default
 
     def set_current(self, column: str, value: Union[str, int]) -> None:
         """
@@ -1475,6 +1447,7 @@ class DataSet:
         for r in self.rows:
             if r[key_column] == key_value:
                 return r[value_column]
+        return None
 
     def get_current_pk(self) -> int:
         """
@@ -1495,6 +1468,7 @@ class DataSet:
                 self.current_index
             )  # force the current_index to be in bounds! For child reparenting
             return self.rows[self.current_index]
+        return None
 
     def add_selector(
         self,
@@ -1625,17 +1599,16 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
-        if "before_save" in self.callbacks.keys():
-            if self.callbacks["before_save"]() is False:
-                logger.debug("We are not saving!")
-                if update_elements:
-                    self.frm.update_elements(self.table)
-                if display_message:
-                    self.frm.popup.ok(
-                        lang.dataset_save_callback_false_title,
-                        lang.dataset_save_callback_false,
-                    )
-                return SAVE_FAIL + SHOW_MESSAGE
+        if "before_save" in self.callbacks and self.callbacks["before_save"]() is False:
+            logger.debug("We are not saving!")
+            if update_elements:
+                self.frm.update_elements(self.table)
+            if display_message:
+                self.frm.popup.ok(
+                    lang.dataset_save_callback_false_title,
+                    lang.dataset_save_callback_false,
+                )
+            return SAVE_FAIL + SHOW_MESSAGE
 
         # Check right away to see if any records have changed, no need to proceed any
         # further than we have to.
@@ -1773,7 +1746,7 @@ class DataSet:
                     )  # only need to reset the Insert button
 
         # callback
-        if "after_save" in self.callbacks.keys():
+        if "after_save" in self.callbacks:
             if not self.callbacks["after_save"](self.frm, self.frm.window):
                 self.driver.rollback()
                 return SAVE_FAIL + SHOW_MESSAGE
@@ -1815,17 +1788,18 @@ class DataSet:
                     check_prompt_save=check_prompt_save,
                     update_elements=update_elements,
                 )
+        # if dataset-level doesn't allow prompt_save
         if check_prompt_save and self._prompt_save is False:
             if update_elements:
                 self.frm.update_elements(self.table)
             results[self.table] = PROMPT_SAVE_NONE
             return results
-        else:
-            result = self.save_record(
-                display_message=display_message, update_elements=update_elements
-            )
-            results[self.table] = result
-            return results
+        # otherwise, proceed
+        result = self.save_record(
+            display_message=display_message, update_elements=update_elements
+        )
+        results[self.table] = result
+        return results
 
     def delete_record(
         self, cascade: bool = True
@@ -1842,12 +1816,12 @@ class DataSet:
         """
         # Ensure that there is actually something to delete
         if not len(self.rows):
-            return
+            return None
 
         # callback
-        if "before_delete" in self.callbacks.keys():
+        if "before_delete" in self.callbacks:
             if not self.callbacks["before_delete"](self.frm, self.frm.window):
-                return
+                return None
 
         children = []
         if cascade:
@@ -1868,7 +1842,7 @@ class DataSet:
             self.frm.update_elements(
                 edit_protect_only=True
             )  # only need to reset the Insert button
-            return
+            return None
 
         # Delete child records first!
         result = self.driver.delete_record(self, True)
@@ -1886,7 +1860,7 @@ class DataSet:
             )
 
         # callback
-        if "after_delete" in self.callbacks.keys():
+        if "after_delete" in self.callbacks:
             if not self.callbacks["after_delete"](self.frm, self.frm.window):
                 self.driver.rollback()
             else:
@@ -1897,6 +1871,7 @@ class DataSet:
         self.requery(select_first=False)
         self.requery_dependents()
         self.frm.update_elements(self.table)
+        return None
 
     def duplicate_record(
         self, children: bool = None
@@ -1913,12 +1888,12 @@ class DataSet:
         """
         # Ensure that there is actually something to duplicate
         if not len(self.rows) or self.get_current_row().virtual:
-            return
+            return None
 
         # callback
-        if "before_duplicate" in self.callbacks.keys():
+        if "before_duplicate" in self.callbacks:
             if not self.callbacks["before_duplicate"](self.frm, self.frm.window):
-                return
+                return None
 
         if children is None:
             children = self.duplicate_children
@@ -1992,7 +1967,7 @@ class DataSet:
             pk = result.lastrowid
 
         # callback
-        if "after_duplicate" in self.callbacks.keys():
+        if "after_duplicate" in self.callbacks:
             if not self.callbacks["after_duplicate"](self.frm, self.frm.window):
                 self.driver.rollback()
             else:
@@ -2004,6 +1979,7 @@ class DataSet:
         # requery and move to new pk
         self.requery(select_first=False)
         self.set_by_pk(pk, skip_prompt_save=True)
+        return None
 
     def get_description_for_pk(self, pk: int) -> Union[str, int, None]:
         """
@@ -2040,10 +2016,7 @@ class DataSet:
         except IndexError:
             all_columns = []
 
-        if columns is None:
-            columns = all_columns
-        else:
-            columns = columns
+        columns = all_columns if columns is None else columns
 
         pk_column = self.column_info.pk_column()
 
@@ -2174,8 +2147,8 @@ class DataSet:
                 )
             if event in [sg.WIN_CLOSED, "Exit"]:
                 break
-            else:
-                logger.debug(f"This event ({event}) is not yet handled.")
+
+            logger.debug(f"This event ({event}) is not yet handled.")
         quick_win.close()
         self.requery()
         self.frm.update_elements()
@@ -2651,7 +2624,7 @@ class Form:
         logger.info("Automapping elements")
         # Clear previously mapped elements so successive calls won't produce duplicates
         self.element_map = []
-        for key in win.key_dict.keys():
+        for key in win.key_dict:
             element = win[key]
 
             # Skip this element if there is no metadata present
@@ -2669,9 +2642,8 @@ class Form:
             if element.metadata["Form"] != self:
                 continue
             # If we passed in a custom list of elements
-            if keys is not None:
-                if key not in keys:
-                    continue
+            if keys is not None and key not in keys:
+                continue
 
             # Map Record Element
             if element.metadata["type"] == TYPE_RECORD:
@@ -2821,7 +2793,7 @@ class Form:
         # Clear mapped events to ensure successive calls won't produce duplicates
         self.event_map = []
 
-        for key in win.key_dict.keys():
+        for key in win.key_dict:
             # key = str(key)  # sometimes end up with an integer element 0?TODO:Research
             element = win[key]
             # Skip this element if there is no metadata present
@@ -2903,11 +2875,11 @@ class Form:
         logger.debug("Toggling edit protect mode.")
         # Callbacks
         if self._edit_protect:
-            if "edit_enable" in self.callbacks.keys():
+            if "edit_enable" in self.callbacks:
                 if not self.callbacks["edit_enable"](self, self.window):
                     return
         else:
-            if "edit_disable" in self.callbacks.keys():
+            if "edit_disable" in self.callbacks:
                 if not self.callbacks["edit_disable"](self, self.window):
                     return
 
@@ -3053,10 +3025,7 @@ class Form:
             if show_message:
                 self.popup.ok(lang.form_save_problem_title, msg)
             return result
-        elif result & SAVE_SUCCESS:
-            msg = lang.form_save_success
-        else:
-            msg = lang.form_save_none
+        msg = lang.form_save_success if result & SAVE_SUCCESS else lang.form_save_none
         if show_message:
             self.popup.info(msg, display_message=display_message)
         return result
@@ -3333,7 +3302,7 @@ class Form:
         self.update_selectors(target_data_key, omit_elements)
 
         # Run callbacks
-        if "update_elements" in self.callbacks.keys():
+        if "update_elements" in self.callbacks:
             # Running user update function
             logger.info("Running the update_elements callback...")
             self.callbacks["update_elements"](self, self.window)
@@ -3358,9 +3327,8 @@ class Form:
         # We do it down here because it's not a mapped element...
         # Check for selector events
         for data_key, dataset in self.datasets.items():
-            if target_data_key is not None:
-                if target_data_key != data_key:
-                    continue
+            if target_data_key is not None and target_data_key != data_key:
+                continue
 
             if len(dataset.selector):
                 for e in dataset.selector:
@@ -3504,7 +3472,7 @@ class Form:
                 "Do you have frm.bind(win) in your code? *****"
             )
             return False
-        elif event:
+        if event:
             for e in self.event_map:
                 if e["event"] == event:
                     logger.debug(f"Executing event {event} via event mapping.")
@@ -3537,11 +3505,8 @@ class Form:
                                     pk, True, omit_elements=[element]
                                 )  # no need to update the selector!
                                 changed = True
-                            if changed:
-                                if "record_changed" in dataset.callbacks.keys():
-                                    dataset.callbacks["record_changed"](
-                                        self, self.window
-                                    )
+                            if changed and "record_changed" in dataset.callbacks:
+                                dataset.callbacks["record_changed"](self, self.window)
                             return changed
         return False
 
@@ -3964,10 +3929,8 @@ class KeyGen:
 
         :param key: The base key to reset te sequence for
         """
-        try:
+        with contextlib.suppress(KeyError):
             del self._keygen[key]
-        except KeyError:
-            pass
 
     def reset(self) -> None:
         """
@@ -5412,14 +5375,12 @@ class ColumnInfo(List):
     def __contains__(self, item):
         if isinstance(item, str):
             return self._contains_key_value_pair("name", item)
-        else:
-            return super().__contains__(item)
+        return super().__contains__(item)
 
     def __getitem__(self, item):
         if isinstance(item, str):
             return next((i for i in self if i.name == item), None)
-        else:
-            return super().__getitem__(item)
+        return super().__getitem__(item)
 
     def pk_column(self) -> Union[str, None]:
         """
@@ -5475,10 +5436,9 @@ class ColumnInfo(List):
                     default = rows.fetchone()["val"]
                     d[c.name] = default
                     continue
-                else:
-                    logger.warning(
-                        f"There was an exception getting the default: {rows.exception}"
-                    )
+                logger.warning(
+                    f"There was an exception getting the default: {rows.exception}"
+                )
 
             # The stored default is a literal value, lets try to use it:
             if default is None:
@@ -5570,10 +5530,7 @@ class ColumnInfo(List):
         return [c for c in self if not c.virtual]
 
     def _contains_key_value_pair(self, key, value):  # used by __contains__
-        for d in self:
-            if key in d and d[key] == value:
-                return True
-        return False
+        return any(key in d and d[key] == value for d in self)
 
     def _looks_like_function(
         self, s: str
@@ -5729,9 +5686,8 @@ class ResultSet:
     def __next__(self):
         if self._iter_index == len(self.rows):
             raise StopIteration
-        else:
-            self._iter_index += 1
-            return self.rows[self._iter_index - 1]
+        self._iter_index += 1
+        return self.rows[self._iter_index - 1]
 
     def __str__(self):
         return str([row.row for row in self.rows])
@@ -5744,10 +5700,8 @@ class ResultSet:
 
     def __setitem__(self, idx: int, new_row: ResultRow):
         # carry over the original_index
-        try:
+        with contextlib.suppress(AttributeError):
             new_row.original_index = self.rows[idx].original_index
-        except AttributeError:
-            pass
         self.rows[idx] = new_row
 
     def __len__(self):
@@ -5920,18 +5874,15 @@ class ResultSet:
             self.sort_column = column
             self.sort_reverse = False
             self.sort(table)
-            ret = ResultSet.SORT_ASC
-        else:
-            if not self.sort_reverse:
-                self.sort_reverse = True
-                self.sort(table)
-                ret = ResultSet.SORT_DESC
-            else:
-                self.sort_reverse = False
-                self.sort_column = None
-                self.sort(table)
-                ret = ResultSet.SORT_NONE
-        return ret
+            return ResultSet.SORT_ASC
+        if not self.sort_reverse:
+            self.sort_reverse = True
+            self.sort(table)
+            return ResultSet.SORT_DESC
+        self.sort_reverse = False
+        self.sort_column = None
+        self.sort(table)
+        return ResultSet.SORT_NONE
 
 
 class ReservedKeywordError(Exception):
@@ -6076,8 +6027,7 @@ class SQLDriver:
         max_pk = self.max_pk(table, pk_column)
         if max_pk is not None:
             return max_pk + 1
-        else:
-            return 1
+        return 1
 
     def check_keyword(self, keyword: str, key: str = None) -> None:
         """
@@ -6178,19 +6128,18 @@ class SQLDriver:
         """
         where = ""
         for r in dataset.frm.relationships:
-            if dataset.table == r.child_table:
-                if r.on_update_cascade:
-                    table = dataset.table
-                    parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
+            if dataset.table == r.child_table and r.on_update_cascade:
+                table = dataset.table
+                parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
 
-                    # Children without cascade-filtering parent aren't displayed
-                    if parent_pk == "":
-                        parent_pk = "NULL"
+                # Children without cascade-filtering parent aren't displayed
+                if parent_pk == "":
+                    parent_pk = "NULL"
 
-                    clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
-                    if where != "":
-                        clause = clause.replace("WHERE", "AND")
-                    where += clause
+                clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
+                if where != "":
+                    clause = clause.replace("WHERE", "AND")
+                where += clause
 
         if where == "":
             # There was no where clause from Relationships..
@@ -6303,6 +6252,7 @@ class SQLDriver:
 
             # Reset limit for next Child stack
             recursion = 0
+        return None
 
     def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
@@ -6409,7 +6359,7 @@ class SQLDriver:
             where_clause = f"WHERE {pk_column} = {pk}"
 
         # Generate an UPDATE query
-        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row.keys())} {where_clause};"  # fmt: skip # noqa: E501
+        query = f"UPDATE {table} SET {', '.join(f'{k}={self.placeholder}' for k in changed_row)} {where_clause};"  # fmt: skip # noqa: E501
         values = list(changed_row.values())
 
         result = self.execute(query, tuple(values))
@@ -6431,7 +6381,7 @@ class SQLDriver:
         table = self.quote_table(table)
 
         # Remove the primary key column to ensure autoincrement is used!
-        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES "
+        query = f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
         query += f"({','.join(self.placeholder for _ in range(len(row)))}); "
         values = [value for key, value in row.items()]
         return self.execute(query, tuple(values))
@@ -6775,13 +6725,12 @@ class Mysql(SQLDriver):
         self.win_pb.close()
 
     def connect(self):
-        con = mysql.connector.connect(
+        return mysql.connector.connect(
             host=self.host,
             user=self.user,
             password=self.password,
             database=self.database,
         )
-        return con
 
     def execute(
         self,
@@ -6835,9 +6784,9 @@ class Mysql(SQLDriver):
             # Capitalize and get rid of the extra information of the row type
             # I.e. varchar(255) becomes VARCHAR
             domain = row["Type"].split("(")[0].upper()
-            notnull = True if row["Null"] == "NO" else False
+            notnull = row["Null"] == "NO"
             default = row["Default"]
-            pk = True if row["Key"] == "PRI" else False
+            pk = row["Key"] == "PRI"
             col_info.append(
                 Column(
                     name=name, domain=domain, notnull=notnull, default=default, pk=pk
@@ -6976,13 +6925,12 @@ class Postgres(SQLDriver):
         self.win_pb.close()
 
     def connect(self):
-        con = psycopg2.connect(
+        return psycopg2.connect(
             host=self.host,
             user=self.user,
             password=self.password,
             database=self.database,
         )
-        return con
 
     def execute(
         self,
@@ -7038,14 +6986,13 @@ class Postgres(SQLDriver):
         for row in rows:
             name = row["column_name"]
             domain = row["data_type"].upper()
-            notnull = False if row["is_nullable"] == "YES" else True
+            notnull = row["is_nullable"] != "YES"
             default = row["column_default"]
             # Fix the default value by removing the datatype that is appended to the end
-            if default is not None:
-                if "::" in default:
-                    default = default[: default.index("::")]
+            if default is not None and "::" in default:
+                default = default[: default.index("::")]
 
-            pk = True if name == pk_column else False
+            pk = name == pk_column
             col_info.append(
                 Column(
                     name=name, domain=domain, notnull=notnull, default=default, pk=pk
@@ -7135,7 +7082,7 @@ class Postgres(SQLDriver):
         table = self.quote_table(table)
 
         # Remove the primary key column to ensure autoincrement is used!
-        query = f"INSERT INTO {table} ({', '.join(key for key in row.keys())}) VALUES "
+        query = f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
         query += f"({','.join('%s' for _ in range(len(row)))}); "
         values = [value for key, value in row.items()]
         result = self.execute(query, tuple(values))
