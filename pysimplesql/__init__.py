@@ -1,4 +1,4 @@
-"Sqlite3 binding for PySimpleGUI"
+"""Database bindings for PySimpleGUI"""
 
 from .pysimplesql import *
 from update_checker import UpdateChecker  # pip install update-checker
@@ -10,10 +10,14 @@ __keywords__ = [
     "SQL",
     "sqlite",
     "sqlite3",
+    "mariadb",
+    "postgres",
+    "postgresql",
+    "mysql",
     "database",
     "front-end",
     "access",
-    "libre office",
+    "libreoffice",
     "GUI",
     "PySimpleGUI",
 ]
