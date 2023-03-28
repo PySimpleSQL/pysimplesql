@@ -1,5 +1,3 @@
-# ruff: noqa: F821
-
 # Set the null value default for INTEGERS to 10;
 # When reading from the database, if an INTEGER is Null, this value will be set
 frm["Journal"].column_info.set_null_default("INTEGER", 10)

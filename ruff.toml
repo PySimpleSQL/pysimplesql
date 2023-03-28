@@ -82,3 +82,8 @@ exclude = [
     "node_modules",
     "venv",
 ]
+
+[per-file-ignores]
+"doc_examples/*" = ["F821"]
+"pysimplesql/language_pack.py" = ["E501"]
+"pysimplesql/theme_pack.py" = ["E501"]
