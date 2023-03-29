@@ -54,19 +54,18 @@ Naming conventions can fall under 4 categories:
 ----------------------------------------------------------------------------------------
 """  # noqa: E501
 
-# The first two imports are for docstrings
-from __future__ import annotations
-from typing import List, Union, Optional, Tuple, Callable, Dict, Type, TypedDict
-from datetime import date, datetime
-import PySimpleGUI as sg
-import functools
-import os.path
-import logging
-import contextlib
+from __future__ import annotations  # docstrings
 
-# For threaded info popup
-from time import sleep
-import threading
+import contextlib
+import functools
+import logging
+import os.path
+import threading  # threaded popup
+from datetime import date, datetime
+from time import sleep  # threaded popup
+from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
+
+import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
 with contextlib.suppress(ModuleNotFoundError, ImportError):
@@ -615,7 +614,6 @@ class DataSet:
         :param reset_keygen: Reset the keygen after purging?
         :returns: None
         """
-        global keygen
         new_instances = []
         selector_keys = []
 
@@ -2001,7 +1999,6 @@ class DataSet:
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
-        global themepack
 
         values = []
         try:
@@ -2075,8 +2072,6 @@ class DataSet:
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
         :returns: None
         """
-        global keygen
-        global themepack
 
         if skip_prompt_save is False:
             self.frm.prompt_save()
@@ -2912,8 +2907,8 @@ class Form:
                 if save_changes != "yes":
                     # update the elements to erase any GUI changes,
                     # since we are choosing not to save
-                    for data_key in self.datasets:
-                        self[data_key].rows.purge_virtual()
+                    for data_key_ in self.datasets:
+                        self[data_key_].rows.purge_virtual()
                     self.update_elements()
                     # We did have a change, regardless if the user chose not to save
                     return PROMPT_SAVE_DISCARDED
@@ -4028,7 +4023,6 @@ def field(
         Column, but can be treated as a single Element.
     """
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
-    global keygen
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -4222,8 +4216,6 @@ def actions(
         this is technically multiple elements wrapped in a PySimpleGUI.Column, but acts
         as one element for the purpose of layout building.
     """
-    global keygen
-    global themepack
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -4612,7 +4604,6 @@ def selector(
     :param kwargs: Any additional arguments supplied will be passed on to the
         PySimpleGUI element.
     """
-    global keygen
 
     key = f"{table}:selector" if key is None else key
     key = keygen.get(key)
@@ -4788,7 +4779,6 @@ class TableHeadings(list):
             ResultSet.SORT_ASC, ResultSet.SORT_DESC)
         :returns: None
         """
-        global themepack
 
         # Load in our marker characters.  We will use them to both display the
         # sort direction and to detect current direction

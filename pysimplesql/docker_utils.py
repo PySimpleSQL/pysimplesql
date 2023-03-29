@@ -5,10 +5,12 @@ This file is not used for pysimplesql base installation. It exists only as a col
 of utility functions for examples which provide databases in Docker containers for
 testing purposes.
 """
-import docker
-from pysimplesql import ProgressBar
-import time
 import logging
+import time
+
+import docker
+
+from pysimplesql import ProgressBar
 
 # Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 logger = logging.getLogger(__name__)
