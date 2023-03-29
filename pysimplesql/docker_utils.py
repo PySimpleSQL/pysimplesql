@@ -126,6 +126,7 @@ def docker_container_start(
             detach=True,
             auto_remove=True,
         )
+        time.sleep(1)
 
     # Now we can start the container
     logger.info(f"Starting container {container_name}...")
@@ -133,7 +134,7 @@ def docker_container_start(
     logger.info(f"container_status: {container.status}")
     if container.status != "running":
         logger.info("STARTING CONTAINER")
-        steps = 2
+        steps = 3
         progress_bar = ProgressBar(title="Starting Docker container", max_value=steps)
         container.start()
 
