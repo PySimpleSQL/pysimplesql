@@ -63,9 +63,8 @@ def docker_image_pull(client, image: str, latest: bool = True) -> None:
     if docker_image_installed(client, image):
         if docker_image_is_latest(client, image):
             return
-        else:
-            if not latest:
-                return
+        if not latest:
+            return
 
     # Pull the Docker image and stream the output to the progress bar
     started = False  # Has the first download started?

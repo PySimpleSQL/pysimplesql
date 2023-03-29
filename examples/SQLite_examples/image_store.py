@@ -27,8 +27,7 @@ def thumbnail(image_data, size=(320, 240)):
     img.thumbnail(size)
     with BytesIO() as output:
         img.save(output, format=img.format)
-        data = output.getvalue()
-    return data
+        return output.getvalue()
 
 
 # -------------------------------------
@@ -92,10 +91,7 @@ frm['Image'].set_callback('before_save', encode_image)
 # Second callback updates the sg.Image element with the image data
 def update_display(frm: ss.Form, win: sg.Window):
     # Handle case where there are no records
-    if len(frm['Image'].rows) == 0:
-        visible = True
-    else:
-        visible = False
+    visible = len(frm["Image"].rows) == 0
     win['no_records'].update(visible=visible)
     win['Image.name'].update(visible=not visible)
     win['Image.name:label'].update(visible=not visible)
