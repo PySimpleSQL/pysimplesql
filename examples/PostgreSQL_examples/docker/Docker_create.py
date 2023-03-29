@@ -7,7 +7,7 @@ pre-populated with Tables used for pysimplesql examples.
 """
 import docker
 import time
-import getpass
+from getpass import getpass
 from tqdm import tqdm
 
 # Set up the Docker client
