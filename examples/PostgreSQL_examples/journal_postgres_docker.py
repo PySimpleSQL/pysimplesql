@@ -14,7 +14,11 @@ logging.basicConfig(level=logging.INFO)
 # statements that were used to create the database.
 docker_image = "pysimplesql/examples:postgres"
 docker_image_pull(docker_image)
-docker_container = docker_container_start(docker_image, "pysimplesql-examples-postgres")
+docker_container = docker_container_start(
+    image=docker_image,
+    container_name="pysimplesql-examples-postgres",
+    ports={"5432/tcp": ("127.0.0.1", 5432)},
+)
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
@@ -94,8 +98,7 @@ while True:
         driver.close()
         frm.close()
         win.close()
-        # docker_container.stop()
-        docker_client.close()
+        docker_container.stop()
         break
     elif ss.process_events(
         event, values

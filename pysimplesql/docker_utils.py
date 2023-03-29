@@ -98,13 +98,15 @@ def docker_image_pull(image: str, latest: bool = True) -> None:
 
 
 def docker_container_start(
-    image: str, container_name: str
+    image: str, container_name: str, ports: dict
 ) -> docker.models.containers.Container:
     """
     Create and/or start a Docker container with the specified image and container name.
 
     :param image: The Docker image to use for the container
     :param container_name: The name to use for the container
+    :param ports: The ports to pass to the Docker container. Example:
+        {"5432/tcp": ("127.0.0.1", 5432)}
     :return: The Docker container object
     """
     client = docker.from_env()
@@ -120,7 +122,7 @@ def docker_container_start(
         client.containers.create(
             image=image,
             name=container_name,
-            ports={"5432/tcp": ("127.0.0.1", 5432)},
+            ports=ports,
             detach=True,
             auto_remove=True,
         )
