@@ -63,7 +63,7 @@ import os.path
 import threading  # threaded popup
 from datetime import date, datetime
 from time import sleep  # threaded popup
-from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  #docs
+from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
 import PySimpleGUI as sg
 
