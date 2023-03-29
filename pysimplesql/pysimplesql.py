@@ -992,19 +992,18 @@ class DataSet:
             filtered = False
 
         if filtered:
-            # Logic for stopping requery short if parent has no records or current row
-            # is virtual
+            # Stop requery short if parent has no records or current row is virtual
             parent_table = Relationship.get_parent(self.table)
-            if parent_table:
-                if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(
-                    self.table, self.frm
-                ):
-                    self.rows = ResultSet([])  # purge rows
-                    if requery_dependents:
-                        self.requery_dependents(update_elements=update_elements)
-                    if update_elements:
-                        self.frm.update_elements(self.table)
-                    return
+            if parent_table and (
+                not len(self.frm[parent_table].rows)
+                or Relationship.parent_virtual(self.table, self.frm)
+            ):
+                self.rows = ResultSet([])  # purge rows
+                if requery_dependents:
+                    self.requery_dependents(update_elements=update_elements)
+                if update_elements:
+                    self.frm.update_elements(self.table)
+                return
 
             # else, get join/where clause like normal
             join = self.driver.generate_join_clause(self)
@@ -1244,9 +1243,10 @@ class DataSet:
             f'with search string "{search_string}"'
         )
         # callback
-        if "before_search" in self.callbacks:
-            if not self.callbacks["before_search"](self.frm, self.frm.window):
-                return SEARCH_ABORTED
+        if "before_search" in self.callbacks and not self.callbacks["before_search"](
+            self.frm, self.frm.window
+        ):
+            return SEARCH_ABORTED
 
         # TODO: Should this be before the before_search callback?
         if skip_prompt_save is False:
@@ -1262,30 +1262,32 @@ class DataSet:
             for i in list(range(self.current_index + 1, len(self.rows))) + list(
                 range(0, self.current_index)
             ):
-                if o in self.rows[i] and self.rows[i][o]:
-                    if search_string.lower() in str(self.rows[i][o]).lower():
-                        old_index = self.current_index
-                        self.current_index = i
-                        if requery_dependents:
-                            self.requery_dependents()
-                        if update_elements:
-                            self.frm.update_elements(self.table)
+                if (
+                    o in self.rows[i]
+                    and self.rows[i][o]
+                    and search_string.lower() in str(self.rows[i][o]).lower()
+                ):
+                    old_index = self.current_index
+                    self.current_index = i
+                    if requery_dependents:
+                        self.requery_dependents()
+                    if update_elements:
+                        self.frm.update_elements(self.table)
 
-                        # callback
-                        if "after_search" in self.callbacks:
-                            if not self.callbacks["after_search"](
-                                self.frm, self.frm.window
-                            ):
-                                self.current_index = old_index
-                                self.requery_dependents()
-                                self.frm.update_elements(self.table)
-                                return SEARCH_ABORTED
+                    # callback
+                    if "after_search" in self.callbacks and not self.callbacks[
+                        "after_search"
+                    ](self.frm, self.frm.window):
+                        self.current_index = old_index
+                        self.requery_dependents()
+                        self.frm.update_elements(self.table)
+                        return SEARCH_ABORTED
 
-                        # callback
-                        if "record_changed" in self.callbacks:
-                            self.callbacks["record_changed"](self.frm, self.frm.window)
+                    # callback
+                    if "record_changed" in self.callbacks:
+                        self.callbacks["record_changed"](self.frm, self.frm.window)
 
-                        return SEARCH_RETURNED
+                    return SEARCH_RETURNED
         return SEARCH_FAILED
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
@@ -1524,12 +1526,13 @@ class DataSet:
 
         # Don't insert if parent has no records or is virtual
         parent_table = Relationship.get_parent(self.table)
-        if parent_table:
-            if not len(self.frm[parent_table].rows) or Relationship.parent_virtual(
-                self.table, self.frm
-            ):
-                logger.debug(f"{parent_table=} is empty or current row is virtual")
-                return
+        if (
+            parent_table
+            and not len(self.frm[parent_table].rows)
+            or Relationship.parent_virtual(self.table, self.frm)
+        ):
+            logger.debug(f"{parent_table=} is empty or current row is virtual")
+            return
 
         # Get a new dict for a new row with default values already filled in
         new_values = self.column_info.default_row_dict(self)
@@ -1627,21 +1630,23 @@ class DataSet:
                     # Make the list here so != None if keyed elements
                     keyed_queries = []
                 for row in self.rows:
-                    if row[mapped.where_column] == mapped.where_value:
-                        if row[mapped.column] != element_val:
-                            # This record has changed.  We will save it
-                            row[mapped.column] = element_val  # propagate the value
-                            changed = {mapped.column: element_val}
-                            where_col = self.driver.quote_column(mapped.where_column)
-                            where_val = self.driver.quote_value(mapped.where_value)
-                            where_clause = f"WHERE {where_col} = {where_val}"
-                            keyed_queries.append(
-                                {
-                                    "column": mapped.column,
-                                    "changed_row": changed,
-                                    "where_clause": where_clause,
-                                }
-                            )
+                    if (
+                        row[mapped.where_column] == mapped.where_value
+                        and row[mapped.column] != element_val
+                    ):
+                        # This record has changed.  We will save it
+                        row[mapped.column] = element_val  # propagate the value
+                        changed = {mapped.column: element_val}
+                        where_col = self.driver.quote_column(mapped.where_column)
+                        where_val = self.driver.quote_value(mapped.where_value)
+                        where_clause = f"WHERE {where_col} = {where_val}"
+                        keyed_queries.append(
+                            {
+                                "column": mapped.column,
+                                "changed_row": changed,
+                                "where_clause": where_clause,
+                            }
+                        )
             else:
                 current_row[mapped.column] = element_val
 
@@ -1733,10 +1738,11 @@ class DataSet:
                     self.frm.update_elements(edit_protect_only=True)
 
         # callback
-        if "after_save" in self.callbacks:
-            if not self.callbacks["after_save"](self.frm, self.frm.window):
-                self.driver.rollback()
-                return SAVE_FAIL + SHOW_MESSAGE
+        if "after_save" in self.callbacks and not self.callbacks["after_save"](
+            self.frm, self.frm.window
+        ):
+            self.driver.rollback()
+            return SAVE_FAIL + SHOW_MESSAGE
 
         # If we made it here, we can commit the changes, since the save and insert above
         # do not commit or rollback
@@ -1806,9 +1812,10 @@ class DataSet:
             return None
 
         # callback
-        if "before_delete" in self.callbacks:
-            if not self.callbacks["before_delete"](self.frm, self.frm.window):
-                return None
+        if "before_delete" in self.callbacks and not self.callbacks["before_delete"](
+            self.frm, self.frm.window
+        ):
+            return None
 
         children = []
         if cascade:
@@ -1877,9 +1884,10 @@ class DataSet:
             return None
 
         # callback
-        if "before_duplicate" in self.callbacks:
-            if not self.callbacks["before_duplicate"](self.frm, self.frm.window):
-                return None
+        if "before_duplicate" in self.callbacks and not self.callbacks[
+            "before_duplicate"
+        ](self.frm, self.frm.window):
+            return None
 
         if children is None:
             children = self.duplicate_children
@@ -2657,12 +2665,12 @@ class Form:
                 # DataSet objects are named after the tables they represent
                 # (with an optional prefix)
                 # TODO: How to handle the prefix?
-                if table in self.datasets:  # TODO: check in DataSet.table
-                    if col in self[table].column_info:
-                        # Map this element to DataSet.column
-                        self.map_element(
-                            element, self[table], col, where_column, where_value
-                        )
+                # TODO: check in DataSet.table
+                if table in self.datasets and col in self[table].column_info:
+                    # Map this element to DataSet.column
+                    self.map_element(
+                        element, self[table], col, where_column, where_value
+                    )
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -2857,14 +2865,16 @@ class Form:
         """
         logger.debug("Toggling edit protect mode.")
         # Callbacks
-        if self._edit_protect:
-            if "edit_enable" in self.callbacks:
-                if not self.callbacks["edit_enable"](self, self.window):
-                    return
-        else:
-            if "edit_disable" in self.callbacks:
-                if not self.callbacks["edit_disable"](self, self.window):
-                    return
+        if (
+            self._edit_protect
+            and "edit_enable" in self.callbacks
+            and not self.callbacks["edit_enable"](self, self.window)
+        ):
+            return
+        if "edit_disable" in self.callbacks and not self.callbacks["edit_disable"](
+            self, self.window
+        ):
+            return
 
         self._edit_protect = not self._edit_protect
         self.update_elements(edit_protect_only=True)
@@ -2891,25 +2901,24 @@ class Form:
             if not self[data_key]._prompt_save:
                 continue
 
-            if self[data_key].records_changed(recursive=False):  # don't check children
+            if self[data_key].records_changed(recursive=False) and not user_prompted:
                 # only show popup once, regardless of how many dataset have changed
-                if not user_prompted:
-                    user_prompted = True
-                    if self._prompt_save == AUTOSAVE_MODE:
-                        save_changes = "yes"
-                    else:
-                        save_changes = self.popup.yes_no(
-                            lang.form_prompt_save_title, lang.form_prompt_save
-                        )
-                    if save_changes != "yes":
-                        # update the elements to erase any GUI changes,
-                        # since we are choosing not to save
-                        for data_key in self.datasets:
-                            self[data_key].rows.purge_virtual()
-                        self.update_elements()
-                        # We did have a change, regardless if the user chose not to save
-                        return PROMPT_SAVE_DISCARDED
-                    break
+                user_prompted = True
+                if self._prompt_save == AUTOSAVE_MODE:
+                    save_changes = "yes"
+                else:
+                    save_changes = self.popup.yes_no(
+                        lang.form_prompt_save_title, lang.form_prompt_save
+                    )
+                if save_changes != "yes":
+                    # update the elements to erase any GUI changes,
+                    # since we are choosing not to save
+                    for data_key in self.datasets:
+                        self[data_key].rows.purge_virtual()
+                    self.update_elements()
+                    # We did have a change, regardless if the user chose not to save
+                    return PROMPT_SAVE_DISCARDED
+                break
         if user_prompted:
             self.save_records(check_prompt_save=True)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
@@ -3126,9 +3135,11 @@ class Form:
         for mapped in self.element_map:
             # If the optional target_data_key parameter was passed, we will only update
             # elements bound to that table
-            if target_data_key is not None:
-                if mapped.table != self[target_data_key].table:
-                    continue
+            if (
+                target_data_key is not None
+                and mapped.table != self[target_data_key].table
+            ):
+                continue
 
             # skip updating this element if requested
             if mapped.element in omit_elements:
@@ -3143,12 +3154,14 @@ class Form:
                         # get the column name from the key
                         col = mapped.column
                         # get notnull from the column info
-                        if col in mapped.dataset.column_info.names():
-                            if mapped.dataset.column_info[col].notnull:
-                                self.window[marker_key].update(
-                                    visible=True,
-                                    text_color=themepack.marker_required_color,
-                                )
+                        if (
+                            col in mapped.dataset.column_info.names()
+                            and mapped.dataset.column_info[col].notnull
+                        ):
+                            self.window[marker_key].update(
+                                visible=True,
+                                text_color=themepack.marker_required_color,
+                            )
                     else:
                         self.window[marker_key].update(visible=False)
                         if self.window is not None:
@@ -4792,9 +4805,12 @@ class TableHeadings(list):
         for i, x in zip(range(len(self)), self):
             # Clear the direction markers
             x["heading"] = x["heading"].replace(asc, "").replace(desc, "")
-            if x["column"] == sort_column and sort_column is not None:
-                if sort_order != ResultSet.SORT_NONE:
-                    x["heading"] += asc if sort_order == ResultSet.SORT_ASC else desc
+            if (
+                x["column"] == sort_column
+                and sort_column is not None
+                and sort_order != ResultSet.SORT_NONE
+            ):
+                x["heading"] += asc if sort_order == ResultSet.SORT_ASC else desc
             element.Widget.heading(i, text=x["heading"], anchor="w")
 
     def enable_sorting(self, element: sg.Table, fn: callable) -> None:
