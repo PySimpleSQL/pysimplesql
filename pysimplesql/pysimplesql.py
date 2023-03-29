@@ -999,10 +999,10 @@ class DataSet:
                 or Relationship.parent_virtual(self.table, self.frm)
             ):
                 self.rows = ResultSet([])  # purge rows
-                if requery_dependents:
-                    self.requery_dependents(update_elements=update_elements)
                 if update_elements:
                     self.frm.update_elements(self.table)
+                if requery_dependents:
+                    self.requery_dependents(update_elements=update_elements)
                 return
 
             # else, get join/where clause like normal
@@ -1092,10 +1092,10 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         self.current_index = 0
-        if requery_dependents:
-            self.requery_dependents(update_elements=update_elements)
         if update_elements:
             self.frm.update_elements(self.table)
+        if requery_dependents:
+            self.requery_dependents(update_elements=update_elements)
         # callback
         if "record_changed" in self.callbacks:
             self.callbacks["record_changed"](self.frm, self.frm.window)
@@ -1126,10 +1126,10 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         self.current_index = len(self.rows) - 1
-        if requery_dependents:
-            self.requery_dependents()
         if update_elements:
             self.frm.update_elements(self.table)
+        if requery_dependents:
+            self.requery_dependents()
         # callback
         if "record_changed" in self.callbacks:
             self.callbacks["record_changed"](self.frm, self.frm.window)
@@ -1161,10 +1161,10 @@ class DataSet:
                 self.prompt_save(update_elements=False)
 
             self.current_index += 1
-            if requery_dependents:
-                self.requery_dependents()
             if update_elements:
                 self.frm.update_elements(self.table)
+            if requery_dependents:
+                self.requery_dependents()
             # callback
             if "record_changed" in self.callbacks:
                 self.callbacks["record_changed"](self.frm, self.frm.window)
@@ -1196,10 +1196,10 @@ class DataSet:
                 self.prompt_save(update_elements=False)
 
             self.current_index -= 1
-            if requery_dependents:
-                self.requery_dependents()
             if update_elements:
                 self.frm.update_elements(self.table)
+            if requery_dependents:
+                self.requery_dependents()
             # callback
             if "record_changed" in self.callbacks:
                 self.callbacks["record_changed"](self.frm, self.frm.window)
@@ -1269,18 +1269,18 @@ class DataSet:
                 ):
                     old_index = self.current_index
                     self.current_index = i
-                    if requery_dependents:
-                        self.requery_dependents()
                     if update_elements:
                         self.frm.update_elements(self.table)
+                    if requery_dependents:
+                        self.requery_dependents()
 
                     # callback
                     if "after_search" in self.callbacks and not self.callbacks[
                         "after_search"
                     ](self.frm, self.frm.window):
                         self.current_index = old_index
-                        self.requery_dependents()
                         self.frm.update_elements(self.table)
+                        self.requery_dependents()
                         return SEARCH_ABORTED
 
                     # callback
@@ -1331,10 +1331,10 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         self.current_index = index
-        if requery_dependents:
-            self.requery_dependents()
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
+        if requery_dependents:
+            self.requery_dependents()
 
     def set_by_pk(
         self,
@@ -1383,10 +1383,10 @@ class DataSet:
                 break
             i += 1
 
-        if requery_dependents:
-            self.requery_dependents()
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
+        if requery_dependents:
+            self.requery_dependents()
 
     def get_current(
         self, column: str, default: Union[str, int] = ""
@@ -1561,7 +1561,6 @@ class DataSet:
             requery_dependents=True,
             skip_prompt_save=True,  # already saved
         )
-        self.frm.update_elements(self.table)
 
     def save_record(
         self, display_message: bool = None, update_elements: bool = True
@@ -1862,8 +1861,8 @@ class DataSet:
             self.driver.commit()
 
         self.requery(select_first=False)
-        self.requery_dependents()
         self.frm.update_elements(self.table)
+        self.requery_dependents()
         return None
 
     def duplicate_record(
