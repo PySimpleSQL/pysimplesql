@@ -72,7 +72,7 @@ while True:
 
 
 """
-I hope that you enjoyed this simple demo of a Journal database.  
+I hope that you enjoyed this simple demo of a Journal database.
 Without comments, this could have been done in about30 lines of code! Seriously - a full database-backed
 usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
@@ -101,7 +101,7 @@ CREATE TABLE "Journal"(
     "entry_date"    DATE DEFAULT CURRENT_DATE NOT NULL,
     "mood_id"       INTEGER NOT NULL,
     "entry"         TEXT,
-    FOREIGN KEY (mood_id) REFERENCES "Mood"(id) 
+    FOREIGN KEY (mood_id) REFERENCES "Mood"(id)
 );
 
 INSERT INTO "Mood" (name) VALUES ('Happy');

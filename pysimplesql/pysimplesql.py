@@ -1,25 +1,25 @@
 """
 # **pysimplesql** User's Manual.
 
-## DISCLAIMER: While **pysimplesql** works with and was inspired by the excellent 
+## DISCLAIMER: While **pysimplesql** works with and was inspired by the excellent
 PySimpleGUI™ project, it has no affiliation.
 
-## Rapidly build and deploy database applications in Python **pysimplesql** binds 
-PySimpleGUI to various databases for rapid, effortless database application 
-development. Makes a great replacement for MS Access or LibreOffice Base! Have the 
-full power and language features of Python while having the power and control of 
-managing your own codebase. **pysimplesql** not only allows for super simple 
-automatic control (not one single line of SQL needs written to use **pysimplesql**), 
+## Rapidly build and deploy database applications in Python **pysimplesql** binds
+PySimpleGUI to various databases for rapid, effortless database application
+development. Makes a great replacement for MS Access or LibreOffice Base! Have the
+full power and language features of Python while having the power and control of
+managing your own codebase. **pysimplesql** not only allows for super simple
+automatic control (not one single line of SQL needs written to use **pysimplesql**),
 but also allows for very low level control for situations that warrant it.
 
 ----------------------------------------------------------------------------------------
-NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE 
+NAMING CONVENTIONS USED THROUGHOUT THE SOURCE CODE
 ----------------------------------------------------------------------------------------
-There is a lot of ambiguity with database terminology, as many terms are used 
-interchangeably in some circumstances, but not in others.  The Internet has post after 
-post debating this topic.  See one example here: 
+There is a lot of ambiguity with database terminology, as many terms are used
+interchangeably in some circumstances, but not in others.  The Internet has post after
+post debating this topic.  See one example here:
 https://dba.stackexchange.com/questions/65609/column-vs-field-have-i-been-using-these-terms-incorrectly  # fmt: skip
-To avoid confusion in the source code, specific naming conventions will be used whenever 
+To avoid confusion in the source code, specific naming conventions will be used whenever
 possible.
 
 Naming conventions can fall under 4 categories:
@@ -84,7 +84,7 @@ except (ModuleNotFoundError, ImportError):
         "common": [
             "SELECT", "INSERT", "DELETE", "UPDATE", "DROP", "CREATE", "ALTER", "WHERE",
             "FROM", "INNER", "JOIN", "AND", "OR", "LIKE", "ON", "IN", "SET", "BY",
-            "GROUP", "ORDER", "LEFT", "OUTER", "IF", "END", "THEN", "LOOP", "AS", 
+            "GROUP", "ORDER", "LEFT", "OUTER", "IF", "END", "THEN", "LOOP", "AS",
             "ELSE", "FOR", "CASE", "WHEN", "MIN", "MAX", "DISTINCT",
         ]
     }
@@ -6292,10 +6292,10 @@ class SQLDriver:
                             f"DROP TABLE IF EXISTS {tmp_child};",
                             f"CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
                                        {dataset.get_current(dataset.pk_column)};", # noqa: E501
-                            
+
                             # don't next_pk(), because child can be plural.
                             f"UPDATE {tmp_child} SET {pk_column} = NULL;",
-                            
+
                             f"UPDATE {tmp_child} SET {fk_column} = {pk}",
                             f"INSERT INTO {child} SELECT * FROM {tmp_child};",
                             f"DROP TABLE IF EXISTS {tmp_child};",

@@ -12,9 +12,9 @@ logging.basicConfig(level=logging.DEBUG)               # <=== You can set the lo
 sql='''
 CREATE TABLE "Colors"(
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-	"name" TEXT DEFAULT "New Color",
-	"example" TEXT,
-	"primary_color" INTEGER DEFAULT 0
+    "name" TEXT DEFAULT "New Color",
+    "example" TEXT,
+    "primary_color" INTEGER DEFAULT 0
 );
 INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Orange","Traffic cones are orange.",0);
 INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Green","Grass is green.",0);

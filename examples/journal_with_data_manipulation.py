@@ -88,11 +88,11 @@ while True:
         logger.info(f'This event ({event}) is not yet handled.')
 
 """
-I hope that you enjoyed this simple demo of a Journal database.  
+I hope that you enjoyed this simple demo of a Journal database.
 This example builds on the journal_internal.py example to show how transforms can be used to manipulate data
 in between the GUI and the database (in this case, the database is storing dates as unix epoch; We use a transform
 to convert the unix epoch to and from a human readable format!)
-Without comments and embedded SQL script, this could have been done in well under 50 lines of code, even the transform 
+Without comments and embedded SQL script, this could have been done in well under 50 lines of code, even the transform
 addition from the original journal_internal.py!
 
 Learnings from this example:

@@ -160,8 +160,8 @@ while True:
 
 
 """
-I hope that you enjoyed this simple demo of a Journal database.  
-Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full 
+I hope that you enjoyed this simple demo of a Journal database.
+Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full
 database-backed usable program! The combination of pysimplesql and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:

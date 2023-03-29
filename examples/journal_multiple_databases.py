@@ -96,7 +96,7 @@ while True:
 
 """
 Learnings from this example:
-- Writing database-agnostic code with pysimplesql is easy.  The complexities of dealing with different types of 
+- Writing database-agnostic code with pysimplesql is easy.  The complexities of dealing with different types of
   databases are completely hidden from the user
 - Using DataSet.set_search_order() to set the search order of the query for search operations.
 - How to edit protect PySimpleGUI elements

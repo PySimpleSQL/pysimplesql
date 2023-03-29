@@ -2,7 +2,7 @@
 select = [
     "F", #Pyflakes
     "E", #pycodestyle Error
-#     "W", #pycodestyle Warning
+    "W", #pycodestyle Warning
 #     "C90", #mccabe
 #     "I", #isort
 #     "N", #pep8-naming

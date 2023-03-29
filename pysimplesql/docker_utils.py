@@ -1,8 +1,8 @@
 """
-DOCKER UTILITIES 
+DOCKER UTILITIES
 
 This file is not used for pysimplesql base installation. It exists only as a collection
-of utility functions for examples which provide databases in Docker containers for 
+of utility functions for examples which provide databases in Docker containers for
 testing purposes.
 """
 import docker
