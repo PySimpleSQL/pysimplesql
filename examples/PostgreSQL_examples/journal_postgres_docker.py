@@ -1,6 +1,5 @@
 import PySimpleGUI as sg
 import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
-import docker
 from pysimplesql.docker_utils import *
 import logging
 
@@ -11,19 +10,11 @@ logging.basicConfig(level=logging.INFO)
 # POSTGRESQL EXAMPLE USING DOCKER TO PROVIDE A POSTGRES SERVER
 # Note that docker must be installed and configured properly on your local machine.
 # Load in the docker image and create a container to run the Postgres server.
-# See the Journal.sql file in the PostgreSQL_examples folder to see the SQL statements
-# used to create this database.
-environment = {
-    "POSTGRES_USER": "pysimplesql_user",
-    "POSTGRES_PASSWORD": "pysimplesql",
-    "POSTGRES_DB": "pysimplesql_examples",
-}
-docker_client = docker.from_env()
+# See the Journal.sql file in the PostgreSQL_examples/docker folder to see the SQL
+# statements that were used to create the database.
 docker_image = "pysimplesql/examples:postgres"
-docker_image_pull(docker_client, docker_image)
-docker_container = docker_container_start(
-    docker_client, docker_image, "pysimplesql-examples-postgres", environment
-)
+docker_image_pull(docker_image)
+docker_container = docker_container_start(docker_image, "pysimplesql-examples-postgres")
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT

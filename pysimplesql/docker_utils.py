@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def docker_image_installed(client: docker.client, image: str) -> bool:
+def docker_image_installed(image: str) -> bool:
     """
     Check if the specified Docker image is installed locally.
 
-    :param client: A Docker client object
     :param image: The Docker image, including the tag ("pysimplesql/examples:postgres")
     :return: True if the image is installed, False otherwise
     """
+    client = docker.from_env()
     try:
         client.images.get(image)
         return True
@@ -32,13 +32,15 @@ def docker_image_installed(client: docker.client, image: str) -> bool:
         return False
 
 
-def docker_image_is_latest(client: docker.client, image: str) -> bool:
+def docker_image_is_latest(image: str) -> bool:
     """
     Check if a new version of a Docker image is available for download.
 
     :param image: The Docker image, including the tag ("pysimplesql/examples:postgres")
     :return: True if a newer version is available, False otherwise
     """
+    client = docker.from_env()
+
     # Split the image name and tag
     image_name, image_tag = image.split(":")
 
@@ -50,18 +52,18 @@ def docker_image_is_latest(client: docker.client, image: str) -> bool:
     return installed_image.id == latest_image.id
 
 
-def docker_image_pull(client, image: str, latest: bool = True) -> None:
+def docker_image_pull(image: str, latest: bool = True) -> None:
     """
     Pull the supplied docker image, displaying a progress bar.
 
-    :param client: A docker client object
     :param latest: Ensure that the latest docker image is used (updates the local image)
     :return:
     """
+    client = docker.from_env()
     # Check if the installed image is installed, and if it is the latest.
     # Also check to see if the latest was requested in the function call
-    if docker_image_installed(client, image):
-        if docker_image_is_latest(client, image):
+    if docker_image_installed(image):
+        if docker_image_is_latest(image):
             return
         if not latest:
             return
@@ -96,16 +98,17 @@ def docker_image_pull(client, image: str, latest: bool = True) -> None:
 
 
 def docker_container_start(
-    client: docker.client, image: str, container_name: str, environment: dict = {}
+    image: str, container_name: str
 ) -> docker.models.containers.Container:
     """
     Create and/or start a Docker container with the specified image and container name.
 
-    :param client: A Docker client instance
     :param image: The Docker image to use for the container
     :param container_name: The name to use for the container
     :return: The Docker container object
     """
+    client = docker.from_env()
+
     # Check if the container already exists
     existing_containers = client.containers.list(
         all=True, filters={"name": container_name}
@@ -117,7 +120,6 @@ def docker_container_start(
         client.containers.create(
             image=image,
             name=container_name,
-            # environment=environment,
             ports={"5432/tcp": ("127.0.0.1", 5432)},
             detach=True,
             auto_remove=True,
