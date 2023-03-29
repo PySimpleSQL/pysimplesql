@@ -7,7 +7,7 @@ pre-populated with Tables used for pysimplesql examples.
 """
 import docker
 import time
-from getpass_asterisk.getpass_asterisk import getpass_asterisk
+import getpass
 from tqdm import tqdm
 
 # Set up the Docker client
@@ -15,7 +15,7 @@ client = docker.from_env()
 
 # Prompt for Docker Hub login credentials
 username = input("Enter Docker Hub username: ")
-password = getpass_asterisk("Enter Docker Hub password: ")
+password = getpass("Enter Docker Hub password: ")
 
 # Authenticate with Docker Hub
 client.login(username=username, password=password)
