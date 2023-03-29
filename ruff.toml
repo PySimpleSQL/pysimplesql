@@ -55,7 +55,6 @@ ignore = [
     "D212", #Multi-line docstring summary should start at the first line
     # Will do below later
     "SIM102", #Use a single `if` statement instead of nested `if` statements
-    "SIM114", #Combine `if` branches using logical `or` operator
     ]
 
 [per-file-ignores]

@@ -3075,27 +3075,16 @@ class Form:
                     )
                     win[m["event"]].update(disabled=disable)
 
-                elif ":table_first" in m["event"]:
+                # Disable first/prev if only 1 row, or first row
+                elif ":table_first" in m["event"] or ":table_previous" in m["event"]:
                     disable = (
                         len(self[data_key].rows) < 2
                         or self[data_key].current_index == 0
                     )
                     win[m["event"]].update(disabled=disable)
 
-                elif ":table_previous" in m["event"]:
-                    disable = (
-                        len(self[data_key].rows) < 2
-                        or self[data_key].current_index == 0
-                    )
-                    win[m["event"]].update(disabled=disable)
-
-                elif ":table_next" in m["event"]:
-                    disable = len(self[data_key].rows) < 2 or (
-                        self[data_key].current_index == len(self[data_key].rows) - 1
-                    )
-                    win[m["event"]].update(disabled=disable)
-
-                elif ":table_last" in m["event"]:
+                # Disable next/last if only 1 row, or last row
+                elif ":table_next" in m["event"] or ":table_last" in m["event"]:
                     disable = len(self[data_key].rows) < 2 or (
                         self[data_key].current_index == len(self[data_key].rows) - 1
                     )
@@ -5244,12 +5233,8 @@ class Column:
 
         # String type casting
         if domain in ["TEXT", "VARCHAR", "CHAR"]:
-            if type(value) is int:
-                value = str(value)
-            elif type(value) is bool:
-                value = str(value)
-            else:
-                value = str(value)
+            # convert to str
+            value = str(value)
 
         # Integer type casting
         elif domain in ["INT", "INTEGER", "BOOLEAN"]:
