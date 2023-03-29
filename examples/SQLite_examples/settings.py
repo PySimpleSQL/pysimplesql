@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)  # <=== Set the logging level here (NOTS
 sql = """
 CREATE TABLE "Settings"(
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "key" TEXT, 
+    "key" TEXT,
     "value" TEXT,
     "description" TEXT
 );

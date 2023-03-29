@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)               # <=== You can set the log
 sql='''
 CREATE TABLE "Color"(
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-	"name" TEXT DEFAULT "New Color"
+    "name" TEXT DEFAULT "New Color"
 );
 CREATE TABLE "Person"(
     'id' INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

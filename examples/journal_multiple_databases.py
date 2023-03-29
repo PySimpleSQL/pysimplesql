@@ -18,6 +18,7 @@ win = sg.Window('SELECT A DATABASE TO USE', layout=layout_selection, finalize=Tr
 selected_driver = None
 while True:
     event, values = win.read()
+    # Set SQLite as default if popup closed without selection
     selected_driver = 'sqlite' if (event == sg.WIN_CLOSED or event == 'Exit') else event
     break
 win.close()
@@ -96,7 +97,7 @@ while True:
 
 """
 Learnings from this example:
-- Writing database-agnostic code with pysimplesql is easy.  The complexities of dealing with different types of 
+- Writing database-agnostic code with pysimplesql is easy.  The complexities of dealing with different types of
   databases are completely hidden from the user
 - Using DataSet.set_search_order() to set the search order of the query for search operations.
 - How to edit protect PySimpleGUI elements

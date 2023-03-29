@@ -70,8 +70,8 @@ while True:
 
 
 """
-I hope that you enjoyed this simple demo of a Journal database.  
-Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full 
+I hope that you enjoyed this simple demo of a Journal database.
+Without comments and embedded SQL script, this could have been done in well under 50 lines of code! Seriously - a full
 database-backed usable program! The combination of PySimpleSQL and PySimpleGUI is very fun, fast and powerful!
 
 Learnings from this example:
@@ -97,7 +97,7 @@ CREATE TABLE Mood(
 CREATE TABLE Journal(
     `id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
     `title` VARCHAR(255) DEFAULT 'New Entry',
-    `entry_date` DATE NOT NULL DEFAULT (CURRENT_DATE), 
+    `entry_date` DATE NOT NULL DEFAULT (CURRENT_DATE),
     `mood_id` INTEGER NOT NULL,
     `entry` TEXT,
     INDEX (`mood_id`),
