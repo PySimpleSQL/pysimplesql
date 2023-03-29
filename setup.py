@@ -1,7 +1,8 @@
 "Setup script for pysimplesql"
 
-from setuptools import setup, find_packages
 import os
+
+from setuptools import find_packages, setup
 
 
 def read(fname):

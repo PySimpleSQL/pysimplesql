@@ -1,8 +1,8 @@
 """Database bindings for PySimpleGUI"""
 
-from .pysimplesql import *  # noqa: F403
 from update_checker import UpdateChecker  # pip install update-checker
 
+from .pysimplesql import *  # noqa: F403
 
 __name__ = "pysimplesql"
 __version__ = "develop"

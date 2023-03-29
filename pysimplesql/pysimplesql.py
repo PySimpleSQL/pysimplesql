@@ -54,19 +54,18 @@ Naming conventions can fall under 4 categories:
 ----------------------------------------------------------------------------------------
 """  # noqa: E501
 
-# The first two imports are for docstrings
-from __future__ import annotations
-from typing import List, Union, Optional, Tuple, Callable, Dict, Type, TypedDict
-from datetime import date, datetime
-import PySimpleGUI as sg
-import functools
-import os.path
-import logging
-import contextlib
+from __future__ import annotations  # docstrings
 
-# For threaded info popup
-from time import sleep
-import threading
+import contextlib
+import functools
+import logging
+import os.path
+import threading  # threaded popup
+from datetime import date, datetime
+from time import sleep  # threaded popup
+from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  #docs
+
+import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
 with contextlib.suppress(ModuleNotFoundError, ImportError):
