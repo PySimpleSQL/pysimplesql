@@ -45,7 +45,7 @@ select = [
 #     "PLC", #Pylint Convention
 #     "PLE", #Pylint Error
 #     "PLR", #Pylint Refactor
-#     "PLW", #Pylint Warning
+    "PLW", #Pylint Warning
 #     "TRY", #tryceratops
 #     "NPY", #NumPy-specific rules
 #     "RUF", #Ruff-specific rules
