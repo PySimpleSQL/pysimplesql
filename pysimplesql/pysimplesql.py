@@ -6975,14 +6975,24 @@ class Postgres(SQLDriver):
             self.execute_script(sql_script)
         self.win_pb.close()
 
-    def connect(self):
-        con = psycopg2.connect(
-            host=self.host,
-            user=self.user,
-            password=self.password,
-            database=self.database,
-        )
-        return con
+    def connect(self, retries=3):
+        attempt = 0
+        while attempt < retries:
+            try:
+                con = psycopg2.connect(
+                    host=self.host,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    # connect_timeout=3,
+                )
+                return con
+            except psycopg2.Error as e:
+                print(f"Failed to connect to database ({attempt + 1}/{retries})")
+                print(e)
+                attempt += 1
+                sleep(1)
+        raise Exception("Failed to connect to database")
 
     def execute(
         self,

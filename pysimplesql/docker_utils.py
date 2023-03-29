@@ -115,25 +115,29 @@ def docker_container_start(
     if not existing_containers:
         # If the container doesn't exist, create it
         logger.info(f"The {container_name} container does not exist. Creating...")
-        progress_bar = ProgressBar(title="Creating Docker container", max_value=100)
-        progress_bar.update("Creating container...", 25)
-        container = client.containers.create(
+        client.containers.create(
             image=image,
             name=container_name,
             # environment=environment,
             ports={"5432/tcp": ("127.0.0.1", 5432)},
-            detach=True
-            # auto_remove=True,
+            detach=True,
+            auto_remove=True,
         )
-        progress_bar.update("Finished container creation.", 100)
-        progress_bar.close()
 
     # Now we can start the container
     logger.info(f"Starting container {container_name}...")
     container = client.containers.get(container_name)
-    print(f"container_status: {container.status}")
+    logger.info(f"container_status: {container.status}")
     if container.status != "running":
+        logger.info("STARTING CONTAINER")
+        steps = 2
+        progress_bar = ProgressBar(title="Starting Docker container", max_value=steps)
         container.start()
+
+        for i in range(steps):
+            progress_bar.update("Container starting...", i)
+            time.sleep(1)
+        progress_bar.close()
 
     # Wait for the container to be fully initialized
     while True:
@@ -141,8 +145,8 @@ def docker_container_start(
         if container.status == "running":
             logs = container.logs().decode("utf-8")
             if "database system is ready to accept connections" in logs:
-                print("READY")
+                logger.info("Ready to connect!")
                 break
-        time.sleep(5)
+        time.sleep(1)
 
     return container

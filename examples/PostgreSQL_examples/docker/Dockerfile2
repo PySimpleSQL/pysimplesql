@@ -1,0 +1,18 @@
+# dump build stage
+FROM postgres as builder
+
+COPY Journal.sql /docker-entrypoint-initdb.d/
+
+RUN ["sed", "-i", "s/exec \"$@\"/echo \"skipping...\"/", "/usr/local/bin/docker-entrypoint.sh"]
+
+ENV POSTGRES_USER=pysimplesql_user
+ENV POSTGRES_PASSWORD=pysimplesql
+ENV POSTGRES_DB=pysimplesql_examples
+ENV PGDATA=/data
+
+RUN ["/usr/local/bin/docker-entrypoint.sh", "postgres"]
+
+# final build stage
+FROM postgres
+
+COPY --from=builder /data $PGDATA

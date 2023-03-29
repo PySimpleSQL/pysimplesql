@@ -24,7 +24,7 @@ client.login(username=username, password=password)
 print("Building Docker image...")
 with tqdm(total=1, desc="Building Docker image") as pbar:
     image, build_logs = client.images.build(
-        path=".", dockerfile="Dockerfile", tag="pysimplesql/examples:postgres"
+        path=".", dockerfile="Dockerfile2", tag="pysimplesql/examples:postgres"
     )
     pbar.update()
 
