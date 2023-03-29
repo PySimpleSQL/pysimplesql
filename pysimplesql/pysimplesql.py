@@ -1039,8 +1039,8 @@ class DataSet:
             self.first(
                 update_elements=update_elements,
                 requery_dependents=requery_dependents,
-                skip_prompt_save=True,
-            )  # We don't want to prompt save in this situation, requery already done
+                skip_prompt_save=True,  # already saved
+            )
 
     def requery_dependents(
         self, child: bool = False, update_elements: bool = True
@@ -1055,9 +1055,8 @@ class DataSet:
         :returns: None
         """
         if child:
-            self.requery(
-                update_elements=update_elements, requery_dependents=False
-            )  # dependents=False: no recursive dependent requery
+            # dependents=False: no recursive dependent requery
+            self.requery(update_elements=update_elements, requery_dependents=False)
 
         for rel in self.frm.relationships:
             if rel.parent_table == self.table and rel.on_update_cascade:
@@ -1090,9 +1089,8 @@ class DataSet:
         """
         logger.debug(f"Moving to the first record of table {self.table}")
         if skip_prompt_save is False:
-            self.prompt_save(
-                update_elements=False
-            )  # don't update self/dependents if we are going to below anyway
+            # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False)
 
         self.current_index = 0
         if requery_dependents:
@@ -1125,9 +1123,8 @@ class DataSet:
         """
         logger.debug(f"Moving to the last record of table {self.table}")
         if skip_prompt_save is False:
-            self.prompt_save(
-                update_elements=False
-            )  # don't update self/dependents if we are going to below anyway
+            # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False)
 
         self.current_index = len(self.rows) - 1
         if requery_dependents:
@@ -1161,9 +1158,8 @@ class DataSet:
         if self.current_index < len(self.rows) - 1:
             logger.debug(f"Moving to the next record of table {self.table}")
             if skip_prompt_save is False:
-                self.prompt_save(
-                    update_elements=False
-                )  # don't update self/dependents if we are going to below anyway
+                # don't update self/dependents if we are going to below anyway
+                self.prompt_save(update_elements=False)
 
             self.current_index += 1
             if requery_dependents:
@@ -1197,9 +1193,8 @@ class DataSet:
         if self.current_index > 0:
             logger.debug(f"Moving to the previous record of table {self.table}")
             if skip_prompt_save is False:
-                self.prompt_save(
-                    update_elements=False
-                )  # don't update self/dependents if we are going to below anyway
+                # don't update self/dependents if we are going to below anyway
+                self.prompt_save(update_elements=False)
 
             self.current_index -= 1
             if requery_dependents:
@@ -1253,12 +1248,10 @@ class DataSet:
             if not self.callbacks["before_search"](self.frm, self.frm.window):
                 return SEARCH_ABORTED
 
-        if (
-            skip_prompt_save is False
-        ):  # TODO: Should this be before the before_search callback?
-            self.prompt_save(
-                update_elements=False
-            )  # don't update self/dependents if we are going to below anyway
+        # TODO: Should this be before the before_search callback?
+        if skip_prompt_save is False:
+            # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False)
 
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows):
@@ -1329,13 +1322,11 @@ class DataSet:
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
             if len(omit_elements) and self.records_changed(recursive=False):
-                omit_elements = (
-                    []
-                )  # most likely will need to update, either to discard virtual or
-                # update after save
-            self.prompt_save(
-                update_elements=False
-            )  # don't update self/dependents if we are going to below anyway
+                # most likely will need to update, either to
+                # discard virtual or update after save
+                omit_elements = []
+            # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False)
 
         self.current_index = index
         if requery_dependents:
@@ -1377,13 +1368,11 @@ class DataSet:
         if skip_prompt_save is False:
             # see if sg.Table has potential changes
             if len(omit_elements) and self.records_changed(recursive=False):
-                omit_elements = (
-                    []
-                )  # most likely will need to update, either to discard virtual or
-                # update after save
-            self.prompt_save(
-                update_elements=False
-            )  # don't update self/dependents if we are going to below anyway
+                # most likely will need to update, either to
+                # discard virtual or update after save
+                omit_elements = []
+            # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False)
 
         i = 0
         for r in self.rows:
@@ -1464,9 +1453,10 @@ class DataSet:
         :returns: A `ResultRow` object
         """
         if self.rows:
-            self.current_index = (
-                self.current_index
-            )  # force the current_index to be in bounds! For child reparenting
+            # force the current_index to be in bounds!
+            # For child reparenting
+            self.current_index = self.current_index
+
             return self.rows[self.current_index]
         return None
 
@@ -1529,9 +1519,8 @@ class DataSet:
         #  be filtered here too!
         # todo: bring back the values parameter?
         if skip_prompt_save is False:
-            self.prompt_save(
-                update_elements=False
-            )  # don't update self/dependents if we are going to below anyway
+            # don't update self/dependents if we are going to below anyway
+            self.prompt_save(update_elements=False)
 
         # Don't insert if parent has no records or is virtual
         parent_table = Relationship.get_parent(self.table)
@@ -1567,8 +1556,8 @@ class DataSet:
             new_values[self.pk_column],
             update_elements=True,
             requery_dependents=True,
-            skip_prompt_save=True,
-        )  # already saved
+            skip_prompt_save=True,  # already saved
+        )
         self.frm.update_elements(self.table)
 
     def save_record(
@@ -1635,9 +1624,8 @@ class DataSet:
             # Looked for keyed elements first
             if mapped.where_column is not None:
                 if keyed_queries is None:
-                    keyed_queries = (
-                        []
-                    )  # Make the list here so != None if keyed elements
+                    # Make the list here so != None if keyed elements
+                    keyed_queries = []
                 for row in self.rows:
                     if row[mapped.where_column] == mapped.where_value:
                         if row[mapped.column] != element_val:
@@ -1732,18 +1720,17 @@ class DataSet:
 
             # Lets refresh our data
             if current_row.virtual:
-                self.requery(
-                    select_first=False, update_elements=False
-                )  # Requery so that the new  row honors the order clause
+                # Requery so that the new  row honors the order clause
+                self.requery(select_first=False, update_elements=False)
                 if update_elements:
+                    # Then move to the record
                     self.set_by_pk(
                         pk,
-                        skip_prompt_save=True,  # Then move to the record
+                        skip_prompt_save=True,
                         requery_dependents=False,
                     )
-                    self.frm.update_elements(
-                        edit_protect_only=True
-                    )  # only need to reset the Insert button
+                    # only need to reset the Insert button
+                    self.frm.update_elements(edit_protect_only=True)
 
         # callback
         if "after_save" in self.callbacks:
@@ -1839,9 +1826,8 @@ class DataSet:
         if self.get_current_row().virtual:
             self.rows.purge_virtual()
             self.frm.update_elements(self.table)
-            self.frm.update_elements(
-                edit_protect_only=True
-            )  # only need to reset the Insert button
+            # only need to reset the Insert button
+            self.frm.update_elements(edit_protect_only=True)
             return None
 
         # Delete child records first!
@@ -2125,10 +2111,8 @@ class DataSet:
             keep_on_top=True,
             modal=True,
             finalize=True,
-            ttk_theme=themepack.ttk_theme,
-        )  # Without specifying same ttk_theme,
-        # quick_edit will override user-set theme
-        # in main window
+            ttk_theme=themepack.ttk_theme,  # Must, otherwise will redraw window
+        )
         quick_frm = Form(self.frm.driver, bind_window=quick_win)
 
         # Select the current entry to start with
@@ -2421,9 +2405,8 @@ class Form:
                 )
             }
         )
-        self[data_key].set_search_order(
-            [description_column]
-        )  # set a default sort order
+        # set a default sort order
+        self[data_key].set_search_order([description_column])
 
     def add_relationship(
         self,
@@ -3206,9 +3189,8 @@ class Form:
                 # TODO: move this to only compute if something else changes?
                 # Find the relationship to determine which table to get data from
                 target_table = None
-                rels = Relationship.get_relationships_for_table(
-                    mapped.dataset.table
-                )  # TODO this should be get_relationships_for_data?
+                # TODO this should be get_relationships_for_data?
+                rels = Relationship.get_relationships_for_table(mapped.dataset.table)
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -3251,10 +3233,10 @@ class Form:
                 pk = mapped.dataset.get_current_pk()
 
                 if len(values):
-                    index = [[v[0] for v in values].index(pk)]  # set index to pk
-                    pk_position = index[0] / len(
-                        values
-                    )  # calculate pk percentage position
+                    # set index to pk
+                    index = [[v[0] for v in values].index(pk)]
+                    # calculate pk percentage position
+                    pk_position = index[0] / len(values)
                 else:  # if empty
                     index = []
                     pk_position = 0
@@ -3272,9 +3254,10 @@ class Form:
             ]:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
-                mapped.element.update(
-                    ""
-                )  # HACK for sqlite query not making needed keys! This will clear
+
+                # HACK for sqlite query not making needed keys! This will clear
+                mapped.element.update("")
+
                 updated_val = mapped.dataset[mapped.column]
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
@@ -3399,12 +3382,10 @@ class Form:
 
                         found = False
                         if len(values):
-                            index = [
-                                [v.pk for v in values].index(pk)
-                            ]  # set to index by pk
-                            pk_position = index[0] / len(
-                                values
-                            )  # calculate pk percentage position
+                            # set to index by pk
+                            index = [[v.pk for v in values].index(pk)]
+                            # calculate pk percentage position
+                            pk_position = index[0] / len(values)
                             found = True
                         else:  # if empty
                             index = []
@@ -3501,9 +3482,10 @@ class Form:
                             elif type(element) is sg.PySimpleGUI.Table:
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
-                                dataset.set_by_pk(
-                                    pk, True, omit_elements=[element]
-                                )  # no need to update the selector!
+
+                                # no need to update the selector!
+                                dataset.set_by_pk(pk, True, omit_elements=[element])
+
                                 changed = True
                             if changed and "record_changed" in dataset.callbacks:
                                 dataset.callbacks["record_changed"](self, self.window)
@@ -3649,18 +3631,16 @@ def update_table_element(
 
     :returns: None
     """
-    element.Widget.unbind(
-        "<<TreeviewSelect>>"
-    )  # Disable handling for "<<TreeviewSelect>>" event
+    # Disable handling for "<<TreeviewSelect>>" event
+    element.Widget.unbind("<<TreeviewSelect>>")
     # update element
     element.update(values=values, select_rows=select_rows)
     # set vertical scroll bar to follow selected element
-    if vscroll_position is not None:
+    if vscroll_position:
         element.set_vscroll_position(vscroll_position)
     window.refresh()  # Event handled and bypassed
-    element.widget.bind(
-        "<<TreeviewSelect>>", element._treeview_selected
-    )  # Enable handling for "<<TreeviewSelect>>" event
+    # Enable handling for "<<TreeviewSelect>>" event
+    element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
 
 
 def checkbox_to_bool(value):
@@ -4111,6 +4091,7 @@ def field(
         size=themepack.default_label_size,
         key=f"{key}:label",
     )
+    # Marker for required (notnull) records
     layout_marker = sg.Column(
         [
             [
@@ -4123,7 +4104,7 @@ def field(
             ]
         ],
         pad=(0, 0),
-    )  # Marker for required (notnull) records
+    )
     if element.__name__ == "Text":  # don't show markers for sg.Text
         if no_label:
             layout = [[layout_element]]
@@ -4172,9 +4153,8 @@ def field(
                 )
             )
     # return layout
-    return sg.Col(
-        layout=layout, pad=(0, 0)
-    )  # TODO: Does this actually need wrapped in a sg.Col???
+    # TODO: Does this actually need wrapped in a sg.Col???
+    return sg.Col(layout=layout, pad=(0, 0))
 
 
 def actions(
@@ -5472,9 +5452,8 @@ class ColumnInfo(List):
                 if domain in ["TEXT", "VARCHAR", "CHAR"]:
                     # strip quotes from default strings as they seem to get passed with
                     # some database-stored defaults
-                    default = c.default.strip(
-                        "\"'"
-                    )  # strip leading and trailing quotes
+                    # strip leading and trailing quotes
+                    default = c.default.strip("\"'")
 
             d[c.name] = default
             logger.debug(
@@ -6600,9 +6579,9 @@ class Flatfile(Sqlite):
         self.pk_col_is_virtual = False
         self.table = table if table is not None else "Flatfile"
         self.con.row_factory = sqlite3.Row
-        self.pre_header = (
-            []
-        )  # Store any text up to the header line, so they can be restored
+
+        # Store any text up to the header line, so they can be restored
+        self.pre_header = []
 
         # Open the CSV file and read the header row to get column names
         with open(file_path, "r") as f:
