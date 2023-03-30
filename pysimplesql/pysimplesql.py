@@ -6140,11 +6140,12 @@ class SQLDriver:
         :returns: a query string for use with sqlite3
         :rtype: str
         """
-        q = dataset.query
-        q += f' {dataset.join_clause if join_clause else ""}'
-        q += f' {dataset.where_clause if where_clause else ""}'
-        q += f' {dataset.order_clause if order_clause else ""}'
-        return q
+        return (
+            f"{dataset.query}"
+            f' {dataset.join_clause if join_clause else ""}'
+            f' {dataset.where_clause if where_clause else ""}'
+            f' {dataset.order_clause if order_clause else ""}'
+        )
 
     def delete_record(
         self, dataset: DataSet, cascade=True
@@ -6190,8 +6191,10 @@ class SQLDriver:
             delete_clause = f"DELETE FROM {child} WHERE {pk_column} IN "
 
             # Create new inner join and add it to beginning of passed in inner_join
-            inner_join_clause = f"INNER JOIN {parent} ON {parent}.{pk_column} = "
-            inner_join_clause += f"{child}.{fk_column} {inner_join}"
+            inner_join_clause = (
+                f"INNER JOIN {parent} ON {parent}.{pk_column} = "
+                f"{child}.{fk_column} {inner_join}"
+            )
 
             # Call function again to create recursion
             result = self.delete_record_recursive(
@@ -6237,18 +6240,21 @@ class SQLDriver:
         pk_column = self.quote_column(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
 
-        # fmt: off
         # Create tmp table, update pk column in temp and insert into table
         query = [
             f"DROP TABLE IF EXISTS {tmp_table};",
-            f"CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE {pk_column}=\
-                    {dataset.get_current(dataset.pk_column)};", # noqa: E501
-            f"UPDATE {tmp_table} SET {pk_column} = {self.next_pk(dataset.table, dataset.pk_column)};", # noqa: E501
+            (
+                f"CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE "
+                f"{pk_column}={dataset.get_current(dataset.pk_column)};"
+            ),
+            (
+                f"UPDATE {tmp_table} SET {pk_column} = "
+                f"{self.next_pk(dataset.table, dataset.pk_column)};"
+            ),
             f"UPDATE {tmp_table} SET {description_column} = {description}",
             f"INSERT INTO {table} SELECT * FROM {tmp_table};",
             f"DROP TABLE IF EXISTS {tmp_table};",
         ]
-        # fmt: on
         for q in query:
             res = self.execute(q)
             if res.exception:
@@ -6275,22 +6281,21 @@ class SQLDriver:
                         )
                         fk_column = self.quote_column(r.fk_column)
 
-                        # fmt: off
                         # Update children's pk_columns to NULL and set correct parent
                         # PK value.
                         queries = [
                             f"DROP TABLE IF EXISTS {tmp_child};",
-                            f"CREATE TEMPORARY TABLE {tmp_child} AS SELECT * FROM {child} WHERE {fk_column}=\
-                                       {dataset.get_current(dataset.pk_column)};", # noqa: E501
-
+                            (
+                                f"CREATE TEMPORARY TABLE {tmp_child} AS "
+                                f"SELECT * FROM {child} WHERE {fk_column}="
+                                f"{dataset.get_current(dataset.pk_column)};"
+                            ),
                             # don't next_pk(), because child can be plural.
                             f"UPDATE {tmp_child} SET {pk_column} = NULL;",
-
                             f"UPDATE {tmp_child} SET {fk_column} = {pk}",
                             f"INSERT INTO {child} SELECT * FROM {tmp_child};",
                             f"DROP TABLE IF EXISTS {tmp_child};",
                         ]
-                        # fmt: on
                         for q in queries:
                             res = self.execute(q)
                             if res.exception:
@@ -6350,8 +6355,10 @@ class SQLDriver:
         table = self.quote_table(table)
 
         # Remove the primary key column to ensure autoincrement is used!
-        query = f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
-        query += f"({','.join(self.placeholder for _ in range(len(row)))}); "
+        query = (
+            f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
+            f"({','.join(self.placeholder for _ in range(len(row)))}); "
+        )
         values = [value for key, value in row.items()]
         return self.execute(query, tuple(values))
 
@@ -6441,8 +6448,10 @@ class Sqlite(SQLDriver):
             self.con.close()
 
     def get_tables(self):
-        q = "SELECT name FROM sqlite_master "
-        q += 'WHERE type="table" AND name NOT like "sqlite%";'
+        q = (
+            "SELECT name FROM sqlite_master "
+            'WHERE type="table" AND name NOT like "sqlite%";'
+        )
         cur = self.execute(q, silent=True)
         return [row["name"] for row in cur]
 
@@ -6614,8 +6623,10 @@ class Flatfile(Sqlite):
             if self.pk_col_is_virtual:
                 self.columns.remove(self.pk_col)
 
-            query = f'INSERT INTO {self.table} ({", ".join(self.columns)}) VALUES '
-            query += f'({", ".join(["?" for col in self.columns])})'
+            query = (
+                f'INSERT INTO {self.table} ({", ".join(self.columns)}) VALUES '
+                f'({", ".join(["?" for col in self.columns])})'
+            )
             for row in reader:
                 self.execute(query, row)
 
@@ -6792,8 +6803,10 @@ class Mysql(SQLDriver):
         tables = self.get_tables()
         relationships = []
         for from_table in tables:
-            query = "SELECT * FROM information_schema.key_column_usage WHERE "
-            query += "referenced_table_name IS NOT NULL AND table_name = %s"
+            query = (
+                "SELECT * FROM information_schema.key_column_usage WHERE "
+                "referenced_table_name IS NOT NULL AND table_name = %s"
+            )
             rows = self.execute(query, (from_table,), silent=True)
 
             for row in rows:
@@ -6822,9 +6835,11 @@ class Mysql(SQLDriver):
 
     # Not required for SQLDriver
     def constraint(self, constraint_name):
-        query = "SELECT UPDATE_RULE, DELETE_RULE FROM "
-        query += "INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = "
-        query += f"'{constraint_name}'"
+        query = (
+            "SELECT UPDATE_RULE, DELETE_RULE FROM "
+            "INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = "
+            f"'{constraint_name}'"
+        )
         rows = self.execute(query, silent=True)
         return rows[0]["UPDATE_RULE"], rows[0]["DELETE_RULE"]
 
@@ -6879,8 +6894,10 @@ class Postgres(SQLDriver):
                 seq = s["sequence_name"]
 
                 # get the max pk for this table
-                q = "SELECT column_name, table_name FROM information_schema.columns "
-                q += f"WHERE column_default LIKE 'nextval(%{seq}%)'"
+                q = (
+                    "SELECT column_name, table_name FROM information_schema.columns "
+                    f"WHERE column_default LIKE 'nextval(%{seq}%)'"
+                )
                 rows = self.execute(q, silent=True, auto_commit_rollback=True)
                 row = rows.fetchone()
                 table = row["table_name"]
@@ -6967,8 +6984,10 @@ class Postgres(SQLDriver):
         )
 
     def get_tables(self):
-        query = "SELECT table_name FROM information_schema.tables WHERE "
-        query += "table_schema='public' AND table_type='BASE TABLE';"
+        query = (
+            "SELECT table_name FROM information_schema.tables WHERE "
+            "table_schema='public' AND table_type='BASE TABLE';"
+        )
         # query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
         rows = self.execute(query, silent=True)
         return [row["table_name"] for row in rows]
@@ -6999,10 +7018,12 @@ class Postgres(SQLDriver):
         return col_info
 
     def pk_column(self, table):
-        query = "SELECT column_name FROM information_schema.table_constraints tc JOIN "
-        query += "information_schema.key_column_usage kcu ON tc.constraint_name = "
-        query += "kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND "
-        query += f"tc.table_name = '{table}' "
+        query = (
+            "SELECT column_name FROM information_schema.table_constraints tc JOIN "
+            "information_schema.key_column_usage kcu ON tc.constraint_name = "
+            "kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND "
+            f"tc.table_name = '{table}' "
+        )
         cur = self.execute(query, silent=True)
         row = cur.fetchone()
         return row["column_name"] if row else None
@@ -7012,15 +7033,17 @@ class Postgres(SQLDriver):
         tables = self.get_tables()
         relationships = []
         for from_table in tables:
-            query = "SELECT conname, conrelid::regclass, confrelid::regclass, "
-            query += "confupdtype, confdeltype, a1.attname AS column_name, a2.attname "
-            query += "AS referenced_column_name "
-            query += "FROM pg_constraint "
-            query += "JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND "
-            query += "a1.attnum = ANY(conkey) "
-            query += "JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND "
-            query += "a2.attnum = ANY(confkey) "
-            query += f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
+            query = (
+                "SELECT conname, conrelid::regclass, confrelid::regclass, "
+                "confupdtype, confdeltype, a1.attname AS column_name, a2.attname "
+                "AS referenced_column_name "
+                "FROM pg_constraint "
+                "JOIN pg_attribute AS a1 ON conrelid = a1.attrelid AND "
+                "a1.attnum = ANY(conkey) "
+                "JOIN pg_attribute AS a2 ON confrelid = a2.attrelid AND "
+                "a2.attnum = ANY(confkey) "
+                f"WHERE confrelid = '\"{from_table}\"'::regclass AND contype = 'f'"
+            )
 
             rows = self.execute(query, (from_table,), silent=True)
 
@@ -7079,8 +7102,10 @@ class Postgres(SQLDriver):
         table = self.quote_table(table)
 
         # Remove the primary key column to ensure autoincrement is used!
-        query = f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
-        query += f"({','.join('%s' for _ in range(len(row)))}); "
+        query = (
+            f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
+            f"({','.join('%s' for _ in range(len(row)))}); "
+        )
         values = [value for key, value in row.items()]
         result = self.execute(query, tuple(values))
 
