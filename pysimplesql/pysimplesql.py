@@ -5028,7 +5028,7 @@ class LanguagePack:
         # Prepopulate record values/prepends
         # ------------------------------------------------------------------------------
         # Text, Varchar, Char, Null Default, used exclusively for description_column
-        "description_column_str_null_default" : "New Record",
+        "description_column_str_null_default": "New Record",
         # Prepended to parent description_column
         "duplicate_prepend": "Copy of ",
         # ------------------------------------------------------------------------------
