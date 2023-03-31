@@ -276,7 +276,7 @@ class Relationship:
     instances = []
 
     @classmethod
-    def get_relationships_for_table(cls, table: str) -> List[Relationship]:
+    def get_for_table(cls, table: str) -> List[Relationship]:
         """
         Return the relationships for the passed-in table.
 
@@ -286,7 +286,7 @@ class Relationship:
         return [r for r in cls.instances if r.child_table == table]
 
     @classmethod
-    def get_update_cascade_relationships(cls, table: str) -> List[str]:
+    def get_update_cascade_children(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should requery
         with this table.
@@ -303,7 +303,7 @@ class Relationship:
         return list(set(rel))
 
     @classmethod
-    def get_delete_cascade_relationships(cls, table: str) -> List[str]:
+    def get_delete_cascade_children(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should be deleted
         with this table.
@@ -1816,7 +1816,7 @@ class DataSet:
 
         children = []
         if cascade:
-            children = Relationship.get_delete_cascade_relationships(self.table)
+            children = Relationship.get_delete_cascade_children(self.table)
 
         msg_children = ", ".join(children)
         if len(children):
@@ -1891,7 +1891,7 @@ class DataSet:
 
         child_list = []
         if children:
-            child_list = Relationship.get_update_cascade_relationships(self.table)
+            child_list = Relationship.get_update_cascade_children(self.table)
 
         msg_children = ", ".join(child_list)
         msg = lang.duplicate_child.format_map(
@@ -2016,7 +2016,7 @@ class DataSet:
             else:
                 lst = []
 
-            rels = Relationship.get_relationships_for_table(self.table)
+            rels = Relationship.get_for_table(self.table)
             pk = None
             for col in all_columns:
                 # Is this the primary key column?
@@ -2047,7 +2047,7 @@ class DataSet:
         :param column: The column name to get related table information for
         :returns: The name of the related table, or the current table if none are found
         """
-        rels = Relationship.get_relationships_for_table(self.table)
+        rels = Relationship.get_for_table(self.table)
         for rel in rels:
             if column == rel.fk_column:
                 return rel.parent_table
@@ -2965,7 +2965,7 @@ class Form:
             tables = [
                 dataset.table
                 for dataset in self.datasets.values()
-                if len(Relationship.get_update_cascade_relationships(dataset.table))
+                if len(Relationship.get_update_cascade_children(dataset.table))
                 and Relationship.get_parent(dataset.table) is None
             ]
         # default behavior, build list of top-level dataset (ones without a parent)
@@ -3186,7 +3186,7 @@ class Form:
                 # Find the relationship to determine which table to get data from
                 target_table = None
                 # TODO this should be get_relationships_for_data?
-                rels = Relationship.get_relationships_for_table(mapped.dataset.table)
+                rels = Relationship.get_for_table(mapped.dataset.table)
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -5738,7 +5738,7 @@ class ResultSet:
 
         # We don't want to sort by foreign keys directly -we want to sort by the
         # description column of the foreign table that the foreign key references
-        rels = Relationship.get_relationships_for_table(table)
+        rels = Relationship.get_for_table(table)
         for rel in rels:
             if column == rel.fk_column:
                 rows = rel.frm[
@@ -6175,7 +6175,7 @@ class SQLDriver:
     def delete_record_recursive(
         self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion
     ):
-        for child in Relationship.get_delete_cascade_relationships(dataset.key):
+        for child in Relationship.get_delete_cascade_children(dataset.key):
             # Check to make sure we arn't at recursion limit
             recursion += 1  # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
