@@ -5017,66 +5017,70 @@ class LanguagePack:
     """
 
     default = {
-        # ------------------------
+        # ------------------------------------------------------------------------------
         # Buttons
-        # ------------------------
+        # ------------------------------------------------------------------------------
         "button_cancel": " Cancel ",
         "button_ok": "  OK  ",
         "button_yes": " Yes ",
         "button_no": "  No  ",
-        # ------------------------
+        # ------------------------------------------------------------------------------
+        # Prepopulate record values/prepends
+        # ------------------------------------------------------------------------------
+        # Text, Varchar, Char, Null Default, used exclusively for description_column
+        "description_column_str_null_default" : "New Record",
+        # Prepended to parent description_column
+        "duplicate_prepend": "Copy of ",
+        # ------------------------------------------------------------------------------
         # Startup progress bar
-        # ------------------------
+        # ------------------------------------------------------------------------------
         "startup_form": "Creating Form",
         "startup_init": "Initializing",
         "startup_datasets": "Adding datasets",
         "startup_relationships": "Adding relationships",
         "startup_binding": "Binding window to Form",
-        # ------------------------
+        # ------------------------------------------------------------------------------
         # Progress bar displayed during sqldriver operations
-        # ------------------------
+        # ------------------------------------------------------------------------------
         "sqldriver_init": "{name} connection",
         "sqldriver_connecting": "Connecting to database",
         "sqldriver_execute": "executing SQL commands",
-        # ------------------------
-        # Info Popup Title - universal
-        # ------------------------
-        "info_popup_title": "Info",
-        # ------------------------
+        # ------------------------------------------------------------------------------
         # Info Popups - no buttons
-        # ------------------------
+        # ------------------------------------------------------------------------------
+        # Info Popup Title - universal
+        "info_popup_title": "Info",
         # Form save_records
-        # ------------------------
         "form_save_success": "Updates saved successfully.",
         "form_save_none": "There were no updates to save.",
         # DataSet save_record
-        # ------------------------
         "dataset_save_empty": "There were no updates to save.",
         "dataset_save_none": "There were no changes to save!",
         "dataset_save_success": "Updates saved successfully.",
-        # ------------------------
-        # Yes No Popups
-        # ------------------------
+        # ------------------------------------------------------------------------------
+        # Yes/No Popups
+        # ------------------------------------------------------------------------------
         # Form prompt_save
-        # ------------------------
         "form_prompt_save_title": "Unsaved Changes",
         "form_prompt_save": "You have unsaved changes!\nWould you like to save them first?",  # fmt: skip # noqa: E501
+        # DataSet prompt_save
         "dataset_prompt_save_title": "Unsaved Changes",
         "dataset_prompt_save": "You have unsaved changes!\nWould you like to save them first?",  # fmt: skip # noqa: E501
+        # Form save_records
         "form_save_problem_title": "Problem Saving",
         "form_save_partial": "Some updates were saved successfully;",
         "form_save_problem": "There was a problem saving updates to the following tables:\n{tables}.",  # fmt: skip # noqa: E501
+        # DataSet save_record
         "dataset_save_callback_false_title": "Callback Prevented Save",
         "dataset_save_callback_false": "Updates not saved.",
         "dataset_save_keyed_fail_title": "Problem Saving",
         "dataset_save_keyed_fail": "Query failed: {exception}.",
         "dataset_save_fail_title": "Problem Saving",
         "dataset_save_fail": "Query failed: {exception}.",
-        # ------------------------
-        # Custom Popups
-        # ------------------------
+        # ------------------------------------------------------------------------------
+        # Delete
+        # ------------------------------------------------------------------------------
         # DataSet delete_record
-        # ------------------------
         "delete_title": "Confirm Deletion",
         "delete_cascade": "Are you sure you want to delete this record?\nKeep in mind that child records:\n({children})\nwill also be deleted!",  # fmt: skip # noqa: E501
         "delete_single": "Are you sure you want to delete this record?",
@@ -5084,7 +5088,9 @@ class LanguagePack:
         "delete_failed_title": "Problem Deleting",
         "delete_failed": "Query failed: {exception}.",
         "delete_recursion_limit_error": "Delete Cascade reached max recursion limit.\nDELETE_CASCADE_RECURSION_LIMIT",  # fmt: skip # noqa: E501
-        "duplicate_prepend": "Copy of ",
+        # ------------------------------------------------------------------------------
+        # Duplicate
+        # ------------------------------------------------------------------------------
         # Popup when record has children
         "duplicate_child_title": "Confirm Duplication",
         "duplicate_child": "This record has child records:\n(in {children})\nWhich records would you like to duplicate?",  # fmt: skip # noqa: E501
@@ -5096,9 +5102,9 @@ class LanguagePack:
         # Failed Ok Popup
         "duplicate_failed_title": "Problem Duplicating",
         "duplicate_failed": "Query failed: {exception}.",
-        # ------------------------
+        # ------------------------------------------------------------------------------
         # Quick Editor
-        # ------------------------
+        # ------------------------------------------------------------------------------
         "quick_edit_title": "Quick Edit - {data_key}",
     }
     """
@@ -5325,9 +5331,9 @@ class ColumnInfo(List):
         # overwritten by the user and support function calls as well by using
         # ColumnInfo.set_null_default() and ColumnInfo.set_null_defaults()
         self.null_defaults = {
-            "TEXT": "New Record",
-            "VARCHAR": "New Record",
-            "CHAR": "New Record",
+            "TEXT": lang.description_column_str_null_default,
+            "VARCHAR": lang.description_column_str_null_default,
+            "CHAR": lang.description_column_str_null_default,
             "INT": 0,
             "INTEGER": 0,
             "REAL": 0.0,
