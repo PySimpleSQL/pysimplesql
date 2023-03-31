@@ -951,7 +951,7 @@ class DataSet:
             # if no
             self.rows.purge_virtual()
             if vrows and update_elements:
-                self.frm.update_elements(self.table)
+                self.frm.update_elements(self.key)
             return PROMPT_SAVE_DISCARDED
         # if no changes
         return PROMPT_SAVE_NONE
@@ -998,7 +998,7 @@ class DataSet:
             ):
                 self.rows = ResultSet([])  # purge rows
                 if update_elements:
-                    self.frm.update_elements(self.table)
+                    self.frm.update_elements(self.key)
                 if requery_dependents:
                     self.requery_dependents(update_elements=update_elements)
                 return
@@ -1091,7 +1091,7 @@ class DataSet:
 
         self.current_index = 0
         if update_elements:
-            self.frm.update_elements(self.table)
+            self.frm.update_elements(self.key)
         if requery_dependents:
             self.requery_dependents(update_elements=update_elements)
         # callback
@@ -1125,7 +1125,7 @@ class DataSet:
 
         self.current_index = len(self.rows) - 1
         if update_elements:
-            self.frm.update_elements(self.table)
+            self.frm.update_elements(self.key)
         if requery_dependents:
             self.requery_dependents()
         # callback
@@ -1160,7 +1160,7 @@ class DataSet:
 
             self.current_index += 1
             if update_elements:
-                self.frm.update_elements(self.table)
+                self.frm.update_elements(self.key)
             if requery_dependents:
                 self.requery_dependents()
             # callback
@@ -1195,7 +1195,7 @@ class DataSet:
 
             self.current_index -= 1
             if update_elements:
-                self.frm.update_elements(self.table)
+                self.frm.update_elements(self.key)
             if requery_dependents:
                 self.requery_dependents()
             # callback
@@ -1268,7 +1268,7 @@ class DataSet:
                     old_index = self.current_index
                     self.current_index = i
                     if update_elements:
-                        self.frm.update_elements(self.table)
+                        self.frm.update_elements(self.key)
                     if requery_dependents:
                         self.requery_dependents()
 
@@ -1277,7 +1277,7 @@ class DataSet:
                         "after_search"
                     ](self.frm, self.frm.window):
                         self.current_index = old_index
-                        self.frm.update_elements(self.table)
+                        self.frm.update_elements(self.key)
                         self.requery_dependents()
                         return SEARCH_ABORTED
 
@@ -1591,7 +1591,7 @@ class DataSet:
         if "before_save" in self.callbacks and self.callbacks["before_save"]() is False:
             logger.debug("We are not saving!")
             if update_elements:
-                self.frm.update_elements(self.table)
+                self.frm.update_elements(self.key)
             if display_message:
                 self.frm.popup.ok(
                     lang.dataset_save_callback_false_title,
@@ -1746,7 +1746,7 @@ class DataSet:
         self.driver.commit()
 
         if update_elements:
-            self.frm.update_elements(self.table)
+            self.frm.update_elements(self.key)
         logger.debug("Record Saved!")
         self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
 
@@ -1781,7 +1781,7 @@ class DataSet:
         # if dataset-level doesn't allow prompt_save
         if check_prompt_save and self._prompt_save is False:
             if update_elements:
-                self.frm.update_elements(self.table)
+                self.frm.update_elements(self.key)
             results[self.table] = PROMPT_SAVE_NONE
             return results
         # otherwise, proceed
@@ -1829,7 +1829,7 @@ class DataSet:
 
         if self.get_current_row().virtual:
             self.rows.purge_virtual()
-            self.frm.update_elements(self.table)
+            self.frm.update_elements(self.key)
             # only need to reset the Insert button
             self.frm.update_elements(edit_protect_only=True)
             return None
@@ -1859,7 +1859,7 @@ class DataSet:
             self.driver.commit()
 
         self.requery(select_first=False)
-        self.frm.update_elements(self.table)
+        self.frm.update_elements(self.key)
         self.requery_dependents()
         return None
 
