@@ -294,6 +294,7 @@ lp_fr = {
 }
 
 lp_monty_python = {
+    "description_column_str_null_default": "Fresh parchment!",
     "button_cancel": "Run Away!",
     "button_ok": "It Is Good.",
     "button_yes": "Yes, My Liege.",
