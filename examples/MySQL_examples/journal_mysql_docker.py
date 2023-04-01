@@ -57,10 +57,10 @@ layout = [
     [ss.field("Journal.entry", sg.MLine, size=(71, 20))],
 ]
 mysql_docker = {
-    'user': 'pysimplesql_user',
-    'password': 'pysimplesql',
-    'host': '127.0.0.1',
-    'database': 'pysimplesql_examples'
+    "user": "pysimplesql_user",
+    "password": "pysimplesql",
+    "host": "127.0.0.1",
+    "database": "pysimplesql_examples",
 }
 # Create the Window, Driver and Form
 win = sg.Window("Journal example: MySQL", layout, finalize=True)

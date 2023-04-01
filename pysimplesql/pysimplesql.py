@@ -6762,7 +6762,11 @@ class Mysql(SQLDriver):
         for row in rows:
             name = row["Field"]
             # Check if the value is a bytes-like object, and decode if necessary
-            type_value = row["Type"].decode('utf-8') if isinstance(row["Type"], bytes) else row["Type"]
+            type_value = (
+                row["Type"].decode("utf-8")
+                if isinstance(row["Type"], bytes)
+                else row["Type"]
+            )
             # Capitalize and get rid of the extra information of the row type
             # I.e. varchar(255) becomes VARCHAR
             domain = type_value.split("(")[0].upper()
