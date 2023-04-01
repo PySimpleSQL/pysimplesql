@@ -90,7 +90,7 @@ except (ModuleNotFoundError, ImportError):
     # fmt: on
 
 # Load database backends if present
-supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile"]
+supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile", "Sqlserver"]
 failed_modules = 0
 try:
     import sqlite3
@@ -107,6 +107,10 @@ except ModuleNotFoundError:
     failed_modules += 1
 try:
     import csv
+except ModuleNotFoundError:
+    failed_modules += 1
+try:
+    import pyodbc
 except ModuleNotFoundError:
     failed_modules += 1
 
@@ -7140,6 +7144,122 @@ class Postgres(SQLDriver):
 
     def execute_script(self, script):
         pass
+
+
+# --------------------------------------------------------------------------------------
+# MS SQLSERVER DRIVER
+# --------------------------------------------------------------------------------------
+class Sqlserver(SQLDriver):
+    def __init__(
+        self, host, user, password, database, sql_script=None, sql_commands=None
+    ):
+        super().__init__(name="Sqlserver")
+
+        self.name = "Sqlserver"
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.con = self.connect()
+
+        if sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info("Executing sql commands passed in")
+            logger.debug(sql_commands)
+            self.con.executescript(sql_commands)
+            self.con.commit()
+        if sql_script is not None:
+            # run SQL script from the file if the database does not yet exist
+            logger.info("Executing sql script from file passed in")
+            self.execute_script(sql_script)
+
+    def connect(self):
+        con = pyodbc.connect(
+            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+            f"SERVER={self.host};"
+            f"DATABASE={self.database};"
+            f"UID={self.user};"
+            f"PWD={self.password}"
+        )
+        return con
+
+    def execute(
+        self,
+        query,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
+        cursor = self.con.cursor()
+        exception = None
+        try:
+            cursor.execute(query, values) if values else cursor.execute(query)
+        except pyodbc.Error as e:
+            exception = e
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
+            if auto_commit_rollback:
+                self.rollback()
+        else:
+            if auto_commit_rollback:
+                self.commit()
+
+        try:
+            rows = cursor.fetchall()
+        except:
+            rows = []
+
+        lastrowid = cursor.rowcount if cursor.rowcount else None
+
+        return ResultSet(
+            [
+                dict(zip([column[0] for column in cursor.description], row))
+                for row in rows
+            ],
+            lastrowid,
+            exception,
+            column_info,
+        )
+
+    def get_tables(self):
+        query = (
+            "SELECT table_name FROM information_schema.tables WHERE table_catalog = ?"
+        )
+        rows = self.execute(query, [self.database], silent=True)
+        return [row["table_name"] for row in rows]
+
+    def column_info(self, table):
+        # Return a list of column names
+        query = "SELECT * FROM information_schema.columns WHERE table_name = ?"
+        rows = self.execute(query, [table], silent=True)
+        col_info = ColumnInfo(self, table)
+
+        for row in rows:
+            name = row["column_name"]
+            domain = row["data_type"].upper()
+            notnull = row["is_nullable"] == "NO"
+            default = row["column_default"]
+            pk = False  # MSSQL does not provide primary key info directly in columns
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
+
+        return col_info
+
+    def pk_column(self, table):
+        query = (
+            "SELECT column_name FROM information_schema.key_column_usage "
+            "WHERE OBJECTPROPERTY(OBJECT_ID(constraint_name), 'IsPrimaryKey') = 1 "
+            "AND table_name = ?"
+        )
+        cur = self.execute(query, [table], silent=True)
+        cur.fetchone()
 
 
 # --------------------------
