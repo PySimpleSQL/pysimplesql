@@ -5,12 +5,12 @@ import logging
 
 # Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
-# POSTGRESQL EXAMPLE USING DOCKER TO PROVIDE A POSTGRES SERVER
+# MYSQL EXAMPLE USING DOCKER TO PROVIDE A MYSQL SERVER
 # Note that docker must be installed and configured properly on your local machine.
-# Load in the docker image and create a container to run the Postgres server.
-# See the Journal.sql file in the PostgreSQL_examples/docker folder to see the SQL
+# Load in the docker image and create a container to run the MySQL server.
+# See the Journal.sql file in the MySQL_examples/docker folder to see the SQL
 # statements that were used to create the database.
 docker_image = "pysimplesql/examples:mysql"
 docker_image_pull(docker_image)
@@ -56,17 +56,15 @@ layout = [
     [ss.field("Journal.title")],
     [ss.field("Journal.entry", sg.MLine, size=(71, 20))],
 ]
-postgres_docker = {
-    "host": "localhost",
+mysql_docker = {
     "user": "pysimplesql_user",
     "password": "pysimplesql",
+    "host": "127.0.0.1",
     "database": "pysimplesql_examples",
 }
 # Create the Window, Driver and Form
-win = sg.Window("Journal example: PostgreSQL", layout, finalize=True)
-driver = ss.Postgres(
-    **postgres_docker
-)  # Use the postgres examples database credentials
+win = sg.Window("Journal example: MySQL", layout, finalize=True)
+driver = ss.Mysql(**mysql_docker)  # Use the database credentials
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top

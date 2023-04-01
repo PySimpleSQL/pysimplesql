@@ -32,7 +32,7 @@ with tqdm(total=1, desc="Building Docker image") as pbar:
 print("Starting container...")
 with tqdm(total=1, desc="Starting container") as pbar:
     container = client.containers.run(
-        image, name="pysimplesql-mysql", detach=True, ports={"3306/tcp": 3306}
+        image, name="pysimplesql-examples-mysql", detach=True, ports={"3306/tcp": 3306}
     )
     pbar.update()
 

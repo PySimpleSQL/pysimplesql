@@ -150,7 +150,10 @@ def docker_container_start(
         container.reload()
         if container.status == "running":
             logs = container.logs().decode("utf-8")
-            if "database system is ready to accept connections" in logs:
+            # TODO: Refactor to include callback or other mechanism to determine if
+            # a container is fully initialized, since this needs to be more general
+            # purpose. For now, this should work in both Postgres and MySQL
+            if "ready" in logs and "connect" in logs:
                 logger.info("Ready to connect!")
                 break
         time.sleep(1)
