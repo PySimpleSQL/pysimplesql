@@ -62,7 +62,7 @@ import logging
 import os.path
 import threading  # threaded popup
 from datetime import date, datetime
-from time import sleep  # threaded popup
+from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
 import PySimpleGUI as sg
@@ -3803,8 +3803,18 @@ class Popup:
 
 
 class ProgressBar:
-    def __init__(self, title: str, max_value: int = 100):
-        layout = [
+    def __init__(self, title: str, max_value: int = 100, hide_delay: int = 100):
+        """
+        Creates a progress bar window with a message label and a progress bar.
+
+        :param title: Title of the window
+        :param max_value: Maximum value of the progress bar
+        :param hide_delay: Delay in milliseconds before displaying the Window
+        :returns: None
+        """
+        self.win = None
+        self.title = title
+        self.layout = [
             [sg.Text("", key="message", size=(50, 2))],
             [
                 sg.ProgressBar(
@@ -3817,22 +3827,32 @@ class ProgressBar:
             ],
         ]
 
-        self.title = title
         self.max = max
+        self.hide_delay = hide_delay
+        self.start_time = time() * 1000
+
+    def create_window(self):
         self.win = sg.Window(
-            title,
-            layout=layout,
+            self.title,
+            layout=self.layout,
             keep_on_top=True,
             finalize=True,
             ttk_theme=themepack.ttk_theme,
         )
 
     def update(self, message: str, current_count: int):
+        if time() * 1000 - self.start_time < self.hide_delay:
+            return
+
+        if self.win is None:
+            self.create_window()
+
         self.win["message"].update(message)
         self.win["bar"].update(current_count=current_count)
 
     def close(self):
-        self.win.close()
+        if self.win is not None:
+            self.win.close()
 
 
 class LangFormat(dict):
