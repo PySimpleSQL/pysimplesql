@@ -6699,6 +6699,7 @@ class Mysql(SQLDriver):
             user=self.user,
             password=self.password,
             database=self.database,
+            port="3306"
         )
 
     def execute(
@@ -6737,10 +6738,10 @@ class Mysql(SQLDriver):
 
     def get_tables(self):
         query = (
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s"
+            "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = %s"
         )
         rows = self.execute(query, [self.database], silent=True)
-        return [row["table_name"] for row in rows]
+        return [row["TABLE_NAME"] for row in rows]
 
     def column_info(self, table):
         # Return a list of column names
@@ -6750,9 +6751,11 @@ class Mysql(SQLDriver):
 
         for row in rows:
             name = row["Field"]
+            # Check if the value is a bytes-like object, and decode if necessary
+            type_value = row["Type"].decode('utf-8') if isinstance(row["Type"], bytes) else row["Type"]
             # Capitalize and get rid of the extra information of the row type
             # I.e. varchar(255) becomes VARCHAR
-            domain = row["Type"].split("(")[0].upper()
+            domain = type_value.split("(")[0].upper()
             notnull = row["Null"] == "NO"
             default = row["Default"]
             pk = row["Key"] == "PRI"

@@ -17,7 +17,7 @@ docker_image_pull(docker_image)
 docker_container = docker_container_start(
     image=docker_image,
     container_name="pysimplesql-examples-mysql",
-    ports={"3306/tcp": ("127.0.0.1", "3306")},
+    ports={"3306/tcp": ("127.0.0.1", 3306)},
 )
 
 # -------------------------
@@ -57,14 +57,14 @@ layout = [
     [ss.field("Journal.entry", sg.MLine, size=(71, 20))],
 ]
 mysql_docker = {
-    "host": "localhost",
-    "user": "pysimplesql_user",
-    "password": "pysimplesql",
-    "database": "pysimplesql_examples",
+    'user': 'pysimplesql_user',
+    'password': 'pysimplesql',
+    'host': '127.0.0.1',
+    'database': 'pysimplesql_examples'
 }
 # Create the Window, Driver and Form
 win = sg.Window("Journal example: MySQL", layout, finalize=True)
-driver = ss.Mysql(**mysql_docker)  # Use the postgres examples database credentials
+driver = ss.Mysql(**mysql_docker)  # Use the database credentials
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top
