@@ -1,4 +1,7 @@
-"""Database bindings for PySimpleGUI"""
+"""
+Write data-driven desktop apps fast! Lightweight Python library supports SQLite,
+MySQL/MariaDB, PostgreSQL & Flatfile CSV. Uses PySimpleGUI layouts.
+"""
 
 from update_checker import UpdateChecker  # pip install update-checker
 
