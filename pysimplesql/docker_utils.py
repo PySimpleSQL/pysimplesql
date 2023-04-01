@@ -128,7 +128,7 @@ def docker_container_start(
             detach=True,
             auto_remove=True,
         )
-        time.sleep(1)
+        # time.sleep(1)
 
     # Now we can start the container
     logger.info(f"Starting container {container_name}...")
@@ -136,17 +136,14 @@ def docker_container_start(
     logger.info(f"container_status: {container.status}")
     if container.status != "running":
         logger.info("STARTING CONTAINER")
-        steps = 3
-        progress_bar = ProgressBar(title="Starting Docker container", max_value=steps)
         container.start()
 
-        for i in range(steps):
-            progress_bar.update("Container starting...", i)
-            time.sleep(1)
-        progress_bar.close()
-
     # Wait for the container to be fully initialized
-    while True:
+    retries = 3
+    progress_bar = ProgressBar(
+        title="Waiting for container to start", max_value=retries, hide_delay=1000
+    )
+    for progress in range(retries):
         container.reload()
         if container.status == "running":
             logs = container.logs().decode("utf-8")
@@ -154,8 +151,9 @@ def docker_container_start(
             # a container is fully initialized, since this needs to be more general
             # purpose. For now, this should work in both Postgres and MySQL
             if "ready" in logs and "connect" in logs:
-                logger.info("Ready to connect!")
-                break
+                progress_bar.close()
+                return container
+        progress_bar.update("Container initializing...", progress)
         time.sleep(1)
 
-    return container
+    return None
