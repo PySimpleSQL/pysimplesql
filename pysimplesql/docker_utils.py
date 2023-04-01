@@ -128,7 +128,6 @@ def docker_container_start(
             detach=True,
             auto_remove=True,
         )
-        # time.sleep(1)
 
     # Now we can start the container
     logger.info(f"Starting container {container_name}...")
