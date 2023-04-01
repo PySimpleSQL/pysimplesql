@@ -6693,14 +6693,24 @@ class Mysql(SQLDriver):
 
         self.win_pb.close()
 
-    def connect(self):
-        return mysql.connector.connect(
-            host=self.host,
-            user=self.user,
-            password=self.password,
-            database=self.database,
-            port="3306"
-        )
+    def connect(self, retries=3):
+        attempt = 0
+        while attempt < retries:
+            try:
+                con = mysql.connector.connect(
+                    host=self.host,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    # connect_timeout=3,
+                )
+                return con
+            except mysql.connector.Error as e:
+                print(f"Failed to connect to database ({attempt + 1}/{retries})")
+                print(e)
+                attempt += 1
+                sleep(1)
+        raise Exception("Failed to connect to database")
 
     def execute(
         self,
