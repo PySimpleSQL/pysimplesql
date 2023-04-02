@@ -6205,7 +6205,7 @@ class SQLDriver:
     def delete_record_recursive(
         self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion
     ):
-        for child in Relationship.get_delete_cascade_tables(dataset.key):
+        for child in Relationship.get_delete_cascade_tables(dataset.table):
             # Check to make sure we arn't at recursion limit
             recursion += 1  # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
