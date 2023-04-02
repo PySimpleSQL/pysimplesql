@@ -60,6 +60,7 @@ import contextlib
 import functools
 import logging
 import os.path
+import platform
 import threading  # threaded popup
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
@@ -7325,6 +7326,136 @@ class Sqlserver(SQLDriver):
         if rows:
             return rows[0]["COLUMN_NAME"]
         return None
+
+
+# --------------------------------------------------------------------------------------
+# MS ACCESS DRIVER
+# --------------------------------------------------------------------------------------
+class MSAccess(SQLDriver):
+    """
+    Microsoft Access SQLDriver
+
+    For Linux users, you will have to install the unixodbc and odbc driver for MS Access
+    as well as MDBTools
+    For example, on Ubuntu:
+    sudo apt-get install unixodbc unixodbc-dev mdbtools mdbtools-dev
+
+    For Mac users, you may have to try to install the same packages with Brew
+
+    This should work out of the box for Windows users
+
+    :param db_path: Path to the database file
+    :param sql_script: Path to a SQL script file to execute on a new database
+    :param sql_commands: SQL commands to execute on a new database
+    """
+
+    def __init__(self, db_path: str, sql_script: str = None, sql_commands: str = None):
+        super().__init__(name="MSAccess", placeholder="?")
+
+        self.connect(db_path)
+
+        new_database = not os.path.isfile(db_path)
+
+        if sql_commands is not None and new_database:
+            self.con.execute(sql_commands)
+            self.con.commit()
+
+        if sql_script is not None and new_database:
+            self.execute_script(sql_script)
+
+        self.db_path = db_path
+
+    def connect(self, database: str):
+        os_name = platform.system()
+        if os_name == "Windows":
+            conn_str = (
+                r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=" + database
+            )
+        elif os_name in ("Linux", "Darwin"):  # Darwin is the value returned for macOS
+            conn_str = r"DRIVER=MDBTools;DBQ=" + database
+        else:
+            raise RuntimeError(f"Unsupported operating system: {os_name}")
+        self.con = pyodbc.connect(conn_str)
+
+    def _row_factory(self, cursor, row):
+        d = {}
+        for idx, col in enumerate(cursor.description):
+            d[col[0]] = row[idx]
+        return d
+
+    def execute(
+        self,
+        query,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        query = query.rstrip().rstrip(";")  # TODO: Linux only??
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
+
+        cursor = self.con.cursor()
+        exception = None
+        try:
+            cur = cursor.execute(query, values) if values else cursor.execute(query)
+        except pyodbc.Error as e:
+            exception = e
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
+            if auto_commit_rollback:
+                self.rollback()
+        else:
+            if auto_commit_rollback:
+                self.commit()
+
+        try:
+            rows = cur.fetchall()
+        except:
+            rows = []
+
+        # Use _row_factory for each row in rows
+        formatted_rows = [self._row_factory(cursor, row) for row in rows]
+
+        lastrowid = (
+            cursor.lastrowid
+            if hasattr(cursor, "lastrowid") and cursor.lastrowid is not None
+            else None
+        )
+        return ResultSet(
+            formatted_rows,
+            lastrowid,
+            exception,
+            column_info,
+        )
+
+    def close(self):
+        self.con.close()
+
+    def execute_script(self, script):
+        with open(script, "r") as file:
+            logger.info(f"Loading script {script} into database.")
+            self.con.execute(file.read())
+
+    def get_tables(self):
+        cursor = self.con.cursor()
+        rows = cursor.tables(tableType="TABLE").fetchall()
+
+        table_names = []
+        for row in rows:
+            if "MSys" in row.table_name or "f_BAD" in row.table_name:
+                continue
+            table_names.append(row.table_name)
+        return table_names
+
+    def pk_column(self, table):
+        cursor = self.con.cursor()
+        columns_info = cursor.columns(table).fetchall()
+        print(columns_info)
+        print(dir(cursor))
+        print(cursor.primaryKeys(table).fetchall())
+        # dict comprehension: {ordinal_position: col_name}
 
 
 # --------------------------
