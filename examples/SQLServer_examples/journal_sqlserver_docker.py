@@ -7,8 +7,13 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# --------------------------------------------------------------------------------------
 # MS SQLSERVER EXAMPLE USING DOCKER TO PROVIDE A POSTGRES SERVER
 # Note that docker must be installed and configured properly on your local machine.
+# Additionally, install the ODBC Driver for SQL Server, v17
+# https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
+# --------------------------------------------------------------------------------------
+
 # Load in the docker image and create a container to run the Postgres server.
 # See the Journal.sql file in the SQLServer_examples/docker folder to see the SQL
 # statements that were used to create the database.
