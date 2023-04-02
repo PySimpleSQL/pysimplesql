@@ -7173,6 +7173,8 @@ class Sqlserver(SQLDriver):
             logger.info("Executing sql script from file passed in")
             self.execute_script(sql_script)
 
+        self.win_pb.close()
+
     def connect(self):
         con = pyodbc.connect(
             f"DRIVER={{ODBC Driver 17 for SQL Server}};"
@@ -7234,16 +7236,27 @@ class Sqlserver(SQLDriver):
 
     def column_info(self, table):
         # Return a list of column names
-        query = "SELECT * FROM information_schema.columns WHERE table_name = ?"
+        query = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
         rows = self.execute(query, [table], silent=True)
         col_info = ColumnInfo(self, table)
 
+        # Get the primary key column(s)
+        pk_columns = []
+        pk_query = """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+            WHERE TABLE_NAME = ?
+        """
+        pk_rows = self.execute(pk_query, [table], silent=True)
+        for pk_row in pk_rows:
+            pk_columns.append(pk_row["COLUMN_NAME"])
+
         for row in rows:
-            name = row["column_name"]
-            domain = row["data_type"].upper()
-            notnull = row["is_nullable"] == "NO"
-            default = row["column_default"]
-            pk = False  # MSSQL does not provide primary key info directly in columns
+            name = row["COLUMN_NAME"]
+            domain = row["DATA_TYPE"].upper()
+            notnull = row["IS_NULLABLE"] == "NO"
+            default = row["COLUMN_DEFAULT"]
+            pk = name in pk_columns
             col_info.append(
                 Column(
                     name=name, domain=domain, notnull=notnull, default=default, pk=pk
@@ -7260,6 +7273,58 @@ class Sqlserver(SQLDriver):
         )
         cur = self.execute(query, [table], silent=True)
         cur.fetchone()
+
+    def relationships(self):
+        # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
+        tables = self.get_tables()
+        relationships = []
+        for from_table in tables:
+            query = (
+                "SELECT "
+                "   OBJECT_NAME(f.parent_object_id) AS from_table, "
+                "   OBJECT_NAME(f.referenced_object_id) AS to_table, "
+                "   COL_NAME(fc.parent_object_id, fc.parent_column_id) AS from_column, "
+                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "
+                "   f.update_referential_action_desc AS update_cascade, "
+                "   f.delete_referential_action_desc AS delete_cascade "
+                "FROM "
+                "   sys.foreign_keys AS f "
+                "   INNER JOIN sys.foreign_key_columns AS fc "
+                "       ON f.object_id = fc.constraint_object_id "
+                "WHERE "
+                f"   OBJECT_NAME(f.parent_object_id) = '{from_table}'"
+            )
+
+            rows = self.execute(query, silent=True)
+
+            for row in rows:
+                dic = {}
+                dic["from_table"] = row["from_table"]
+                dic["to_table"] = row["to_table"]
+                dic["from_column"] = row["from_column"]
+                dic["to_column"] = row["to_column"]
+                dic["update_cascade"] = row["update_cascade"] == "CASCADE"
+                dic["delete_cascade"] = row["delete_cascade"] == "CASCADE"
+                relationships.append(dic)
+        return relationships
+
+    def pk_column(self, table):
+        query = (
+            "SELECT "
+            "   COLUMN_NAME "
+            "FROM "
+            "   INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+            "WHERE "
+            f"   TABLE_NAME = '{table}' "
+            "   AND CONSTRAINT_NAME LIKE 'PK%'"
+        )
+
+        rows = self.execute(query, silent=True)
+
+        if rows:
+            return rows[0]["COLUMN_NAME"]
+        else:
+            return None
 
 
 # --------------------------
