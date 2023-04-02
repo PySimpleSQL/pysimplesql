@@ -97,7 +97,7 @@ try:
 except ModuleNotFoundError:
     failed_modules += 1
 try:
-    import mysql.connector # mysql-connector-python
+    import mysql.connector  # mysql-connector-python
 except ModuleNotFoundError:
     failed_modules += 1
 try:
