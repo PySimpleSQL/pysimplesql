@@ -90,7 +90,7 @@ except (ModuleNotFoundError, ImportError):
     # fmt: on
 
 # Load database backends if present
-supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile"]
+supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile", "Sqlserver"]
 failed_modules = 0
 try:
     import sqlite3
@@ -107,6 +107,10 @@ except ModuleNotFoundError:
     failed_modules += 1
 try:
     import csv
+except ModuleNotFoundError:
+    failed_modules += 1
+try:
+    import pyodbc
 except ModuleNotFoundError:
     failed_modules += 1
 
@@ -7140,6 +7144,197 @@ class Postgres(SQLDriver):
 
     def execute_script(self, script):
         pass
+
+
+# --------------------------------------------------------------------------------------
+# MS SQLSERVER DRIVER
+# --------------------------------------------------------------------------------------
+class Sqlserver(SQLDriver):
+    def __init__(
+        self, host, user, password, database, sql_script=None, sql_commands=None
+    ):
+        super().__init__(name="Sqlserver", table_quote='"', placeholder="?")
+
+        self.name = "Sqlserver"
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.con = self.connect()
+
+        if sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info("Executing sql commands passed in")
+            logger.debug(sql_commands)
+            self.con.executescript(sql_commands)
+            self.con.commit()
+        if sql_script is not None:
+            # run SQL script from the file if the database does not yet exist
+            logger.info("Executing sql script from file passed in")
+            self.execute_script(sql_script)
+
+        self.win_pb.close()
+
+    def connect(self, retries=3, timeout=3):
+        attempt = 0
+        while attempt < retries:
+            try:
+                con = pyodbc.connect(
+                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                    f"SERVER={self.host};"
+                    f"DATABASE={self.database};"
+                    f"UID={self.user};"
+                    f"PWD={self.password}",
+                    timeout=timeout,
+                )
+                return con
+            except pyodbc.Error as e:
+                print(f"Failed to connect to database ({attempt + 1}/{retries})")
+                print(e)
+                attempt += 1
+                sleep(1)
+        raise Exception("Failed to connect to database")
+
+    def execute(
+        self,
+        query,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
+        cursor = self.con.cursor()
+        exception = None
+        try:
+            cursor.execute(query, values) if values else cursor.execute(query)
+        except pyodbc.Error as e:
+            exception = e
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
+            if auto_commit_rollback:
+                self.rollback()
+        else:
+            if auto_commit_rollback:
+                self.commit()
+
+        try:
+            rows = cursor.fetchall()
+        except:
+            rows = []
+
+        lastrowid = cursor.rowcount if cursor.rowcount else None
+
+        return ResultSet(
+            [
+                dict(zip([column[0] for column in cursor.description], row))
+                for row in rows
+            ],
+            lastrowid,
+            exception,
+            column_info,
+        )
+
+    def get_tables(self):
+        query = (
+            "SELECT table_name FROM information_schema.tables WHERE table_catalog = ?"
+        )
+        rows = self.execute(query, [self.database], silent=True)
+        return [row["table_name"] for row in rows]
+
+    def column_info(self, table):
+        # Return a list of column names
+        query = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
+        rows = self.execute(query, [table], silent=True)
+        col_info = ColumnInfo(self, table)
+
+        # Get the primary key column(s)
+        pk_columns = []
+        pk_query = """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+            WHERE TABLE_NAME = ?
+        """
+        pk_rows = self.execute(pk_query, [table], silent=True)
+        for pk_row in pk_rows:
+            pk_columns.append(pk_row["COLUMN_NAME"])
+
+        for row in rows:
+            name = row["COLUMN_NAME"]
+            domain = row["DATA_TYPE"].upper()
+            notnull = row["IS_NULLABLE"] == "NO"
+            default = row["COLUMN_DEFAULT"]
+            pk = name in pk_columns
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
+
+        return col_info
+
+    def pk_column(self, table):
+        query = (
+            "SELECT column_name FROM information_schema.key_column_usage "
+            "WHERE OBJECTPROPERTY(OBJECT_ID(constraint_name), 'IsPrimaryKey') = 1 "
+            "AND table_name = ?"
+        )
+        cur = self.execute(query, [table], silent=True)
+        cur.fetchone()
+
+    def relationships(self):
+        # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
+        tables = self.get_tables()
+        relationships = []
+        for from_table in tables:
+            query = (
+                "SELECT "
+                "   OBJECT_NAME(f.parent_object_id) AS from_table, "
+                "   OBJECT_NAME(f.referenced_object_id) AS to_table, "
+                "   COL_NAME(fc.parent_object_id, fc.parent_column_id) AS from_column, "
+                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "
+                "   f.update_referential_action_desc AS update_cascade, "
+                "   f.delete_referential_action_desc AS delete_cascade "
+                "FROM "
+                "   sys.foreign_keys AS f "
+                "   INNER JOIN sys.foreign_key_columns AS fc "
+                "       ON f.object_id = fc.constraint_object_id "
+                "WHERE "
+                f"   OBJECT_NAME(f.parent_object_id) = '{from_table}'"
+            )
+
+            rows = self.execute(query, silent=True)
+
+            for row in rows:
+                dic = {}
+                dic["from_table"] = row["from_table"]
+                dic["to_table"] = row["to_table"]
+                dic["from_column"] = row["from_column"]
+                dic["to_column"] = row["to_column"]
+                dic["update_cascade"] = row["update_cascade"] == "CASCADE"
+                dic["delete_cascade"] = row["delete_cascade"] == "CASCADE"
+                relationships.append(dic)
+        return relationships
+
+    def pk_column(self, table):
+        query = (
+            "SELECT "
+            "   COLUMN_NAME "
+            "FROM "
+            "   INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+            "WHERE "
+            f"   TABLE_NAME = '{table}' "
+            "   AND CONSTRAINT_NAME LIKE 'PK%'"
+        )
+
+        rows = self.execute(query, silent=True)
+
+        if rows:
+            return rows[0]["COLUMN_NAME"]
+        else:
+            return None
 
 
 # --------------------------
