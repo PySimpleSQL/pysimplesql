@@ -57,7 +57,7 @@ layout = [
     [ss.field("Journal.entry", sg.MLine, size=(71, 20))],
 ]
 sqlserver_docker = {
-    "host": "localhost",
+    "host": "127.0.0.1",
     "user": "pysimplesql_user",
     "password": "Pysimplesql!",
     "database": "pysimplesql_examples",
