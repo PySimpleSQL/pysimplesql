@@ -7175,15 +7175,25 @@ class Sqlserver(SQLDriver):
 
         self.win_pb.close()
 
-    def connect(self):
-        con = pyodbc.connect(
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={self.host};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password}"
-        )
-        return con
+    def connect(self, retries=3, timeout=3):
+        attempt = 0
+        while attempt < retries:
+            try:
+                con = pyodbc.connect(
+                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                    f"SERVER={self.host};"
+                    f"DATABASE={self.database};"
+                    f"UID={self.user};"
+                    f"PWD={self.password}",
+                    timeout=timeout,
+                )
+                return con
+            except pyodbc.Error as e:
+                print(f"Failed to connect to database ({attempt + 1}/{retries})")
+                print(e)
+                attempt += 1
+                sleep(1)
+        raise Exception("Failed to connect to database")
 
     def execute(
         self,

@@ -5,20 +5,20 @@ import logging
 
 # Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # MS SQLSERVER EXAMPLE USING DOCKER TO PROVIDE A POSTGRES SERVER
 # Note that docker must be installed and configured properly on your local machine.
 # Load in the docker image and create a container to run the Postgres server.
 # See the Journal.sql file in the SQLServer_examples/docker folder to see the SQL
 # statements that were used to create the database.
-# docker_image = "pysimplesql/examples:sqlserver"
-# docker_image_pull(docker_image)
-# docker_container = docker_container_start(
-#    image=docker_image,
-#    container_name="pysimplesql-examples-sqlserver",
-#    ports={"1433/tcp": ("127.0.0.1", 1433)},
-# )
+docker_image = "pysimplesql/examples:sqlserver"
+docker_image_pull(docker_image)
+docker_container = docker_container_start(
+    image=docker_image,
+    container_name="pysimplesql-examples-sqlserver",
+    ports={"1433/tcp": ("127.0.0.1", 1433)},
+)
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
