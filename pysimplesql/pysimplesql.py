@@ -7454,7 +7454,6 @@ class MSAccess(SQLDriver):
         columns_info = cursor.columns(table).fetchall()
         print(columns_info)
         print(dir(cursor))
-        print(cursor.primaryKeys(table).fetchall())
         # dict comprehension: {ordinal_position: col_name}
 
 
