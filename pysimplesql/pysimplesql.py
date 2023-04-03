@@ -6132,6 +6132,7 @@ class SQLDriver:
                 parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
 
                 # Children without cascade-filtering parent aren't displayed
+                if not parent_pk:
                     parent_pk = "NULL"
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
