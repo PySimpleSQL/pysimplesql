@@ -7275,15 +7275,6 @@ class Sqlserver(SQLDriver):
 
         return col_info
 
-    def pk_column(self, table):
-        query = (
-            "SELECT column_name FROM information_schema.key_column_usage "
-            "WHERE OBJECTPROPERTY(OBJECT_ID(constraint_name), 'IsPrimaryKey') = 1 "
-            "AND table_name = ?"
-        )
-        cur = self.execute(query, [table], silent=True)
-        cur.fetchone()
-
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables = self.get_tables()
