@@ -550,10 +550,10 @@ class DataSet:
         DataSet.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
-        if query == "":
+        if not query:
             query = self.driver.default_query(table)
         # No order was passed in, so we will generate generic one
-        if order_clause == "":
+        if not order_clause:
             order_clause = self.driver.default_order(description_column)
 
         self.key: str = data_key
@@ -1237,7 +1237,7 @@ class DataSet:
         # TODO this is a bit of an ugly hack, but it works
         if search_string in self.frm.window.key_dict:
             search_string = self.frm.window[search_string].get()
-        if search_string == "":
+        if not search_string:
             return SEARCH_ABORTED
 
         logger.debug(
@@ -1405,7 +1405,7 @@ class DataSet:
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
         if self.rows:
-            if self.get_current_row()[column] != "":
+            if self.get_current_row()[column]:
                 return self.get_current_row()[column]
             return default
         return default
@@ -2657,7 +2657,7 @@ class Form:
 
                 # make sure we don't use reserved keywords that could end up in a query
                 for keyword in [table, col, where_column, where_value]:
-                    if keyword is not None and keyword != "":
+                    if keyword is not None and keyword:
                         self.driver.check_keyword(keyword)
 
                 # DataSet objects are named after the tables they represent
@@ -4106,7 +4106,7 @@ def field(
             **kwargs,
         )
     layout_label = sg.T(
-        label_text if label == "" else label,
+        label if label else label_text,
         size=themepack.default_label_size,
         key=f"{key}:label",
     )
@@ -6113,7 +6113,7 @@ class SQLDriver:
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
                 join += f" {self.relationship_to_join_clause(r)}"
-        return join if dataset.join_clause == "" else dataset.join_clause
+        return join if not dataset.join_clause else dataset.join_clause
 
     def generate_where_clause(self, dataset: DataSet) -> str:
         """
@@ -6132,15 +6132,15 @@ class SQLDriver:
                 parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
 
                 # Children without cascade-filtering parent aren't displayed
-                if parent_pk == "":
+                if not parent_pk:
                     parent_pk = "NULL"
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
-                if where != "":
+                if where:
                     clause = clause.replace("WHERE", "AND")
                 where += clause
 
-        if where == "":
+        if not where:
             # There was no where clause from Relationships..
             where = dataset.where_clause
         else:
@@ -6351,7 +6351,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in changed_row.items():
-            if v == "":
+            if v == "":  # noqa: PLC1901
                 changed_row[k] = None
 
         # quote appropriately
@@ -6378,7 +6378,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in row.items():
-            if v == "":
+            if v == "":  # noqa: PLC1901
                 row[k] = None
 
         # quote appropriately
@@ -7222,7 +7222,7 @@ class Sqlserver(SQLDriver):
 
         try:
             rows = cursor.fetchall()
-        except:
+        except:  # noqa: E722
             rows = []
 
         lastrowid = cursor.rowcount if cursor.rowcount else None
@@ -7275,15 +7275,6 @@ class Sqlserver(SQLDriver):
 
         return col_info
 
-    def pk_column(self, table):
-        query = (
-            "SELECT column_name FROM information_schema.key_column_usage "
-            "WHERE OBJECTPROPERTY(OBJECT_ID(constraint_name), 'IsPrimaryKey') = 1 "
-            "AND table_name = ?"
-        )
-        cur = self.execute(query, [table], silent=True)
-        cur.fetchone()
-
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables = self.get_tables()
@@ -7294,7 +7285,7 @@ class Sqlserver(SQLDriver):
                 "   OBJECT_NAME(f.parent_object_id) AS from_table, "
                 "   OBJECT_NAME(f.referenced_object_id) AS to_table, "
                 "   COL_NAME(fc.parent_object_id, fc.parent_column_id) AS from_column, "
-                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "
+                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "  # noqa: E501
                 "   f.update_referential_action_desc AS update_cascade, "
                 "   f.delete_referential_action_desc AS delete_cascade "
                 "FROM "
@@ -7333,8 +7324,7 @@ class Sqlserver(SQLDriver):
 
         if rows:
             return rows[0]["COLUMN_NAME"]
-        else:
-            return None
+        return None
 
 
 # --------------------------
