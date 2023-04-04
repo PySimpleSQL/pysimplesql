@@ -890,6 +890,10 @@ class DataSet:
                     element_val = element_val.rstrip()
 
                 # Make the comparison
+                # Temporary debug output
+                # print(
+                #    f"element: {element_val}({type(element_val)}), db: {table_val}({type(table_val)})"
+                # )
                 if element_val != table_val:
                     dirty = True
                     logger.debug("CHANGED RECORD FOUND!")
@@ -5296,16 +5300,34 @@ class Column:
                 )
                 value = str(value)
 
+        elif domain == "TIMESTAMP":
+            timestamp_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"]
+
+            parsed = False
+            for timestamp_format in timestamp_formats:
+                try:
+                    value = datetime.strptime(value, timestamp_format)
+                    # value = dt.datetime()
+                    parsed = True
+                    break
+                except ValueError:
+                    pass
+
+            if not parsed:
+                print(
+                    "Unable to cast datetime/time/timestamp. Casting to string instead."
+                )
+                value = str(value)
+
         # other date/time casting
         elif domain in [
             "TIME",
             "DATETIME",
-            "TIMESTAMP",
         ]:  # TODO: i'm sure there is a lot of work to do here
             try:
                 value = datetime.date(value)
             except TypeError:
-                logger.debug(
+                print(
                     "Unable to case datetime/time/timestamp. Casting to string instead."
                 )
                 value = str(value)
@@ -7374,9 +7396,15 @@ class MSAccess(SQLDriver):
     ):
         if not silent:
             logger.info(f"Executing query: {query} {values}")
-        stmt = self.con.createStatement()
 
-        has_result_set = stmt.execute(query)
+        if values:
+            stmt = self.con.prepareStatement(query)
+            for index, value in enumerate(values, start=1):
+                stmt.setObject(index, value)
+            has_result_set = stmt.execute()
+        else:
+            stmt = self.con.createStatement()
+            has_result_set = stmt.execute(query)
 
         if has_result_set:
             rs = stmt.getResultSet()
@@ -7404,13 +7432,16 @@ class MSAccess(SQLDriver):
                             timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
                         else:
                             timestamp_format = "%Y-%m-%dT%H:%M:%S"
-                        value = datetime.strptime(
-                            timestamp_str, timestamp_format
-                        ).strftime(timestamp_format)
+                        dt_value = datetime.strptime(timestamp_str, timestamp_format)
+                        value = dt_value.strftime("%Y-%m-%d")
                     elif isinstance(value, jpype.JPackage("java").sql.Date):
-                        value = value.toString()
+                        date_str = value.toString()
+                        date_format = "%Y-%m-%d"
+                        value = datetime.strptime(date_str, date_format).date()
                     elif isinstance(value, jpype.JPackage("java").sql.Time):
-                        value = value.toString()
+                        time_str = value.toString()
+                        time_format = "%H:%M:%S"
+                        value = datetime.strptime(time_str, time_format).time()
                     elif value is not None:
                         value = value
                     # TODO: More conversions?
