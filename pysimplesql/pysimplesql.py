@@ -892,7 +892,8 @@ class DataSet:
                 # Make the comparison
                 # Temporary debug output
                 # print(
-                #    f"element: {element_val}({type(element_val)}), db: {table_val}({type(table_val)})"
+                #    f"element: {element_val}({type(element_val)}),
+                #    db: {table_val}({type(table_val)})"
                 # )
                 if element_val != table_val:
                     dirty = True
@@ -7383,8 +7384,7 @@ class MSAccess(SQLDriver):
 
         driver_manager = jpype.JPackage("java").sql.DriverManager
         con_str = f"jdbc:ucanaccess://{self.database_file}"
-        con = driver_manager.getConnection(con_str)
-        return con
+        return driver_manager.getConnection(con_str)
 
     def execute(
         self,
@@ -7450,9 +7450,9 @@ class MSAccess(SQLDriver):
                 rows.append(row)
 
             return ResultSet(rows, None, None, column_info)
-        else:
-            affected_rows = stmt.getUpdateCount()
-            return ResultSet([], affected_rows, None, column_info)
+
+        affected_rows = stmt.getUpdateCount()
+        return ResultSet([], affected_rows, None, column_info)
 
     def column_info(self, table):
         meta_data = self.con.getMetaData()
@@ -7481,8 +7481,7 @@ class MSAccess(SQLDriver):
         rs = meta_data.getPrimaryKeys(None, None, table)
         if rs.next():
             return str(rs.getString("COLUMN_NAME"))
-        else:
-            return None
+        return None
 
     def get_tables(self):
         metadata = self.con.getMetaData()
