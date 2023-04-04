@@ -5449,9 +5449,16 @@ class ColumnInfo(List):
                 table = self.driver.quote_table(self.table)
                 # TODO: may need AS column to support all databases?
                 q = f"SELECT {default} AS val FROM {table};"
+
                 rows = self.driver.execute(q)
                 if rows.exception is None:
-                    default = rows.fetchone()["val"]
+                    try:
+                        default = rows.fetchone()["val"]
+                    except KeyError:
+                        try:
+                            default = rows.fetchone()["VAL"]
+                        except KeyError:
+                            default = ""
                     d[c.name] = default
                     continue
                 logger.warning(
@@ -6115,7 +6122,7 @@ class SQLDriver:
         return rows.fetchone()[f"MAX({pk_column})"]
 
     def max_pk(self, table: str, pk_column: str) -> int:
-        rows = self.execute(f"SELECT MAX({pk_column}) FROM {table}")
+        rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
         return rows.fetchone()[f"MAX({pk_column})"]
 
     def generate_join_clause(self, dataset: DataSet) -> str:
@@ -7535,6 +7542,10 @@ class MSAccess(SQLDriver):
             relationships.append(dic)
 
         return relationships
+
+    def max_pk(self, table: str, pk_column: str) -> int:
+        rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
+        return rows.fetchone()["MAX_PK"]  # returned as upper case
 
 
 # --------------------------
