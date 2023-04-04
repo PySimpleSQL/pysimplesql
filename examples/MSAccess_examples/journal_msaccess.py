@@ -67,6 +67,7 @@ frm.edit_protect()  # Comment this out to edit protect elements on Window creati
 win["datepicker"].update(disabled=frm.get_edit_protect())
 # Then watch for the 'edit_protect' event in your Main Loop
 
+print(frm["Journal"].description_column)
 # ---------
 # MAIN LOOP
 # ---------
