@@ -65,6 +65,7 @@ from datetime import date, datetime
 from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
+import jpype
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
@@ -97,7 +98,7 @@ try:
 except ModuleNotFoundError:
     failed_modules += 1
 try:
-    import mysql.connector
+    import mysql.connector  # mysql-connector-python
 except ModuleNotFoundError:
     failed_modules += 1
 try:
@@ -280,7 +281,7 @@ class Relationship:
     instances = []
 
     @classmethod
-    def get_relationships_for_table(cls, table: str) -> List[Relationship]:
+    def get_relationships(cls, table: str) -> List[Relationship]:
         """
         Return the relationships for the passed-in table.
 
@@ -290,7 +291,7 @@ class Relationship:
         return [r for r in cls.instances if r.child_table == table]
 
     @classmethod
-    def get_update_cascade_relationships(cls, table: str) -> List[str]:
+    def get_update_cascade_tables(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should requery
         with this table.
@@ -307,7 +308,7 @@ class Relationship:
         return list(set(rel))
 
     @classmethod
-    def get_delete_cascade_relationships(cls, table: str) -> List[str]:
+    def get_delete_cascade_tables(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should be deleted
         with this table.
@@ -550,10 +551,10 @@ class DataSet:
         DataSet.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
-        if query == "":
+        if not query:
             query = self.driver.default_query(table)
         # No order was passed in, so we will generate generic one
-        if order_clause == "":
+        if not order_clause:
             order_clause = self.driver.default_order(description_column)
 
         self.key: str = data_key
@@ -1237,7 +1238,7 @@ class DataSet:
         # TODO this is a bit of an ugly hack, but it works
         if search_string in self.frm.window.key_dict:
             search_string = self.frm.window[search_string].get()
-        if search_string == "":
+        if not search_string:
             return SEARCH_ABORTED
 
         logger.debug(
@@ -1405,7 +1406,7 @@ class DataSet:
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
         if self.rows:
-            if self.get_current_row()[column] != "":
+            if self.get_current_row()[column]:
                 return self.get_current_row()[column]
             return default
         return default
@@ -1820,7 +1821,7 @@ class DataSet:
 
         children = []
         if cascade:
-            children = Relationship.get_delete_cascade_relationships(self.table)
+            children = Relationship.get_delete_cascade_tables(self.table)
 
         msg_children = ", ".join(children)
         if len(children):
@@ -1895,7 +1896,7 @@ class DataSet:
 
         child_list = []
         if children:
-            child_list = Relationship.get_update_cascade_relationships(self.table)
+            child_list = Relationship.get_update_cascade_tables(self.table)
 
         msg_children = ", ".join(child_list)
         msg = lang.duplicate_child.format_map(
@@ -2020,7 +2021,7 @@ class DataSet:
             else:
                 lst = []
 
-            rels = Relationship.get_relationships_for_table(self.table)
+            rels = Relationship.get_relationships(self.table)
             pk = None
             for col in all_columns:
                 # Is this the primary key column?
@@ -2051,7 +2052,7 @@ class DataSet:
         :param column: The column name to get related table information for
         :returns: The name of the related table, or the current table if none are found
         """
-        rels = Relationship.get_relationships_for_table(self.table)
+        rels = Relationship.get_relationships(self.table)
         for rel in rels:
             if column == rel.fk_column:
                 return rel.parent_table
@@ -2657,7 +2658,7 @@ class Form:
 
                 # make sure we don't use reserved keywords that could end up in a query
                 for keyword in [table, col, where_column, where_value]:
-                    if keyword is not None and keyword != "":
+                    if keyword is not None and keyword:
                         self.driver.check_keyword(keyword)
 
                 # DataSet objects are named after the tables they represent
@@ -2969,7 +2970,7 @@ class Form:
             tables = [
                 dataset.table
                 for dataset in self.datasets.values()
-                if len(Relationship.get_update_cascade_relationships(dataset.table))
+                if len(Relationship.get_update_cascade_tables(dataset.table))
                 and Relationship.get_parent(dataset.table) is None
             ]
         # default behavior, build list of top-level dataset (ones without a parent)
@@ -3190,7 +3191,7 @@ class Form:
                 # Find the relationship to determine which table to get data from
                 target_table = None
                 # TODO this should be get_relationships_for_data?
-                rels = Relationship.get_relationships_for_table(mapped.dataset.table)
+                rels = Relationship.get_relationships(mapped.dataset.table)
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -4106,7 +4107,7 @@ def field(
             **kwargs,
         )
     layout_label = sg.T(
-        label_text if label == "" else label,
+        label if label else label_text,
         size=themepack.default_label_size,
         key=f"{key}:label",
     )
@@ -5768,7 +5769,7 @@ class ResultSet:
 
         # We don't want to sort by foreign keys directly -we want to sort by the
         # description column of the foreign table that the foreign key references
-        rels = Relationship.get_relationships_for_table(table)
+        rels = Relationship.get_relationships(table)
         for rel in rels:
             if column == rel.fk_column:
                 rows = rel.frm[
@@ -6113,7 +6114,7 @@ class SQLDriver:
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
                 join += f" {self.relationship_to_join_clause(r)}"
-        return join if dataset.join_clause == "" else dataset.join_clause
+        return join if not dataset.join_clause else dataset.join_clause
 
     def generate_where_clause(self, dataset: DataSet) -> str:
         """
@@ -6132,15 +6133,15 @@ class SQLDriver:
                 parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
 
                 # Children without cascade-filtering parent aren't displayed
-                if parent_pk == "":
+                if not parent_pk:
                     parent_pk = "NULL"
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
-                if where != "":
+                if where:
                     clause = clause.replace("WHERE", "AND")
                 where += clause
 
-        if where == "":
+        if not where:
             # There was no where clause from Relationships..
             where = dataset.where_clause
         else:
@@ -6205,7 +6206,7 @@ class SQLDriver:
     def delete_record_recursive(
         self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion
     ):
-        for child in Relationship.get_delete_cascade_relationships(dataset.key):
+        for child in Relationship.get_delete_cascade_tables(dataset.table):
             # Check to make sure we arn't at recursion limit
             recursion += 1  # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
@@ -6351,7 +6352,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in changed_row.items():
-            if v == "":
+            if v == "":  # noqa: PLC1901
                 changed_row[k] = None
 
         # quote appropriately
@@ -6378,7 +6379,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in row.items():
-            if v == "":
+            if v == "":  # noqa: PLC1901
                 row[k] = None
 
         # quote appropriately
@@ -7222,7 +7223,7 @@ class Sqlserver(SQLDriver):
 
         try:
             rows = cursor.fetchall()
-        except:
+        except:  # noqa: E722
             rows = []
 
         lastrowid = cursor.rowcount if cursor.rowcount else None
@@ -7285,7 +7286,7 @@ class Sqlserver(SQLDriver):
                 "   OBJECT_NAME(f.parent_object_id) AS from_table, "
                 "   OBJECT_NAME(f.referenced_object_id) AS to_table, "
                 "   COL_NAME(fc.parent_object_id, fc.parent_column_id) AS from_column, "
-                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "
+                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "  # noqa: E501
                 "   f.update_referential_action_desc AS update_cascade, "
                 "   f.delete_referential_action_desc AS delete_cascade "
                 "FROM "
@@ -7324,8 +7325,7 @@ class Sqlserver(SQLDriver):
 
         if rows:
             return rows[0]["COLUMN_NAME"]
-        else:
-            return None
+        return None
 
 
 # --------------------------------------------------------------------------------------
