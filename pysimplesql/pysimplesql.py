@@ -3118,12 +3118,7 @@ class Form:
                     win[m["event"]].update(disabled=disable)
 
                 # Disable db_save when needed
-                elif ":db_save" in m["event"]:
-                    disable = len(self[data_key].rows) == 0 or self._edit_protect
-                    win[m["event"]].update(disabled=disable)
-
-                # Disable table_save when needed
-                elif ":save_table" in m["event"]:
+                elif ":db_save" in m["event"] or ":save_table" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
                     win[m["event"]].update(disabled=disable)
 
