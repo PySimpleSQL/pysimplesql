@@ -7327,6 +7327,7 @@ class Sqlserver(SQLDriver):
         else:
             return None
 
+
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
 # --------------------------------------------------------------------------------------
@@ -7483,6 +7484,7 @@ class MSAccess(SQLDriver):
             relationships.append(dic)
 
         return relationships
+
 
 # --------------------------
 # TYPEDDICTS AND TYPEALIASES
