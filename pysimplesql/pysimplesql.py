@@ -3115,7 +3115,6 @@ class Form:
                 # Disable db_save when needed
                 elif ":db_save" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
-                    print(disable)
                     win[m["event"]].update(disabled=disable)
 
                 # Disable table_save when needed
@@ -5276,7 +5275,7 @@ class Column:
         elif domain in ["INT", "INTEGER", "BOOLEAN"]:
             try:
                 value = int(value)
-            except ValueError:
+            except (ValueError, TypeError):
                 value = str(value)
 
         # float type casting
@@ -7376,10 +7375,11 @@ class MSAccess(SQLDriver):
         if not silent:
             logger.info(f"Executing query: {query} {values}")
         stmt = self.con.createStatement()
-        is_select_query = query.lower().strip().startswith("select")
 
-        if is_select_query:
-            rs = stmt.executeQuery(query)
+        has_result_set = stmt.execute(query)
+
+        if has_result_set:
+            rs = stmt.getResultSet()
             metadata = rs.getMetaData()
             column_count = metadata.getColumnCount()
             rows = []
@@ -7388,13 +7388,39 @@ class MSAccess(SQLDriver):
                 row = {}
                 for i in range(1, column_count + 1):
                     column_name = str(metadata.getColumnName(i))
-                    value = str(rs.getObject(i))
+                    value = rs.getObject(i)
+
+                    if isinstance(value, jpype.JPackage("java").lang.String):
+                        value = str(value)
+                    elif isinstance(value, jpype.JPackage("java").lang.Integer):
+                        value = int(value)
+                    elif isinstance(value, jpype.JPackage("java").math.BigDecimal):
+                        value = float(value.doubleValue())
+                    elif isinstance(value, jpype.JPackage("java").lang.Double):
+                        value = float(value)
+                    if isinstance(value, jpype.JPackage("java").sql.Timestamp):
+                        timestamp_str = value.toInstant().toString()[:-1]
+                        if "." in timestamp_str:
+                            timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
+                        else:
+                            timestamp_format = "%Y-%m-%dT%H:%M:%S"
+                        value = datetime.strptime(
+                            timestamp_str, timestamp_format
+                        ).strftime(timestamp_format)
+                    elif isinstance(value, jpype.JPackage("java").sql.Date):
+                        value = value.toString()
+                    elif isinstance(value, jpype.JPackage("java").sql.Time):
+                        value = value.toString()
+                    elif value is not None:
+                        value = value
+                    # TODO: More conversions?
+
                     row[column_name] = value
                 rows.append(row)
 
             return ResultSet(rows, None, None, column_info)
         else:
-            affected_rows = stmt.executeUpdate(query)
+            affected_rows = stmt.getUpdateCount()
             return ResultSet([], affected_rows, None, column_info)
 
     def column_info(self, table):

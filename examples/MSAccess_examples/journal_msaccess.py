@@ -45,7 +45,7 @@ layout = [
 ]
 
 # Create the Window, Driver and Form
-win = sg.Window("Journal example: MS SQLServer", layout, finalize=True)
+win = sg.Window("Journal example: MS Access", layout, finalize=True)
 driver = ss.MSAccess("Journal.accdb")
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
@@ -67,7 +67,6 @@ frm.edit_protect()  # Comment this out to edit protect elements on Window creati
 win["datepicker"].update(disabled=frm.get_edit_protect())
 # Then watch for the 'edit_protect' event in your Main Loop
 
-print(frm["Journal"].description_column)
 # ---------
 # MAIN LOOP
 # ---------
