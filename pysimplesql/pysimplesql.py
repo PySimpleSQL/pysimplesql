@@ -65,7 +65,6 @@ from datetime import date, datetime
 from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
-import jpype  # pip install JPype1
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
@@ -7328,7 +7327,6 @@ class Sqlserver(SQLDriver):
         else:
             return None
 
-
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
 # --------------------------------------------------------------------------------------
@@ -7439,6 +7437,13 @@ class MSAccess(SQLDriver):
         return tables
 
     def relationships(self):
+        # Get the mapping of uppercase table and column names to their original case
+        table_mapping = {table.upper(): table for table in self.get_tables()}
+        column_mappings = {
+            table: {col.name.upper(): col.name for col in self.column_info(table)}
+            for table in self.get_tables()
+        }
+
         query = (
             "SELECT"
             "  fk.TABLE_NAME AS from_table,"
@@ -7463,17 +7468,21 @@ class MSAccess(SQLDriver):
         relationships = []
 
         while rs.next():
+            from_table_upper = str(rs.getString("from_table"))
+            to_table_upper = str(rs.getString("to_table"))
+            from_column_upper = str(rs.getString("from_column"))
+            to_column_upper = str(rs.getString("to_column"))
+
             dic = {}
-            dic["from_table"] = str(rs.getString("from_table"))
-            dic["to_table"] = str(rs.getString("to_table"))
-            dic["from_column"] = str(rs.getString("from_column"))
-            dic["to_column"] = str(rs.getString("to_column"))
+            dic["from_table"] = table_mapping[from_table_upper]
+            dic["to_table"] = table_mapping[to_table_upper]
+            dic["from_column"] = column_mappings[dic["from_table"]][from_column_upper]
+            dic["to_column"] = column_mappings[dic["to_table"]][to_column_upper]
             dic["update_cascade"] = rs.getString("on_update") == "CASCADE"
             dic["delete_cascade"] = rs.getString("on_delete") == "CASCADE"
             relationships.append(dic)
 
         return relationships
-
 
 # --------------------------
 # TYPEDDICTS AND TYPEALIASES
