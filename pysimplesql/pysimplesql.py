@@ -65,7 +65,7 @@ from datetime import date, datetime
 from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
-import jpype
+import jpype  # pip install JPype1
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
