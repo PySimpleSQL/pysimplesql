@@ -1,0 +1,5 @@
+The Microsoft Access functionality of pysimplesql is provided by the UCanAccess JDBC driver, which is distributed in the
+form of multiple jar files, located in the pysimplesql/lib folder of this project. UCanAccess is licensed under the
+Apache License, Version 2.0 http://www.apache.org/licenses/LICENSE-2.0.
+
+More information about UCanAccess can be found at http://ucanaccess.sourceforge.net/site.html

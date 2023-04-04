@@ -60,12 +60,12 @@ import contextlib
 import functools
 import logging
 import os.path
-import platform
 import threading  # threaded popup
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
+import jpype  # pip install JPype1
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
@@ -98,7 +98,7 @@ try:
 except ModuleNotFoundError:
     failed_modules += 1
 try:
-    import mysql.connector  # mysql-connector-python
+    import mysql.connector
 except ModuleNotFoundError:
     failed_modules += 1
 try:
@@ -281,7 +281,7 @@ class Relationship:
     instances = []
 
     @classmethod
-    def get_relationships(cls, table: str) -> List[Relationship]:
+    def get_relationships_for_table(cls, table: str) -> List[Relationship]:
         """
         Return the relationships for the passed-in table.
 
@@ -291,7 +291,7 @@ class Relationship:
         return [r for r in cls.instances if r.child_table == table]
 
     @classmethod
-    def get_update_cascade_tables(cls, table: str) -> List[str]:
+    def get_update_cascade_relationships(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should requery
         with this table.
@@ -308,7 +308,7 @@ class Relationship:
         return list(set(rel))
 
     @classmethod
-    def get_delete_cascade_tables(cls, table: str) -> List[str]:
+    def get_delete_cascade_relationships(cls, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should be deleted
         with this table.
@@ -551,10 +551,10 @@ class DataSet:
         DataSet.instances.append(self)
         self.driver = frm_reference.driver
         # No query was passed in, so we will generate a generic one
-        if not query:
+        if query == "":
             query = self.driver.default_query(table)
         # No order was passed in, so we will generate generic one
-        if not order_clause:
+        if order_clause == "":
             order_clause = self.driver.default_order(description_column)
 
         self.key: str = data_key
@@ -1238,7 +1238,7 @@ class DataSet:
         # TODO this is a bit of an ugly hack, but it works
         if search_string in self.frm.window.key_dict:
             search_string = self.frm.window[search_string].get()
-        if not search_string:
+        if search_string == "":
             return SEARCH_ABORTED
 
         logger.debug(
@@ -1406,7 +1406,7 @@ class DataSet:
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
         if self.rows:
-            if self.get_current_row()[column]:
+            if self.get_current_row()[column] != "":
                 return self.get_current_row()[column]
             return default
         return default
@@ -1821,7 +1821,7 @@ class DataSet:
 
         children = []
         if cascade:
-            children = Relationship.get_delete_cascade_tables(self.table)
+            children = Relationship.get_delete_cascade_relationships(self.table)
 
         msg_children = ", ".join(children)
         if len(children):
@@ -1896,7 +1896,7 @@ class DataSet:
 
         child_list = []
         if children:
-            child_list = Relationship.get_update_cascade_tables(self.table)
+            child_list = Relationship.get_update_cascade_relationships(self.table)
 
         msg_children = ", ".join(child_list)
         msg = lang.duplicate_child.format_map(
@@ -2021,7 +2021,7 @@ class DataSet:
             else:
                 lst = []
 
-            rels = Relationship.get_relationships(self.table)
+            rels = Relationship.get_relationships_for_table(self.table)
             pk = None
             for col in all_columns:
                 # Is this the primary key column?
@@ -2052,7 +2052,7 @@ class DataSet:
         :param column: The column name to get related table information for
         :returns: The name of the related table, or the current table if none are found
         """
-        rels = Relationship.get_relationships(self.table)
+        rels = Relationship.get_relationships_for_table(self.table)
         for rel in rels:
             if column == rel.fk_column:
                 return rel.parent_table
@@ -2658,7 +2658,7 @@ class Form:
 
                 # make sure we don't use reserved keywords that could end up in a query
                 for keyword in [table, col, where_column, where_value]:
-                    if keyword is not None and keyword:
+                    if keyword is not None and keyword != "":
                         self.driver.check_keyword(keyword)
 
                 # DataSet objects are named after the tables they represent
@@ -2970,7 +2970,7 @@ class Form:
             tables = [
                 dataset.table
                 for dataset in self.datasets.values()
-                if len(Relationship.get_update_cascade_tables(dataset.table))
+                if len(Relationship.get_update_cascade_relationships(dataset.table))
                 and Relationship.get_parent(dataset.table) is None
             ]
         # default behavior, build list of top-level dataset (ones without a parent)
@@ -3191,7 +3191,7 @@ class Form:
                 # Find the relationship to determine which table to get data from
                 target_table = None
                 # TODO this should be get_relationships_for_data?
-                rels = Relationship.get_relationships(mapped.dataset.table)
+                rels = Relationship.get_relationships_for_table(mapped.dataset.table)
                 for rel in rels:
                     if rel.fk_column == mapped.column:
                         target_table = self[rel.parent_table]
@@ -4107,7 +4107,7 @@ def field(
             **kwargs,
         )
     layout_label = sg.T(
-        label if label else label_text,
+        label_text if label == "" else label,
         size=themepack.default_label_size,
         key=f"{key}:label",
     )
@@ -5769,7 +5769,7 @@ class ResultSet:
 
         # We don't want to sort by foreign keys directly -we want to sort by the
         # description column of the foreign table that the foreign key references
-        rels = Relationship.get_relationships(table)
+        rels = Relationship.get_relationships_for_table(table)
         for rel in rels:
             if column == rel.fk_column:
                 rows = rel.frm[
@@ -6114,7 +6114,7 @@ class SQLDriver:
         for r in dataset.frm.relationships:
             if dataset.table == r.child_table:
                 join += f" {self.relationship_to_join_clause(r)}"
-        return join if not dataset.join_clause else dataset.join_clause
+        return join if dataset.join_clause == "" else dataset.join_clause
 
     def generate_where_clause(self, dataset: DataSet) -> str:
         """
@@ -6133,15 +6133,15 @@ class SQLDriver:
                 parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
 
                 # Children without cascade-filtering parent aren't displayed
-                if not parent_pk:
+                if parent_pk == "":
                     parent_pk = "NULL"
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
-                if where:
+                if where != "":
                     clause = clause.replace("WHERE", "AND")
                 where += clause
 
-        if not where:
+        if where == "":
             # There was no where clause from Relationships..
             where = dataset.where_clause
         else:
@@ -6206,7 +6206,7 @@ class SQLDriver:
     def delete_record_recursive(
         self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion
     ):
-        for child in Relationship.get_delete_cascade_tables(dataset.table):
+        for child in Relationship.get_delete_cascade_relationships(dataset.key):
             # Check to make sure we arn't at recursion limit
             recursion += 1  # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
@@ -6352,7 +6352,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in changed_row.items():
-            if v == "":  # noqa: PLC1901
+            if v == "":
                 changed_row[k] = None
 
         # quote appropriately
@@ -6379,7 +6379,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in row.items():
-            if v == "":  # noqa: PLC1901
+            if v == "":
                 row[k] = None
 
         # quote appropriately
@@ -7223,7 +7223,7 @@ class Sqlserver(SQLDriver):
 
         try:
             rows = cursor.fetchall()
-        except:  # noqa: E722
+        except:
             rows = []
 
         lastrowid = cursor.rowcount if cursor.rowcount else None
@@ -7286,7 +7286,7 @@ class Sqlserver(SQLDriver):
                 "   OBJECT_NAME(f.parent_object_id) AS from_table, "
                 "   OBJECT_NAME(f.referenced_object_id) AS to_table, "
                 "   COL_NAME(fc.parent_object_id, fc.parent_column_id) AS from_column, "
-                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "  # noqa: E501
+                "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS to_column, "
                 "   f.update_referential_action_desc AS update_cascade, "
                 "   f.delete_referential_action_desc AS delete_cascade "
                 "FROM "
@@ -7325,63 +7325,46 @@ class Sqlserver(SQLDriver):
 
         if rows:
             return rows[0]["COLUMN_NAME"]
-        return None
+        else:
+            return None
 
 
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
 # --------------------------------------------------------------------------------------
 class MSAccess(SQLDriver):
-    """
-    Microsoft Access SQLDriver
+    def __init__(self, database_file):
+        super().__init__(name="MSAccess", table_quote="", placeholder="?")
+        self.database_file = database_file
+        self.con = self.connect()
 
-    For Linux users, you will have to install the unixodbc and odbc driver for MS Access
-    as well as MDBTools
-    For example, on Ubuntu:
-    sudo apt-get install unixodbc unixodbc-dev mdbtools mdbtools-dev
+    import os
+    import sys
 
-    For Mac users, you may have to try to install the same packages with Brew
+    def connect(self):
+        # Get the path to the 'lib' folder
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        lib_path = os.path.join(current_path, "lib", "UCanAccess-5.0.1.bin")
 
-    This should work out of the box for Windows users
+        jars = [
+            "ucanaccess-5.0.1.jar",
+            os.path.join("lib", "commons-lang3-3.8.1.jar"),
+            os.path.join("lib", "commons-logging-1.2.jar"),
+            os.path.join("lib", "hsqldb-2.5.0.jar"),
+            os.path.join("lib", "jackcess-3.0.1.jar"),
+            os.path.join("loader", "ucanload.jar"),
+        ]
+        classpath = os.pathsep.join([os.path.join(lib_path, jar) for jar in jars])
 
-    :param db_path: Path to the database file
-    :param sql_script: Path to a SQL script file to execute on a new database
-    :param sql_commands: SQL commands to execute on a new database
-    """
-
-    def __init__(self, db_path: str, sql_script: str = None, sql_commands: str = None):
-        super().__init__(name="MSAccess", placeholder="?")
-
-        self.connect(db_path)
-
-        new_database = not os.path.isfile(db_path)
-
-        if sql_commands is not None and new_database:
-            self.con.execute(sql_commands)
-            self.con.commit()
-
-        if sql_script is not None and new_database:
-            self.execute_script(sql_script)
-
-        self.db_path = db_path
-
-    def connect(self, database: str):
-        os_name = platform.system()
-        if os_name == "Windows":
-            conn_str = (
-                r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=" + database
+        if not jpype.isJVMStarted():
+            jpype.startJVM(
+                jpype.getDefaultJVMPath(), "-ea", f"-Djava.class.path={classpath}"
             )
-        elif os_name in ("Linux", "Darwin"):  # Darwin is the value returned for macOS
-            conn_str = r"DRIVER=MDBTools;DBQ=" + database
-        else:
-            raise RuntimeError(f"Unsupported operating system: {os_name}")
-        self.con = pyodbc.connect(conn_str)
 
-    def _row_factory(self, cursor, row):
-        d = {}
-        for idx, col in enumerate(cursor.description):
-            d[col[0]] = row[idx]
-        return d
+        driver_manager = jpype.JPackage("java").sql.DriverManager
+        con_str = f"jdbc:ucanaccess://{self.database_file}"
+        con = driver_manager.getConnection(con_str)
+        return con
 
     def execute(
         self,
@@ -7391,70 +7374,105 @@ class MSAccess(SQLDriver):
         column_info=None,
         auto_commit_rollback: bool = False,
     ):
-        query = query.rstrip().rstrip(";")  # TODO: Linux only??
         if not silent:
             logger.info(f"Executing query: {query} {values}")
+        stmt = self.con.createStatement()
+        is_select_query = query.lower().strip().startswith("select")
 
-        cursor = self.con.cursor()
-        exception = None
-        try:
-            cur = cursor.execute(query, values) if values else cursor.execute(query)
-        except pyodbc.Error as e:
-            exception = e
-            logger.warning(
-                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
-            )
-            if auto_commit_rollback:
-                self.rollback()
-        else:
-            if auto_commit_rollback:
-                self.commit()
-
-        try:
-            rows = cur.fetchall()
-        except:
+        if is_select_query:
+            rs = stmt.executeQuery(query)
+            metadata = rs.getMetaData()
+            column_count = metadata.getColumnCount()
             rows = []
 
-        # Use _row_factory for each row in rows
-        formatted_rows = [self._row_factory(cursor, row) for row in rows]
+            while rs.next():
+                row = {}
+                for i in range(1, column_count + 1):
+                    column_name = str(metadata.getColumnName(i))
+                    value = str(rs.getObject(i))
+                    row[column_name] = value
+                rows.append(row)
 
-        lastrowid = (
-            cursor.lastrowid
-            if hasattr(cursor, "lastrowid") and cursor.lastrowid is not None
-            else None
-        )
-        return ResultSet(
-            formatted_rows,
-            lastrowid,
-            exception,
-            column_info,
-        )
+            return ResultSet(rows, None, None, column_info)
+        else:
+            affected_rows = stmt.executeUpdate(query)
+            return ResultSet([], affected_rows, None, column_info)
 
-    def close(self):
-        self.con.close()
+    def column_info(self, table):
+        meta_data = self.con.getMetaData()
+        rs = meta_data.getColumns(None, None, table, None)
 
-    def execute_script(self, script):
-        with open(script, "r") as file:
-            logger.info(f"Loading script {script} into database.")
-            self.con.execute(file.read())
+        col_info = ColumnInfo(self, table)
+        pk_columns = [self.pk_column(table)]
 
-    def get_tables(self):
-        cursor = self.con.cursor()
-        rows = cursor.tables(tableType="TABLE").fetchall()
+        while rs.next():
+            name = str(rs.getString("COLUMN_NAME"))
+            domain = str(rs.getString("TYPE_NAME")).upper()
+            notnull = str(rs.getString("IS_NULLABLE")) == "NO"
+            default = str(rs.getString("COLUMN_DEF"))
+            pk = name in pk_columns
 
-        table_names = []
-        for row in rows:
-            if "MSys" in row.table_name or "f_BAD" in row.table_name:
-                continue
-            table_names.append(row.table_name)
-        return table_names
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
+
+        return col_info
 
     def pk_column(self, table):
-        cursor = self.con.cursor()
-        columns_info = cursor.columns(table).fetchall()
-        print(columns_info)
-        print(dir(cursor))
-        # dict comprehension: {ordinal_position: col_name}
+        meta_data = self.con.getMetaData()
+        rs = meta_data.getPrimaryKeys(None, None, table)
+        if rs.next():
+            return str(rs.getString("COLUMN_NAME"))
+        else:
+            return None
+
+    def get_tables(self):
+        metadata = self.con.getMetaData()
+        rs = metadata.getTables(None, None, "%", ["TABLE"])
+        tables = []
+
+        while rs.next():
+            tables.append(str(rs.getString("TABLE_NAME")))
+
+        return tables
+
+    def relationships(self):
+        query = (
+            "SELECT"
+            "  fk.TABLE_NAME AS from_table,"
+            "  pk.TABLE_NAME AS to_table,"
+            "  fk.COLUMN_NAME AS from_column,"
+            "  pk.COLUMN_NAME AS to_column,"
+            "  rc.UPDATE_RULE AS on_update,"
+            "  rc.DELETE_RULE AS on_delete"
+            " FROM"
+            "  INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc"
+            " INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE fk"
+            " ON rc.CONSTRAINT_NAME = fk.CONSTRAINT_NAME"
+            " INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE pk"
+            " ON rc.UNIQUE_CONSTRAINT_NAME = pk.CONSTRAINT_NAME"
+            " WHERE"
+            "  fk.TABLE_SCHEMA = 'PUBLIC'"
+            " AND pk.TABLE_SCHEMA = 'PUBLIC'"
+        )
+
+        stmt = self.con.createStatement()
+        rs = stmt.executeQuery(query)
+        relationships = []
+
+        while rs.next():
+            dic = {}
+            dic["from_table"] = str(rs.getString("from_table"))
+            dic["to_table"] = str(rs.getString("to_table"))
+            dic["from_column"] = str(rs.getString("from_column"))
+            dic["to_column"] = str(rs.getString("to_column"))
+            dic["update_cascade"] = rs.getString("on_update") == "CASCADE"
+            dic["delete_cascade"] = rs.getString("on_delete") == "CASCADE"
+            relationships.append(dic)
+
+        return relationships
 
 
 # --------------------------
