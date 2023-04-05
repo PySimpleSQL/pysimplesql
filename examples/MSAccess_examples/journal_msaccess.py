@@ -1,11 +1,62 @@
 import PySimpleGUI as sg
 import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
-from pysimplesql.docker_utils import *
+import subprocess
+import jdk
+import time
 import logging
 
 # Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+# -------------------------------------------------
+# ROUTINES TO INSTALL JAVA IF USER DOES NOT HAVE IT
+# -------------------------------------------------
+def is_java_installed():
+    try:
+        subprocess.check_output(["which", "java"])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def progress_callback(progress_bar, current_count):
+    progress_bar.update("Downloading JDK...", current_count)
+
+
+def install_jdk_with_progress(jdk_version):
+    jdk.get_url(jdk_version)
+    progress_bar = ss.ProgressBar("Installing JDK")
+
+    # Set cache_progress_callback attribute
+    jdk.cache_progress_callback = lambda count, total: progress_callback(
+        progress_bar, count
+    )
+
+    try:
+        progress_bar.update("Downloading JDK...", 0)
+        jdk.install(jdk_version)
+        progress_bar.update("JDK installation completed.", progress_bar.max_value)
+        time.sleep(
+            1
+        )  # Keep the progress bar visible for a short period after completion
+    finally:
+        progress_bar.close()
+
+
+if not is_java_installed():
+    res = sg.popup_yes_no(
+        "Java is not installed.  Do you want to install it?", title="Java not found"
+    )
+    if res == "Yes":
+        install_jdk(11)
+    else:
+        url = jdk.get_download_url(11)
+        sg.popup(
+            f"Java is required to run this example.  You can download it at: {url}"
+        )
+        exit(0)
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
