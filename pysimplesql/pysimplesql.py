@@ -1,6 +1,4 @@
 """
-# **pysimplesql** User's Manual.
-
 ## DISCLAIMER: While **pysimplesql** works with and was inspired by the excellent
 PySimpleGUI™ project, it has no affiliation.
 
@@ -5813,7 +5811,7 @@ class ResultSet:
         :param rows: a list of dicts representing a row of data, with each key being a
             column name
         :param lastrowid: The primary key of an inserted item.
-        :exception: If an exception was encountered during the query, it will be passed
+        :param exception: If an exception was encountered during the query, it will be passed
             along here
         :column_info: a `ColumnInfo` object can be supplied so that column information
             can be accessed
@@ -6309,13 +6307,9 @@ class SQLDriver:
 
         :param dataset: A `DataSet` object
         :param join_clause: True to auto-generate `join` clause, False to not
-        :type join_clause: bool
         :param where_clause: True to auto-generate `where` clause, False to not
-        :type where_clause: bool
         :param order_clause: True to auto-generate `order by` clause, False to not
-        :type order_clause: bool
         :returns: a query string for use with sqlite3
-        :rtype: str
         """
         return (
             f"{dataset.query}"
