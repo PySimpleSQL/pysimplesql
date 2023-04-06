@@ -1,6 +1,4 @@
 """
-# **pysimplesql** User's Manual.
-
 ## DISCLAIMER: While **pysimplesql** works with and was inspired by the excellent
 PySimpleGUI™ project, it has no affiliation.
 
@@ -59,7 +57,9 @@ from __future__ import annotations  # docstrings
 import contextlib
 import functools
 import logging
+import math
 import os.path
+import queue
 import threading  # threaded popup
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
@@ -3811,6 +3811,11 @@ class ProgressBar:
         """
         Creates a progress bar window with a message label and a progress bar.
 
+        The progress bar can act in a normal determinate manner by calling the `update`
+        method to update the progress in incremental steps, or in an indeterminate
+        manner by calling the `animate` method to animate the progress bar indefinitely
+        until the `close` method is called.
+
         :param title: Title of the window
         :param max_value: Maximum value of the progress bar
         :param hide_delay: Delay in milliseconds before displaying the Window
@@ -3834,8 +3839,103 @@ class ProgressBar:
         self.max = max
         self.hide_delay = hide_delay
         self.start_time = time() * 1000
+        self.update_queue = queue.Queue()  # Thread safe
+        self.animate_thread = None
+        self._stop_event = threading.Event()  # Added stop event
+        self.last_phrase_time = None
+        self.phrase_index = 0
 
-    def create_window(self):
+    def update(self, message: str, current_count: int):
+        """
+        Updates the progress bar with the current progress message and value.
+        :param message: Message to display
+        :param current_count: Current value of the progress bar
+        :returns: None
+        """
+        if time() * 1000 - self.start_time < self.hide_delay:
+            return
+
+        if self.win is None:
+            self._create_window()
+
+        self.win["message"].update(message)
+        self.win["bar"].update(current_count=current_count)
+
+    def animate(self, config: dict = {}):
+        """
+        Animates the progress bar by oscillating the bar while changing colors.
+
+        This turns the progress bar into an indeterminate progress bar for when the
+        progress duration may be unknown. Once the progress bar is animated, it cannot
+        be updated with a specific value, and will be updated automatically from a
+        separate thread, until closed with the close() method.
+
+        The config for the animated progress bar contains oscillators for the bar
+        divider and colors, a list of phrases to be displayed, and the number of seconds
+        to elapse between phrases.  This is all specified in the config dict
+        as follows:
+        my_oscillators = {
+            # oscillators for the bar divider and colors
+            "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
+            "red": {"value_start": 0, "value_range": 255, "period": 2, "offset": 0},
+            "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
+            "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
+
+            # phrases to display and the number of seconds to elapse between phrases
+            "phrases": [
+                "Loading...", "Please be patient...", "This may take a while...",
+                "Almost done...", "Almost there...", "Just a little longer...",
+                "Please wait...", "Still working...",
+            ],
+            "phrase_delay": 2
+        }
+        Defaults are used for any keys that are not specified in the dictionary.
+
+        :param config: Dictionary of configuration options as listed above
+        :returns: None
+        """
+        default_config = {
+            # oscillators for the bar divider and colors
+            "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
+            "red": {"value_start": 0, "value_range": 255, "period": 2, "offset": 0},
+            "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
+            "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
+            # phrases to display and the number of seconds to elapse between phrases
+            # TODO: move to languagepack
+            "phrases": [
+                "Loading...",
+                "Still working...",
+                "Thanks for your patience...",
+                "This may take a while...",
+                "Still working...",
+                "Please wait...",
+                "Processing as fast as I can...",
+                "Still working...",
+                "Sorry for the delay...",
+            ],
+            "phrase_delay": 5,
+        }
+        config = {**default_config, **config}
+        self.hide_delay = 0
+        self.animate_thread = threading.Thread(target=self._animate, args=(config,))
+        self.animate_thread.start()
+
+    def close(self):
+        """
+        Closes the progress bar window.
+
+        If the progress bar is animated, this will stop the animation then close.
+
+        :returns: None
+        """
+        self._stop_event.set()  # Signal the _oscillate method to stop
+        if self.animate_thread:
+            self.animate_thread.join()  # Wait for the oscillate_thread to finish
+
+        if self.win is not None:
+            self.win.close()
+
+    def _create_window(self):
         self.win = sg.Window(
             self.title,
             layout=self.layout,
@@ -3844,19 +3944,70 @@ class ProgressBar:
             ttk_theme=themepack.ttk_theme,
         )
 
-    def update(self, message: str, current_count: int):
-        if time() * 1000 - self.start_time < self.hide_delay:
-            return
-
+    def _update_external(self):
+        # This method is thread safe where the normal update method is not. Uses the
+        # class's update_queue to safely pass information to the main thread.
         if self.win is None:
-            self.create_window()
+            self._create_window()
 
-        self.win["message"].update(message)
-        self.win["bar"].update(current_count=current_count)
+        if not self.update_queue.empty():
+            message, current_count, color_1, color_2 = self.update_queue.get()
+            self.win["message"].update(message)
+            self.win["bar"].update(
+                current_count=current_count, bar_color=(color_1, color_2)
+            )
 
-    def close(self):
-        if self.win is not None:
-            self.win.close()
+    def _animate(self, config: dict = None):
+        def _oscillate_params(oscillator):
+            return (
+                oscillator["value_start"],
+                oscillator["value_range"],
+                oscillator["period"],
+                oscillator["offset"],
+            )
+
+        while not self._stop_event.is_set():
+            count = self._oscillate(
+                *_oscillate_params(config["bar"])
+            )  # oscillate the bar back and forth
+            cr = self._oscillate(
+                *_oscillate_params(config["red"])
+            )  # oscillate red color channel
+            cg = self._oscillate(
+                *_oscillate_params(config["blue"])
+            )  # oscillate green color channel
+            cb = self._oscillate(
+                *_oscillate_params(config["green"])
+            )  # oscillate blue color channel
+
+            color_1 = f"#{cr:02x}{cg:02x}{cb:02x}"
+            color_2 = f"#{255-cg:02x}{255-cb:02x}{255-cr:02x}"
+            msg = self._animated_message(config["phrases"], config["phrase_delay"])
+            self.update_queue.put((msg, count, color_1, color_2))
+            self._update_external()
+            sleep(0.05)
+
+    def _oscillate(
+        self, value_start: int, value_range: int, period: float, offset: int
+    ):
+        millis = int(round(time() * 1000))
+        t = (millis % (period * 1000)) / (period * 1000)
+        angle = t * 2 * math.pi + math.radians(offset)
+        sin_value = math.sin(angle)
+        return int((sin_value + 1) * value_range / 2 + value_start)
+
+    def _animated_message(self, phrases: list, phrase_delay: float):
+        current_time = time()
+        if (
+            self.last_phrase_time is None
+            or current_time - self.last_phrase_time > phrase_delay
+        ):
+            current_message = phrases[self.phrase_index]
+            self.phrase_index = (self.phrase_index + 1) % len(phrases)
+            self.last_phrase_time = current_time
+        else:
+            current_message = phrases[(self.phrase_index - 1)]
+        return current_message
 
 
 class LangFormat(dict):
@@ -5691,8 +5842,8 @@ class ResultSet:
         :param rows: a list of dicts representing a row of data, with each key being a
             column name
         :param lastrowid: The primary key of an inserted item.
-        :exception: If an exception was encountered during the query, it will be passed
-            along here
+        :param exception: If an exception was encountered during the query, it will be
+            passed along here
         :column_info: a `ColumnInfo` object can be supplied so that column information
             can be accessed
         """
@@ -6187,13 +6338,9 @@ class SQLDriver:
 
         :param dataset: A `DataSet` object
         :param join_clause: True to auto-generate `join` clause, False to not
-        :type join_clause: bool
         :param where_clause: True to auto-generate `where` clause, False to not
-        :type where_clause: bool
         :param order_clause: True to auto-generate `order by` clause, False to not
-        :type order_clause: bool
         :returns: a query string for use with sqlite3
-        :rtype: str
         """
         return (
             f"{dataset.query}"
