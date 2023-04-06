@@ -22,6 +22,17 @@ def is_java_installed():
         return False
 
 
+def install_java(window):
+    """
+    :param window: (sg.Window) the window to communicate with
+    :return:
+    """
+    java_home = jdk.install("11")
+    window.write_event_value(
+        ("-THREAD-", f"{java_home}"), "Done!"
+    )  # put a message into queue for GUI
+
+
 if not is_java_installed():
     res = sg.popup_yes_no(
         "Java is required but not installed.  Would you like to install it?",
@@ -30,7 +41,24 @@ if not is_java_installed():
     if res == "Yes":
         pb = ss.ProgressBar("Installing Java Open-JDK JRE")
         pb.animate()
-        java_home = jdk.install("11")
+        layout = [[sg.Text("Invisible window")]]
+        window = sg.Window(
+            "Invisible window that stays open",
+            layout,
+            alpha_channel=0,
+        )
+        window.start_thread(lambda: install_java(window), ("-THREAD-", "-THEAD ENDED-"))
+        while True:  # The Event Loop
+            event, values = window.read(timeout=100)
+            print(event, values)
+            if event == sg.WIN_CLOSED or event == "Exit":
+                break
+            elif event[0] == "-THREAD-":
+                java_home = event[1]
+                break
+            elif event == "__TIMEOUT__":
+                pb._update_external()
+        window.close()
         # set JAVA_HOME
         os.environ["JAVA_HOME"] = java_home
         pb.close()

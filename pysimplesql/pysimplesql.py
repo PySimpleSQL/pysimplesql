@@ -3984,7 +3984,6 @@ class ProgressBar:
             color_2 = f"#{255-cg:02x}{255-cb:02x}{255-cr:02x}"
             msg = self._animated_message(config["phrases"], config["phrase_delay"])
             self.update_queue.put((msg, count, color_1, color_2))
-            self._update_external()
             sleep(0.05)
 
     def _oscillate(
