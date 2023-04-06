@@ -3811,9 +3811,10 @@ class ProgressBar:
         """
         Creates a progress bar window with a message label and a progress bar.
 
-        The progress bar can act in a normal determinate manner by calling the `update` method to update the progress
-        in incremental steps, or in an indeterminate manner by calling the `animate` method to animate the progress bar
-        indefinitely until the `close` method is called.
+        The progress bar can act in a normal determinate manner by calling the `update`
+        method to update the progress in incremental steps, or in an indeterminate
+        manner by calling the `animate` method to animate the progress bar indefinitely
+        until the `close` method is called.
 
         :param title: Title of the window
         :param max_value: Maximum value of the progress bar
@@ -3862,30 +3863,33 @@ class ProgressBar:
 
     def animate(self, config: dict = {}):
         """
-        Animates the progress bar by oscillating the bar back and forth while changing colors.
+        Animates the progress bar by oscillating the bar while changing colors.
 
-        This turns the progress bar into an indeterminate progress bar for when the progress duration may be unknown.
-        Once the progress bar is animated, it cannot be updated with a specific value, and will be updated automatically
-        from a separate thread, until closed with the close() method.
+        This turns the progress bar into an indeterminate progress bar for when the
+        progress duration may be unknown. Once the progress bar is animated, it cannot
+        be updated with a specific value, and will be updated automatically from a
+        separate thread, until closed with the close() method.
 
-        The config for the animated progress bar contains oscillators for the bar divider and colors, a list of phrases
-        to be displayed, and the number of seconds to elapse between phrases.  This is all specified in the config dict
+        The config for the animated progress bar contains oscillators for the bar
+        divider and colors, a list of phrases to be displayed, and the number of seconds
+        to elapse between phrases.  This is all specified in the config dict
         as follows:
-            my_oscillators = {
-                # oscillators for the bar divider and colors
-                "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
-                "red": {"value_start": 0, "value_range": 255, "period": 2, "offset": 0},
-                "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
-                "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
+        my_oscillators = {
+            # oscillators for the bar divider and colors
+            "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
+            "red": {"value_start": 0, "value_range": 255, "period": 2, "offset": 0},
+            "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
+            "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
 
-                # phrases to display and the number of seconds to elapse between phrases
-                "phrases": [
-                    "Loading...", "Please be patient...", "This may take a while...", "Almost done...",
-                    "Almost there...", "Just a little longer...", "Please wait...", "Still working...",
-                ],
-                "phrase_delay": 2
-            }
-        Default oscillators are used for any keys that are not specified in the dictionary.
+            # phrases to display and the number of seconds to elapse between phrases
+            "phrases": [
+                "Loading...", "Please be patient...", "This may take a while...",
+                "Almost done...", "Almost there...", "Just a little longer...",
+                "Please wait...", "Still working...",
+            ],
+            "phrase_delay": 2
+        }
+        Defaults are used for any keys that are not specified in the dictionary.
 
         :param config: Dictionary of configuration options as listed above
         :returns: None
@@ -3920,7 +3924,7 @@ class ProgressBar:
         """
         Closes the progress bar window.
 
-        If the progress bar is animated, this will stop the animation then close the window.
+        If the progress bar is animated, this will stop the animation then close.
 
         :returns: None
         """
@@ -3941,8 +3945,8 @@ class ProgressBar:
         )
 
     def _update_external(self):
-        # This method is thread safe where the normal update method is not. Uses the class's update_queue
-        # to safely pass information to the main thread.
+        # This method is thread safe where the normal update method is not. Uses the
+        # class's update_queue to safely pass information to the main thread.
         if self.win is None:
             self._create_window()
 
@@ -4004,7 +4008,8 @@ class ProgressBar:
         else:
             current_message = phrases[(self.phrase_index - 1)]
         return current_message
-    
+
+
 class LangFormat(dict):
 
     """
@@ -4016,6 +4021,7 @@ class LangFormat(dict):
 
     def __missing__(self, key):
         return None
+
 
 class KeyGen:
 
@@ -5811,8 +5817,8 @@ class ResultSet:
         :param rows: a list of dicts representing a row of data, with each key being a
             column name
         :param lastrowid: The primary key of an inserted item.
-        :param exception: If an exception was encountered during the query, it will be passed
-            along here
+        :param exception: If an exception was encountered during the query, it will be
+            passed along here
         :column_info: a `ColumnInfo` object can be supplied so that column information
             can be accessed
         """
