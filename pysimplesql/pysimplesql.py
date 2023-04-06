@@ -7557,7 +7557,7 @@ class MSAccess(SQLDriver):
             else:
                 stmt = self.con.createStatement()
                 has_result_set = stmt.execute(query)
-        except Exception as e:  # noqa: E722
+        except Exception as e:  # noqa: BLE001
             exception = e
             logger.warning(
                 f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
