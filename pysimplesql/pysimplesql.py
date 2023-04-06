@@ -5817,8 +5817,8 @@ class ResultSet:
         :param rows: a list of dicts representing a row of data, with each key being a
             column name
         :param lastrowid: The primary key of an inserted item.
-        :param exception: If an exception was encountered during the query, it will be passed
-            along here
+        :param exception: If an exception was encountered during the query, it will be
+            passed along here
         :column_info: a `ColumnInfo` object can be supplied so that column information
             can be accessed
         """
