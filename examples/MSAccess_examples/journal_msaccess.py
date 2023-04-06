@@ -28,7 +28,7 @@ if not is_java_installed():
     if res == "Yes":
         pb = ss.ProgressBar("Installing Java Open-JDK JRE")
         pb.animate()
-        jdk.install("11", jre=True)
+        jdk.install("11")
         pb.close
     else:
         url = jdk.get_download_url(11)
