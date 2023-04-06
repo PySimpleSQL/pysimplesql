@@ -1,8 +1,10 @@
-import PySimpleGUI as sg
-import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
-import subprocess
 import jdk
 import logging
+import os
+import subprocess
+
+import PySimpleGUI as sg
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
 # Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 logger = logging.getLogger(__name__)
@@ -16,7 +18,7 @@ def is_java_installed():
     try:
         subprocess.check_output(["which", "java"])
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 
@@ -28,14 +30,21 @@ if not is_java_installed():
     if res == "Yes":
         pb = ss.ProgressBar("Installing Java Open-JDK JRE")
         pb.animate()
-        jdk.install("11")
-        pb.close
+        java_home = jdk.install("11")
+        # set JAVA_HOME
+        os.environ["JAVA_HOME"] = java_home
+        pb.close()
     else:
         url = jdk.get_download_url(11)
         sg.popup(
             f"Java is required to run this example.  You can download it at: {url}"
         )
         exit(0)
+
+if not os.environ.get("JAVA_HOME"):
+    sg.popup("'JAVA_HOME' must be set in order to run this example")
+    exit(0)
+
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
