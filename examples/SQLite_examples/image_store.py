@@ -60,7 +60,7 @@ layout = [
 ]
 
 win = sg.Window('Image storage/retrieval demo', layout=layout, finalize=True)
-driver = ss.Sqlite('Image.db', sql_commands=sql)
+driver = ss.Driver.sqlite('Image.db', sql_commands=sql)
 frm = ss.Database(driver, win)
 
 

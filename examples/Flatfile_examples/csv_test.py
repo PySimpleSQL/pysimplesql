@@ -33,7 +33,7 @@ win = sg.Window('Test', layout=layout, finalize=True)
 
 # Create a Flatfile driver.  Notice the header_row_num parameter.
 # If you open up test.csv, you will see why this is needed
-driver = ss.Flatfile('test.csv', header_row_num=10)
+driver = ss.Driver.flatfile('test.csv', header_row_num=10)
 
 # Use a pysimplesql Form to bind the window to the driver
 frm= ss.Form(driver, bind_window=win)

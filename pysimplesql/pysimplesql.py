@@ -6569,6 +6569,10 @@ class SQLDriver:
 # SQLITE3 DRIVER
 # --------------------------------------------------------------------------------------
 class Sqlite(SQLDriver):
+    """
+    The SQLite driver supports SQLite3 databases.
+    """
+
     def __init__(
         self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None
     ):
@@ -6880,6 +6884,10 @@ class Flatfile(Sqlite):
 # MYSQL DRIVER
 # --------------------------------------------------------------------------------------
 class Mysql(SQLDriver):
+    """
+    The Mysql driver supports MySQL databases.
+    """
+
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
     ):
@@ -7047,12 +7055,16 @@ class Mysql(SQLDriver):
 
 
 # --------------------------------------------------------------------------------------
-# MARIA DRIVER
+# MARIADB DRIVER
 # --------------------------------------------------------------------------------------
 # MariaDB is a fork of MySQL and backward compatible.  It technically does not need its
 # own driver, but that could change in the future, plus having its own named class makes
 # it more clear for the end user.
-class Maria(Mysql):
+class Mariadb(Mysql):
+    """
+    The Mariadb driver supports MariaDB databases.
+    """
+
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
     ):
@@ -7064,6 +7076,10 @@ class Maria(Mysql):
 # POSTGRES DRIVER
 # --------------------------------------------------------------------------------------
 class Postgres(SQLDriver):
+    """
+    The Postgres driver supports PostgreSQL databases.
+    """
+
     def __init__(
         self,
         host,
@@ -7322,6 +7338,10 @@ class Postgres(SQLDriver):
 # MS SQLSERVER DRIVER
 # --------------------------------------------------------------------------------------
 class Sqlserver(SQLDriver):
+    """
+    The Sqlserver driver supports Microsoft SQL Server databases.
+    """
+
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
     ):
@@ -7503,6 +7523,12 @@ class Sqlserver(SQLDriver):
 # MS ACCESS DRIVER
 # --------------------------------------------------------------------------------------
 class MSAccess(SQLDriver):
+    """
+    The MSAccess driver supports Microsoft Access databases.
+    Note that only database interactions are supported, not operations dealint with
+    Forms, Reports, etc.
+    """
+
     def __init__(self, database_file):
         super().__init__(name="MSAccess", table_quote="", placeholder="?")
         self.database_file = database_file
@@ -7819,6 +7845,21 @@ class MSAccess(SQLDriver):
 # --------------------------
 # TYPEDDICTS AND TYPEALIASES
 # --------------------------
+class Driver:
+    """
+    The `Driver` class allows for easy driver creation. It is a simple wrapper around
+    the various `SQLDriver` classes.
+    """
+
+    sqlite: callable = Sqlite
+    flatfile: callable = Flatfile
+    mysql: callable = Mysql
+    mariadb: callable = Mariadb
+    postgres: callable = Postgres
+    sqlserver: callable = Sqlserver
+    msaccess: callable = MSAccess
+
+
 SaveResultsDict = Dict[str, int]
 CallbacksDict = Dict[str, Callable[[Form, sg.Window], Union[None, bool]]]
 PromptSaveValue = (

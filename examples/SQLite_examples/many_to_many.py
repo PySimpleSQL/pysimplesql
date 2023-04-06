@@ -2,12 +2,12 @@
 # fmt: off
 
 import PySimpleGUI as sg
-import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
-logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)  # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
-sql='''
+sql = '''
 CREATE TABLE "Color"(
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT DEFAULT "New Color"
@@ -49,25 +49,27 @@ INSERT INTO "FavoriteColor" VALUES (8,3,6);
 INSERT INTO "FavoriteColor" VALUES (9,3,4);
 '''
 
-person_layout=[
+person_layout = [
     [ss.selector('Person', size=(48, 10), key='sel_person')],
     [ss.actions('act_person', 'Person', edit_protect=False, search=False)],
     [ss.field('Person.name', label_above=True)]
 ]
-color_layout=[
+color_layout = [
     [ss.selector('Color', size=(48, 10), key='sel_color')],
     [ss.actions('Color', 'act_color', edit_protect=False, search=False)],
     [ss.field('Color.name', label_above=True)]
 ]
-headings=['ID (this will be hidden)','Person            ','Favorite Color     ']
-vis=[0,1,1]
-favorites_layout=[
-    [ss.selector('FavoriteColor', sg.Table, key='sel_favorite', num_rows=10, headings=headings, visible_column_map=vis)],
+
+headings = ss.TableHeadings(sort_enable=True)
+headings.add_column('person_id', 'Person', 18)
+headings.add_column('color_id', 'Favorite Color', 18)
+favorites_layout = [
+    [ss.selector('FavoriteColor', sg.Table, key='sel_favorite', num_rows=10, headings=headings)],
     [ss.actions('act_favorites', 'FavoriteColor', edit_protect=False, search=False)],
     [ss.field('FavoriteColor.person_id', element=sg.Combo, size=(30, 10), label='Person:', auto_size_text=False)],
     [ss.field('FavoriteColor.color_id', element=sg.Combo, size=(30, 10), label='Color:', auto_size_text=False)]
 ]
-layout=[
+layout = [
     [sg.Frame('Person Editor', layout=person_layout)],
     [sg.Frame('Color Editor', layout=color_layout)],
     [sg.Frame('Everyone can have multiple favorite colors!',layout=favorites_layout)]
@@ -75,7 +77,7 @@ layout=[
 
 # Initialize our window and database, then bind them together
 win = sg.Window('Many-to-many table test', layout, finalize=True)
-driver=ss.Sqlite(':memory:', sql_commands=sql)
+driver = ss.Driver.sqlite(':memory:', sql_commands=sql)
 frm = ss.Form(driver, bind_window=win)  # <=== load the database into the Form
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
@@ -83,10 +85,10 @@ frm = ss.Form(driver, bind_window=win)  # <=== load the database into the Form
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization at close
+        frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization at close
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')

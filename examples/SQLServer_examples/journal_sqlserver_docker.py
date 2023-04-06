@@ -69,7 +69,7 @@ sqlserver_docker = {
 }
 # Create the Window, Driver and Form
 win = sg.Window("Journal example: MS SQLServer", layout, finalize=True)
-driver = ss.Sqlserver(
+driver = ss.Driver.sqlserver(
     **sqlserver_docker
 )  # Use the postgres examples database credentials
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!

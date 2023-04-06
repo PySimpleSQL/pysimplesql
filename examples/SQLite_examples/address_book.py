@@ -102,7 +102,7 @@ layout = [
 ]
 win = sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.themepack.ttk_theme)
 # Connect to a database
-driver = ss.Sqlite(':memory:', sql_commands=sql)
+driver = ss.Driver.sqlite(':memory:', sql_commands=sql)
 # Create our frm
 frm = ss.Form(driver, bind_window=win,
 #               prompt_save = ss.AUTOSAVE_MODE, # uncomment this to save changes automatically

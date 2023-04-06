@@ -85,7 +85,7 @@ layout = [
 
 # Create the Window, Driver and Form
 win = sg.Window("Journal example: MS Access", layout, finalize=True)
-driver = ss.MSAccess("Journal.accdb")
+driver = ss.Driver.msaccess("Journal.accdb")
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top

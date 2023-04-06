@@ -49,11 +49,11 @@ win = sg.Window('Journal example: Multiple Databases', layout, finalize=True)
 # Load the database with the selected driver.  This should show that the same PySimpleGUI/pysimplesql code is completely
 # portable across all supported databases
 if selected_driver == 'mysql':
-    driver = ss.Mysql(**ss.mysql_examples)  # Use the mysql examples database credentials
+    driver = ss.Driver.mysql(**ss.mysql_examples)  # Use the mysql examples database credentials
 elif selected_driver == 'postgres':
-    driver = ss.Postgres(**ss.postgres_examples)
+    driver = ss.Driver.postgres(**ss.postgres_examples)
 else:
-    driver = ss.Sqlite('./SQLite_examples/Journal.db')
+    driver = ss.Driver.sqlite('./SQLite_examples/Journal.db')
 # Update the driver display in the GUI
 win['driver'].update(driver.name)
 
