@@ -65,6 +65,7 @@ from datetime import date, datetime
 from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
+import jpype  # pip install JPype1
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
@@ -889,6 +890,11 @@ class DataSet:
                     element_val = element_val.rstrip()
 
                 # Make the comparison
+                # Temporary debug output
+                # print(
+                #    f"element: {element_val}({type(element_val)}),
+                #    db: {table_val}({type(table_val)})"
+                # )
                 if element_val != table_val:
                     dirty = True
                     logger.debug("CHANGED RECORD FOUND!")
@@ -3112,13 +3118,7 @@ class Form:
                     win[m["event"]].update(disabled=disable)
 
                 # Disable db_save when needed
-                elif ":db_save" in m["event"]:
-                    disable = len(self[data_key].rows) == 0 or self._edit_protect
-                    print(disable)
-                    win[m["event"]].update(disabled=disable)
-
-                # Disable table_save when needed
-                elif ":save_table" in m["event"]:
+                elif ":db_save" in m["event"] or ":save_table" in m["event"]:
                     disable = len(self[data_key].rows) == 0 or self._edit_protect
                     win[m["event"]].update(disabled=disable)
 
@@ -5426,7 +5426,7 @@ class Column:
         elif domain in ["INT", "INTEGER", "BOOLEAN"]:
             try:
                 value = int(value)
-            except ValueError:
+            except (ValueError, TypeError):
                 value = str(value)
 
         # float type casting
@@ -5447,16 +5447,34 @@ class Column:
                 )
                 value = str(value)
 
+        elif domain == "TIMESTAMP":
+            timestamp_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"]
+
+            parsed = False
+            for timestamp_format in timestamp_formats:
+                try:
+                    value = datetime.strptime(value, timestamp_format)
+                    # value = dt.datetime()
+                    parsed = True
+                    break
+                except ValueError:
+                    pass
+
+            if not parsed:
+                logger.debug(
+                    "Unable to cast datetime/time/timestamp. Casting to string instead."
+                )
+                value = str(value)
+
         # other date/time casting
         elif domain in [
             "TIME",
             "DATETIME",
-            "TIMESTAMP",
         ]:  # TODO: i'm sure there is a lot of work to do here
             try:
                 value = datetime.date(value)
             except TypeError:
-                logger.debug(
+                print(
                     "Unable to case datetime/time/timestamp. Casting to string instead."
                 )
                 value = str(value)
@@ -5582,9 +5600,16 @@ class ColumnInfo(List):
                 table = self.driver.quote_table(self.table)
                 # TODO: may need AS column to support all databases?
                 q = f"SELECT {default} AS val FROM {table};"
+
                 rows = self.driver.execute(q)
                 if rows.exception is None:
-                    default = rows.fetchone()["val"]
+                    try:
+                        default = rows.fetchone()["val"]
+                    except KeyError:
+                        try:
+                            default = rows.fetchone()["VAL"]
+                        except KeyError:
+                            default = ""
                     d[c.name] = default
                     continue
                 logger.warning(
@@ -6248,7 +6273,7 @@ class SQLDriver:
         return rows.fetchone()[f"MAX({pk_column})"]
 
     def max_pk(self, table: str, pk_column: str) -> int:
-        rows = self.execute(f"SELECT MAX({pk_column}) FROM {table}")
+        rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
         return rows.fetchone()[f"MAX({pk_column})"]
 
     def generate_join_clause(self, dataset: DataSet) -> str:
@@ -7472,6 +7497,323 @@ class Sqlserver(SQLDriver):
         if rows:
             return rows[0]["COLUMN_NAME"]
         return None
+
+
+# --------------------------------------------------------------------------------------
+# MS ACCESS DRIVER
+# --------------------------------------------------------------------------------------
+class MSAccess(SQLDriver):
+    def __init__(self, database_file):
+        super().__init__(name="MSAccess", table_quote="", placeholder="?")
+        self.database_file = database_file
+        self.con = self.connect()
+
+    import os
+    import sys
+
+    def connect(self):
+        # Get the path to the 'lib' folder
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        lib_path = os.path.join(current_path, "lib", "UCanAccess-5.0.1.bin")
+
+        jars = [
+            "ucanaccess-5.0.1.jar",
+            os.path.join("lib", "commons-lang3-3.8.1.jar"),
+            os.path.join("lib", "commons-logging-1.2.jar"),
+            os.path.join("lib", "hsqldb-2.5.0.jar"),
+            os.path.join("lib", "jackcess-3.0.1.jar"),
+            os.path.join("loader", "ucanload.jar"),
+        ]
+        classpath = os.pathsep.join([os.path.join(lib_path, jar) for jar in jars])
+
+        if not jpype.isJVMStarted():
+            jpype.startJVM(
+                jpype.getDefaultJVMPath(), "-ea", f"-Djava.class.path={classpath}"
+            )
+
+        driver_manager = jpype.JPackage("java").sql.DriverManager
+        con_str = f"jdbc:ucanaccess://{self.database_file}"
+        return driver_manager.getConnection(con_str)
+
+    def execute(
+        self,
+        query,
+        values=None,
+        silent=False,
+        column_info=None,
+        auto_commit_rollback: bool = False,
+    ):
+        if not silent:
+            logger.info(f"Executing query: {query} {values}")
+
+        exception = None
+        has_result_set = False
+        try:
+            if values:
+                stmt = self.con.prepareStatement(query)
+                for index, value in enumerate(values, start=1):
+                    stmt.setObject(index, value)
+                has_result_set = stmt.execute()
+            else:
+                stmt = self.con.createStatement()
+                has_result_set = stmt.execute(query)
+        except Exception as e:  # noqa: BLE001
+            exception = e
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
+            if auto_commit_rollback:
+                self.rollback()
+
+        if has_result_set:
+            rs = stmt.getResultSet()
+            metadata = rs.getMetaData()
+            column_count = metadata.getColumnCount()
+            rows = []
+
+            while rs.next():
+                row = {}
+                for i in range(1, column_count + 1):
+                    column_name = str(metadata.getColumnName(i))
+                    value = rs.getObject(i)
+
+                    if isinstance(value, jpype.JPackage("java").lang.String):
+                        value = str(value)
+                    elif isinstance(value, jpype.JPackage("java").lang.Integer):
+                        value = int(value)
+                    elif isinstance(value, jpype.JPackage("java").math.BigDecimal):
+                        value = float(value.doubleValue())
+                    elif isinstance(value, jpype.JPackage("java").lang.Double):
+                        value = float(value)
+                    if isinstance(value, jpype.JPackage("java").sql.Timestamp):
+                        timestamp_str = value.toInstant().toString()[:-1]
+                        if "." in timestamp_str:
+                            timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
+                        else:
+                            timestamp_format = "%Y-%m-%dT%H:%M:%S"
+                        dt_value = datetime.strptime(timestamp_str, timestamp_format)
+                        value = dt_value.strftime("%Y-%m-%d")
+                    elif isinstance(value, jpype.JPackage("java").sql.Date):
+                        date_str = value.toString()
+                        date_format = "%Y-%m-%d"
+                        value = datetime.strptime(date_str, date_format).date()
+                    elif isinstance(value, jpype.JPackage("java").sql.Time):
+                        time_str = value.toString()
+                        time_format = "%H:%M:%S"
+                        value = datetime.strptime(time_str, time_format).time()
+                    elif value is not None:
+                        value = value
+                    # TODO: More conversions?
+
+                    row[column_name] = value
+                rows.append(row)
+
+            return ResultSet(rows, None, exception, column_info)
+
+        affected_rows = stmt.getUpdateCount()
+        return ResultSet([], affected_rows, exception, column_info)
+
+    def column_info(self, table):
+        meta_data = self.con.getMetaData()
+        rs = meta_data.getColumns(None, None, table, None)
+
+        col_info = ColumnInfo(self, table)
+        pk_columns = [self.pk_column(table)]
+
+        while rs.next():
+            name = str(rs.getString("COLUMN_NAME"))
+            domain = str(rs.getString("TYPE_NAME")).upper()
+            notnull = str(rs.getString("IS_NULLABLE")) == "NO"
+            default = str(rs.getString("COLUMN_DEF"))
+            pk = name in pk_columns
+
+            col_info.append(
+                Column(
+                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                )
+            )
+
+        return col_info
+
+    def pk_column(self, table):
+        meta_data = self.con.getMetaData()
+        rs = meta_data.getPrimaryKeys(None, None, table)
+        if rs.next():
+            return str(rs.getString("COLUMN_NAME"))
+        return None
+
+    def get_tables(self):
+        metadata = self.con.getMetaData()
+        rs = metadata.getTables(None, None, "%", ["TABLE"])
+        tables = []
+
+        while rs.next():
+            tables.append(str(rs.getString("TABLE_NAME")))
+
+        return tables
+
+    def relationships(self):
+        # Get the mapping of uppercase table and column names to their original case
+        table_mapping = {table.upper(): table for table in self.get_tables()}
+        column_mappings = {
+            table: {col.name.upper(): col.name for col in self.column_info(table)}
+            for table in self.get_tables()
+        }
+
+        query = (
+            "SELECT"
+            "  fk.TABLE_NAME AS from_table,"
+            "  pk.TABLE_NAME AS to_table,"
+            "  fk.COLUMN_NAME AS from_column,"
+            "  pk.COLUMN_NAME AS to_column,"
+            "  rc.UPDATE_RULE AS on_update,"
+            "  rc.DELETE_RULE AS on_delete"
+            " FROM"
+            "  INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc"
+            " INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE fk"
+            " ON rc.CONSTRAINT_NAME = fk.CONSTRAINT_NAME"
+            " INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE pk"
+            " ON rc.UNIQUE_CONSTRAINT_NAME = pk.CONSTRAINT_NAME"
+            " WHERE"
+            "  fk.TABLE_SCHEMA = 'PUBLIC'"
+            " AND pk.TABLE_SCHEMA = 'PUBLIC'"
+        )
+
+        stmt = self.con.createStatement()
+        rs = stmt.executeQuery(query)
+        relationships = []
+
+        while rs.next():
+            from_table_upper = str(rs.getString("from_table"))
+            to_table_upper = str(rs.getString("to_table"))
+            from_column_upper = str(rs.getString("from_column"))
+            to_column_upper = str(rs.getString("to_column"))
+
+            dic = {}
+            dic["from_table"] = table_mapping[from_table_upper]
+            dic["to_table"] = table_mapping[to_table_upper]
+            dic["from_column"] = column_mappings[dic["from_table"]][from_column_upper]
+            dic["to_column"] = column_mappings[dic["to_table"]][to_column_upper]
+            dic["update_cascade"] = rs.getString("on_update") == "CASCADE"
+            dic["delete_cascade"] = rs.getString("on_delete") == "CASCADE"
+            relationships.append(dic)
+
+        return relationships
+
+    def max_pk(self, table: str, pk_column: str) -> int:
+        rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
+        return rows.fetchone()["MAX_PK"]  # returned as upper case
+
+    def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
+        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
+        ## This can be done using * syntax without knowing the schema of the table
+        ## (other than primary key column). The trick is to create a temporary table
+        ## using the "CREATE TABLE AS" syntax.
+        def get_columns(driver, table_name):
+            # Creates a comma separated list of column names and types to be used in a
+            # CREATE TABLE statement
+            columns = driver.column_info(table_name)
+            cols = ""
+            for c in columns:
+                cols += f"{c['name']} {c['domain']}, "
+            cols = cols[:-2]
+            return cols
+
+        def drop_table_if_exists(driver, table_name):
+            # UCanAccess does not support IF EXISTS in DROP TABLE statements, so we will
+            # handle it ourselves
+            query = f"SELECT COUNT(*) FROM {table_name}"
+            rows = driver.execute(query)
+            if rows.exception:
+                return
+            query = f"DROP TABLE [{table_name}];"
+            driver.execute(query)
+
+        def create_temp_table(driver, source_table, temp_table, where_clause):
+            # Creates a temporary table with the same schema as the source table, then
+            # copies the source table into it, taking into account the WHERE clause
+            drop_table_if_exists(driver, temp_table)
+            query = (
+                f"CREATE TABLE [{temp_table}] ({get_columns(driver, source_table)});"
+            )
+            driver.execute(query)
+            query = (
+                f"INSERT INTO [{temp_table}] (SELECT * FROM [{source_table}] "
+                f"{where_clause});"
+            )
+            driver.execute(query)
+
+        description = self.quote_value(
+            f"{lang.duplicate_prepend}"
+            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
+        )
+        table = self.quote_table(dataset.table)
+        tmp_table = self.quote_table(f"temp_{dataset.table}")
+        pk_column = self.quote_column(dataset.pk_column)
+        description_column = self.quote_column(dataset.description_column)
+
+        # Create tmp table, update pk column in temp and insert into table
+        drop_table_if_exists(self, tmp_table)
+        where_clause = f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)}"
+        create_temp_table(self, table, tmp_table, where_clause)
+        query = [
+            (
+                f"UPDATE {tmp_table} SET {pk_column} = "
+                f"{self.next_pk(dataset.table, dataset.pk_column)};"
+            ),
+            f"UPDATE {tmp_table} SET {description_column} = {description}",
+            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
+        ]
+        for q in query:
+            res = self.execute(q)
+            if res.exception:
+                return res
+        drop_table_if_exists(self, tmp_table)
+
+        # Now we save the new pk
+        pk = res.lastrowid
+
+        # create list of which children we have duplicated
+        child_duplicated = []
+        # Next, duplicate the child records!
+        if children:
+            for _ in dataset.frm.datasets:
+                for r in dataset.frm.relationships:
+                    if (
+                        r.parent_table == dataset.table
+                        and r.on_update_cascade
+                        and (r.child_table not in child_duplicated)
+                    ):
+                        child = self.quote_table(r.child_table)
+                        tmp_child = self.quote_table(f"temp_{r.child_table}")
+                        pk_column = self.quote_column(
+                            dataset.frm[r.child_table].pk_column
+                        )
+                        fk_column = self.quote_column(r.fk_column)
+
+                        # Update children's pk_columns to NULL and set correct parent
+                        # PK value.
+                        drop_table_if_exists(self, tmp_child)
+                        where_clause = (
+                            f"WHERE {fk_column}="
+                            f"{dataset.get_current(dataset.pk_column)}"
+                        )
+                        create_temp_table(self, table, tmp_table, where_clause)
+                        queries = [
+                            # don't next_pk(), because child can be plural.
+                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
+                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
+                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
+                        ]
+                        for q in queries:
+                            res = self.execute(q)
+                            if res.exception:
+                                return res
+                        drop_table_if_exists(self, tmp_child)
+                        child_duplicated.append(r.child_table)
+        # If we made it here, we can return the pk.  Since the pk was stored earlier,
+        # we will just send and empty ResultSet
+        return ResultSet(lastrowid=pk)
 
 
 # --------------------------
