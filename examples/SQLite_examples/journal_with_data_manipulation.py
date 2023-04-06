@@ -2,12 +2,12 @@
 # fmt: off
 
 import PySimpleGUI as sg
-import pysimplesql as ss                              # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 from datetime import datetime
 from datetime import timezone
 import logging
 logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logging.basicConfig(level=logging.INFO)  # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # -------------------------------------
 # CREATE A SIMPLE DATABASE TO WORK WITH
@@ -36,11 +36,14 @@ INSERT INTO Journal (id,mood_id,title,entry)VALUES (2,4,"My 2nd entry!","I feel 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
-# Define the columns for the table selector
-headings=['id','Date:              ','Mood:      ','Title:                                 ']
-visible=[0,1,1,1] # Hide the id column
+# Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
+headings = ss.TableHeadings(sort_enable=True)
+headings.add_column('title', 'Title', width=40)
+headings.add_column('entry_date', 'Date', width=10)
+headings.add_column('mood_id', 'Mood', width=20)
+
 layout=[
-    [ss.selector('Journal', sg.Table, key='sel_journal', num_rows=10, headings=headings, visible_column_map=visible)],
+    [ss.selector('Journal', sg.Table, key='sel_journal', num_rows=10, headings=headings)],
     [ss.actions('Journal', 'act_journal', edit_protect=False)],
     [ss.field('Journal.entry_date')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), auto_size_text=False)],
@@ -49,11 +52,11 @@ layout=[
 ]
 win=sg.Window('Journal example', layout, finalize=True)
 
-driver = ss.Sqlite(':memory:',sql_commands=sql) # Create a new database connection
+driver = ss.Driver.sqlite(':memory:',sql_commands=sql) # Create a new database connection
 frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
 # Reverse the default sort order so new journal entries appear at the top
 frm['Journal'].set_order_clause('ORDER BY entry_date DESC')
-# Set the column order for search operations.  By default, only the column designated as the description column is searched
+# Set the column order for search operations.  Normally only the column designated as the description column is searched
 frm['Journal'].set_search_order(['entry_date','title','entry'])
 
 # ------------------------------------------------------

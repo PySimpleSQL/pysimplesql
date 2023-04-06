@@ -4,8 +4,8 @@
 import PySimpleGUI as sg
 import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
-logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # Create a small table just for demo purposes. In your own program, you would probably
 # use a pre-made database on the filesystem instead.
@@ -30,21 +30,23 @@ INSERT INTO "Colors" ("name","example","primary_color") VALUES ("Blue","The ocea
 description = """
 Many different types of PySimpleGUI elements can be used as Selector controls to select database records.
 Navigation buttons, the Search box, ListBoxes, ComboBoxes, Sliders and dataset can all be set to control
-record navigation. Multiple selectors can be used simultaneously and they will all work together in harmony. Try each selector
-on this frm and watch it all just work!
+record navigation. Multiple selectors can be used simultaneously and they will all work together in harmony.
+Try each selector on this frm and watch it all just work!
 """
 
 # PySimpleGUI™ layout code
-headings=['id','Name     ','Example                                          ','Primary Color?'] # DataSet column widths can be set by the spacing of the headings!
-visible=[0,1,1,1] # Hide the primary key column in the table
-record_columns=[
+headings = ss.TableHeadings(sort_enable=True)
+headings.add_column('name', 'Name', width=10)
+headings.add_column('example', 'Example', width=40)
+headings.add_column('primary_color', 'Primary Color?', width=15)
+
+record_columns = [
     [ss.field('Colors.name', label='Color name:')],
     [ss.field('Colors.example', label='Example usage: ')],
     [ss.field('Colors.primary_color', element=sg.CBox, label='Primary Color?')],
 ]
-selectors=[
-    [ss.selector('Colors', element=sg.Table, key='tableSelector', headings=headings, visible_column_map=visible,
-                 num_rows=10)],
+selectors = [
+    [ss.selector('Colors', element=sg.Table, key='tableSelector', headings=headings, num_rows=10)],
     [ss.selector('Colors', size=(15, 10), key='selector1')],
     [ss.selector('Colors', element=sg.Slider, size=(26, 18), key='selector2'),
      ss.selector('Colors', element=sg.Combo, size=(30, 10), key='selector3')],
@@ -53,23 +55,23 @@ selectors=[
 ]
 layout = [
     [sg.Text(description)],
-    [sg.Frame('Test out all of these selectors and watch the magic!',selectors)],
+    [sg.Frame('Test out all of these selectors and watch the magic!', selectors)],
     [sg.Col(record_columns,vertical_alignment='t')],
     [ss.actions('Colors', 'colorActions')]
 ]
 
-win=sg.Window('Record Selector Demo', layout, finalize=True)
-driver = ss.Sqlite(':memory:', sql_commands=sql)
-frm= ss.Form(driver, bind_window=win)  #<=== Here is the magic!
+win = sg.Window('Record Selector Demo', layout, finalize=True)
+driver = ss.Driver.sqlite(':memory:', sql_commands=sql)
+frm= ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
-frm['Colors'].set_search_order(['name','example']) # the search box will search in both the name and example columns
+frm['Colors'].set_search_order(['name', 'example'])  # the search box will search in both the name and example columns
 while True:
     event, values = win.read()
 
-    if ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    if ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     elif event == sg.WIN_CLOSED or event == 'Exit':
-        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm.close()   # <= ensures proper closing of the sqlite database and runs a database optimization
         break
     else:
         logger.info(f'This event ({event}) is not yet handled.')

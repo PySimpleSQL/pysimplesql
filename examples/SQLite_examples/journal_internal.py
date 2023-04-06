@@ -57,15 +57,18 @@ headings.add_column('mood_id', 'Mood', width=20)
 layout = [
     [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
     [ss.actions('Journal')],
-    [ss.field('Journal.entry_date'), sg.CalendarButton("Select Date", close_when_date_chosen=True,
-                                                       target="Journal.entry_date",  # <- target matches field() name
-                                                       format="%Y-%m-%d", size=(10, 1), key='datepicker')],
+    [ss.field('Journal.entry_date'),
+        sg.CalendarButton(
+            "Select Date", close_when_date_chosen=True, target="Journal.entry_date",  # <- target matches field() name
+            format="%Y-%m-%d", size=(10, 1), key='datepicker'
+        )
+    ],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],
     [ss.field('Journal.title')],
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
 win = sg.Window('Journal (internal) example', layout, finalize=True)
-driver = ss.Sqlite('./SQLite_examples/Journal.db', sql_commands=sql)
+driver = ss.Driver.sqlite('./SQLite_examples/Journal.db', sql_commands=sql)
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 # Note:  sql_commands in only run if Journal.db does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
@@ -94,10 +97,10 @@ while True:
     event, values = win.read()
 
     if event == sg.WIN_CLOSED or event == 'Exit':
-        frm.close()              # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization
         win.close()
         break
-    elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
+    elif ss.process_events(event, values):  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
         if "edit_protect" in event:
             win['datepicker'].update(disabled=frm.get_edit_protect())

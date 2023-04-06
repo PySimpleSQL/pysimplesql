@@ -2,20 +2,22 @@
 # fmt: off
 
 import PySimpleGUI as sg
-import pysimplesql as ss                               # <=== PySimpleSQL lines will be marked like this.  There's only a few!
+import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 import logging
-logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)               # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
-
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)  # <=== You can set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 
 # Here are our callback functions
-def enable(db,win):
-    res=sg.popup_get_text('Enter password for edit mode.\n(Hint: it is 1234)')
+def enable(db, win):
+    res = sg.popup_get_text('Enter password for edit mode.\n(Hint: it is 1234)')
     return res == '1234'
-def disable(db,win):
+
+
+def disable(db, win):
     res = sg.popup_yes_no('Are you sure you want to disabled edit mode?')
     return res == 'Yes'
+
 
 # Define our layout. We will use the ss.record convenience function to create the controls
 layout = [
@@ -42,7 +44,7 @@ layout.append([ss.actions('Restaurant', 'act_restaurant')])
 
 # Initialize our window and database, then bind them together
 win = sg.Window('places to eat', layout, finalize=True)
-driver = ss.Sqlite(':memory:', sql_script='example.sql')
+driver = ss.Driver.sqlite(':memory:', sql_script='restaurants.sql')
 frm = ss.Form(driver, bind_window=win)  # <=== load the database and bind it to the window
 # NOTE: ":memory:" is a special database URL for in-memory databases
 
