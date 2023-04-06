@@ -7694,6 +7694,118 @@ class MSAccess(SQLDriver):
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
         return rows.fetchone()["MAX_PK"]  # returned as upper case
 
+    def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
+        ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
+        ## This can be done using * syntax without knowing the schema of the table
+        ## (other than primary key column). The trick is to create a temporary table
+        ## using the "CREATE TABLE AS" syntax.
+        def get_columns(driver, table_name):
+            # Creates a comma separated list of column names and types to be used in a
+            # CREATE TABLE statement
+            columns = driver.column_info(table_name)
+            cols = ""
+            for c in columns:
+                cols += f"{c['name']} {c['domain']}, "
+            cols = cols[:-2]
+            return cols
+
+        def drop_table_if_exists(driver, table_name):
+            # UCanAccess does not support IF EXISTS in DROP TABLE statements, so we will
+            # handle it ourselves
+            query = f"SELECT COUNT(*) FROM {table_name}"
+            try:
+                driver.execute(query)
+            except:
+                return
+            query = f"DROP TABLE [{table_name}];"
+            driver.execute(query)
+
+        def create_temp_table(driver, source_table, temp_table, where_clause):
+            # Creates a temporary table with the same schema as the source table, then
+            # copies the source table into it, taking into account the WHERE clause
+            drop_table_if_exists(driver, temp_table)
+            query = (
+                f"CREATE TABLE [{temp_table}] ({get_columns(driver, source_table)});"
+            )
+            driver.execute(query)
+            query = (
+                f"INSERT INTO [{temp_table}] (SELECT * FROM [{source_table}] "
+                f"{where_clause});"
+            )
+            driver.execute(query)
+
+        description = self.quote_value(
+            f"{lang.duplicate_prepend}"
+            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
+        )
+        table = self.quote_table(dataset.table)
+        tmp_table = self.quote_table(f"temp_{dataset.table}")
+        pk_column = self.quote_column(dataset.pk_column)
+        description_column = self.quote_column(dataset.description_column)
+
+        # Create tmp table, update pk column in temp and insert into table
+        drop_table_if_exists(self, tmp_table)
+        where_clause = f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)}"
+        create_temp_table(self, table, tmp_table, where_clause)
+        query = [
+            (
+                f"UPDATE {tmp_table} SET {pk_column} = "
+                f"{self.next_pk(dataset.table, dataset.pk_column)};"
+            ),
+            f"UPDATE {tmp_table} SET {description_column} = {description}",
+            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
+        ]
+        for q in query:
+            res = self.execute(q)
+            if res.exception:
+                return res
+        drop_table_if_exists(self, tmp_table)
+
+        # Now we save the new pk
+        pk = res.lastrowid
+
+        # create list of which children we have duplicated
+        child_duplicated = []
+        # Next, duplicate the child records!
+        if children:
+            for _ in dataset.frm.datasets:
+                for r in dataset.frm.relationships:
+                    if (
+                        r.parent_table == dataset.table
+                        and r.on_update_cascade
+                        and (r.child_table not in child_duplicated)
+                    ):
+                        child = self.quote_table(r.child_table)
+                        tmp_child = self.quote_table(f"temp_{r.child_table}")
+                        pk_column = self.quote_column(
+                            dataset.frm[r.child_table].pk_column
+                        )
+                        fk_column = self.quote_column(r.fk_column)
+
+                        # Update children's pk_columns to NULL and set correct parent
+                        # PK value.
+                        drop_table_if_exists(self, tmp_child)
+                        where_clause = (
+                            f"WHERE {fk_column}="
+                            f"{dataset.get_current(dataset.pk_column)}"
+                        )
+                        create_temp_table(self, table, tmp_table, where_clause)
+                        queries = [
+                            # don't next_pk(), because child can be plural.
+                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
+                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
+                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
+                        ]
+                        for q in queries:
+                            res = self.execute(q)
+                            if res.exception:
+                                return res
+                        drop_table_if_exists(self, tmp_child)
+                        child_duplicated.append(r.child_table)
+        # If we made it here, we can return the pk.  Since the pk was stored earlier,
+        # we will just send and empty ResultSet
+        return ResultSet(lastrowid=pk)
+
 
 # --------------------------
 # TYPEDDICTS AND TYPEALIASES
