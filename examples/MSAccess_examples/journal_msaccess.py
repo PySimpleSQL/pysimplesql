@@ -42,7 +42,7 @@ if not is_java_installed():
         exit(0)
 
 if not os.environ.get("JAVA_HOME"):
-    sg.popup(f"'JAVA_HOME' must be set in order to run this example")
+    sg.popup("'JAVA_HOME' must be set in order to run this example")
     exit(0)
 
 
