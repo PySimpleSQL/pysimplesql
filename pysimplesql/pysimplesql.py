@@ -5461,7 +5461,7 @@ class Column:
                     pass
 
             if not parsed:
-                print(
+                logger.debug(
                     "Unable to cast datetime/time/timestamp. Casting to string instead."
                 )
                 value = str(value)
