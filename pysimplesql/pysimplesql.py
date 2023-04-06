@@ -7546,14 +7546,24 @@ class MSAccess(SQLDriver):
         if not silent:
             logger.info(f"Executing query: {query} {values}")
 
-        if values:
-            stmt = self.con.prepareStatement(query)
-            for index, value in enumerate(values, start=1):
-                stmt.setObject(index, value)
-            has_result_set = stmt.execute()
-        else:
-            stmt = self.con.createStatement()
-            has_result_set = stmt.execute(query)
+        exception = None
+        has_result_set = False
+        try:
+            if values:
+                stmt = self.con.prepareStatement(query)
+                for index, value in enumerate(values, start=1):
+                    stmt.setObject(index, value)
+                has_result_set = stmt.execute()
+            else:
+                stmt = self.con.createStatement()
+                has_result_set = stmt.execute(query)
+        except Exception as e:  # noqa: E722
+            exception = e
+            logger.warning(
+                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+            )
+            if auto_commit_rollback:
+                self.rollback()
 
         if has_result_set:
             rs = stmt.getResultSet()
@@ -7598,10 +7608,10 @@ class MSAccess(SQLDriver):
                     row[column_name] = value
                 rows.append(row)
 
-            return ResultSet(rows, None, None, column_info)
+            return ResultSet(rows, None, exception, column_info)
 
         affected_rows = stmt.getUpdateCount()
-        return ResultSet([], affected_rows, None, column_info)
+        return ResultSet([], affected_rows, exception, column_info)
 
     def column_info(self, table):
         meta_data = self.con.getMetaData()
@@ -7713,9 +7723,8 @@ class MSAccess(SQLDriver):
             # UCanAccess does not support IF EXISTS in DROP TABLE statements, so we will
             # handle it ourselves
             query = f"SELECT COUNT(*) FROM {table_name}"
-            try:
-                driver.execute(query)
-            except:
+            rows = driver.execute(query)
+            if rows.exception:
                 return
             query = f"DROP TABLE [{table_name}];"
             driver.execute(query)
