@@ -44,7 +44,7 @@ def java_check_install(version: str = "11", jre: bool = True) -> bool:
             pa.animate()
             try:
                 java_home = jdk.install(version, jre=jre)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(e)
                 sg.popup(f"There was an error installing Java: {e}")
                 pa.close()
