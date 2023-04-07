@@ -6297,14 +6297,21 @@ class SQLDriver:
     # These default implementations will likely work for most SQL databases.
     # Override any of the following methods as needed.
     # ---------------------------------------------------------------------
+    def quote(self, val: str, chr: str):
+        if not len(chr):
+            return val
+        left_quote = chr[0]
+        right_quote = chr[1] if len(chr) == 2 else left_quote
+        return f"{left_quote}{val}{right_quote}"
+
     def quote_table(self, table: str):
-        return f"{self.quote_table_char}{table}{self.quote_table_char}"
+        return self.quote(table, self.quote_table_char)
 
     def quote_column(self, column: str):
-        return f"{self.quote_column_char}{column}{self.quote_column_char}"
+        return self.quote(column, self.quote_column_char)
 
     def quote_value(self, value: str):
-        return f"{self.quote_value_char}{value}{self.quote_value_char}"
+        return self.quote(value, self.quote_value_char)
 
     def commit(self):
         self.con.commit()
@@ -7588,12 +7595,12 @@ class Sqlserver(SQLDriver):
 class MSAccess(SQLDriver):
     """
     The MSAccess driver supports Microsoft Access databases.
-    Note that only database interactions are supported, not operations dealint with
-    Forms, Reports, etc.
+    Note that only database interactions are supported, including stored Queries, but
+    not operations dealing with Forms, Reports, etc.
     """
 
     def __init__(self, database_file):
-        super().__init__(name="MSAccess", table_quote="", placeholder="?")
+        super().__init__(name="MSAccess", table_quote="[]", placeholder="?")
         self.database_file = database_file
         self.con = self.connect()
 
@@ -7648,9 +7655,10 @@ class MSAccess(SQLDriver):
                 has_result_set = stmt.execute(query)
         except Exception as e:  # noqa: BLE001
             exception = e
-            logger.warning(
-                f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
-            )
+            if not silent:
+                logger.warning(
+                    f"Execute exception: {type(e).__name__}: {e}, using query: {query}"
+                )
             if auto_commit_rollback:
                 self.rollback()
 
@@ -7793,44 +7801,21 @@ class MSAccess(SQLDriver):
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
         return rows.fetchone()["MAX_PK"]  # returned as upper case
 
+    def _get_column_definitions(self, table_name):
+        # Creates a comma separated list of column names and types to be used in a
+        # CREATE TABLE statement
+        columns = self.column_info(table_name)
+        cols = ""
+        for c in columns:
+            cols += f"{c['name']} {c['domain']}, "
+        cols = cols[:-2]
+        return cols
+
     def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
         ## https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
         ## This can be done using * syntax without knowing the schema of the table
         ## (other than primary key column). The trick is to create a temporary table
         ## using the "CREATE TABLE AS" syntax.
-        def get_columns(driver, table_name):
-            # Creates a comma separated list of column names and types to be used in a
-            # CREATE TABLE statement
-            columns = driver.column_info(table_name)
-            cols = ""
-            for c in columns:
-                cols += f"{c['name']} {c['domain']}, "
-            cols = cols[:-2]
-            return cols
-
-        def drop_table_if_exists(driver, table_name):
-            # UCanAccess does not support IF EXISTS in DROP TABLE statements, so we will
-            # handle it ourselves
-            query = f"SELECT COUNT(*) FROM {table_name}"
-            rows = driver.execute(query)
-            if rows.exception:
-                return
-            query = f"DROP TABLE [{table_name}];"
-            driver.execute(query)
-
-        def create_temp_table(driver, source_table, temp_table, where_clause):
-            # Creates a temporary table with the same schema as the source table, then
-            # copies the source table into it, taking into account the WHERE clause
-            drop_table_if_exists(driver, temp_table)
-            query = (
-                f"CREATE TABLE [{temp_table}] ({get_columns(driver, source_table)});"
-            )
-            driver.execute(query)
-            query = (
-                f"INSERT INTO [{temp_table}] (SELECT * FROM [{source_table}] "
-                f"{where_clause});"
-            )
-            driver.execute(query)
 
         description = self.quote_value(
             f"{lang.duplicate_prepend}"
@@ -7842,22 +7827,26 @@ class MSAccess(SQLDriver):
         description_column = self.quote_column(dataset.description_column)
 
         # Create tmp table, update pk column in temp and insert into table
-        drop_table_if_exists(self, tmp_table)
-        where_clause = f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)}"
-        create_temp_table(self, table, tmp_table, where_clause)
+        f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)}"
         query = [
+            f"DROP TABLE IF EXISTS [{tmp_table}];",
+            f"CREATE TABLE [{tmp_table}] ({self._get_column_definitions(table)});",
             (
-                f"UPDATE {tmp_table} SET {pk_column} = "
+                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
+                f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)});"
+            ),
+            (
+                f"UPDATE [{tmp_table}] SET {pk_column} = "
                 f"{self.next_pk(dataset.table, dataset.pk_column)};"
             ),
-            f"UPDATE {tmp_table} SET {description_column} = {description}",
-            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
+            f"UPDATE [{tmp_table}] SET {description_column} = {description}",
+            f"INSERT INTO [{table}] SELECT * FROM [{tmp_table}];",
+            f"DROP TABLE IF EXISTS [{tmp_table}]",
         ]
         for q in query:
             res = self.execute(q)
             if res.exception:
                 return res
-        drop_table_if_exists(self, tmp_table)
 
         # Now we save the new pk
         pk = res.lastrowid
@@ -7882,23 +7871,28 @@ class MSAccess(SQLDriver):
 
                         # Update children's pk_columns to NULL and set correct parent
                         # PK value.
-                        drop_table_if_exists(self, tmp_child)
-                        where_clause = (
-                            f"WHERE {fk_column}="
-                            f"{dataset.get_current(dataset.pk_column)}"
-                        )
-                        create_temp_table(self, table, tmp_table, where_clause)
                         queries = [
+                            f"DROP TABLE IF EXISTS [{tmp_child}]",
+                            (
+                                f"CREATE TABLE [{tmp_table}] "
+                                f"({self._get_column_definitions(table)});"
+                            ),
+                            (
+                                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
+                                f"WHERE {pk_column}="
+                                f"{dataset.get_current(dataset.pk_column)});"
+                            ),
                             # don't next_pk(), because child can be plural.
-                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
-                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
-                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
+                            f"UPDATE [{tmp_child}] SET {pk_column} = NULL;",
+                            f"UPDATE [{tmp_child}] SET {fk_column} = {pk}",
+                            f"INSERT INTO [{child}] SELECT * FROM [{tmp_child}];",
+                            f"DROP TABLE IF EXISTS [{tmp_child}]",
                         ]
                         for q in queries:
                             res = self.execute(q)
                             if res.exception:
                                 return res
-                        drop_table_if_exists(self, tmp_child)
+
                         child_duplicated.append(r.child_table)
         # If we made it here, we can return the pk.  Since the pk was stored earlier,
         # we will just send and empty ResultSet
