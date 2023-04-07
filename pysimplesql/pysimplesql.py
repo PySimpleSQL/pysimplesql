@@ -5617,7 +5617,7 @@ class ColumnInfo(List):
                 )
 
             # The stored default is a literal value, lets try to use it:
-            if default is None:
+            if default in [None, "None"]:
                 try:
                     null_default = self.null_defaults[domain]
                 except KeyError:
@@ -5642,6 +5642,8 @@ class ColumnInfo(List):
                         # Otherwise, assign it
                         else:
                             default = null_default
+                    # string-like, not description_column
+                    default = ""
             else:
                 # Load the default that was fetched from the database
                 # during ColumnInfo creation
