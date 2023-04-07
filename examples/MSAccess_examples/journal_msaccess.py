@@ -1,8 +1,5 @@
-import jdk
+from install_java import java_check_install
 import logging
-import os
-import subprocess
-
 import PySimpleGUI as sg
 import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
 
@@ -10,41 +7,9 @@ import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  Th
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-
-# -------------------------------------------------
-# ROUTINES TO INSTALL JAVA IF USER DOES NOT HAVE IT
-# -------------------------------------------------
-def is_java_installed():
-    try:
-        subprocess.check_output(["which", "java"])
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-if not is_java_installed():
-    res = sg.popup_yes_no(
-        "Java is required but not installed.  Would you like to install it?",
-        title="Java not found",
-    )
-    if res == "Yes":
-        pb = ss.ProgressBar("Installing Java Open-JDK JRE")
-        pb.animate()
-        java_home = jdk.install("11")
-        # set JAVA_HOME
-        os.environ["JAVA_HOME"] = java_home
-        pb.close()
-    else:
-        url = jdk.get_download_url(11)
-        sg.popup(
-            f"Java is required to run this example.  You can download it at: {url}"
-        )
-        exit(0)
-
-if not os.environ.get("JAVA_HOME"):
-    sg.popup("'JAVA_HOME' must be set in order to run this example")
+# Ensure that Java is installed
+if not java_check_install():
     exit(0)
-
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
