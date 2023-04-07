@@ -41,7 +41,14 @@ def java_check_install(version: str = "11", jre: bool = True) -> bool:
         )
         if res == "Yes":
             pa = ss.ProgressAnimation("Installing Java Open-JDK JRE")
-            pa.animate()
+            # Update the default phrases shown in the ProgressAnimation
+            config = {
+                "phrases": [
+                    "Please wait while OpenJDK JRE is installed locally...",
+                    "Still working... Thank you for your patience.",
+                ]
+            }
+            pa.animate(config=config)
             try:
                 java_home = jdk.install(version, jre=jre)
             except Exception as e:  # noqa: BLE001
