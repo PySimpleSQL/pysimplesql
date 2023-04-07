@@ -58,6 +58,7 @@ import contextlib
 import functools
 import logging
 import math
+import multiprocessing
 import os.path
 import queue
 import threading  # threaded popup
@@ -3811,10 +3812,8 @@ class ProgressBar:
         """
         Creates a progress bar window with a message label and a progress bar.
 
-        The progress bar can act in a normal determinate manner by calling the `update`
-        method to update the progress in incremental steps, or in an indeterminate
-        manner by calling the `animate` method to animate the progress bar indefinitely
-        until the `close` method is called.
+        The progress bar is updated by calling the `update` method to update the
+        progress in incremental steps until the `close` method is called.
 
         :param title: Title of the window
         :param max_value: Maximum value of the progress bar
@@ -3860,6 +3859,65 @@ class ProgressBar:
 
         self.win["message"].update(message)
         self.win["bar"].update(current_count=current_count)
+
+    def close(self):
+        """
+        Closes the progress bar window.
+
+        :returns: None
+        """
+        if self.win is not None:
+            self.win.close()
+
+    def _create_window(self):
+        self.win = sg.Window(
+            self.title,
+            layout=self.layout,
+            keep_on_top=True,
+            finalize=True,
+            ttk_theme=themepack.ttk_theme,
+        )
+
+
+class ProgressAnimation:
+    def __init__(self, title: str, hide_delay: int = 100):
+        """
+        Creates an animated progress bar with a message label.
+
+        The progress bar acts in an indeterminate manner by calling the `animate` method
+        to animate the progress bar indefinitely until the `close` method is called.
+
+        Be sure to wrap whatever process the ProgressAnimation is used for, in a try:
+        except: block so that the `close` method can be called on exception, otherwise
+        the ProgressAnimation will go on indefinitely in the case of an exception.
+
+        :param title: Title of the window
+        :param hide_delay: Delay in milliseconds before displaying the Window
+        :returns: None
+        """
+        self.win = None
+        self.title = title
+        self.layout = [
+            [sg.Text("", key="message", size=(50, 2))],
+            [
+                sg.ProgressBar(
+                    100,
+                    orientation="h",
+                    size=(30, 20),
+                    key="bar",
+                    style=themepack.ttk_theme,
+                )
+            ],
+        ]
+
+        self.max = 100
+        self.hide_delay = hide_delay
+        self.start_time = time() * 1000
+        self.update_queue = multiprocessing.Queue()  # Thread safe
+        self.animate_process = None
+        self._stop_event = multiprocessing.Event()
+        self.last_phrase_time = None
+        self.phrase_index = 0
 
     def animate(self, config: dict = {}):
         """
@@ -3917,8 +3975,10 @@ class ProgressBar:
         }
         config = {**default_config, **config}
         self.hide_delay = 0
-        self.animate_thread = threading.Thread(target=self._animate, args=(config,))
-        self.animate_thread.start()
+        self.animate_process = multiprocessing.Process(
+            target=self._animate, args=(config,)
+        )
+        self.animate_process.start()
 
     def close(self):
         """
@@ -3929,8 +3989,9 @@ class ProgressBar:
         :returns: None
         """
         self._stop_event.set()  # Signal the _oscillate method to stop
-        if self.animate_thread:
-            self.animate_thread.join()  # Wait for the oscillate_thread to finish
+        if self.animate_process:
+            self.animate_process.terminate()
+            self.animate_process.join()  # Wait for the oscillate_thread to finish
 
         if self.win is not None:
             self.win.close()
