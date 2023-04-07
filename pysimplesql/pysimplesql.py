@@ -3891,6 +3891,11 @@ class ProgressAnimation:
         except: block so that the `close` method can be called on exception, otherwise
         the ProgressAnimation will go on indefinitely in the case of an exception.
 
+        Warning:
+            ProgressAnimation uses multiprocessing. You must create your main gui under
+            `if __name__ == '__main__':` to avoid duplicating the window when
+            ProgressAnimation.animate() is called.
+
         :param title: Title of the window
         :param hide_delay: Delay in milliseconds before displaying the Window
         :returns: None
