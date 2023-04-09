@@ -6733,7 +6733,7 @@ class Sqlite(SQLDriver):
 
     def column_info(self, table):
         # Return a list of column names
-        q = f"PRAGMA table_info({table})"
+        q = f"PRAGMA table_info({self.quote_table(table)})"
         rows = self.execute(q, silent=True)
         names = []
         col_info = ColumnInfo(self, table)
@@ -6754,7 +6754,7 @@ class Sqlite(SQLDriver):
         return col_info
 
     def pk_column(self, table):
-        q = f"PRAGMA table_info({table})"
+        q = f"PRAGMA table_info({self.quote_table(table)})"
         row = self.execute(q, silent=True).fetchone()
 
         return row["name"] if "name" in row else None
@@ -6764,7 +6764,9 @@ class Sqlite(SQLDriver):
         relationships = []
         tables = self.get_tables()
         for from_table in tables:
-            rows = self.execute(f"PRAGMA foreign_key_list({from_table})", silent=True)
+            rows = self.execute(
+                f"PRAGMA foreign_key_list({self.quote_table(from_table)})", silent=True
+            )
 
             for row in rows:
                 dic = {}
