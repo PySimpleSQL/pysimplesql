@@ -6646,7 +6646,12 @@ class Sqlite(SQLDriver):
     def __init__(
         self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None
     ):
-        super().__init__(name="SQLite", placeholder="?")
+        super().__init__(
+            name="SQLite",
+            placeholder="?",
+            table_quote='"',
+            column_quote='"',
+        )
 
         new_database = False
         if db_path is not None:
