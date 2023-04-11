@@ -6339,12 +6339,12 @@ class SQLDriver:
         return f"{r_obj.join_type} {parent} ON {child}.{fk}={parent}.{pk}"
 
     def min_pk(self, table: str, pk_column: str) -> int:
-        rows = self.execute(f"SELECT MIN({pk_column}) FROM {table}")
-        return rows.fetchone()[f"MAX({pk_column})"]
+        rows = self.execute(f"SELECT MIN({pk_column}) as min_pk FROM {table}")
+        return rows.fetchone()["min_pk"]
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.fetchone()[f"MAX({pk_column})"]
+        return rows.fetchone()["max_pk"]
 
     def generate_join_clause(self, dataset: DataSet) -> str:
         """
