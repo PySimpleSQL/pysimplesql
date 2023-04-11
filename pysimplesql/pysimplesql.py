@@ -4789,7 +4789,7 @@ def actions(
                     key=keygen.get(f"{key}search_button"),
                     bind_return_key=bind_return_key,
                     size=(1, 1),
-                    image_data=themepack.delete,
+                    image_data=themepack.search,
                     metadata=meta,
                     use_ttk_buttons=use_ttk_buttons,
                     pad=pad,
