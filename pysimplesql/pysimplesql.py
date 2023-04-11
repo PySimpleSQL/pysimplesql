@@ -6644,7 +6644,12 @@ class Sqlite(SQLDriver):
     """
 
     def __init__(
-        self, db_path=None, sql_script=None, sqlite3_database=None, sql_commands=None
+        self,
+        db_path=None,
+        sql_script=None,
+        sql_script_encoding: str = "utf-8",
+        sqlite3_database=None,
+        sql_commands=None,
     ):
         super().__init__(
             name="SQLite",
@@ -6676,7 +6681,7 @@ class Sqlite(SQLDriver):
         if sql_script is not None and new_database:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
+            self.execute_script(sql_script, sql_script_encoding)
 
         self.db_path = db_path
         self.win_pb.close()
@@ -6791,8 +6796,8 @@ class Sqlite(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def execute_script(self, script):
-        with open(script, "r") as file:
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
             logger.info(f"Loading script {script} into database.")
             self.con.executescript(file.read())
 
