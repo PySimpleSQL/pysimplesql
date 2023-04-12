@@ -17,7 +17,6 @@ import subprocess
 # ROUTINES TO INSTALL JAVA IF USER DOES NOT HAVE IT
 # -------------------------------------------------
 def _is_java_installed():
-    return False
     # Returns True if Java is installed, False otherwise
     try:
         subprocess.check_output(["which", "java"])
