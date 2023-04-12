@@ -3992,7 +3992,7 @@ class ProgressAnimate:
         gui_task = asyncio.create_task(self._gui())
         result = await self.run_process(fn, *args, **kwargs)
         await gui_task
-        return result
+        return result  # noqa RET504
 
     def _animate(self, config: dict = None):
         def _oscillate_params(oscillator):
