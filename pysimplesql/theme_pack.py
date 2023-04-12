@@ -3,28 +3,17 @@
 # ======================================================================================================================
 # Change the look and feel of your database application all in one place.
 tp_text = {
-    "ttk_theme": "default",
     "edit_protect": "\U0001F512",
-    "quick_edit": "\u270E",
-    "save": "\U0001f4be",
-    "first": "\u2770",
-    "previous": "\u276C",
-    "next": "\u276D",
-    "last": "\u2771",
+    "quick_edit": "\u270F",
+    "save": "\u2714",
+    "first": "|<",
+    "previous": "<",
+    "next": ">",
+    "last": ">|",
     "insert": "\u271A",
     "delete": "\u274E",
     "duplicate": "\u274F",
-    "search": "Search",
-    "marker_virtual": "\u2731",
-    "marker_required": "\u2731",
-    "marker_required_color": "red2",
-    "sort_asc_marker": "\u25BC",
-    "sort_desc_marker": "\u25B2",
-    "popup_info_auto_close_seconds": 1,
-    "popup_info_alpha_channel": 0.85,
-    "default_label_size": (15, 1),
-    "default_element_size": (30, 1),
-    "default_mline_size": (30, 7),
+    "search": "\U0001f50d",
 }
 # fmt: off
 tp_large = {

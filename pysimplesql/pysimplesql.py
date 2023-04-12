@@ -3942,11 +3942,7 @@ class ProgressAnimate:
             "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
             "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
             # phrases to display and the number of seconds to elapse between phrases
-            # TODO: move to languagepack
-            "phrases": [
-                "Please wait...",
-                "Still working...",
-            ],
+            "phrases": lang.animate_phrases,
             "phrase_delay": 5,
         }
         if config is None:
@@ -4999,11 +4995,11 @@ class TableHeadings(list):
         # Load in our marker characters.  We will use them to both display the
         # sort direction and to detect current direction
         try:
-            asc = themepack.sort_asc_marker
+            asc = themepack.marker_sort_asc
         except AttributeError:
             asc = "\u25BC"
         try:
-            desc = themepack.sort_desc_marker
+            desc = themepack.marker_sort_desc
         except AttributeError:
             desc = "\u25B2"
 
@@ -5131,8 +5127,8 @@ class ThemePack:
         "marker_required_color": "red2",
         # Sorting icons
         # ----------------------------------------
-        "sort_asc_marker": "\u25BC",
-        "sort_desc_marker": "\u25B2",
+        "marker_sort_asc": "\u25BC",
+        "marker_sort_desc": "\u25B2",
         # Info Popup defaults
         # ----------------------------------------
         "popup_info_auto_close_seconds": 1,
@@ -5191,8 +5187,8 @@ class ThemePack:
                 'marker_virtual' : string eg '', f'',  unicode
                 'marker_required' : string eg '', f'',  unicode
                 'marker_required_color': string eg 'red', Tuple eg (255,0,0)
-                'sort_asc_marker': string eg '', f'',  unicode
-                'sort_desc_marker': string eg '', f'',  unicode
+                'marker_sort_asc': string eg '', f'',  unicode
+                'marker_sort_desc': string eg '', f'',  unicode
             }
         For Base64, you can convert a whole folder using https://github.com/PySimpleGUI/PySimpleGUI-Base64-Encoder # fmt: skip
         Remember to us b'' around the string.
@@ -5260,7 +5256,14 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         "sqldriver_init": "{name} connection",
         "sqldriver_connecting": "Connecting to database",
-        "sqldriver_execute": "executing SQL commands",
+        "sqldriver_execute": "Executing SQL commands",
+        # ------------------------------------------------------------------------------
+        # Default ProgressAnimate Phrases
+        # ------------------------------------------------------------------------------
+        "animate_phrases": [
+            "Please wait...",
+            "Still working...",
+        ],
         # ------------------------------------------------------------------------------
         # Info Popups - no buttons
         # ------------------------------------------------------------------------------
@@ -6965,7 +6968,7 @@ class Mysql(SQLDriver):
         self.database = database
         self.con = self.connect()
 
-        self.win_pb.update("Executing SQL commands", 50)
+        self.win_pb.update(lang.sqldriver_execute, 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
