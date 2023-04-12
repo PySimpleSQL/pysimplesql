@@ -4008,18 +4008,17 @@ class ProgressAnimate:
                 oscillator["offset"],
             )
 
-        count = self._oscillate(
-            *_oscillate_params(config["bar"])
-        )  # oscillate the bar back and forth
-        cr = self._oscillate(
-            *_oscillate_params(config["red"])
-        )  # oscillate red color channel
-        cg = self._oscillate(
-            *_oscillate_params(config["blue"])
-        )  # oscillate green color channel
-        cb = self._oscillate(
-            *_oscillate_params(config["green"])
-        )  # oscillate blue color channel
+        # oscillate the bar back and forth
+        count = self._oscillate(*_oscillate_params(config["bar"]))
+
+        # oscillate red color channel
+        cr = self._oscillate(*_oscillate_params(config["red"]))
+
+        # oscillate green color channel
+        cg = self._oscillate(*_oscillate_params(config["blue"]))
+
+        # oscillate blue color channel
+        cb = self._oscillate(*_oscillate_params(config["green"]))
 
         color_1 = f"#{cr:02x}{cg:02x}{cb:02x}"
         color_2 = f"#{255-cg:02x}{255-cb:02x}{255-cr:02x}"
