@@ -25,13 +25,15 @@ def _is_java_installed():
         return False
 
 
-def java_check_install(version: str = "11", jre: bool = True) -> bool:
+def java_install(version: str = "11", jre: bool = True):
+    return jdk.install(version, jre=jre)
+
+
+def java_check_install() -> bool:
     """
     Checks to see if Java is installed. If it is not installed, then a local
     installation process can start automatically with user permission.
 
-    :param version: The OpenJDK version to install
-    :param jre: True to install the JRE runtime, False to install the full JDK
     :returns: True if it is ok to proceed after this call, False otherwise
     """
     if not _is_java_installed():
@@ -40,17 +42,17 @@ def java_check_install(version: str = "11", jre: bool = True) -> bool:
             title="Java not found",
         )
         if res == "Yes":
-            pa = ss.ProgressAnimation("Installing Java Open-JDK JRE")
-            # Update the default phrases shown in the ProgressAnimation
             config = {
                 "phrases": [
                     "Please wait while OpenJDK JRE is installed locally...",
                     "Still working... Thank you for your patience.",
                 ]
             }
-            pa.animate(config=config)
+            pa = ss.ProgressAnimate("Installing Java Open-JDK JRE", config)
+            # Update the default phrases shown in the ProgressAnimation
+
             try:
-                java_home = jdk.install(version, jre=jre)
+                java_home = pa.run(java_install)
             except Exception as e:  # noqa: BLE001
                 print(e)
                 sg.popup(f"There was an error installing Java: {e}")
@@ -60,7 +62,7 @@ def java_check_install(version: str = "11", jre: bool = True) -> bool:
             # set JAVA_HOME
             os.environ["JAVA_HOME"] = java_home
         else:
-            url = jdk.get_download_url(version, jre=jre)
+            url = jdk.get_download_url(11, jre=True)
             sg.popup(
                 f"Java is required to run this example.  You can download it at: {url}"
             )
