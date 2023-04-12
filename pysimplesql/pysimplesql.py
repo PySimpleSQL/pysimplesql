@@ -54,11 +54,11 @@ Naming conventions can fall under 4 categories:
 
 from __future__ import annotations  # docstrings
 
+import asyncio
 import contextlib
 import functools
 import logging
 import math
-import multiprocessing
 import os.path
 import queue
 import threading  # threaded popup
@@ -3879,54 +3879,13 @@ class ProgressBar:
         )
 
 
-class ProgressAnimation:
-    def __init__(self, title: str, hide_delay: int = 100):
+class ProgressAnimate:
+    def __init__(self, title: str, config: dict = None):
         """
         Creates an animated progress bar with a message label.
 
-        The progress bar acts in an indeterminate manner by calling the `animate` method
-        to animate the progress bar indefinitely until the `close` method is called.
-
-        Be sure to wrap whatever process the ProgressAnimation is used for, in a try:
-        except: block so that the `close` method can be called on exception, otherwise
-        the ProgressAnimation will go on indefinitely in the case of an exception.
-
-        :param title: Title of the window
-        :param hide_delay: Delay in milliseconds before displaying the Window
-        :returns: None
-        """
-        self.win = None
-        self.title = title
-        self.layout = [
-            [sg.Text("", key="message", size=(50, 2))],
-            [
-                sg.ProgressBar(
-                    100,
-                    orientation="h",
-                    size=(30, 20),
-                    key="bar",
-                    style=themepack.ttk_theme,
-                )
-            ],
-        ]
-
-        self.max = 100
-        self.hide_delay = hide_delay
-        self.start_time = time() * 1000
-        self.update_queue = multiprocessing.Queue()  # Thread safe
-        self.animate_process = None
-        self._stop_event = multiprocessing.Event()
-        self.last_phrase_time = None
-        self.phrase_index = 0
-
-    def animate(self, config: dict = {}):
-        """
-        Animates the progress bar by oscillating the bar while changing colors.
-
-        This turns the progress bar into an indeterminate progress bar for when the
-        progress duration may be unknown. Once the progress bar is animated, it cannot
-        be updated with a specific value, and will be updated automatically from a
-        separate thread, until closed with the close() method.
+        The progress bar will animate indefinitely, until the process passed in to the
+        `run` method finishes.
 
         The config for the animated progress bar contains oscillators for the bar
         divider and colors, a list of phrases to be displayed, and the number of seconds
@@ -3949,9 +3908,28 @@ class ProgressAnimation:
         }
         Defaults are used for any keys that are not specified in the dictionary.
 
+        :param title: Title of the window
         :param config: Dictionary of configuration options as listed above
         :returns: None
         """
+        self.title = title
+        self.win: sg.Window = None
+        self.layout = [
+            [sg.Text("", key="message", size=(50, 2))],
+            [
+                sg.ProgressBar(
+                    100,
+                    orientation="h",
+                    size=(30, 20),
+                    key="bar",
+                    style=themepack.ttk_theme,
+                )
+            ],
+        ]
+        self.last_phrase_time = None
+        self.phrase_index = 0
+        self.completed = asyncio.Event()
+
         default_config = {
             # oscillators for the bar divider and colors
             "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
@@ -3961,62 +3939,60 @@ class ProgressAnimation:
             # phrases to display and the number of seconds to elapse between phrases
             # TODO: move to languagepack
             "phrases": [
-                "Loading...",
-                "Still working...",
-                "Thanks for your patience...",
-                "This may take a while...",
-                "Still working...",
                 "Please wait...",
-                "Processing as fast as I can...",
                 "Still working...",
-                "Sorry for the delay...",
             ],
             "phrase_delay": 5,
         }
-        config = {**default_config, **config}
-        self.hide_delay = 0
-        self.animate_process = multiprocessing.Process(
-            target=self._animate, args=(config,)
-        )
-        self.animate_process.start()
+        if config is None:
+            config = {}
+        self.config = {**default_config, **config}
+
+    def run(self, fn: callable, *args, **kwargs):
+        """
+        Runs the function in a separate co-routine, while animating the progress bar in
+        another.
+        """
+        return asyncio.run(self._dispatch(fn, *args, **kwargs))
 
     def close(self):
-        """
-        Closes the progress bar window.
+        self.win = None
 
-        If the progress bar is animated, this will stop the animation then close.
-
-        :returns: None
-        """
-        self._stop_event.set()  # Signal the _oscillate method to stop
-        if self.animate_process:
-            self.animate_process.terminate()
-            self.animate_process.join()  # Wait for the oscillate_thread to finish
-
-        if self.win is not None:
-            self.win.close()
-
-    def _create_window(self):
-        self.win = sg.Window(
-            self.title,
-            layout=self.layout,
-            keep_on_top=True,
-            finalize=True,
-            ttk_theme=themepack.ttk_theme,
-        )
-
-    def _update_external(self):
-        # This method is thread safe where the normal update method is not. Uses the
-        # class's update_queue to safely pass information to the main thread.
+    async def _gui(self):
         if self.win is None:
-            self._create_window()
-
-        if not self.update_queue.empty():
-            message, current_count, color_1, color_2 = self.update_queue.get()
-            self.win["message"].update(message)
-            self.win["bar"].update(
-                current_count=current_count, bar_color=(color_1, color_2)
+            self.win = sg.Window(
+                self.title,
+                layout=self.layout,
+                keep_on_top=True,
+                finalize=True,
+                ttk_theme=themepack.ttk_theme,
             )
+
+        current_count = 0
+        while not self.completed.is_set():
+            current_count += 1
+            self._animate(self.config)
+            await asyncio.sleep(0.05)
+        self.win.close()
+
+    async def run_process(self, fn: callable, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        try:
+            result = await loop.run_in_executor(
+                None, functools.partial(fn, *args, **kwargs)
+            )
+            return result
+        except Exception as e:  # noqa: BLE001
+            print(f"\nAn error occurred in the process: {e}")
+        finally:
+            self.completed.set()
+
+    async def _dispatch(self, fn: callable, *args, **kwargs):
+        # Dispatch to the multiple asyncio co-processes
+        gui_task = asyncio.create_task(self._gui())
+        result = await self.run_process(fn, *args, **kwargs)
+        await gui_task
+        return result
 
     def _animate(self, config: dict = None):
         def _oscillate_params(oscillator):
@@ -4027,30 +4003,28 @@ class ProgressAnimation:
                 oscillator["offset"],
             )
 
-        while not self._stop_event.is_set():
-            count = self._oscillate(
-                *_oscillate_params(config["bar"])
-            )  # oscillate the bar back and forth
-            cr = self._oscillate(
-                *_oscillate_params(config["red"])
-            )  # oscillate red color channel
-            cg = self._oscillate(
-                *_oscillate_params(config["blue"])
-            )  # oscillate green color channel
-            cb = self._oscillate(
-                *_oscillate_params(config["green"])
-            )  # oscillate blue color channel
+        count = self._oscillate(
+            *_oscillate_params(config["bar"])
+        )  # oscillate the bar back and forth
+        cr = self._oscillate(
+            *_oscillate_params(config["red"])
+        )  # oscillate red color channel
+        cg = self._oscillate(
+            *_oscillate_params(config["blue"])
+        )  # oscillate green color channel
+        cb = self._oscillate(
+            *_oscillate_params(config["green"])
+        )  # oscillate blue color channel
 
-            color_1 = f"#{cr:02x}{cg:02x}{cb:02x}"
-            color_2 = f"#{255-cg:02x}{255-cb:02x}{255-cr:02x}"
-            msg = self._animated_message(config["phrases"], config["phrase_delay"])
-            self.update_queue.put((msg, count, color_1, color_2))
-            self._update_external()
-            sleep(0.05)
+        color_1 = f"#{cr:02x}{cg:02x}{cb:02x}"
+        color_2 = f"#{255-cg:02x}{255-cb:02x}{255-cr:02x}"
+        message = self._animated_message(config["phrases"], config["phrase_delay"])
 
-    def _oscillate(
-        self, value_start: int, value_range: int, period: float, offset: int
-    ):
+        self.win["message"].update(message)
+        self.win["bar"].update(current_count=count, bar_color=(color_1, color_2))
+
+    @staticmethod
+    def _oscillate(value_start: int, value_range: int, period: float, offset: int):
         millis = int(round(time() * 1000))
         t = (millis % (period * 1000)) / (period * 1000)
         angle = t * 2 * math.pi + math.radians(offset)
@@ -4058,6 +4032,7 @@ class ProgressAnimation:
         return int((sin_value + 1) * value_range / 2 + value_start)
 
     def _animated_message(self, phrases: list, phrase_delay: float):
+        # Cycle through the messages at the specified interval
         current_time = time()
         if (
             self.last_phrase_time is None
