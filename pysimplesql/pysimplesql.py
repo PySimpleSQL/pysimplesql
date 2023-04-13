@@ -66,7 +66,6 @@ from datetime import date, datetime
 from time import sleep, time  # threaded popup
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
 
-import jpype  # pip install JPype1
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
@@ -90,38 +89,6 @@ except (ModuleNotFoundError, ImportError):
         ]
     }
     # fmt: on
-
-# Load database backends if present
-supported_databases = ["SQLite3", "MySQL", "PostgreSQL", "Flatfile", "Sqlserver"]
-failed_modules = 0
-try:
-    import sqlite3
-except ModuleNotFoundError:
-    failed_modules += 1
-try:
-    import mysql.connector  # mysql-connector-python
-except ModuleNotFoundError:
-    failed_modules += 1
-try:
-    import psycopg2
-    import psycopg2.extras
-except ModuleNotFoundError:
-    failed_modules += 1
-try:
-    import csv
-except ModuleNotFoundError:
-    failed_modules += 1
-try:
-    import pyodbc
-except ModuleNotFoundError:
-    failed_modules += 1
-
-if failed_modules == len(supported_databases):
-    RuntimeError(
-        f"You muse have at least one of the following databases installed to use "
-        f"PySimpleSQL:\n{', '.join(supported_databases)} "
-    )
-
 
 logger = logging.getLogger(__name__)
 
@@ -5325,6 +5292,11 @@ class LanguagePack:
         # Quick Editor
         # ------------------------------------------------------------------------------
         "quick_edit_title": "Quick Edit - {data_key}",
+        # ------------------------------------------------------------------------------
+        # Error when importing module for driver
+        # ------------------------------------------------------------------------------
+        "import_module_failed_title": "Problem importing module",
+        "import_module_failed": "Unable to import module neccessary for {name}\nException: {exception}\n\nTry `pip install {requires}`",  # fmt: skip # noqa: E501
     }
     """
     Default LanguagePack.
@@ -6140,6 +6112,7 @@ class SQLDriver:
     def __init__(
         self,
         name: str,
+        requires: List[str],
         placeholder="%s",
         table_quote="",
         column_quote="",
@@ -6153,6 +6126,7 @@ class SQLDriver:
         # Be sure to call super().__init__() in derived class!
         self.con = None
         self.name = name
+        self.requires = requires
         self._check_reserved_keywords = True
         self.win_pb = ProgressBar(
             lang.sqldriver_init.format_map(LangFormat(name=name)), 100
@@ -6176,6 +6150,17 @@ class SQLDriver:
         self.quote_column_char = column_quote
         # override this in derived __init__() (defaults to single quotes)
         self.quote_value_char = value_quote
+
+    def import_failed(self, exception) -> None:
+        popup = Popup()
+        requires = ", ".join(self.requires)
+        popup.ok(
+            lang.import_module_failed_title,
+            lang.import_module_failed.format_map(
+                LangFormat(name=self.name, requires=requires, exception=exception)
+            ),
+        )
+        exit(0)
 
     def check_reserved_keywords(self, value: bool) -> None:
         """
@@ -6639,10 +6624,13 @@ class Sqlite(SQLDriver):
     ):
         super().__init__(
             name="SQLite",
+            requires=["sqlite3"],
             placeholder="?",
             table_quote='"',
             column_quote='"',
         )
+
+        self.import_required_modules()
 
         new_database = False
         if db_path is not None:
@@ -6671,6 +6659,13 @@ class Sqlite(SQLDriver):
 
         self.db_path = db_path
         self.win_pb.close()
+
+    def import_required_modules(self):
+        global sqlite3  # noqa PLW0603
+        try:
+            import sqlite3
+        except ModuleNotFoundError as e:
+            self.import_failed(e)
 
     def connect(self, database):
         self.con = sqlite3.connect(database)
@@ -6840,9 +6835,13 @@ class Flatfile(Sqlite):
         # First up the SQLite driver that we derived from
         super().__init__(":memory:")  # use an in-memory database
 
-        # Store our Flatfile-specific information
+        # Change Sqlite Sqldriver init set values to Flatfile-specific
         self.name = "Flatfile"
+        self.requires = ["csv,sqlite3"]
         self.placeholder = "?"  # update
+
+        self.import_required_modules()
+
         self.connect(":memory:")
         self.file_path = file_path
         self.delimiter = delimiter
@@ -6907,6 +6906,15 @@ class Flatfile(Sqlite):
         self.commit()  # commit them all at the end
         self.win_pb.close()
 
+    def import_required_modules(self):
+        global csv  # noqa PLW0603
+        global sqlite3  # noqa PLW0603
+        try:
+            import csv
+            import sqlite3
+        except ModuleNotFoundError as e:
+            self.import_failed(e)
+
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
     ) -> ResultSet:
@@ -6959,9 +6967,11 @@ class Mysql(SQLDriver):
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
     ):
-        super().__init__(name="MySQL")
+        super().__init__(name="MySQL", requires=["mysql-connector-python"])
 
-        self.name = "MySQL"
+        self.import_required_modules()
+
+        self.name = "MySQL"  # is this redundant?
         self.host = host
         self.user = user
         self.password = password
@@ -6981,6 +6991,13 @@ class Mysql(SQLDriver):
             self.execute_script(sql_script)
 
         self.win_pb.close()
+
+    def import_required_modules(self):
+        global mysql  # noqa PLW0603
+        try:
+            import mysql.connector
+        except ModuleNotFoundError as e:
+            self.import_failed(e)
 
     def connect(self, retries=3):
         attempt = 0
@@ -7158,7 +7175,11 @@ class Postgres(SQLDriver):
         sql_commands=None,
         sync_sequences=False,
     ):
-        super().__init__(name="Postgres", table_quote='"')
+        super().__init__(
+            name="Postgres", requires=["psycopg2", "psycopg2.extras"], table_quote='"'
+        )
+
+        self.import_required_modules()
 
         self.host = host
         self.user = user
@@ -7212,6 +7233,14 @@ class Postgres(SQLDriver):
             logger.info("Executing sql script from file passed in")
             self.execute_script(sql_script)
         self.win_pb.close()
+
+    def import_required_modules(self):
+        global psycopg2  # noqa PLW0603
+        try:
+            import psycopg2
+            import psycopg2.extras
+        except ModuleNotFoundError as e:
+            self.import_failed(e)
 
     def connect(self, retries=3):
         attempt = 0
@@ -7413,9 +7442,13 @@ class Sqlserver(SQLDriver):
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
     ):
-        super().__init__(name="Sqlserver", table_quote='"', placeholder="?")
+        super().__init__(
+            name="Sqlserver", requires=["pyodbc"], table_quote='"', placeholder="?"
+        )
 
-        self.name = "Sqlserver"
+        self.import_required_modules()
+
+        self.name = "Sqlserver"  # is this redundant?
         self.host = host
         self.user = user
         self.password = password
@@ -7434,6 +7467,13 @@ class Sqlserver(SQLDriver):
             self.execute_script(sql_script)
 
         self.win_pb.close()
+
+    def import_required_modules(self):
+        global pyodbc  # noqa PLW0603
+        try:
+            import pyodbc
+        except ModuleNotFoundError as e:
+            self.import_failed(e)
 
     def connect(self, retries=3, timeout=3):
         attempt = 0
@@ -7598,12 +7638,24 @@ class MSAccess(SQLDriver):
     """
 
     def __init__(self, database_file):
-        super().__init__(name="MSAccess", table_quote="[]", placeholder="?")
+        super().__init__(
+            name="MSAccess", requires=["Jype1"], table_quote="[]", placeholder="?"
+        )
+
+        self.import_required_modules()
+
         self.database_file = database_file
         self.con = self.connect()
 
     import os
     import sys
+
+    def import_required_modules(self):
+        global jpype  # noqa PLW0603
+        try:
+            import jpype  # pip install JPype1
+        except ModuleNotFoundError as e:
+            self.import_failed(e)
 
     def connect(self):
         # Get the path to the 'lib' folder
