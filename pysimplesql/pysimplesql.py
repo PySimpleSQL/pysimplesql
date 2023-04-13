@@ -7413,7 +7413,7 @@ class Sqlserver(SQLDriver):
     def __init__(
         self, host, user, password, database, sql_script=None, sql_commands=None
     ):
-        super().__init__(name="Sqlserver", table_quote='"', placeholder="?")
+        super().__init__(name="Sqlserver", table_quote="[]", placeholder="?")
 
         self.name = "Sqlserver"
         self.host = host
