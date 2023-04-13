@@ -3917,6 +3917,29 @@ class ProgressAnimate:
         :param config: Dictionary of configuration options as listed above
         :returns: None
         """
+        default_config = {
+            # oscillators for the bar divider and colors
+            "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
+            "red": {"value_start": 0, "value_range": 255, "period": 2, "offset": 0},
+            "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
+            "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
+            # phrases to display and the number of seconds to elapse between phrases
+            "phrases": lang.animate_phrases,
+            "phrase_delay": 5,
+        }
+        if config is None:
+            config = {}
+
+        if type(config) is not dict:
+            raise ValueError("config must be a dictionary")
+
+        if set(config.keys()) - set(default_config.keys()):
+            raise NotImplementedError(
+                f"config may only contain keys: {default_config.keys()}"
+            )
+
+        self.config = {**default_config, **config}
+
         self.title = title
         self.win: sg.Window = None
         self.layout = [
@@ -3934,20 +3957,6 @@ class ProgressAnimate:
         self.last_phrase_time = None
         self.phrase_index = 0
         self.completed = asyncio.Event()
-
-        default_config = {
-            # oscillators for the bar divider and colors
-            "bar": {"value_start": 0, "value_range": 100, "period": 3, "offset": 0},
-            "red": {"value_start": 0, "value_range": 255, "period": 2, "offset": 0},
-            "green": {"value_start": 0, "value_range": 255, "period": 3, "offset": 120},
-            "blue": {"value_start": 0, "value_range": 255, "period": 4, "offset": 240},
-            # phrases to display and the number of seconds to elapse between phrases
-            "phrases": lang.animate_phrases,
-            "phrase_delay": 5,
-        }
-        if config is None:
-            config = {}
-        self.config = {**default_config, **config}
 
     def run(self, fn: callable, *args, **kwargs):
         """
@@ -3985,6 +3994,7 @@ class ProgressAnimate:
             return result
         except Exception as e:  # noqa: BLE001
             print(f"\nAn error occurred in the process: {e}")
+            raise e  # Pass the exception along to the caller
         finally:
             self.completed.set()
 
