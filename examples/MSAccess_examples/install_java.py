@@ -6,11 +6,16 @@ with the UCanAccess java JDBC driver, which requires Java to be installed in ord
 run.  This also serves as an example to automatically download a local Java installation
 for your own projects.
 """
-import jdk
 import os
 import pysimplesql as ss
 import PySimpleGUI as sg
 import subprocess
+
+try:
+    import jdk
+except ModuleNotFoundError:
+    sg.popup_error("You must `pip install install-jdk` to use this example")
+    exit(0)
 
 
 # -------------------------------------------------
