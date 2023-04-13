@@ -65,5 +65,6 @@ ignore = [
     "I",
     ]
 "doc_examples/*" = ["F821"]
+"tests/*" = ["BLE001", "F405", "PT011", "PT012", "PT015", "PT017", "SIM114"]
 "pysimplesql/language_pack.py" = ["E501"]
 "pysimplesql/theme_pack.py" = ["E501"]
