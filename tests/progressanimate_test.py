@@ -4,6 +4,8 @@ import pytest
 
 import pysimplesql as ss
 
+# ruff: noqa
+
 
 # Simulated process
 def process(raise_error=False):
