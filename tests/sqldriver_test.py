@@ -1,5 +1,3 @@
-# ruff: skip-file
-
 import contextlib
 
 import docker.errors
@@ -7,8 +5,6 @@ import pytest
 
 import pysimplesql as ss
 from pysimplesql.docker_utils import *  # noqa F403
-
-# ruff: noqa
 
 
 # --------------------------------------------------------------------------------------
@@ -99,18 +95,17 @@ def driver(request):
         return driver_class(
             db_path=":memory:"
         )  # Use an in-memory database for sqlite tests
-    elif driver_class == ss.Driver.flatfile:
+    if driver_class == ss.Driver.flatfile:
         return driver_class(file_path="test.csv")
-    elif driver_class == ss.Driver.mysql:
+    if driver_class == ss.Driver.mysql:
         return driver_class(**mysql_docker)
-    elif driver_class == ss.Driver.postgres:
+    if driver_class == ss.Driver.postgres:
         return driver_class(**postgres_docker)
-    elif driver_class == ss.Driver.sqlserver:
+    if driver_class == ss.Driver.sqlserver:
         return driver_class(**sqlserver_docker)
-    elif driver_class == ss.Driver.msaccess:
+    if driver_class == ss.Driver.msaccess:
         return driver_class(database_file="test.accdb")
-    else:
-        raise NotImplementedError("Driver class not supported in tests.")
+    raise NotImplementedError("Driver class not supported in tests.")
 
 
 # --------------------------------------------------------------------------------------
