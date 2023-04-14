@@ -42,8 +42,29 @@ def test_config():
         ss.ProgressAnimate("Test", config=True)
     # What if the user does supply a dict, but it doesn't have the right keys?
     with pytest.raises(NotImplementedError):
-        # Purposely fail by
+        # Purposely fail by using unsupported key
         config = {
             "sound_effect": "beep",
         }
         ss.ProgressAnimate("Test", config=config)
+    # What if supplies a correct key, but does not have required subdict keys?
+    with pytest.raises(ValueError):
+        # purposely omit the offset
+        config = {
+            "red": {"value_start": 0, "value_range": 100, "period": 2},
+        }
+        ss.ProgressAnimate("Test", config=config)
+    # What if the user does supply a dict, but it doesn't have the right values?
+    with pytest.raises(ValueError):
+        # Purposely fail by using unsupported value
+        config = {
+            "red": {"value_start": True, "value_range": "A", "period": 2, "offset": 0},
+            "phrases": [True, 0, 3.14, "This one is good though"],
+        }
+        ss.ProgressAnimate("Test", config=config)
+
+
+def test_run():
+    with pytest.raises(ValueError):
+        pa = ss.ProgressAnimate("Test")
+        pa.run(True)
