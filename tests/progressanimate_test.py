@@ -1,6 +1,8 @@
-import pysimplesql as ss
-import pytest
 from time import sleep
+
+import pytest
+
+import pysimplesql as ss
 
 
 # Simulated process
