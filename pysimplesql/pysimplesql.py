@@ -3918,9 +3918,10 @@ class ProgressAnimate:
             if not all(isinstance(v, str) for v in config["phrases"]):
                 raise ValueError("phrases must be a list of strings")
 
-        if "phrase_delay" in config:
-            if not all(isinstance(v, (int, float)) for v in config["phrase_delay"]):  # noqa SIM102
-                raise ValueError("phrase_delay must be numeric")
+        if "phrase_delay" in config and not all(
+            isinstance(v, (int, float)) for v in config["phrase_delay"]
+        ):  # noqa SIM102
+            raise ValueError("phrase_delay must be numeric")
 
         self.config = {**default_config, **config}
 
