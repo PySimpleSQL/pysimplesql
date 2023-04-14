@@ -3906,12 +3906,11 @@ class ProgressAnimate:
             )
 
         for k in ["bar", "red", "green", "blue"]:
-            if k in config:
-                if not all(isinstance(v, (int, float)) for v in config[k]):
-                    raise ValueError(f"values for {k} component must all be numeric")
-                required_keys = {"value_start", "value_range", "period", "offset"}
-                if not required_keys.issubset(set(config.keys())):
-                    raise ValueError(f"{k} must contain all of {required_keys}")
+            if k in config and not all(isinstance(v, (int, float)) for v in config[k]):
+                raise ValueError(f"values for {k} component must all be numeric")
+            required_keys = {"value_start", "value_range", "period", "offset"}
+            if k in config and not required_keys.issubset(set(config.keys())):
+                raise ValueError(f"{k} must contain all of {required_keys}")
 
         if "phrases" in config:
             if type(config["phrases"]) is not list:
