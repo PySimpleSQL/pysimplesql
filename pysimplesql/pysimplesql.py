@@ -3905,6 +3905,24 @@ class ProgressAnimate:
                 f"config may only contain keys: {default_config.keys()}"
             )
 
+        for k in ["bar", "red", "green", "blue"]:
+            if k in config and not all(isinstance(v, (int, float)) for v in config[k]):
+                raise ValueError(f"values for {k} component must all be numeric")
+            required_keys = {"value_start", "value_range", "period", "offset"}
+            if k in config and not required_keys.issubset(set(config.keys())):
+                raise ValueError(f"{k} must contain all of {required_keys}")
+
+        if "phrases" in config:
+            if type(config["phrases"]) is not list:
+                raise ValueError("phrases must be a list")
+            if not all(isinstance(v, str) for v in config["phrases"]):
+                raise ValueError("phrases must be a list of strings")
+
+        if "phrase_delay" in config and not all(
+            isinstance(v, (int, float)) for v in config["phrase_delay"]
+        ):  # noqa SIM102
+            raise ValueError("phrase_delay must be numeric")
+
         self.config = {**default_config, **config}
 
         self.title = title
@@ -3930,6 +3948,9 @@ class ProgressAnimate:
         Runs the function in a separate co-routine, while animating the progress bar in
         another.
         """
+        if not callable(fn):
+            raise ValueError("fn must be a callable")
+
         return asyncio.run(self._dispatch(fn, *args, **kwargs))
 
     def close(self):
