@@ -1378,8 +1378,9 @@ class DataSet:
         :returns: The value of the column requested
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
-        if self.rows:
+        if len(self.rows.index):
             if self.get_current_row()[column]:
+                print("Current: ", self.get_current_row()[column])
                 return self.get_current_row()[column]
             return default
         return default
@@ -1980,7 +1981,7 @@ class DataSet:
 
         values = []
         try:
-            all_columns = self.rows[0].keys()
+            all_columns = list(self.rows.columns)
         except IndexError:
             all_columns = []
 
@@ -3186,7 +3187,9 @@ class Form:
                 # Populate the combobox entries
                 else:
                     lst = []
-                    for row in target_table.rows:
+                    print(type(target_table), target_table)
+                    for index, row in target_table.rows.iterrows():
+                        print(row)
                         print(
                             row,
                             pk_column,
@@ -3198,7 +3201,7 @@ class Form:
 
                     # Map the value to the combobox, by getting the description_column
                     # and using it to set the value
-                    for row in target_table.rows:
+                    for index, row in target_table.rows.iterrows():
                         if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
                             for entry in lst:
                                 if entry.get_pk() == mapped.dataset[rel.fk_column]:
