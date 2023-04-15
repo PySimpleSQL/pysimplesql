@@ -810,7 +810,7 @@ class DataSet:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.rows and self.get_current_row().virtual:
+        if self.row_is_virtual(self.current_index):
             return True
 
         dirty = False
@@ -901,11 +901,17 @@ class DataSet:
         """
         # Return False if there is nothing to check or _prompt_save is False
         # TODO: children too?
-        if self.current_index is None or self.rows == [] or not self._prompt_save:
+        if (
+            self.current_index is None
+            or len(self.rows.index) == 0
+            or not self._prompt_save
+        ):
             return PROMPT_SAVE_NONE
 
         # See if any rows are virtual
-        vrows = len([row for row in self.rows if row.virtual])
+        vrows = len(
+            [row for idx, row in self.rows.iterrows() if self.row_is_virtual(idx)]
+        )
         # Check if any records have changed
         changed = self.records_changed() or vrows
         if changed:
@@ -1352,12 +1358,10 @@ class DataSet:
             # don't update self/dependents if we are going to below anyway
             self.prompt_save(update_elements=False)
 
-        i = 0
-        for r in self.rows:
-            if r[self.pk_column] == pk:
-                self.current_index = i
-                break
-            i += 1
+        print("index:", self.rows.index[self.rows[self.pk_column] == pk].tolist()[0])
+        self.current_index = self.rows.index[self.rows[self.pk_column] == pk].tolist()[
+            0
+        ]
 
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
@@ -1662,7 +1666,7 @@ class DataSet:
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case
         else:
-            if current_row.virtual:
+            if self.row_is_virtual(self.current_index):
                 result = self.driver.insert_record(
                     self.table, self.get_current_pk(), self.pk_column, changed_row
                 )
@@ -1700,7 +1704,7 @@ class DataSet:
                 self.frm[self.table].requery_dependents()
 
             # Lets refresh our data
-            if current_row.virtual:
+            if self.row_is_virtual(self.current_index):
                 # Requery so that the new  row honors the order clause
                 self.requery(select_first=False, update_elements=False)
                 if update_elements:
@@ -1806,7 +1810,7 @@ class DataSet:
         if answer == "no":
             return True
 
-        if self.get_current_row().virtual:
+        if self.row_is_virtual(self.current_index):
             self.rows.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
@@ -1856,7 +1860,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not len(self.rows) or self.get_current_row().virtual:
+        if not len(self.rows.index) or self.row_is_virtual(self.current_index):
             return None
 
         # callback
@@ -1961,10 +1965,19 @@ class DataSet:
         :param pk: The primary key from which to find the description for
         :returns: The value found in the description column, or None if nothing is found
         """
-        for row in self.rows:
+        for index, row in self.rows.iterrows():
             if row[self.pk_column] == pk:
                 return row[self.description_column]
         return None
+
+    def row_is_virtual(self, index: int) -> bool:
+        """
+        Check whether the row at `index` is virtual
+
+        :param index: The index to check
+        :returns: True or False based on whether the row is virtual
+        """
+        return self.rows.attrs["virtual"][index]
 
     def table_values(
         self, columns: List[str] = None, mark_virtual: bool = False
@@ -1989,9 +2002,11 @@ class DataSet:
 
         pk_column = self.column_info.pk_column()
 
-        for row in self.rows:
+        for index, row in self.rows.iterrows():
             if mark_virtual:
-                lst = [themepack.marker_virtual] if row.virtual else [" "]
+                lst = (
+                    [themepack.marker_virtual] if self.row_is_virtual(index) else [" "]
+                )
             else:
                 lst = []
 
@@ -5819,55 +5834,6 @@ class ColumnInfo(List):
 # return a generic ResultSet instance, which contains a collection of generic ResultRow
 # instances.
 # --------------------------------------------------------------------------------------
-class ResultRow:
-
-    """
-    The ResulRow class is a generic row class.  It holds a dict containing the column
-    names and values of the row, along with a "virtual" flag.  A "virtual" row is one
-    which exists in PySimpleSQL, but not in the underlying database. This is useful for
-    inserting records or other temporary storage of records.  Note that when querying a
-    database, the virtual flag will never be set for a row- it is only set by the end
-    user by calling <ResultSet>.insert() to insert a new virtual row.
-
-    ResultRows are not typcially used by the end user directly, they are typically used
-    as a collection of ResultRows in a ResultSet.
-    """
-
-    def __init__(self, row: dict, original_index=None, virtual=False):
-        self.row = row
-        self.original_index = original_index
-        self.virtual = virtual
-
-    def __str__(self):
-        return f"ResultRow: {self.row}"
-
-    def __contains__(self, item):
-        return item in self.row
-
-    def __getitem__(self, item):
-        return self.row[item]
-
-    def __setitem__(self, key, value):
-        self.row[key] = value
-
-    def __lt__(self, other, key):
-        return self.row[key] < other.row[key]
-
-    def __iter__(self):
-        return iter(self.row)
-
-    def keys(self):
-        return self.row.keys()
-
-    def items(self):
-        return self.row.items()
-
-    def values(self):
-        return self.row.values()
-
-    def copy(self):
-        # return a copy of this row
-        return ResultRow(self.row.copy(), virtual=self.virtual)
 
 
 import pandas as pd
@@ -6091,260 +6057,6 @@ class ResultSet(pd.DataFrame):
             ResultSet.SORT_DESC
         """
         if column != self.sort_column:
-            self.sort_column = column
-            self.sort_reverse = False
-            self.sort(table)
-            return ResultSet.SORT_ASC
-        if not self.sort_reverse:
-            self.sort_reverse = True
-            self.sort(table)
-            return ResultSet.SORT_DESC
-        self.sort_reverse = False
-        self.sort_column = None
-        self.sort(table)
-        return ResultSet.SORT_NONE
-
-
-class ResultSet2:
-
-    """
-    The ResultSet class is a generic result class so that working with the resultset of
-    the different supported databases behave in a consistent manner. A `ResultSet` is a
-    collection of `ResultRow`s, along with the lastrowid and any exception returned by
-    the underlying `SQLDriver` when a query is executed.
-
-    ResultSets can be thought up as rows of information.  Iterating through a ResultSet
-    is very simple:
-        ResultSet = driver.execute('SELECT * FROM Journal;')
-        for row in rows:
-            print(row['title'])
-
-    Note: The lastrowid is set by the caller, but by pysimplesql convention, the
-    lastrowid should only be set after and INSERT statement is executed.
-    """
-
-    # Store class-related constants
-    SORT_NONE = 0
-    SORT_ASC = 1
-    SORT_DESC = 2
-
-    def __init__(
-        self,
-        rows: List[Dict[str, any]] = [],
-        lastrowid: int = None,
-        exception: str = None,
-        column_info: ColumnInfo = None,
-    ) -> None:
-        """
-        Create a new ResultSet instance.
-
-        :param rows: a list of dicts representing a row of data, with each key being a
-            column name
-        :param lastrowid: The primary key of an inserted item.
-        :param exception: If an exception was encountered during the query, it will be
-            passed along here
-        :column_info: a `ColumnInfo` object can be supplied so that column information
-            can be accessed
-        """
-        self.rows = [ResultRow(r, i) for r, i in zip(rows, range(len(rows)))]
-        self.lastrowid = lastrowid
-        self._iter_index = 0
-        self.exception = exception
-        self.column_info = column_info
-        self.sort_column = None
-        self.sort_reverse = False  # ASC or DESC
-
-    def __iter__(self):
-        return (row for row in self.rows)
-
-    def __next__(self):
-        if self._iter_index == len(self.rows):
-            raise StopIteration
-        self._iter_index += 1
-        return self.rows[self._iter_index - 1]
-
-    def __str__(self):
-        return str([row.row for row in self.rows])
-
-    def __contains__(self, item):
-        return item in self.rows
-
-    def __getitem__(self, item):
-        return self.rows[item]
-
-    def __setitem__(self, idx: int, new_row: ResultRow):
-        # carry over the original_index
-        with contextlib.suppress(AttributeError):
-            new_row.original_index = self.rows[idx].original_index
-        self.rows[idx] = new_row
-
-    def __len__(self):
-        return len(self.rows)
-
-    def get(self, key, default=None):
-        return self.rows.get(key, default)
-
-    def fetchone(self) -> ResultRow:
-        """
-        Fetch the first record in the ResulSet.
-
-        :returns: A `ResultRow` object
-        """
-        return self.rows[0] if len(self.rows) else []
-
-    def fetchall(self) -> ResultSet:
-        """
-        ResultSets don't actually support a fetchall(), since the rows are already
-        returned. This is more of a comfort method that does nothing, for those that are
-        used to calling fetchall().
-
-        :returns: The same ResultSet that called fetchall()
-        """
-        return self
-
-    def insert(self, row: dict, idx: int = None) -> None:
-        """
-        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist
-        in memory, but not in the database. When a save action is performed, virtua rows
-        will be added into the database.
-
-        :param row: A dict representation of a row of data
-        :param idx: The index where the row should be inserted (default to last index)
-        :returns: None
-        """
-        # Insert a new row manually.
-        # This will mark the row as virtual, as it did not come from the database.
-        self.rows.insert(idx if idx else len(self.rows), ResultRow(row, virtual=True))
-
-    def purge_virtual(self) -> None:
-        """
-        Purge virtual rows from the `ResultSet`.
-
-        :returns: None
-        """
-        # Purge virtual rows from the list
-        self.rows = [row for row in self.rows if not row.virtual]
-
-    def sort_by_column(self, column: str, table: str, reverse=False) -> None:
-        """
-        Sort the `ResultSet` by column. Using the mapped relationships of the database,
-        foreign keys will automatically sort based on the parent table's description
-        column, rather than the foreign key number.
-
-        :param column: The name of the column to sort the `ResultSet` by
-        :param table: The name of the table the column belongs to
-        :param reverse: Reverse the sort; False = ASC, True = DESC
-        :returns: None
-        """
-        # Target sorting by this ResultSet
-        rows = self  # search criteria is based on rows
-        target_col = column  # Looking in rows for this column
-        target_val = column  # to be equal to the same column in self.rows
-
-        # We don't want to sort by foreign keys directly -we want to sort by the
-        # description column of the foreign table that the foreign key references
-        rels = Relationship.get_relationships(table)
-        for rel in rels:
-            if column == rel.fk_column:
-                rows = rel.frm[
-                    rel.parent_table
-                ].rows  # change the rows used for sort criteria
-                target_col = rel.pk_column  # change our target column to look in
-                target_val = rel.frm[
-                    rel.parent_table
-                ].description_column  # and return the value in this column
-                break
-        try:
-            self.rows = sorted(
-                self.rows,
-                key=lambda x: next(
-                    r[target_val] for r in rows if r[target_col] == x[column]
-                ),
-                reverse=reverse,
-            )
-        except KeyError:
-            logger.debug(f"ResultSet could not sort by column {column}. KeyError.")
-
-    def sort_by_index(self, index: int, table: str, reverse=False):
-        """
-        Sort the `ResultSet` by column index Using the mapped relationships of the
-        database, foreign keys will automatically sort based on the parent table's
-        description column, rather than the foreign key number.
-
-        :param index: The index of the column to sort the `ResultSet` by
-        :param table: The name of the table the column belongs to
-        :param reverse: Reverse the sort; False = ASC, True = DESC
-        :returns: None
-        """
-        try:
-            column = list(self[0].keys())[index]
-        except IndexError:
-            logger.debug(
-                f"ResultSet could not sort by column index {index}. IndexError."
-            )
-            return
-        self.sort_by_column(column, table, reverse)
-
-    def store_sort_settings(self) -> list:
-        """
-        Store the current sort settingg. Sort settings are just the sort column and
-        reverse setting. Sort order can be restored with
-        `ResultSet.load_sort_settings()`.
-
-        :returns: A list containing the sort_column and the sort_reverse
-        """
-        return [self.sort_column, self.sort_reverse]
-
-    def load_sort_settings(self, sort_settings: list) -> None:
-        """
-        Load a previously stored sort setting. Sort settings are just the sort columm
-        and reverse setting.
-
-        :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
-        """
-        self.sort_column = sort_settings[0]
-        self.sort_reverse = sort_settings[1]
-
-    def sort_reset(self) -> None:
-        """
-        Reset the sort order to the original when this ResultSet was created.  Each
-        ResultRow has the original order stored.
-
-        :returns: None
-        """
-        self.rows = sorted(
-            self.rows,
-            key=lambda x: x.original_index
-            if x.original_index is not None
-            else float("inf"),
-        )
-
-    def sort(self, table: str) -> None:
-        """
-        Sort according to the internal sort_column and sort_reverse variables. This is a
-        good way to re-sort without changing the sort_cycle.
-
-        :param table: The table associated with this ResultSet.  Passed along to
-            `ResultSet.sort_by_column()`
-        :returns: None
-        """
-        if self.sort_column is None:
-            self.sort_reset()
-        else:
-            self.sort_by_column(self.sort_column, table, self.sort_reverse)
-
-    def sort_cycle(self, column: str, table: str) -> int:
-        """
-        Cycle between original sort order of the ResultSet, ASC by column, and DESC by
-        column with each call.
-
-        :param column: The column name to cycle the sort on
-        :param table: The table that the column belongs to
-        :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or
-            ResultSet.SORT_DESC
-        """
-        if column != self.sort_column:
-            # We are going to sort by a new column.  Default to ASC
             self.sort_column = column
             self.sort_reverse = False
             self.sort(table)
