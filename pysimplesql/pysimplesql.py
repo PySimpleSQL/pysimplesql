@@ -542,7 +542,7 @@ class DataSet:
         self.search_order: List[str] = []
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
-        self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
+        self.transform: Optional[Callable[[ResultSet, int], None]] = None
         self.filtered: bool = filtered
         if prompt_save is None:
             self._prompt_save = self.frm._prompt_save
@@ -825,7 +825,7 @@ class DataSet:
 
                 # don't check if there aren't any rows. Fixes checkbox = '' when no
                 # rows.
-                if not len(self.frm[mapped.table].rows):
+                if not len(self.frm[mapped.table].rows.index):
                     continue
 
                 # Get the element value and cast it, so we can compare it to the
@@ -836,7 +836,7 @@ class DataSet:
                 # the appropriate table column.
                 table_val = None
                 if mapped.where_column is not None:
-                    for row in self.rows:
+                    for index, row in self.rows.itterrows():
                         if row[mapped.where_column] == mapped.where_value:
                             table_val = row[mapped.column]
                 else:
@@ -977,7 +977,7 @@ class DataSet:
             # Stop requery short if parent has no records or current row is virtual
             parent_table = Relationship.get_parent(self.table)
             if parent_table and (
-                not len(self.frm[parent_table].rows)
+                not len(self.frm[parent_table].rows.index)
                 or Relationship.parent_virtual(self.table, self.frm)
             ):
                 self.rows = ResultSet([])  # purge rows
@@ -1003,7 +1003,6 @@ class DataSet:
         # now we can restore the sort order
         self.rows.load_sort_settings(sort_settings)
         self.rows.sort(self.table)
-
         # Perform transform one row at a time
         if self.transform is not None:
             self.rows = self.rows.apply(
@@ -1013,7 +1012,10 @@ class DataSet:
         # Strip trailing white space, as this is what sg[element].get() does, so we
         # can have an equal comparison. Not the prettiest solution.  Will look into
         # this more on the PySimpleGUI end and make a follow-up ticket.
-        self.rows = self.rows.applymap(
+
+        # Note on the below.  Without rows.loc[:,:], the .applymap would return an entirely new DataFrame, and not
+        # a ResultSet.  TODO: Move this into it's own ResultSet method?
+        self.rows.loc[:, :] = self.rows.applymap(
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
 
@@ -1108,7 +1110,7 @@ class DataSet:
             # don't update self/dependents if we are going to below anyway
             self.prompt_save(update_elements=False)
 
-        self.current_index = len(self.rows) - 1
+        self.current_index = len(self.rows.index) - 1
         if update_elements:
             self.frm.update_elements(self.key)
         if requery_dependents:
@@ -1137,7 +1139,7 @@ class DataSet:
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
-        if self.current_index < len(self.rows) - 1:
+        if self.current_index < len(self.rows.index) - 1:
             logger.debug(f"Moving to the next record of table {self.table}")
             if skip_prompt_save is False:
                 # don't update self/dependents if we are going to below anyway
@@ -1237,12 +1239,12 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         # First lets make a search order.. TODO: remove this hard coded garbage
-        if len(self.rows):
+        if len(self.rows.index):
             logger.debug(f"DEBUG: {self.search_order} {self.rows[0].keys()}")
         for o in self.search_order:
             # Perform a search for str, from the current position to the end and back by
             # creating a list of all indexes
-            for i in list(range(self.current_index + 1, len(self.rows))) + list(
+            for i in list(range(self.current_index + 1, len(self.rows.index))) + list(
                 range(0, self.current_index)
             ):
                 if (
@@ -1415,7 +1417,7 @@ class DataSet:
         :param key_value: The value to search for
         :returns: Returns the value found in `value_column`
         """
-        for r in self.rows:
+        for i, r in self.rows.itterrows():
             if r[key_column] == key_value:
                 return r[value_column]
         return None
@@ -1531,8 +1533,8 @@ class DataSet:
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
-        # Insert the new values using RecordSet.insert(), marking the new row as virtual
-        self.rows.insert(new_values)
+        # Insert the new values using ResultSet.insert_row(), marking the new row as virtual
+        self.rows.insert_row(new_values)
 
         # and move to the new record
         self.set_by_pk(
@@ -3204,7 +3206,6 @@ class Form:
                 # Populate the combobox entries
                 else:
                     lst = []
-                    print(type(target_table), target_table)
                     for index, row in target_table.rows.iterrows():
                         lst.append(ElementRow(row[pk_column], row[description]))
 
@@ -5876,7 +5877,7 @@ class ResultSet(pd.DataFrame):
         self.sort_reverse = False
         self.attrs["original_index"] = self.index.copy()  # Store the original index
         self.attrs["virtual"] = pd.Series(
-            [False] * len(self), index=self.index
+            [False] * len(self), index=self.index, dtype=bool
         )  # Store virtual flags for each row
 
     def __str__(self):
@@ -5900,7 +5901,7 @@ class ResultSet(pd.DataFrame):
         """
         return self
 
-    def insert(self, row: dict, idx: int = None, virtual: bool = False) -> None:
+    def insert_row(self, row: dict, idx: int = None) -> None:
         """
         Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist
         in memory, but not in the database. When a save action is performed, virtual
@@ -5918,7 +5919,7 @@ class ResultSet(pd.DataFrame):
         self.attrs["original_index"] = self.attrs["original_index"].insert(
             idx, idx_label
         )
-        self.attrs["virtual"].loc[idx_label] = virtual
+        self.attrs["virtual"].loc[idx_label] = True
         self.sort_index()
 
     def purge_virtual(self) -> None:
@@ -6659,7 +6660,7 @@ class Sqlite(SQLDriver):
         silent=False,
         column_info=None,
         auto_commit_rollback: bool = False,
-    ):
+    ) -> ResultSet:
         if not silent:
             logger.info(f"Executing query: {query} {values}")
 
