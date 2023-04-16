@@ -64,7 +64,7 @@ import queue
 import threading  # threaded popup
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
+from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
 import pandas as pd
 import PySimpleGUI as sg
@@ -5868,7 +5868,7 @@ class ResultSet(pd.DataFrame):
         :column_info: a `ColumnInfo` object can be supplied so that column information
             can be accessed
         """
-        super().__init__(rows)
+        super().__init__(rows)  # initialize the DataFrame with the row values
         self.lastrowid = lastrowid
         self.exception = exception
         self.column_info = column_info
@@ -5912,7 +5912,7 @@ class ResultSet(pd.DataFrame):
         """
         row_series = pd.Series(row)
         if idx is None:
-            idx = len(self)
+            idx = len(self.index)
         idx_label = self.index.max() + 1 if len(self) > 0 else 0
         self.loc[idx_label] = row_series
         self.attrs["original_index"] = self.attrs["original_index"].insert(
