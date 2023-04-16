@@ -64,8 +64,9 @@ import queue
 import threading  # threaded popup
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
-from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union  # docs
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
+import pandas as pd
 import PySimpleGUI as sg
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
@@ -317,7 +318,7 @@ class Relationship:
         for r in cls.instances:
             if r.child_table == table and r.on_update_cascade:
                 try:
-                    return frm[r.parent_table].get_current_row().virtual
+                    return frm[r.parent_table].row_is_virtual()
                 except AttributeError:
                     return False
         return None
@@ -541,7 +542,7 @@ class DataSet:
         self.search_order: List[str] = []
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
-        self.transform: Optional[Callable[[ResultRow, int], None]] = None
+        self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
         self.filtered: bool = filtered
         if prompt_save is None:
             self._prompt_save = self.frm._prompt_save
@@ -810,7 +811,7 @@ class DataSet:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.row_is_virtual(self.current_index):
+        if self.row_is_virtual():
             return True
 
         dirty = False
@@ -1358,7 +1359,6 @@ class DataSet:
             # don't update self/dependents if we are going to below anyway
             self.prompt_save(update_elements=False)
 
-        print("index:", self.rows.index[self.rows[self.pk_column] == pk].tolist()[0])
         self.current_index = self.rows.index[self.rows[self.pk_column] == pk].tolist()[
             0
         ]
@@ -1384,7 +1384,6 @@ class DataSet:
         logger.debug(f"Getting current record for {self.table}.{column}")
         if len(self.rows.index):
             if self.get_current_row()[column]:
-                print("Current: ", self.get_current_row()[column])
                 return self.get_current_row()[column]
             return default
         return default
@@ -1666,7 +1665,7 @@ class DataSet:
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case
         else:
-            if self.row_is_virtual(self.current_index):
+            if self.row_is_virtual():
                 result = self.driver.insert_record(
                     self.table, self.get_current_pk(), self.pk_column, changed_row
                 )
@@ -1704,7 +1703,7 @@ class DataSet:
                 self.frm[self.table].requery_dependents()
 
             # Lets refresh our data
-            if self.row_is_virtual(self.current_index):
+            if self.row_is_virtual():
                 # Requery so that the new  row honors the order clause
                 self.requery(select_first=False, update_elements=False)
                 if update_elements:
@@ -1810,7 +1809,7 @@ class DataSet:
         if answer == "no":
             return True
 
-        if self.row_is_virtual(self.current_index):
+        if self.row_is_virtual():
             self.rows.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
@@ -1860,7 +1859,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not len(self.rows.index) or self.row_is_virtual(self.current_index):
+        if not len(self.rows.index) or self.row_is_virtual():
             return None
 
         # callback
@@ -1970,13 +1969,16 @@ class DataSet:
                 return row[self.description_column]
         return None
 
-    def row_is_virtual(self, index: int) -> bool:
+    def row_is_virtual(self, index: int = None) -> bool:
         """
         Check whether the row at `index` is virtual
 
-        :param index: The index to check
+        :param index: The index to check. If none is passed, then the current index will
+            be used.
         :returns: True or False based on whether the row is virtual
         """
+        if index is None:
+            index = self.current_index
         return self.rows.attrs["virtual"][index]
 
     def table_values(
@@ -3138,7 +3140,7 @@ class Form:
                 # this is a virtual row
                 marker_key = mapped.element.key + ":marker"
                 try:
-                    if mapped.dataset.get_current_row().virtual:
+                    if mapped.dataset.row_is_virtual():
                         # get the column name from the key
                         col = mapped.column
                         # get notnull from the column info
@@ -3204,14 +3206,6 @@ class Form:
                     lst = []
                     print(type(target_table), target_table)
                     for index, row in target_table.rows.iterrows():
-                        print(row)
-                        print(
-                            row,
-                            pk_column,
-                            description,
-                            row[pk_column],
-                            row[description],
-                        )
                         lst.append(ElementRow(row[pk_column], row[description]))
 
                     # Map the value to the combobox, by getting the description_column
@@ -5834,11 +5828,6 @@ class ColumnInfo(List):
 # return a generic ResultSet instance, which contains a collection of generic ResultRow
 # instances.
 # --------------------------------------------------------------------------------------
-
-
-import pandas as pd
-
-
 class ResultSet(pd.DataFrame):
     """
     The ResultSet class is a generic result class so that working with the resultset of
@@ -5846,10 +5835,11 @@ class ResultSet(pd.DataFrame):
     Pandas dataframe with some extra functionality to make working with abstracted
     database drivers easier.
 
-    ResultSets can be thought up as rows of information.  Iterating through a ResultSet
+    ResultSets can be thought up as rows of information and are build from a Pandas
+    DataFrame. Iterating through a ResultSet
     is very simple:
         ResultSet = driver.execute('SELECT * FROM Journal;')
-        for row in rows:
+        for index, row in rows.iteritems():
             print(row['title'])
 
     Note: The lastrowid is set by the caller, but by pysimplesql convention, the
