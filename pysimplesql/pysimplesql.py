@@ -1693,7 +1693,7 @@ class DataSet:
             current_row[self.pk_column] = pk
 
             # then update the current row data
-            self.rows[self.current_index] = current_row
+            self.rows.iloc[self.current_index] = current_row
 
             # If child changes parent, move index back and requery/requery_dependents
             if (
