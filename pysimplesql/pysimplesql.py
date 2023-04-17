@@ -940,7 +940,7 @@ class DataSet:
                     return PROMPT_SAVE_DISCARDED
                 return PROMPT_SAVE_PROCEED
             # if no
-            self.rows.purge_virtual()
+            self.purge_virtual()
             if vrows and update_elements:
                 self.frm.update_elements(self.key)
             return PROMPT_SAVE_DISCARDED
@@ -1007,6 +1007,12 @@ class DataSet:
 
         rows = self.driver.execute(query)
         self.rows = rows
+
+        if "sort_order" not in self.rows.attrs:
+            # Store the sort order as a dictionary in the attrs of the DataFrame
+            sort_order = self.rows[self.pk_column].to_list()
+            self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
+
         # now we can restore the sort order
         self.load_sort_settings(sort_settings)
         self.sort(self.table)
@@ -2223,12 +2229,12 @@ class DataSet:
 
         try:
             self.rows.sort_values(
-                by=rows,
-                key=get_sort_key,
+                column,
                 ascending=not reverse,
                 inplace=True,
             )
         except KeyError:
+            print("OH NO")
             logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
@@ -2272,7 +2278,13 @@ class DataSet:
 
         :returns: None
         """
-        self.rows.index = self.rows.attrs["original_index"]
+        # Restore the original sort order
+        sort_column = list(self.rows.attrs["sort_order"].keys())[0]
+        sort_order = self.rows.attrs["sort_order"][sort_column]
+        self.rows.loc[:, sort_column] = pd.Categorical(
+            self.rows[sort_column], categories=sort_order, ordered=True
+        )
+        self.rows.sort_values(sort_column, inplace=True)
 
     def sort(self, table: str) -> None:
         """
@@ -2293,6 +2305,7 @@ class DataSet:
             self.sort_by_column(
                 self.rows.attrs["sort_column"], table, self.rows.attrs["sort_reverse"]
             )
+        self.rows.reset_index(drop=True, inplace=True)
 
     def sort_cycle(self, column: str, table: str) -> int:
         """
@@ -6015,7 +6028,6 @@ class Result:
         df = pd.DataFrame(row_data)
         df.attrs["lastrowid"] = lastrowid
         df.attrs["exception"] = exception
-        df.attrs["original_index"] = df.index.copy()  # Store the original index
         df.attrs["column_info"] = column_info
         df.attrs["virtual"] = pd.Series(
             [False] * len(df.index), index=df.index
