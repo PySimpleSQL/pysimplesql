@@ -1008,11 +1008,6 @@ class DataSet:
         rows = self.driver.execute(query)
         self.rows = rows
 
-        if "sort_order" not in self.rows.attrs:
-            # Store the sort order as a dictionary in the attrs of the DataFrame
-            sort_order = self.rows[self.pk_column].to_list()
-            self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
-
         # now we can restore the sort order
         self.load_sort_settings(sort_settings)
         self.sort(self.table)
@@ -1548,7 +1543,7 @@ class DataSet:
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
         # Insert the new values using ResultSet.insert_row(), marking the new row as virtual
-        self.rows.insert_row(new_values)
+        self.insert_row(new_values)
 
         # and move to the new record
         self.set_by_pk(
@@ -2177,12 +2172,13 @@ class DataSet:
 
         :returns: None
         """
-        virtual_rows = self.rows.attrs["virtual"][self.rows.attrs["virtual"]].index
-        self.rows.drop(virtual_rows, inplace=True)
-        self.rows.attrs["original_index"] = self.rows.attrs["original_index"].drop(
-            virtual_rows
-        )
-        self.rows.attrs["virtual"] = self.rows.attrs["virtual"].drop(virtual_rows)
+        # remove the rows where virtual is True in place, along with the corresponding
+        # virtual attribute
+        # remove the rows where virtual is True in place, along with the corresponding virtual attribute
+        idx_to_remove = [idx for idx, v in self.rows.attrs["virtual"].items() if v]
+        self.rows.drop(index=idx_to_remove, inplace=True)
+        for idx in idx_to_remove:
+            del self.rows.attrs["virtual"][idx]
 
     def sort_by_column(self, column: str, table: str, reverse=False) -> None:
         """
@@ -2273,18 +2269,12 @@ class DataSet:
 
     def sort_reset(self) -> None:
         """
-        Reset the sort order to the original when this ResultSet was created.  Each
-        ResultRow has the original order stored.
+        Reset the sort order to the original order as defined by the DataFram index
 
         :returns: None
         """
         # Restore the original sort order
-        sort_column = list(self.rows.attrs["sort_order"].keys())[0]
-        sort_order = self.rows.attrs["sort_order"][sort_column]
-        self.rows.loc[:, sort_column] = pd.Categorical(
-            self.rows[sort_column], categories=sort_order, ordered=True
-        )
-        self.rows.sort_values(sort_column, inplace=True)
+        self.rows.sort_index(inplace=True)
 
     def sort(self, table: str) -> None:
         """
@@ -2295,6 +2285,7 @@ class DataSet:
             `ResultSet.sort_by_column()`
         :returns: None
         """
+        pk = self.get_current_pk()
         if self.rows.attrs["sort_column"] is None:
             print("Sort column is None.  Resetting sort.")
             self.sort_reset()
@@ -2305,7 +2296,7 @@ class DataSet:
             self.sort_by_column(
                 self.rows.attrs["sort_column"], table, self.rows.attrs["sort_reverse"]
             )
-        self.rows.reset_index(drop=True, inplace=True)
+        self.set_by_pk(pk)
 
     def sort_cycle(self, column: str, table: str) -> int:
         """
@@ -2330,6 +2321,27 @@ class DataSet:
         self.rows.attrs["sort_column"] = None
         self.sort(table)
         return SORT_NONE
+
+    def insert_row(self, row: dict, idx: int = None) -> None:
+        """
+        Insert a new virtual row into the DataFrame. Virtual rows are ones that exist
+        in memory, but not in the database. When a save action is performed, virtual
+        rows will be added into the database.
+
+        :param row: A dict representation of a row of data
+        :param idx: The index where the row should be inserted (default to last index)
+        :returns: None
+        """
+        row_series = pd.Series(row)
+        self.rows.append(row_series, ignore_index=True)
+        return
+        if idx is None:
+            idx = len(self.rows.index)
+        idx_label = self.rows.index.max() + 1 if len(self.rows.index) > 0 else 0
+        self.rows.loc[idx_label] = row_series
+        self.rows.attrs["sort_order"][self.pk_column].append(row[self.pk_column])
+        self.rows_attrs["virtual"].loc[idx_label] = True
+        self.rows.sort_index()
 
 
 class Form:
@@ -5849,10 +5861,10 @@ class ColumnInfo(List):
                 rows = self.driver.execute(q)
                 if rows.attrs["exception"] is None:
                     try:
-                        default = rows.fetchone()["val"]
+                        default = rows.iloc[0]["val"]
                     except KeyError:
                         try:
-                            default = rows.fetchone()["VAL"]
+                            default = rows.iloc[0]["VAL"]
                         except KeyError:
                             default = ""
                     d[c.name] = default
@@ -6499,11 +6511,11 @@ class SQLDriver:
 
     def min_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MIN({pk_column}) as min_pk FROM {table}")
-        return rows.fetchone()["min_pk"]
+        return rows.iloc[0]["min_pk"]
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.fetchone()["max_pk"]
+        return rows.iloc[0]["max_pk"]
 
     def generate_join_clause(self, dataset: DataSet) -> str:
         """
