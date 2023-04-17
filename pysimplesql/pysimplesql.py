@@ -168,9 +168,16 @@ DELETE_FAILED: int = 1  # No result was found
 DELETE_RETURNED: int = 2  # A result was found
 DELETE_ABORTED: int = 4  # The search was aborted, likely during a callback
 DELETE_RECURSION_LIMIT_ERROR: int = 8  # We hit max nested levels
-DELETE_CASCADE_RECURSION_LIMIT = (
+DELETE_CASCADE_RECURSION_LIMIT: int = (
     15  # Mysql sets this as 15 when using foreign key CASCADE DELETE
 )
+
+# -------
+# Sorting
+# -------
+SORT_NONE = 0
+SORT_ASC = 1
+SORT_DESC = 2
 
 
 # -------
@@ -538,11 +545,11 @@ class DataSet:
         self.where_clause: str = ""  # In addition to the generated where clause!
         self.dependents: list = []
         self.column_info: ColumnInfo  # ColumnInfo collection
-        self.rows: Union[ResultSet, None] = None
+        self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
-        self.transform: Optional[Callable[[ResultSet, int], None]] = None
+        self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
         self.filtered: bool = filtered
         if prompt_save is None:
             self._prompt_save = self.frm._prompt_save
@@ -980,7 +987,7 @@ class DataSet:
                 not len(self.frm[parent_table].rows.index)
                 or Relationship.parent_virtual(self.table, self.frm)
             ):
-                self.rows = ResultSet([])  # purge rows
+                self.rows = pd.DataFrame([])  # purge rows
                 if update_elements:
                     self.frm.update_elements(self.key)
                 if requery_dependents:
@@ -996,13 +1003,15 @@ class DataSet:
         try:
             sort_settings = self.rows.store_sort_settings()
         except AttributeError:
-            sort_settings = [None, ResultSet.SORT_NONE]  # default for first query
+            sort_settings = [None, SORT_NONE]  # default for first query
 
         rows = self.driver.execute(query)
         self.rows = rows
+        print(self.rows)
         # now we can restore the sort order
-        self.rows.load_sort_settings(sort_settings)
-        self.rows.sort(self.table)
+        self.load_sort_settings(sort_settings)
+        self.sort(self.table)
+
         # Perform transform one row at a time
         if self.transform is not None:
             self.rows = self.rows.apply(
@@ -2156,6 +2165,147 @@ class DataSet:
             if not callable(v):
                 RuntimeError(f"Transform for {k} must be callable!")
             self._simple_transform[k] = v
+
+    def purge_virtual(self) -> None:
+        """
+        Purge virtual rows from the DataFrame.
+
+        :returns: None
+        """
+        virtual_rows = self.rows.attrs["virtual"][self.rows.attrs["virtual"]].index
+        self.rows.drop(virtual_rows, inplace=True)
+        self.rows.attrs["original_index"] = self.rows.attrs["original_index"].drop(
+            virtual_rows
+        )
+        self.rows.attrs["virtual"] = self.rows.attrs["virtual"].drop(virtual_rows)
+
+    def sort_by_column(self, column: str, table: str, reverse=False) -> None:
+        """
+        Sort the DataFrame by column. Using the mapped relationships of the database,
+        foreign keys will automatically sort based on the parent table's description
+        column, rather than the foreign key number.
+
+        :param column: The name of the column to sort the DataFrame by
+        :param table: The name of the table the column belongs to
+        :param reverse: Reverse the sort; False = ASC, True = DESC
+        :returns: None
+        """
+        # Target sorting by this ResultSet
+        rows = self  # search criteria is based on rows
+        target_col = column  # Looking in rows for this column
+        target_val = column  # to be equal to the same column in self.rows
+
+        # We don't want to sort by foreign keys directly - we want to sort by the
+        # description column of the foreign table that the foreign key references
+        rels = Relationship.get_relationships(table)
+        for rel in rels:
+            if column == rel.fk_column:
+                rows = rel.frm[
+                    rel.parent_table
+                ]  # change the rows used for sort criteria
+                target_col = rel.pk_column  # change our target column to look in
+                target_val = rel.frm[
+                    rel.parent_table
+                ].description_column  # and return the value in this column
+                break
+
+        def get_sort_key(row):
+            try:
+                return next(
+                    r[target_val]
+                    for _, r in rows.iterrows()
+                    if r[target_col] == row[column]
+                )
+            except StopIteration:
+                return None
+
+        try:
+            self.sort_values(
+                by=self.index, key=get_sort_key, ascending=not reverse, inplace=True
+            )
+        except KeyError:
+            logger.debug(f"ResultSet could not sort by column {column}. KeyError.")
+
+    def sort_by_index(self, index: int, table: str, reverse=False):
+        """
+        Sort the `ResultSet` by column index Using the mapped relationships of the
+        database, foreign keys will automatically sort based on the parent table's
+        description column, rather than the foreign key number.
+
+        :param index: The index of the column to sort the `ResultSet` by
+        :param table: The name of the table the column belongs to
+        :param reverse: Reverse the sort; False = ASC, True = DESC
+        :returns: None
+        """
+        column = self.columns[index]
+        self.sort_by_column(column, table, reverse)
+
+    def store_sort_settings(self) -> list:
+        """
+        Store the current sort settingg. Sort settings are just the sort column and
+        reverse setting. Sort order can be restored with
+        `ResultSet.load_sort_settings()`.
+
+        :returns: A list containing the sort_column and the sort_reverse
+        """
+        return [self.sort_column, self.sort_reverse]
+
+    def load_sort_settings(self, sort_settings: list) -> None:
+        """
+        Load a previously stored sort setting. Sort settings are just the sort columm
+        and reverse setting.
+
+        :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
+        """
+        self.sort_column = sort_settings[0]
+        self.sort_reverse = sort_settings[1]
+
+    def sort_reset(self) -> None:
+        """
+        Reset the sort order to the original when this ResultSet was created.  Each
+        ResultRow has the original order stored.
+
+        :returns: None
+        """
+        self.rows.index = self.rows.attrs["original_index"]
+
+    def sort(self, table: str) -> None:
+        """
+        Sort according to the internal sort_column and sort_reverse variables. This is a
+        good way to re-sort without changing the sort_cycle.
+
+        :param table: The table associated with this ResultSet.  Passed along to
+            `ResultSet.sort_by_column()`
+        :returns: None
+        """
+        if self.sort_column is None:
+            self.sort_reset()
+        else:
+            self.sort_by_column(self.sort_column, table, self.sort_reverse)
+
+    def sort_cycle(self, column: str, table: str) -> int:
+        """
+        Cycle between original sort order of the ResultSet, ASC by column, and DESC by
+        column with each call.
+
+        :param column: The column name to cycle the sort on
+        :param table: The table that the column belongs to
+        :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or
+            ResultSet.SORT_DESC
+        """
+        if column != self.sort_column:
+            self.sort_column = column
+            self.sort_reverse = False
+            self.sort(table)
+            return SORT_ASC
+        if not self.sort_reverse:
+            self.sort_reverse = True
+            self.sort(table)
+            return SORT_DESC
+        self.sort_reverse = False
+        self.sort_column = None
+        self.sort(table)
+        return SORT_NONE
 
 
 class Form:
@@ -5082,7 +5232,7 @@ class _SortCallbackWrapper:
     def __call__(self, column):
         # store the pk:
         pk = self.frm[self.data_key].get_current_pk()
-        sort_order = self.frm[self.data_key].rows.sort_cycle(column, self.data_key)
+        sort_order = self.frm[self.data_key].sort_cycle(column, self.data_key)
         # We only need to update the selectors not all elements,
         # so first set by the primary key, then update_selectors()
         self.frm[self.data_key].set_by_pk(
@@ -5829,7 +5979,40 @@ class ColumnInfo(List):
 # return a generic ResultSet instance, which contains a collection of generic ResultRow
 # instances.
 # --------------------------------------------------------------------------------------
-class ResultSet(pd.DataFrame):
+class Result:
+    """
+    This is a "dummy" Result object that is a convenience for constructing a DataFrame
+    that has the expected attrs set.
+    """
+
+    @classmethod
+    def set(
+        cls,
+        row_data: dict,
+        lastrowid: int = None,
+        exception: Exception = None,
+        column_info: ColumnInfo = None,
+    ):
+        """
+        Create a pandas DataFrame with the row data and expected attrs set.
+
+        :param row_data: A list of dicts of row data
+        :param lastrowid: The inserted row ID from the last INSERT statement
+        :param exception: Exceptions passed back from the SQLDriver
+        :param column_info: An optional ColumnInfo object
+        """
+        df = pd.DataFrame(row_data)
+        df.attrs["lastrowid"] = lastrowid
+        df.attrs["exception"] = exception
+        df.attrs["original_index"] = df.index.copy()  # Store the original index
+        df.attrs["column_info"] = column_info
+        df.attrs["virtual"] = pd.Series(
+            [False] * len(df.index), index=df.index
+        )  # Store virtual flags for each row
+        return df
+
+
+class ResultSet2(pd.DataFrame):
     """
     The ResultSet class is a generic result class so that working with the resultset of
     the different supported databases behave in a consistent manner. A `ResultSet` is a
@@ -5924,7 +6107,7 @@ class ResultSet(pd.DataFrame):
 
     def purge_virtual(self) -> None:
         """
-        Purge virtual rows from the `ResultSet`.
+        Purge virtual rows from the DataFrame.
 
         :returns: None
         """
@@ -6685,7 +6868,9 @@ class Sqlite(SQLDriver):
             rows = []
 
         lastrowid = cursor.lastrowid if cursor.lastrowid is not None else None
-        return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
+        return Result.set(
+            [dict(row) for row in rows], lastrowid, exception, column_info
+        )
 
     def close(self):
         # Only do cleanup if this is not an imported database
@@ -6729,9 +6914,8 @@ class Sqlite(SQLDriver):
 
     def pk_column(self, table):
         q = f"PRAGMA table_info({self.quote_table(table)})"
-        row = self.execute(q, silent=True).fetchone()
-
-        return row["name"] if "name" in row else None
+        result = self.execute(q, silent=True)
+        return result.loc[result["pk"] == 1, "name"].iloc[0]
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
