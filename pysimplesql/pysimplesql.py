@@ -1007,7 +1007,6 @@ class DataSet:
 
         rows = self.driver.execute(query)
         self.rows = rows
-        print(self.rows)
         # now we can restore the sort order
         self.load_sort_settings(sort_settings)
         self.sort(self.table)
@@ -2190,8 +2189,8 @@ class DataSet:
         :param reverse: Reverse the sort; False = ASC, True = DESC
         :returns: None
         """
-        # Target sorting by this ResultSet
-        rows = self  # search criteria is based on rows
+        # Target sorting by this DataFrame
+        rows = self.rows  # search criteria is based on rows
         target_col = column  # Looking in rows for this column
         target_val = column  # to be equal to the same column in self.rows
 
@@ -2209,6 +2208,9 @@ class DataSet:
                 ].description_column  # and return the value in this column
                 break
 
+        print("rels", rels, "\n")
+        print("rows", rows, "\n")
+
         def get_sort_key(row):
             try:
                 return next(
@@ -2220,11 +2222,14 @@ class DataSet:
                 return None
 
         try:
-            self.sort_values(
-                by=self.index, key=get_sort_key, ascending=not reverse, inplace=True
+            self.rows.sort_values(
+                by=rows,
+                key=get_sort_key,
+                ascending=not reverse,
+                inplace=True,
             )
         except KeyError:
-            logger.debug(f"ResultSet could not sort by column {column}. KeyError.")
+            logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
         """
@@ -2237,7 +2242,7 @@ class DataSet:
         :param reverse: Reverse the sort; False = ASC, True = DESC
         :returns: None
         """
-        column = self.columns[index]
+        column = self.rows.columns[index]
         self.sort_by_column(column, table, reverse)
 
     def store_sort_settings(self) -> list:
@@ -2248,7 +2253,7 @@ class DataSet:
 
         :returns: A list containing the sort_column and the sort_reverse
         """
-        return [self.sort_column, self.sort_reverse]
+        return [self.rows.attrs["sort_column"], self.rows.attrs["sort_reverse"]]
 
     def load_sort_settings(self, sort_settings: list) -> None:
         """
@@ -2257,8 +2262,8 @@ class DataSet:
 
         :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
         """
-        self.sort_column = sort_settings[0]
-        self.sort_reverse = sort_settings[1]
+        self.rows.attrs["sort_column"] = sort_settings[0]
+        self.rows.attrs["sort_reverse"] = sort_settings[1]
 
     def sort_reset(self) -> None:
         """
@@ -2278,10 +2283,16 @@ class DataSet:
             `ResultSet.sort_by_column()`
         :returns: None
         """
-        if self.sort_column is None:
+        if self.rows.attrs["sort_column"] is None:
+            print("Sort column is None.  Resetting sort.")
             self.sort_reset()
         else:
-            self.sort_by_column(self.sort_column, table, self.sort_reverse)
+            print(
+                f"Sort column is not None.  Sorting by column {self.rows.attrs['sort_column']}"
+            )
+            self.sort_by_column(
+                self.rows.attrs["sort_column"], table, self.rows.attrs["sort_reverse"]
+            )
 
     def sort_cycle(self, column: str, table: str) -> int:
         """
@@ -2293,17 +2304,17 @@ class DataSet:
         :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or
             ResultSet.SORT_DESC
         """
-        if column != self.sort_column:
-            self.sort_column = column
-            self.sort_reverse = False
+        if column != self.rows.attrs["sort_column"]:
+            self.rows.attrs["sort_column"] = column
+            self.rows.attrs["sort_reverse"] = False
             self.sort(table)
             return SORT_ASC
-        if not self.sort_reverse:
-            self.sort_reverse = True
+        if not self.rows.attrs["sort_reverse"]:
+            self.rows.attrs["sort_reverse"] = True
             self.sort(table)
             return SORT_DESC
-        self.sort_reverse = False
-        self.sort_column = None
+        self.rows.attrs["sort_reverse"] = False
+        self.rows.attrs["sort_column"] = None
         self.sort(table)
         return SORT_NONE
 
@@ -5181,9 +5192,9 @@ class TableHeadings(list):
             if (
                 x["column"] == sort_column
                 and sort_column is not None
-                and sort_order != ResultSet.SORT_NONE
+                and sort_order != SORT_NONE
             ):
-                x["heading"] += asc if sort_order == ResultSet.SORT_ASC else desc
+                x["heading"] += asc if sort_order == SORT_ASC else desc
             element.Widget.heading(i, text=x["heading"], anchor="w")
 
     def enable_sorting(self, element: sg.Table, fn: callable) -> None:
@@ -5823,7 +5834,7 @@ class ColumnInfo(List):
                 q = f"SELECT {default} AS val FROM {table};"
 
                 rows = self.driver.execute(q)
-                if rows.exception is None:
+                if rows.attrs["exception"] is None:
                     try:
                         default = rows.fetchone()["val"]
                     except KeyError:
