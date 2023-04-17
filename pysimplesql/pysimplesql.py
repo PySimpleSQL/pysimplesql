@@ -168,9 +168,9 @@ DELETE_FAILED: int = 1  # No result was found
 DELETE_RETURNED: int = 2  # A result was found
 DELETE_ABORTED: int = 4  # The search was aborted, likely during a callback
 DELETE_RECURSION_LIMIT_ERROR: int = 8  # We hit max nested levels
-DELETE_CASCADE_RECURSION_LIMIT: int = (
-    15  # Mysql sets this as 15 when using foreign key CASCADE DELETE
-)
+
+# Mysql sets this as 15 when using foreign key CASCADE DELETE
+DELETE_CASCADE_RECURSION_LIMIT: int = 15
 
 # -------
 # Sorting
@@ -987,7 +987,7 @@ class DataSet:
                 not len(self.frm[parent_table].rows.index)
                 or Relationship.parent_virtual(self.table, self.frm)
             ):
-                self.rows = pd.DataFrame([])  # purge rows
+                self.rows = pd.DataFrame(columns=self.rows.columns)  # purge rows
                 if update_elements:
                     self.frm.update_elements(self.key)
                 if requery_dependents:
@@ -1008,14 +1008,15 @@ class DataSet:
         rows = self.driver.execute(query)
         self.rows = rows
 
-        if "sort_order" not in self.rows.attrs:
-            # Store the sort order as a dictionary in the attrs of the DataFrame
-            sort_order = self.rows[self.pk_column].to_list()
-            self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
+        if len(self.rows.index):
+            if "sort_order" not in self.rows.attrs:
+                # Store the sort order as a dictionary in the attrs of the DataFrame
+                sort_order = self.rows[self.pk_column].to_list()
+                self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
 
-        # now we can restore the sort order
-        self.load_sort_settings(sort_settings)
-        self.sort(self.table)
+            # now we can restore the sort order
+            self.load_sort_settings(sort_settings)
+            self.sort(self.table)
 
         # Perform transform one row at a time
         if self.transform is not None:
@@ -1027,8 +1028,9 @@ class DataSet:
         # can have an equal comparison. Not the prettiest solution.  Will look into
         # this more on the PySimpleGUI end and make a follow-up ticket.
 
-        # Note on the below.  Without rows.loc[:,:], the .applymap would return an entirely new DataFrame, and not
-        # a ResultSet.  TODO: Move this into it's own ResultSet method?
+        # Note on the below.  Without rows.loc[:,:], the .applymap would return an
+        # entirely new DataFrame, and not a ResultSet.  TODO: Move this into it's own
+        # ResultSet method?
         self.rows.loc[:, :] = self.rows.applymap(
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
@@ -1547,7 +1549,8 @@ class DataSet:
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
-        # Insert the new values using ResultSet.insert_row(), marking the new row as virtual
+        # Insert the new values using ResultSet.insert_row(),
+        # marking the new row as virtual
         self.rows.insert_row(new_values)
 
         # and move to the new record
@@ -1688,7 +1691,7 @@ class DataSet:
             else:
                 result = self.driver.save_record(self, changed_row)
 
-            if result.exception is not None:
+            if not isinstance(result, pd.DataFrame) and result.exception is not None:
                 self.frm.popup.ok(
                     lang.dataset_save_fail_title,
                     lang.dataset_save_fail.format_map(
@@ -1834,18 +1837,22 @@ class DataSet:
 
         # Delete child records first!
         result = self.driver.delete_record(self, True)
-        if result == DELETE_RECURSION_LIMIT_ERROR:
-            self.frm.popup.ok(
-                lang.delete_failed_title,
-                lang.delete_failed.format_map(
-                    LangFormat(exception=lang.delete_recursion_limit_error)
-                ),
-            )
-        elif result.exception is not None:
-            self.frm.popup.ok(
-                lang.delete_failed_title,
-                lang.delete_failed.format_map(LangFormat(exception=result.exception)),
-            )
+
+        if not isinstance(result, pd.DataFrame):
+            if result == DELETE_RECURSION_LIMIT_ERROR:
+                self.frm.popup.ok(
+                    lang.delete_failed_title,
+                    lang.delete_failed.format_map(
+                        LangFormat(exception=lang.delete_recursion_limit_error)
+                    ),
+                )
+            elif result.exception is not None:
+                self.frm.popup.ok(
+                    lang.delete_failed_title,
+                    lang.delete_failed.format_map(
+                        LangFormat(exception=result.exception)
+                    ),
+                )
 
         # callback
         if "after_delete" in self.callbacks:
@@ -1995,7 +2002,9 @@ class DataSet:
         """
         if index is None:
             index = self.current_index
-        return self.rows.attrs["virtual"][index]
+        if len(self.rows.index):
+            return self.rows.attrs["virtual"][index]
+        return False
 
     def table_values(
         self, columns: List[str] = None, mark_virtual: bool = False
@@ -2300,7 +2309,8 @@ class DataSet:
             self.sort_reset()
         else:
             print(
-                f"Sort column is not None.  Sorting by column {self.rows.attrs['sort_column']}"
+                f"Sort column is not None. "
+                f"Sorting by column {self.rows.attrs['sort_column']}"
             )
             self.sort_by_column(
                 self.rows.attrs["sort_column"], table, self.rows.attrs["sort_reverse"]
@@ -3232,22 +3242,23 @@ class Form:
         for data_key in self.datasets:
             if target_data_key is not None and data_key != target_data_key:
                 continue
+
             # disable mapped elements for this table if
             # there are no records in this table or edit protect mode
-            disable = len(self[data_key].rows) == 0 or self._edit_protect
+            disable = len(self[data_key].rows.index) == 0 or self._edit_protect
             self.update_element_states(data_key, disable)
 
             for m in (m for m in self.event_map if m["table"] == self[data_key].table):
                 # Disable delete and mapped elements for this table if there are no
                 # records in this table or edit protect mode
                 if ":table_delete" in m["event"]:
-                    disable = len(self[data_key].rows) == 0 or self._edit_protect
+                    disable = len(self[data_key].rows.index) == 0 or self._edit_protect
                     win[m["event"]].update(disabled=disable)
 
                 # Disable duplicate if no rows, edit protect, or current row virtual
                 elif ":table_duplicate" in m["event"]:
                     disable = (
-                        len(self[data_key].rows) == 0
+                        len(self[data_key].rows.index) == 0
                         or self._edit_protect
                         or self[data_key]
                         .get_current_row()
@@ -3259,15 +3270,16 @@ class Form:
                 # Disable first/prev if only 1 row, or first row
                 elif ":table_first" in m["event"] or ":table_previous" in m["event"]:
                     disable = (
-                        len(self[data_key].rows) < 2
+                        len(self[data_key].rows.index) < 2
                         or self[data_key].current_index == 0
                     )
                     win[m["event"]].update(disabled=disable)
 
                 # Disable next/last if only 1 row, or last row
                 elif ":table_next" in m["event"] or ":table_last" in m["event"]:
-                    disable = len(self[data_key].rows) < 2 or (
-                        self[data_key].current_index == len(self[data_key].rows) - 1
+                    disable = len(self[data_key].rows.index) < 2 or (
+                        self[data_key].current_index
+                        == len(self[data_key].rows.index) - 1
                     )
                     win[m["event"]].update(disabled=disable)
 
@@ -3276,8 +3288,8 @@ class Form:
                 elif ":table_insert" in m["event"]:
                     parent = Relationship.get_parent(data_key)
                     if parent is not None:
-                        disable = (
-                            len(self[parent].rows) == 0
+                        disable = bool(
+                            len(self[parent].rows.index) == 0
                             or self._edit_protect
                             or Relationship.parent_virtual(data_key, self)
                         )
@@ -3287,7 +3299,7 @@ class Form:
 
                 # Disable db_save when needed
                 elif ":db_save" in m["event"] or ":save_table" in m["event"]:
-                    disable = len(self[data_key].rows) == 0 or self._edit_protect
+                    disable = len(self[data_key].rows.index) == 0 or self._edit_protect
                     win[m["event"]].update(disabled=disable)
 
                 # Enable/Disable quick edit buttons
@@ -3807,7 +3819,8 @@ def update_table_element(
     # update element
     element.update(values=values, select_rows=select_rows)
     # set vertical scroll bar to follow selected element
-    if vscroll_position:
+    # call even for 0.0, so that a 'reset sort' repositions vscroll to top.
+    if vscroll_position is not None:
         element.set_vscroll_position(vscroll_position)
     window.refresh()  # Event handled and bypassed
     # Enable handling for "<<TreeviewSelect>>" event
@@ -6029,9 +6042,9 @@ class Result:
         df.attrs["lastrowid"] = lastrowid
         df.attrs["exception"] = exception
         df.attrs["column_info"] = column_info
-        df.attrs["virtual"] = pd.Series(
-            [False] * len(df.index), index=df.index
-        )  # Store virtual flags for each row
+
+        # Store virtual flags for each row
+        df.attrs["virtual"] = pd.Series([False] * len(df.index), index=df.index)
         return df
 
 
