@@ -35,7 +35,7 @@ Naming conventions can fall under 4 categories:
     domain - the data type of the data (INTEGER, TEXT, etc.)
 
  - `DataSet` related:
-    r, row, rows, resultset - A row, or collection of rows from  querying the database
+    r, row, rows, df - A row, or collection of rows from  querying the database
     c, col, cols, column, columns -  A set of values of a particular type
     Record - A collection of fields that make up a row
     field - the value found where a row intersects a column
@@ -999,9 +999,9 @@ class DataSet:
             where = self.driver.generate_where_clause(self)
 
         query = self.query + " " + join + " " + where + " " + self.order_clause
-        # We want to store our sort settings before we wipe out the current ResultSet
+        # We want to store our sort settings before we wipe out the current DataFrame
         try:
-            sort_settings = self.rows.store_sort_settings()
+            sort_settings = self.store_sort_settings()
         except AttributeError:
             sort_settings = [None, SORT_NONE]  # default for first query
 
@@ -1009,10 +1009,10 @@ class DataSet:
         self.rows = rows
 
         if len(self.rows.index):
-#             # if "sort_order" not in self.rows.attrs:
-#             # Store the sort order as a dictionary in the attrs of the DataFrame
-#             sort_order = self.rows[self.pk_column].to_list()
-#             self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
+            #             # if "sort_order" not in self.rows.attrs:
+            #             # Store the sort order as a dictionary in the attrs of the DataFrame
+            #             sort_order = self.rows[self.pk_column].to_list()
+            #             self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
 
             # now we can restore the sort order
             self.load_sort_settings(sort_settings)
@@ -1028,9 +1028,7 @@ class DataSet:
         # can have an equal comparison. Not the prettiest solution.  Will look into
         # this more on the PySimpleGUI end and make a follow-up ticket.
 
-        # Note on the below.  Without rows.loc[:,:], the .applymap would return an
-        # entirely new DataFrame, and not a ResultSet.  TODO: Move this into it's own
-        # ResultSet method?
+        # TODO: Is the [:,:] still needed now that we are working with DateFrames?
         self.rows.loc[:, :] = self.rows.applymap(
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
@@ -1549,7 +1547,7 @@ class DataSet:
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
-        # Insert the new values using ResultSet.insert_row(),
+        # Insert the new values using DataSet.insert_row(),
         # marking the new row as virtual
         self.insert_row(new_values)
 
@@ -1691,7 +1689,7 @@ class DataSet:
             else:
                 result = self.driver.save_record(self, changed_row)
 
-            if not isinstance(result, pd.DataFrame) and result.exception is not None:
+            if result.attrs["exception"] is not None:
                 self.frm.popup.ok(
                     lang.dataset_save_fail_title,
                     lang.dataset_save_fail.format_map(
@@ -1702,7 +1700,7 @@ class DataSet:
                 return SAVE_FAIL  # Do not show the message in this case
 
             # Store the pk, so we can move to it later - use the value returned in the
-            # resultset if possible. The expected pk may have changed from autoincrement
+            # attrs if possible. The expected pk may have changed from autoincrement
             # and/or concurrent access.
             pk = (
                 result.attrs["lastrowid"]
@@ -2016,7 +2014,7 @@ class DataSet:
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
 
         :param columns: A list of column names to create table values for.
-            Defaults to getting them from the `DataSet.rows` `ResultSet`.
+            Defaults to getting them from the `DataSet.rows` DataFrame.
         :param mark_virtual: Place a marker next to virtual records
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
@@ -2208,9 +2206,6 @@ class DataSet:
         :returns: None
         """
         # Target sorting by this DataFrame
-        rows = self.rows  # search criteria is based on rows
-        target_col = column  # Looking in rows for this column
-        target_val = column  # to be equal to the same column in self.rows
 
         # We don't want to sort by foreign keys directly - we want to sort by the
         # description column of the foreign table that the foreign key references
@@ -2218,28 +2213,13 @@ class DataSet:
         for rel in rels:
             if column == rel.fk_column:
                 # change the rows used for sort criteria
-                rows = rel.frm[rel.parent_table]
+                rel.frm[rel.parent_table]
 
                 # change our target column to look in
-                target_col = rel.pk_column
 
                 # and return the value in this column
-                target_val = rel.frm[rel.parent_table].description_column
+                rel.frm[rel.parent_table].description_column
                 break
-
-        print("rels", rels, "\n")
-        print("rows", rows, "\n")
-
-        def get_sort_key(row):
-            try:
-                return next(
-                    r[target_val]
-                    for _, r in rows.iterrows()
-                    if r[target_col] == row[column]
-                )
-            except StopIteration:
-                return None
-
         try:
             self.rows.sort_values(
                 column,
@@ -2247,16 +2227,15 @@ class DataSet:
                 inplace=True,
             )
         except KeyError:
-            print("OH NO")
             logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
         """
-        Sort the `ResultSet` by column index Using the mapped relationships of the
-        database, foreign keys will automatically sort based on the parent table's
+        Sort the self.rows DataFrame by column index Using the mapped relationships of
+        the database, foreign keys will automatically sort based on the parent table's
         description column, rather than the foreign key number.
 
-        :param index: The index of the column to sort the `ResultSet` by
+        :param index: The index of the column to sort the DateFrame by
         :param table: The name of the table the column belongs to
         :param reverse: Reverse the sort; False = ASC, True = DESC
         :returns: None
@@ -2268,7 +2247,7 @@ class DataSet:
         """
         Store the current sort settingg. Sort settings are just the sort column and
         reverse setting. Sort order can be restored with
-        `ResultSet.load_sort_settings()`.
+        `DataSet.load_sort_settings()`.
 
         :returns: A list containing the sort_column and the sort_reverse
         """
@@ -2279,7 +2258,7 @@ class DataSet:
         Load a previously stored sort setting. Sort settings are just the sort columm
         and reverse setting.
 
-        :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
+        :param sort_settings: A list as returned by `DataSet.store_sort_settings()`
         """
         self.rows.attrs["sort_column"] = sort_settings[0]
         self.rows.attrs["sort_reverse"] = sort_settings[1]
@@ -2298,35 +2277,31 @@ class DataSet:
         Sort according to the internal sort_column and sort_reverse variables. This is a
         good way to re-sort without changing the sort_cycle.
 
-        :param table: The table associated with this ResultSet.  Passed along to
-            `ResultSet.sort_by_column()`
+        :param table: The table associated with this DataSet.  Passed along to
+            `DataSet.sort_by_column()`
         :returns: None
         """
         pk = self.get_current_pk()
         if self.rows.attrs["sort_column"] is None:
-            print("Sort column is None.  Resetting sort.")
+            logger.debug("Sort column is None.  Resetting sort.")
             self.sort_reset()
         else:
-            print(
-                f"Sort column is not None. "
-                f"Sorting by column {self.rows.attrs['sort_column']}"
-            )
+            logger.debug(f"Sorting by column {self.rows.attrs['sort_column']}")
             self.sort_by_column(
                 self.rows.attrs["sort_column"], table, self.rows.attrs["sort_reverse"]
             )
         self.set_by_pk(
-            pk, update_elements=False, requery_dependents=False, skip_prompt_save=True
+            pk, update_elements=True, requery_dependents=False, skip_prompt_save=True
         )
 
     def sort_cycle(self, column: str, table: str) -> int:
         """
-        Cycle between original sort order of the ResultSet, ASC by column, and DESC by
+        Cycle between original sort order of the DataFrame, ASC by column, and DESC by
         column with each call.
 
         :param column: The column name to cycle the sort on
         :param table: The table that the column belongs to
-        :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or
-            ResultSet.SORT_DESC
+        :returns: A sort constant; SORT_NONE, SORT_ASC, or SORT_DESC
         """
         if column != self.rows.attrs["sort_column"]:
             self.rows.attrs["sort_column"] = column
@@ -2522,12 +2497,12 @@ class Form:
         self.update_elements()
         logger.debug("Binding finished!")
 
-    def execute(self, query: str) -> ResultSet:
+    def execute(self, query: str) -> pd.DataFrame:
         """
         Convenience function to pass along to `SQLDriver.execute()`.
 
         :param query: The query to execute
-        :returns: A `ResultSet` object
+        :returns: A pandas DataFrame object with attrs set for lastrowid and exception
         """
         return self.driver.execute(query)
 
@@ -5173,7 +5148,7 @@ class TableHeadings(list):
         :param width: The width for this column to display within the Table element
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
-            `DataSet.rows` `ResultSet` has information that you don't want to display.
+            `DataSet.rows` DataFrame has information that you don't want to display.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
@@ -5224,8 +5199,7 @@ class TableHeadings(list):
 
         :param element: The PySimpleGUI Table element
         :param sort_column: The column to show the sort direction indicators on
-        :param sort_order: A ResultSet SORT_* constant (ResultSet.SORT_NONE,
-            ResultSet.SORT_ASC, ResultSet.SORT_DESC)
+        :param sort_order: A SORT_* constant (SORT_NONE, SORT_ASC, SORT_DESC)
         :returns: None
         """
 
@@ -5295,13 +5269,16 @@ class _SortCallbackWrapper:
         self.table_heading: TableHeadings = table_heading
 
     def __call__(self, column):
-        if len(self.frm[self.data_key].rows.index):
-            # sort_cycle takes care of storing pk and calling set_by_pk()
-            sort_order = self.frm[self.data_key].sort_cycle(column, self.data_key)
-
-            self.frm.update_selectors(self.data_key)
-            self.frm.update_elements(edit_protect_only=True)
-            self.table_heading.update_headings(self.element, column, sort_order)
+        # store the pk:
+        pk = self.frm[self.data_key].get_current_pk()
+        sort_order = self.frm[self.data_key].sort_cycle(column, self.data_key)
+        # We only need to update the selectors not all elements,
+        # so first set by the primary key, then update_selectors()
+        self.frm[self.data_key].set_by_pk(
+            pk, update_elements=False, requery_dependents=False, skip_prompt_save=True
+        )
+        self.frm.update_selectors(self.data_key)
+        self.table_heading.update_headings(self.element, column, sort_order)
 
 
 # ======================================================================================
@@ -5609,11 +5586,10 @@ class Abstractions:
 
     """
     Supporting multiple databases in your application can quickly become very
-    complicated and unmanagealbe. pysimplesql abstracts all of this complexity and
+    complicated and unmanageable. pysimplesql abstracts all of this complexity and
     presents a unified API via abstracting the main concepts of database programming.
     See the following documentation for a better understanding of how this is
-    accomplished. `Column`, `ColumnInfo`, `ResultRow `, `ResultSet`, `SQLDriver`,
-    `Sqlite`, `Mysql`, `Postgres`.
+    accomplished. `Column`, `ColumnInfo`, `SQLDriver`, `Sqlite`, `Mysql`, `Postgres`.
 
     Note: This is a dummy class that exists purely to enhance documentation and has no
     use to the end user.
@@ -6038,8 +6014,8 @@ class ColumnInfo(List):
 # ======================================================================================
 # The database abstraction hides the complexity of dealing with multiple databases. The
 # concept relies on individual "drivers" that derive from the SQLDriver class, and
-# return a generic ResultSet instance, which contains a collection of generic ResultRow
-# instances.
+# return a pandas DataFrame populated with the data, along with attrs set for the
+# lastrowid and exceptions passed from the driver.
 # --------------------------------------------------------------------------------------
 class Result:
     """
@@ -6095,9 +6071,9 @@ class SQLDriver:
     See the source code for `Sqlite`, `Mysql` and `Postgres` for examples of how to
     construct your own driver.
 
-    NOTE: SQLDriver.execute() should return a ResultSet instance.  Additionally, by
-    pysimplesql convention, the ResultSet.lastrowid should always be None unless and
-    INSERT query is executed with SQLDriver.execute() or a record is inserted with\
+    NOTE: SQLDriver.execute() should return a pandas DataFrame.  Additionally, by
+    pysimplesql convention, the attrs["lastrowid"] should always be None unless and
+    INSERT query is executed with SQLDriver.execute() or a record is inserted with
     SQLDriver.insert_record()
     """
 
@@ -6465,7 +6441,7 @@ class SQLDriver:
             recursion = 0
         return None
 
-    def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
+    def duplicate_record(self, dataset: DataSet, children: bool) -> pd.DataFrame:
         # https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa E501
         # This can be done using * syntax without knowing the schema of the table
         # (other than primary key column). The trick is to create a temporary table
@@ -6542,12 +6518,12 @@ class SQLDriver:
 
                         child_duplicated.append(r.child_table)
         # If we made it here, we can return the pk.  Since the pk was stored earlier,
-        # we will just send and empty ResultSet
-        return ResultSet(lastrowid=pk)
+        # we will just send and empty dataframe. TODO: will this work as expeted still?
+        return Result.set(lastrowid=pk)
 
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
-    ) -> ResultSet:
+    ) -> pd.DataFrame:
         pk = dataset.get_current_pk()
         pk_column = dataset.pk_column
 
@@ -6673,7 +6649,7 @@ class Sqlite(SQLDriver):
         silent=False,
         column_info=None,
         auto_commit_rollback: bool = False,
-    ) -> ResultSet:
+    ) -> pd.DataFrame:
         if not silent:
             logger.info(f"Executing query: {query} {values}")
 
@@ -6914,15 +6890,15 @@ class Flatfile(Sqlite):
 
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
-    ) -> ResultSet:
+    ) -> pd.DataFrame:
         # Have SQlite save this record
         result = super().save_record(dataset, changed_row, where_clause)
 
         if result.exception is None:
             # No it is safe to write our data back out to the CSV file
 
-            # Update the DataSet object's ResultSet with the changes, so then
-            # the entire ResultSet can be written back to file sequentially
+            # Update the DataSet object's DataFra,e with the changes, so then
+            # the entire DataFrame can be written back to file sequentially
             dataset.rows[dataset.current_index] = changed_row
 
             # open the CSV file for writing
@@ -6940,7 +6916,7 @@ class Flatfile(Sqlite):
                 # write the header row
                 writer.writerow(list(self.columns))
 
-                # write the ResultSet out.
+                # write the DataFrame out.
                 # Use our columns to exclude the possible virtual pk
                 rows = []
                 for r in dataset.rows:
@@ -7047,7 +7023,9 @@ class Mysql(SQLDriver):
 
         lastrowid = cursor.lastrowid if cursor.lastrowid else None
 
-        return ResultSet([dict(row) for row in rows], lastrowid, exception, column_info)
+        return pd.DataFrame(
+            [dict(row) for row in rows], lastrowid, exception, column_info
+        )
 
     def get_tables(self):
         query = (
@@ -7291,7 +7269,7 @@ class Postgres(SQLDriver):
         # In Postgres, the cursor does not return a lastrowid.  We will not set it here,
         # we will instead set it in save_records() due to the RETURNING stement of the
         # query
-        return ResultSet(
+        return pd.DataFrame(
             [dict(row) for row in rows], exception=exception, column_info=column_info
         )
 
@@ -7524,7 +7502,7 @@ class Sqlserver(SQLDriver):
 
         lastrowid = cursor.rowcount if cursor.rowcount else None
 
-        return ResultSet(
+        return pd.DataFrame(
             [
                 dict(zip([column[0] for column in cursor.description], row))
                 for row in rows
@@ -7752,10 +7730,10 @@ class MSAccess(SQLDriver):
                     row[column_name] = value
                 rows.append(row)
 
-            return ResultSet(rows, None, exception, column_info)
+            return pd.DataFrame(rows, None, exception, column_info)
 
         affected_rows = stmt.getUpdateCount()
-        return ResultSet([], affected_rows, exception, column_info)
+        return pd.DataFrame([], affected_rows, exception, column_info)
 
     def column_info(self, table):
         meta_data = self.con.getMetaData()
@@ -7858,7 +7836,7 @@ class MSAccess(SQLDriver):
         cols = cols[:-2]
         return cols
 
-    def duplicate_record(self, dataset: DataSet, children: bool) -> ResultSet:
+    def duplicate_record(self, dataset: DataSet, children: bool) -> pd.DataFrame:
         # https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
         # This can be done using * syntax without knowing the schema of the table
         # (other than primary key column). The trick is to create a temporary table
@@ -7942,8 +7920,8 @@ class MSAccess(SQLDriver):
 
                         child_duplicated.append(r.child_table)
         # If we made it here, we can return the pk.  Since the pk was stored earlier,
-        # we will just send and empty ResultSet
-        return ResultSet(lastrowid=pk)
+        # we will just send and empty DataFrame
+        return Result.set(lastrowid=pk)
 
 
 # --------------------------
