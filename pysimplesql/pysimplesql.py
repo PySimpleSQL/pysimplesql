@@ -2284,9 +2284,11 @@ class DataSet:
 
         :param table: The table associated with this DataSet.  Passed along to
             `DataSet.sort_by_column()`
-        :param update_elements: Update associated selectors and navigation buttons.
+        :param update_elements: Update associated selectors and navigation buttons, and
+            table header sort marker.
         :param sort_order: Passed to `Dataset.update_headings`. A SORT_* constant
-            (SORT_NONE, SORT_ASC, SORT_DESC)
+            (SORT_NONE, SORT_ASC, SORT_DESC). Note that the update_elements parameter
+            must = True to use this parameter.
         :returns: None
         """
         pk = self.get_current_pk()
