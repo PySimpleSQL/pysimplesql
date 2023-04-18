@@ -1371,7 +1371,6 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
-        print(f"Setting pk to {pk}")
         logger.debug(f"Setting table {self.table} record by primary key {pk}")
         if omit_elements is None:
             omit_elements = []
