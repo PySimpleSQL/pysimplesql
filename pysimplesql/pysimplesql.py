@@ -1009,10 +1009,10 @@ class DataSet:
         self.rows = rows
 
         if len(self.rows.index):
-            #             if "sort_order" not in self.rows.attrs:
-            #                 # Store the sort order as a dictionary in the attrs of the DataFrame
-            #                 sort_order = self.rows[self.pk_column].to_list()
-            #                 self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
+#             # if "sort_order" not in self.rows.attrs:
+#             # Store the sort order as a dictionary in the attrs of the DataFrame
+#             sort_order = self.rows[self.pk_column].to_list()
+#             self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
 
             # now we can restore the sort order
             self.load_sort_settings(sort_settings)
@@ -1376,11 +1376,11 @@ class DataSet:
                 omit_elements = []
             # don't update self/dependents if we are going to below anyway
             self.prompt_save(update_elements=False)
-            
-        self.current_index = self.rows.index[self.rows[self.pk_column] == pk].tolist()[
-            0
-        ]
 
+        # find current index of pk in resorted rows (not in-place)
+        self.current_index = (
+            self.rows.sort_index().index[self.rows[self.pk_column] == pk].tolist()[0]
+        )
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
         if requery_dependents:
@@ -1549,7 +1549,8 @@ class DataSet:
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
 
-        # Insert the new values using ResultSet.insert_row(), marking the new row as virtual
+        # Insert the new values using ResultSet.insert_row(),
+        # marking the new row as virtual
         self.insert_row(new_values)
 
         # and move to the new record
@@ -1704,8 +1705,8 @@ class DataSet:
             # resultset if possible. The expected pk may have changed from autoincrement
             # and/or concurrent access.
             pk = (
-                result.lastrowid
-                if result.lastrowid is not None
+                result.attrs["lastrowid"]
+                if result.attrs["lastrowid"] is not None
                 else self.get_current_pk()
             )
             current_row[self.pk_column] = pk
@@ -1722,7 +1723,7 @@ class DataSet:
 
             # Lets refresh our data
             if self.row_is_virtual():
-                # Requery so that the new  row honors the order clause
+                # Requery so that the new row honors the order clause
                 self.requery(select_first=False, update_elements=False)
                 if update_elements:
                     # Then move to the record
@@ -1744,6 +1745,9 @@ class DataSet:
         # If we made it here, we can commit the changes, since the save and insert above
         # do not commit or rollback
         self.driver.commit()
+
+        # Sort so the saved row honors the current order.
+        self.sort(self.table)
 
         if update_elements:
             self.frm.update_elements(self.key)
@@ -2187,7 +2191,6 @@ class DataSet:
         """
         # remove the rows where virtual is True in place, along with the corresponding
         # virtual attribute
-        # remove the rows where virtual is True in place, along with the corresponding virtual attribute
         idx_to_remove = [idx for idx, v in self.rows.attrs["virtual"].items() if v]
         self.rows.drop(index=idx_to_remove, inplace=True)
         for idx in idx_to_remove:
@@ -2214,13 +2217,14 @@ class DataSet:
         rels = Relationship.get_relationships(table)
         for rel in rels:
             if column == rel.fk_column:
-                rows = rel.frm[
-                    rel.parent_table
-                ]  # change the rows used for sort criteria
-                target_col = rel.pk_column  # change our target column to look in
-                target_val = rel.frm[
-                    rel.parent_table
-                ].description_column  # and return the value in this column
+                # change the rows used for sort criteria
+                rows = rel.frm[rel.parent_table]
+
+                # change our target column to look in
+                target_col = rel.pk_column
+
+                # and return the value in this column
+                target_val = rel.frm[rel.parent_table].description_column
                 break
 
         print("rels", rels, "\n")
@@ -2351,17 +2355,19 @@ class DataSet:
         row_series = pd.Series(row)
         attrs = self.rows.attrs.copy()
         self.rows = pd.concat([self.rows, row_series.to_frame().T], ignore_index=True)
-        self.rows.attrs = attrs.copy()
-        # not quite working, but closer
-        # just need to update attrs with new index
-        return
+        self.rows.attrs = attrs
+
+        # I don't have the idx parameter working yet
         if idx is None:
             idx = len(self.rows.index)
-        idx_label = self.rows.index.max() + 1 if len(self.rows.index) > 0 else 0
-        self.rows.loc[idx_label] = row_series
-        self.rows.attrs["sort_order"][self.pk_column].append(row[self.pk_column])
-        self.rows_attrs["virtual"].loc[idx_label] = True
-        self.rows.sort_index()
+        idx_label = self.rows.index.max() if len(self.rows.index) > 0 else 0
+        #         self.rows.loc[idx_label] = row_series
+        #         self.rows.attrs["sort_order"][self.pk_column].append(row[self.pk_column])
+        self.rows.attrs["virtual"].loc[idx_label] = True
+
+
+#         self.rows.sort_index() (this wasn't doing anything,
+# 		  						  since it defaults to inplace=False)
 
 
 class Form:
@@ -3310,7 +3316,7 @@ class Form:
                 elif ":table_insert" in m["event"]:
                     parent = Relationship.get_parent(data_key)
                     if parent is not None:
-                        disable = (
+                        disable = bool(
                             len(self[parent].rows.index) == 0
                             or self._edit_protect
                             or Relationship.parent_virtual(data_key, self)
@@ -5289,18 +5295,10 @@ class _SortCallbackWrapper:
         self.table_heading: TableHeadings = table_heading
 
     def __call__(self, column):
-        # store the pk:
-        pk = self.frm[self.data_key].get_current_pk()
         if len(self.frm[self.data_key].rows.index):
+            # sort_cycle takes care of storing pk and calling set_by_pk()
             sort_order = self.frm[self.data_key].sort_cycle(column, self.data_key)
-            # We only need to update the selectors not all elements,
-            # so first set by the primary key, then update_selectors()
-            self.frm[self.data_key].set_by_pk(
-                pk,
-                update_elements=False,
-                requery_dependents=False,
-                skip_prompt_save=True,
-            )
+
             self.frm.update_selectors(self.data_key)
             self.table_heading.update_headings(self.element, column, sort_order)
 
@@ -6074,239 +6072,6 @@ class Result:
             [False] * len(df.index), index=df.index, dtype="int64"
         )
         return df
-
-
-class ResultSet2(pd.DataFrame):
-    """
-    The ResultSet class is a generic result class so that working with the resultset of
-    the different supported databases behave in a consistent manner. A `ResultSet` is a
-    Pandas dataframe with some extra functionality to make working with abstracted
-    database drivers easier.
-
-    ResultSets can be thought up as rows of information and are build from a Pandas
-    DataFrame. Iterating through a ResultSet
-    is very simple:
-        ResultSet = driver.execute('SELECT * FROM Journal;')
-        for index, row in rows.iteritems():
-            print(row['title'])
-
-    Note: The lastrowid is set by the caller, but by pysimplesql convention, the
-    lastrowid should only be set after and INSERT statement is executed.
-    """
-
-    SORT_NONE = 0
-    SORT_ASC = 1
-    SORT_DESC = 2
-
-    def __init__(
-        self,
-        rows: List[Dict[str, Any]] = [],
-        lastrowid: int = None,
-        exception: str = None,
-        column_info: ColumnInfo = None,
-    ) -> None:
-        """
-        Create a new ResultSet instance.
-
-        :param rows: a list of dicts representing a row of data, with each key being a
-            column name
-        :param lastrowid: The primary key of an inserted item.
-        :param exception: If an exception was encountered during the query, it will be
-            passed along here
-        :column_info: a `ColumnInfo` object can be supplied so that column information
-            can be accessed
-        """
-        super().__init__(rows)  # initialize the DataFrame with the row values
-        self.lastrowid = lastrowid
-        self.exception = exception
-        self.column_info = column_info
-        self.sort_column = None
-        self.sort_reverse = False
-        self.attrs["original_index"] = self.index.copy()  # Store the original index
-        self.attrs["virtual"] = pd.Series(
-            [False] * len(self), index=self.index, dtype=bool
-        )  # Store virtual flags for each row
-
-    def __str__(self):
-        return str(self.to_dict(orient="records"))
-
-    def fetchone(self) -> pd.Series:
-        """
-        Fetch the first record in the ResultSet.
-
-        :returns: A `pd.Series` object representing the row
-        """
-        return self.iloc[0] if len(self) else pd.Series(dtype=object)
-
-    def fetchall(self) -> ResultSet:
-        """
-        ResultSets don't actually support a fetchall(), since the rows are already
-        returned. This is more of a comfort method that does nothing, for those that are
-        used to calling fetchall().
-
-        :returns: The same ResultSet that called fetchall()
-        """
-        return self
-
-    def insert_row(self, row: dict, idx: int = None) -> None:
-        """
-        Insert a new virtual row into the `ResultSet`. Virtual rows are ones that exist
-        in memory, but not in the database. When a save action is performed, virtual
-        rows will be added into the database.
-
-        :param row: A dict representation of a row of data
-        :param idx: The index where the row should be inserted (default to last index)
-        :returns: None
-        """
-        row_series = pd.Series(row)
-        if idx is None:
-            idx = len(self.index)
-        idx_label = self.index.max() + 1 if len(self) > 0 else 0
-        self.loc[idx_label] = row_series
-        self.attrs["original_index"] = self.attrs["original_index"].insert(
-            idx, idx_label
-        )
-        self.attrs["virtual"].loc[idx_label] = True
-        self.sort_index()
-
-    def purge_virtual(self) -> None:
-        """
-        Purge virtual rows from the DataFrame.
-
-        :returns: None
-        """
-        virtual_rows = self.attrs["virtual"][self.attrs["virtual"]].index
-        self.drop(virtual_rows, inplace=True)
-        self.attrs["original_index"] = self.attrs["original_index"].drop(virtual_rows)
-        self.attrs["virtual"] = self.attrs["virtual"].drop(virtual_rows)
-
-    def sort_by_column(self, column: str, table: str, reverse=False) -> None:
-        """
-        Sort the `ResultSet` by column. Using the mapped relationships of the database,
-        foreign keys will automatically sort based on the parent table's description
-        column, rather than the foreign key number.
-
-        :param column: The name of the column to sort the `ResultSet` by
-        :param table: The name of the table the column belongs to
-        :param reverse: Reverse the sort; False = ASC, True = DESC
-        :returns: None
-        """
-        # Target sorting by this ResultSet
-        rows = self  # search criteria is based on rows
-        target_col = column  # Looking in rows for this column
-        target_val = column  # to be equal to the same column in self.rows
-
-        # We don't want to sort by foreign keys directly - we want to sort by the
-        # description column of the foreign table that the foreign key references
-        rels = Relationship.get_relationships(table)
-        for rel in rels:
-            if column == rel.fk_column:
-                rows = rel.frm[
-                    rel.parent_table
-                ]  # change the rows used for sort criteria
-                target_col = rel.pk_column  # change our target column to look in
-                target_val = rel.frm[
-                    rel.parent_table
-                ].description_column  # and return the value in this column
-                break
-
-        def get_sort_key(row):
-            try:
-                return next(
-                    r[target_val]
-                    for _, r in rows.iterrows()
-                    if r[target_col] == row[column]
-                )
-            except StopIteration:
-                return None
-
-        try:
-            self.sort_values(
-                by=self.index, key=get_sort_key, ascending=not reverse, inplace=True
-            )
-        except KeyError:
-            logger.debug(f"ResultSet could not sort by column {column}. KeyError.")
-
-    def sort_by_index(self, index: int, table: str, reverse=False):
-        """
-        Sort the `ResultSet` by column index Using the mapped relationships of the
-        database, foreign keys will automatically sort based on the parent table's
-        description column, rather than the foreign key number.
-
-        :param index: The index of the column to sort the `ResultSet` by
-        :param table: The name of the table the column belongs to
-        :param reverse: Reverse the sort; False = ASC, True = DESC
-        :returns: None
-        """
-        column = self.columns[index]
-        self.sort_by_column(column, table, reverse)
-
-    def store_sort_settings(self) -> list:
-        """
-        Store the current sort settingg. Sort settings are just the sort column and
-        reverse setting. Sort order can be restored with
-        `ResultSet.load_sort_settings()`.
-
-        :returns: A list containing the sort_column and the sort_reverse
-        """
-        return [self.sort_column, self.sort_reverse]
-
-    def load_sort_settings(self, sort_settings: list) -> None:
-        """
-        Load a previously stored sort setting. Sort settings are just the sort columm
-        and reverse setting.
-
-        :param sort_settings: A list as returned by `ResultSet.store_sort_settings()`
-        """
-        self.sort_column = sort_settings[0]
-        self.sort_reverse = sort_settings[1]
-
-    def sort_reset(self) -> None:
-        """
-        Reset the sort order to the original when this ResultSet was created.  Each
-        ResultRow has the original order stored.
-
-        :returns: None
-        """
-        self.sort_index(inplace=True)
-
-    def sort(self, table: str) -> None:
-        """
-        Sort according to the internal sort_column and sort_reverse variables. This is a
-        good way to re-sort without changing the sort_cycle.
-
-        :param table: The table associated with this ResultSet.  Passed along to
-            `ResultSet.sort_by_column()`
-        :returns: None
-        """
-        if self.sort_column is None:
-            self.sort_reset()
-        else:
-            self.sort_by_column(self.sort_column, table, self.sort_reverse)
-
-    def sort_cycle(self, column: str, table: str) -> int:
-        """
-        Cycle between original sort order of the ResultSet, ASC by column, and DESC by
-        column with each call.
-
-        :param column: The column name to cycle the sort on
-        :param table: The table that the column belongs to
-        :returns: A ResultSet sort constant; ResultSet.SORT_NONE, ResultSet.SORT_ASC, or
-            ResultSet.SORT_DESC
-        """
-        if column != self.sort_column:
-            self.sort_column = column
-            self.sort_reverse = False
-            self.sort(table)
-            return ResultSet.SORT_ASC
-        if not self.sort_reverse:
-            self.sort_reverse = True
-            self.sort(table)
-            return ResultSet.SORT_DESC
-        self.sort_reverse = False
-        self.sort_column = None
-        self.sort(table)
-        return ResultSet.SORT_NONE
 
 
 class ReservedKeywordError(Exception):
