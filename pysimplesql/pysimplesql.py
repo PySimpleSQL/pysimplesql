@@ -2206,13 +2206,15 @@ class DataSet:
         rels = Relationship.get_relationships(table)
         for rel in rels:
             if column == rel.fk_column:
-                # change the rows used for sort criteria
-                rel.frm[rel.parent_table]
+                # Create a mapping dictionary from the parent DataFrame
+                df_parent = self.frm[rel.parent_table].rows
+                desc_parent = self.frm[rel.parent_table].description_column
+                mapping = dict(zip(df_parent[rel.pk_column], df_parent[desc_parent]))
 
-                # change our target column to look in
-
-                # and return the value in this column
-                rel.frm[rel.parent_table].description_column
+                # Create a temporary column in self.rows for the fk data
+                tmp = f"temp_{rel.parent_table}.{rel.pk_column}"
+                self.rows[tmp] = self.rows[rel.fk_column].map(mapping)
+                column = tmp
                 break
         try:
             self.rows.sort_values(
@@ -2222,6 +2224,9 @@ class DataSet:
             )
         except KeyError:
             logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
+        finally:
+            # Drop the temporary description column (if it exists)
+            self.rows.drop(columns=tmp, inplace=True, errors="ignore")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
         """
