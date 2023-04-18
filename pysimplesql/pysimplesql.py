@@ -93,6 +93,17 @@ except (ModuleNotFoundError, ImportError):
 
 logger = logging.getLogger(__name__)
 
+# -------------------------------------------
+# Set up options for pandas DataFrame display
+# -------------------------------------------
+pd.set_option("display.max_rows", 15)  # Show a maximum of 10 rows
+pd.set_option("display.max_columns", 10)  # Show a maximum of 5 columns
+pd.set_option("display.width", 250)  # Set the display width to 1000 characters
+pd.set_option(
+    "display.max_colwidth", 25
+)  # Set the maximum column width to 20 characters
+pd.set_option("display.precision", 2)  # Set the number of decimal places to 2
+
 # ---------------------------
 # Types for automatic mapping
 # ---------------------------
@@ -1374,6 +1385,11 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         # find current index of pk in resorted rows (not in-place)
+        print(f"\nself.rows for {self.table}:\n", self.rows)
+        # for i, row in self.rows.iterrows():
+        #     if row[self.pk_column] == pk:
+        #         self.current_index = i
+        #         break
         self.current_index = (
             self.rows.sort_index().index[self.rows[self.pk_column] == pk].tolist()[0]
         )
@@ -1691,7 +1707,7 @@ class DataSet:
                 self.frm.popup.ok(
                     lang.dataset_save_fail_title,
                     lang.dataset_save_fail.format_map(
-                        LangFormat(exception=result.exception)
+                        LangFormat(exception=result.attrs["exception"])
                     ),
                 )
                 self.driver.rollback()
@@ -1828,7 +1844,7 @@ class DataSet:
             return True
 
         if self.row_is_virtual():
-            self.rows.purge_virtual()
+            self.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
             self.frm.update_elements(edit_protect_only=True)
