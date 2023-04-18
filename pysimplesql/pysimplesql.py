@@ -1007,13 +1007,8 @@ class DataSet:
 
         rows = self.driver.execute(query)
         self.rows = rows
-
+        print(self.rows)
         if len(self.rows.index):
-            #             # if "sort_order" not in self.rows.attrs:
-            #             # Store the sort order as a dictionary in the attrs of the DataFrame
-            #             sort_order = self.rows[self.pk_column].to_list()
-            #             self.rows.attrs["sort_order"] = {self.pk_column: sort_order}
-
             # now we can restore the sort order
             self.load_sort_settings(sort_settings)
             self.sort(self.table)
@@ -1254,17 +1249,16 @@ class DataSet:
 
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows.index):
-            logger.debug(f"DEBUG: {self.search_order} {self.rows[0].keys()}")
-        for o in self.search_order:
+            logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
+        for field in self.search_order:
             # Perform a search for str, from the current position to the end and back by
             # creating a list of all indexes
             for i in list(range(self.current_index + 1, len(self.rows.index))) + list(
                 range(0, self.current_index)
             ):
                 if (
-                    o in self.rows[i]
-                    and self.rows[i][o]
-                    and search_string.lower() in str(self.rows[i][o]).lower()
+                    field in list(self.rows.columns)
+                    and search_string.lower() in str(self.rows.iloc[i][field]).lower()
                 ):
                     old_index = self.current_index
                     self.current_index = i
@@ -2336,13 +2330,7 @@ class DataSet:
         if idx is None:
             idx = len(self.rows.index)
         idx_label = self.rows.index.max() if len(self.rows.index) > 0 else 0
-        #         self.rows.loc[idx_label] = row_series
-        #         self.rows.attrs["sort_order"][self.pk_column].append(row[self.pk_column])
         self.rows.attrs["virtual"].loc[idx_label] = True
-
-
-#         self.rows.sort_index() (this wasn't doing anything,
-# 		  						  since it defaults to inplace=False)
 
 
 class Form:
