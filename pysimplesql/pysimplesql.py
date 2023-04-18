@@ -1371,6 +1371,7 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
+        print(f"Setting pk to {pk}")
         logger.debug(f"Setting table {self.table} record by primary key {pk}")
         if omit_elements is None:
             omit_elements = []
@@ -1384,15 +1385,12 @@ class DataSet:
             # don't update self/dependents if we are going to below anyway
             self.prompt_save(update_elements=False)
 
-        # find current index of pk in resorted rows (not in-place)
-        print(f"\nself.rows for {self.table}:\n", self.rows)
-        # for i, row in self.rows.iterrows():
-        #     if row[self.pk_column] == pk:
-        #         self.current_index = i
-        #         break
-        self.current_index = (
-            self.rows.sort_index().index[self.rows[self.pk_column] == pk].tolist()[0]
-        )
+        # Move to the numerical index of where the primary key is located. If the pk
+        # value can't be found, move to the last index
+        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        idx = idx[0] if idx else len(self.rows.index)
+        self.current_index = idx
+
         if update_elements:
             self.frm.update_elements(self.table, omit_elements=omit_elements)
         if requery_dependents:
