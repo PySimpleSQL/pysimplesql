@@ -2232,7 +2232,7 @@ class DataSet:
         finally:
             # Drop the temporary description column (if it exists)
             if tmp_column is not None:
-                self.rows.drop(columns=tmp, inplace=True, errors="ignore")
+                self.rows.drop(columns=tmp_column, inplace=True, errors="ignore")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
         """
