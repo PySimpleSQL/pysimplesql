@@ -5300,6 +5300,7 @@ class _SortCallbackWrapper:
             sort_order = self.frm[self.data_key].sort_cycle(column, self.data_key)
 
             self.frm.update_selectors(self.data_key)
+            self.frm.update_elements(edit_protect_only=True)
             self.table_heading.update_headings(self.element, column, sort_order)
 
 
