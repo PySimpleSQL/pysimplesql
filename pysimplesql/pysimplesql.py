@@ -1946,7 +1946,7 @@ class DataSet:
 
         # Have the driver duplicate the record
         result = self.driver.duplicate_record(self, children)
-        if result.exception:
+        if result.attrs["exception"]:
             self.driver.rollback()
             self.frm.popup.ok(
                 lang.duplicate_failed_title,
@@ -1955,7 +1955,7 @@ class DataSet:
                 ),
             )
         else:
-            pk = result.lastrowid
+            pk = result.attrs["lastrowid"]
 
         # callback
         if "after_duplicate" in self.callbacks:
@@ -2203,6 +2203,7 @@ class DataSet:
 
         # We don't want to sort by foreign keys directly - we want to sort by the
         # description column of the foreign table that the foreign key references
+        tmp_column = None
         rels = Relationship.get_relationships(table)
         for rel in rels:
             if column == rel.fk_column:
@@ -2212,9 +2213,9 @@ class DataSet:
                 mapping = dict(zip(df_parent[rel.pk_column], df_parent[desc_parent]))
 
                 # Create a temporary column in self.rows for the fk data
-                tmp = f"temp_{rel.parent_table}.{rel.pk_column}"
-                self.rows[tmp] = self.rows[rel.fk_column].map(mapping)
-                column = tmp
+                tmp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
+                self.rows[tmp_column] = self.rows[rel.fk_column].map(mapping)
+                column = tmp_column
                 break
         try:
             self.rows.sort_values(
@@ -2226,7 +2227,8 @@ class DataSet:
             logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
         finally:
             # Drop the temporary description column (if it exists)
-            self.rows.drop(columns=tmp, inplace=True, errors="ignore")
+            if tmp_column is not None:
+                self.rows.drop(columns=tmp, inplace=True, errors="ignore")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
         """
@@ -6019,7 +6021,7 @@ class Result:
     @classmethod
     def set(
         cls,
-        row_data: dict,
+        row_data: dict = None,
         lastrowid: int = None,
         exception: Exception = None,
         column_info: ColumnInfo = None,
@@ -6465,11 +6467,11 @@ class SQLDriver:
         ]
         for q in query:
             res = self.execute(q)
-            if res.exception:
+            if res.attrs["exception"]:
                 return res
 
         # Now we save the new pk
-        pk = res.lastrowid
+        pk = res.attrs["lastrowid"]
 
         # create list of which children we have duplicated
         child_duplicated = []
