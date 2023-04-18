@@ -2352,7 +2352,10 @@ class DataSet:
     def update_headings(self, column, sort_order):
         for e in self.selector:
             element = e["element"]
-            if element.metadata["TableHeading"]:
+            if (
+                "TableHeading" in element.metadata
+                and element.metadata["TableHeading"]._sort_enable
+            ):
                 element.metadata["TableHeading"].update_headings(
                     element, column, sort_order
                 )
