@@ -5291,7 +5291,7 @@ class _SortCallbackWrapper:
     def __call__(self, column):
         # store the pk:
         pk = self.frm[self.data_key].get_current_pk()
-        if len(self.frm[data_key].rows.index):
+        if len(self.frm[self.data_key].rows.index):
             sort_order = self.frm[self.data_key].sort_cycle(column, self.data_key)
             # We only need to update the selectors not all elements,
             # so first set by the primary key, then update_selectors()
