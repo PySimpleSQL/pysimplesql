@@ -7131,6 +7131,8 @@ class Mysql(SQLDriver):
             "INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = "
             f"'{constraint_name}'"
         )
+        update_rule = None
+        delete_rule = None
         rows = self.execute(query, silent=True)
         for _, row in rows.iterrows():
             if "UPDATE_RULE" in row:
