@@ -1386,7 +1386,7 @@ class DataSet:
 
         # Move to the numerical index of where the primary key is located.
         # If the pk value can't be found, move to the last index
-        idx = self.rows.sort_index().index[self.rows[self.pk_column] == pk].tolist()
+        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
         idx = idx[0] if idx else len(self.rows.index)
         self.current_index = idx
 
