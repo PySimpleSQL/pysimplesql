@@ -1384,9 +1384,9 @@ class DataSet:
             # don't update self/dependents if we are going to below anyway
             self.prompt_save(update_elements=False)
 
-        # Move to the numerical index of where the primary key is located. If the pk
-        # value can't be found, move to the last index
-        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        # Move to the numerical index of where the primary key is located.
+        # If the pk value can't be found, move to the last index
+        idx = self.rows.sort_index().index[self.rows[self.pk_column] == pk].tolist()
         idx = idx[0] if idx else len(self.rows.index)
         self.current_index = idx
 
@@ -1683,7 +1683,7 @@ class DataSet:
                 result = self.driver.save_record(
                     self, q["changed_row"], q["where_clause"]
                 )
-                if result.exception is not None:
+                if result.attrs["exception"] is not None:
                     self.frm.popup.ok(
                         lang.dataset_save_keyed_fail_title,
                         lang.dataset_save_keyed_fail.format_map(
@@ -1850,21 +1850,21 @@ class DataSet:
         # Delete child records first!
         result = self.driver.delete_record(self, True)
 
-        if not isinstance(result, pd.DataFrame):
-            if result == DELETE_RECURSION_LIMIT_ERROR:
-                self.frm.popup.ok(
-                    lang.delete_failed_title,
-                    lang.delete_failed.format_map(
-                        LangFormat(exception=lang.delete_recursion_limit_error)
-                    ),
-                )
-            elif result.exception is not None:
-                self.frm.popup.ok(
-                    lang.delete_failed_title,
-                    lang.delete_failed.format_map(
-                        LangFormat(exception=result.exception)
-                    ),
-                )
+        if (
+            not isinstance(result, pd.DataFrame)
+            and result == DELETE_RECURSION_LIMIT_ERROR
+        ):
+            self.frm.popup.ok(
+                lang.delete_failed_title,
+                lang.delete_failed.format_map(
+                    LangFormat(exception=lang.delete_recursion_limit_error)
+                ),
+            )
+        elif result.attrs["exception"] is not None:
+            self.frm.popup.ok(
+                lang.delete_failed_title,
+                lang.delete_failed.format_map(LangFormat(exception=result.exception)),
+            )
 
         # callback
         if "after_delete" in self.callbacks:
@@ -2379,7 +2379,7 @@ class DataSet:
         if idx is None:
             idx = len(self.rows.index)
         idx_label = self.rows.index.max() if len(self.rows.index) > 0 else 0
-        self.rows.attrs["virtual"].loc[idx_label] = True
+        self.rows.attrs["virtual"].loc[idx_label] = 1  # True, series only holds int64
 
 
 class Form:
@@ -3295,7 +3295,7 @@ class Form:
 
                 # Disable duplicate if no rows, edit protect, or current row virtual
                 elif ":table_duplicate" in m["event"]:
-                    disable = (
+                    disable = bool(
                         len(self[data_key].rows.index) == 0
                         or self._edit_protect
                         or self[data_key]
@@ -6533,7 +6533,7 @@ class SQLDriver:
                         ]
                         for q in queries:
                             res = self.execute(q)
-                            if res.exception:
+                            if res.attrs["exception"]:
                                 return res
 
                         child_duplicated.append(r.child_table)
@@ -6914,7 +6914,7 @@ class Flatfile(Sqlite):
         # Have SQlite save this record
         result = super().save_record(dataset, changed_row, where_clause)
 
-        if result.exception is None:
+        if result.attrs["exception"] is None:
             # No it is safe to write our data back out to the CSV file
 
             # Update the DataSet object's DataFra,e with the changes, so then
@@ -7043,7 +7043,7 @@ class Mysql(SQLDriver):
 
         lastrowid = cursor.lastrowid if cursor.lastrowid else None
 
-        return pd.DataFrame(
+        return Result.set(
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
 
@@ -7052,7 +7052,7 @@ class Mysql(SQLDriver):
             "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = %s"
         )
         rows = self.execute(query, [self.database], silent=True)
-        return [row["TABLE_NAME"] for row in rows]
+        return list(rows["TABLE_NAME"])
 
     def column_info(self, table):
         # Return a list of column names
@@ -7060,7 +7060,7 @@ class Mysql(SQLDriver):
         rows = self.execute(query, silent=True)
         col_info = ColumnInfo(self, table)
 
-        for row in rows:
+        for _, row in rows.iterrows():
             name = row["Field"]
             # Check if the value is a bytes-like object, and decode if necessary
             type_value = (
@@ -7084,9 +7084,10 @@ class Mysql(SQLDriver):
 
     def pk_column(self, table):
         query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)
-        cur = self.execute(query, silent=True)
-        row = cur.fetchone()
-        return row["Column_name"] if row else None
+        rows = self.execute(query, silent=True)
+        for _, row in rows.iterrows():
+            return row["Column_name"]
+        return None
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -7099,7 +7100,7 @@ class Mysql(SQLDriver):
             )
             rows = self.execute(query, (from_table,), silent=True)
 
-            for row in rows:
+            for _, row in rows.iterrows():
                 dic = {}
                 # Get the constraint information
                 on_update, on_delete = self.constraint(row["CONSTRAINT_NAME"])
@@ -7131,7 +7132,12 @@ class Mysql(SQLDriver):
             f"'{constraint_name}'"
         )
         rows = self.execute(query, silent=True)
-        return rows[0]["UPDATE_RULE"], rows[0]["DELETE_RULE"]
+        for _, row in rows.iterrows():
+            if "UPDATE_RULE" in row:
+                update_rule = row["UPDATE_RULE"]
+            if "DELETE_RULE" in row:
+                delete_rule = row["DELETE_RULE"]
+        return update_rule, delete_rule
 
 
 # --------------------------------------------------------------------------------------
@@ -7289,7 +7295,7 @@ class Postgres(SQLDriver):
         # In Postgres, the cursor does not return a lastrowid.  We will not set it here,
         # we will instead set it in save_records() due to the RETURNING stement of the
         # query
-        return pd.DataFrame(
+        return Result.set(
             [dict(row) for row in rows], exception=exception, column_info=column_info
         )
 
@@ -7300,7 +7306,7 @@ class Postgres(SQLDriver):
         )
         # query = "SELECT tablename FROM pg_tables WHERE table_schema='public'"
         rows = self.execute(query, silent=True)
-        return [row["table_name"] for row in rows]
+        return list(rows["table_name"])
 
     def column_info(self, table: str) -> ColumnInfo:
         # Return a list of column names
@@ -7309,7 +7315,7 @@ class Postgres(SQLDriver):
 
         col_info = ColumnInfo(self, table)
         pk_column = self.pk_column(table)
-        for row in rows:
+        for _, row in rows.iterrows():
             name = row["column_name"]
             domain = row["data_type"].upper()
             notnull = row["is_nullable"] != "YES"
@@ -7334,9 +7340,10 @@ class Postgres(SQLDriver):
             "kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND "
             f"tc.table_name = '{table}' "
         )
-        cur = self.execute(query, silent=True)
-        row = cur.fetchone()
-        return row["column_name"] if row else None
+        rows = self.execute(query, silent=True)
+        for _, row in rows.iterrows():
+            return row["column_name"]
+        return None
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -7357,7 +7364,7 @@ class Postgres(SQLDriver):
 
             rows = self.execute(query, (from_table,), silent=True)
 
-            for row in rows:
+            for _, row in rows.iterrows():
                 dic = {}
                 # Get the constraint information
                 # constraint = self.constraint(row['conname'])
@@ -7403,7 +7410,9 @@ class Postgres(SQLDriver):
         # wrap the quoted string in singe quotes.  Phew!
         q = f"SELECT nextval('{seq}') LIMIT 1;"
         rows = self.execute(q, silent=True)
-        return rows.fetchone()["nextval"]
+        for _, row in rows.iterrows():
+            return row["nextval"]
+        return None
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # insert_record() for Postgres is a little different from the rest. Instead of
@@ -7419,7 +7428,7 @@ class Postgres(SQLDriver):
         values = [value for key, value in row.items()]
         result = self.execute(query, tuple(values))
 
-        result.lastid = pk
+        result.attrs["lastid"] = pk
         return result
 
     def execute_script(self, script):
