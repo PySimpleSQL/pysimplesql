@@ -6574,7 +6574,7 @@ class SQLDriver:
         result = self.execute(query, tuple(values))
         # manually clear the rowid since it is not needed for updated records
         # (we already know the key)
-        result.attrs['lastrowid'] = None
+        result.attrs["lastrowid"] = None
         return result
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
