@@ -7545,7 +7545,7 @@ class Sqlserver(SQLDriver):
             "SELECT table_name FROM information_schema.tables WHERE table_catalog = ?"
         )
         rows = self.execute(query, [self.database], silent=True)
-        return [row["table_name"] for row in rows]
+        return list(rows["table_name"])
 
     def column_info(self, table):
         # Return a list of column names
@@ -7561,10 +7561,10 @@ class Sqlserver(SQLDriver):
             WHERE TABLE_NAME = ?
         """
         pk_rows = self.execute(pk_query, [table], silent=True)
-        for pk_row in pk_rows:
+        for _, pk_row in pk_rows.iterrows():
             pk_columns.append(pk_row["COLUMN_NAME"])
 
-        for row in rows:
+        for _, row in rows.iterrows():
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
             notnull = row["IS_NULLABLE"] == "NO"
@@ -7601,7 +7601,7 @@ class Sqlserver(SQLDriver):
 
             rows = self.execute(query, silent=True)
 
-            for row in rows:
+            for _, row in rows.iterrows():
                 dic = {}
                 dic["from_table"] = row["from_table"]
                 dic["to_table"] = row["to_table"]
