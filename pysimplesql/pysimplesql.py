@@ -3639,7 +3639,7 @@ class Popup:
         Create a new Popup instance
         :returns: None.
         """
-        self.last_info_msg = ""
+        self.last_info_msg: str = ""
         self.popup_info = None
 
     def ok(self, title, msg):
@@ -3732,12 +3732,6 @@ class Popup:
             themepack.info_popup_auto_close_seconds by default.
         :returns: None
         """
-        """
-        Internal use only.
-
-        Creates sg.Window with no buttons, auto-closing after seconds as defined in
-        themepack
-        """
         title = lang.info_popup_title
         if auto_close_seconds is None:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
@@ -3755,28 +3749,30 @@ class Popup:
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
             )
-            threading.Thread(
-                target=self.auto_close,
-                args=(self.popup_info, auto_close_seconds),
-                daemon=True,
-            ).start()
+            self._auto_close(self.popup_info, auto_close_seconds)
 
-    def auto_close(self, window: sg.Window, seconds: int):
+    def _auto_close(self, window: sg.Window, seconds: int):
         """
-        Use in a thread to automatically close the passed in sg.Window.
+        Internal use only.
+
+        Uses an invisible window to close info popup
 
         :param window: sg.Window object to close
         :param seconds: Seconds to keep window open
         :returns: None
         """
-        step = 1
-        while step <= seconds:
-            sleep(1)
-            step += 1
-        self.close(window)
-
-    def close(self, window):
-        window.close()
+        layout = [[sg.Text("Invisible window")]]
+        invisible_window = sg.Window(
+            "Invisible window that stays open",
+            layout,
+            alpha_channel=0,
+        )
+        while True:  # The Event Loop
+            event, values = window.read(timeout=seconds * 1000)
+            if event == "__TIMEOUT__":
+                window.close()
+                break
+        invisible_window.close()
 
 
 class ProgressBar:
