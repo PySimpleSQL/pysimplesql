@@ -3737,7 +3737,7 @@ class Popup:
         self.last_info_msg = msg
         if display_message:
             msg = msg.splitlines()
-            layout = [sg.T(line, font="bold") for line in msg]
+            layout = [[sg.T(line, font="bold")] for line in msg]
             popup_win = sg.Window(
                 title=title,
                 layout=[layout],
