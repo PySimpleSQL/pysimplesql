@@ -7852,7 +7852,7 @@ class MSAccess(SQLDriver):
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        
+
         for _, row in rows.iterrows():
             return row["MAX_PK"]  # returned as upper case
 
