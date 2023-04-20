@@ -7941,10 +7941,19 @@ class MSAccess(SQLDriver):
                             f"UPDATE {tmp_child} SET {fk_column} = {pk}",
                             f"INSERT INTO {child} SELECT * FROM {tmp_child};",
                             f"DROP TABLE IF EXISTS {tmp_child}",
+                    LangFormat(exception=result.attrs["exception"])
+        print("\ncols\n", cols)
+                            f"DROP TABLE IF EXISTS {tmp_child}",
+                                f"CREATE TABLE {tmp_table} "
+                                f"INSERT INTO {tmp_table} (SELECT * FROM {table} "
+                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
+                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
+                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
+                            f"DROP TABLE IF EXISTS {tmp_child}",
                         ]
                         for q in queries:
                             res = self.execute(q)
-                            if res.exception:
+                            if res.attrs["exception"]:
                                 return res
 
                         child_duplicated.append(r.child_table)
