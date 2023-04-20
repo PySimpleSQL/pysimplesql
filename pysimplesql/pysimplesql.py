@@ -3719,16 +3719,16 @@ class Popup:
         self, msg: str, display_message: bool = True, auto_close_seconds: int = None
     ):
         """
-        Creates sg.Window with no buttons to display passed in message string, and
-        writes message to to self.last_info. Uses title as defined in
-        lang.info_popup_title. By default auto-closes in seconds as defined in
-        themepack.popup_info_auto_close_seconds.
+        Displays a popup message and saves the message to self.last_info, auto-closing
+        after x seconds. The title of the popup window is defined in
+        lang.info_popup_title.
 
-        :param msg: String to display as message
-        :param display_message: (optional) By default True. False only writes
-            [title,msg] to self.last_info.
-        :param auto_close_seconds: (optional) Gets value from
-            themepack.info_popup_auto_close_seconds by default.
+        :param msg: The message to display.
+        :param display_message: (optional) If True (default), displays the message in
+            the popup window. If False, only saves `msg` to `self.last_info_msg`.
+        :param auto_close_seconds: (optional) The number of seconds before the popup
+            window auto-closes. If not provided, it is obtained from
+            themepack.popup_info_auto_close_seconds.
         :returns: None
         """
         title = lang.info_popup_title
@@ -3736,22 +3736,22 @@ class Popup:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
         self.last_info_msg = msg
         if display_message:
-            msg = msg.splitlines()
-            layout = [[sg.T(line, font="bold")] for line in msg]
+            msg_lines = msg.splitlines()
+            layout = [[sg.Text(line, font="bold")] for line in msg_lines]
             popup_win = sg.Window(
                 title=title,
-                layout=[layout],
+                layout=layout,
                 no_titlebar=False,
                 keep_on_top=True,
                 finalize=True,
                 alpha_channel=themepack.popup_info_alpha_channel,
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
-                enable_close_attempted_event=True
+                enable_close_attempted_event=True,
             )
             while True:
                 event, values = popup_win.read(timeout=auto_close_seconds * 1000)
-                if event in ["__TIMEOUT__","-WINDOW CLOSE ATTEMPTED-"]:
+                if event in ["__TIMEOUT__", "-WINDOW CLOSE ATTEMPTED-"]:
                     popup_win.close()
                     break
 
