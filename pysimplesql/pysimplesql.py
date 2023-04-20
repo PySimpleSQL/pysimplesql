@@ -3748,30 +3748,11 @@ class Popup:
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
             )
-            self._auto_close(popup_win, auto_close_seconds)
-
-    def _auto_close(self, window: sg.Window, seconds: int):
-        """
-        Internal use only.
-
-        Uses an invisible window to close info popup
-
-        :param window: sg.Window object to close
-        :param seconds: Seconds to keep window open
-        :returns: None
-        """
-        layout = [[sg.Text("Invisible window")]]
-        invisible_window = sg.Window(
-            "Invisible window that stays open",
-            layout,
-            alpha_channel=0,
-        )
-        while True:  # The Event Loop
-            event, values = window.read(timeout=seconds * 1000)
-            if event == "__TIMEOUT__":
-                window.close()
-                break
-        invisible_window.close()
+            while True:
+                event, values = popup_win.read(timeout=auto_close_seconds * 1000)
+                if event == "__TIMEOUT__":
+                    popup_win.close()
+                    break
 
 
 class ProgressBar:
