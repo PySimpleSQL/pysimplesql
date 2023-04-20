@@ -3631,7 +3631,7 @@ class Popup:
     """
     Popup helper class.
 
-    Has popup functions for internal use. Stores last info popup as last_info
+    Has popup functions for internal use. Stores last info popup text as last_info_msg
     """
 
     def __init__(self):
@@ -3640,7 +3640,6 @@ class Popup:
         :returns: None.
         """
         self.last_info_msg: str = ""
-        self.popup_info = None
 
     def ok(self, title, msg):
         """
@@ -3739,7 +3738,7 @@ class Popup:
         if display_message:
             msg = msg.splitlines()
             layout = [sg.T(line, font="bold") for line in msg]
-            self.popup_info = sg.Window(
+            popup_win = sg.Window(
                 title=title,
                 layout=[layout],
                 no_titlebar=False,
@@ -3749,7 +3748,7 @@ class Popup:
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
             )
-            self._auto_close(self.popup_info, auto_close_seconds)
+            self._auto_close(popup_win, auto_close_seconds)
 
     def _auto_close(self, window: sg.Window, seconds: int):
         """
