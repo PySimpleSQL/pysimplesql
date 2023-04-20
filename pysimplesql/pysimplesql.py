@@ -1966,7 +1966,7 @@ class DataSet:
             self.frm.popup.ok(
                 lang.duplicate_failed_title,
                 lang.duplicate_failed.format_map(
-                    LangFormat(exception=result.exception)
+                    LangFormat(exception=result.attrs["exception"])
                 ),
             )
         else:
@@ -7530,7 +7530,7 @@ class Sqlserver(SQLDriver):
 
         lastrowid = cursor.rowcount if cursor.rowcount else None
 
-        return pd.DataFrame(
+        return Result.set(
             [
                 dict(zip([column[0] for column in cursor.description], row))
                 for row in rows
@@ -7758,10 +7758,10 @@ class MSAccess(SQLDriver):
                     row[column_name] = value
                 rows.append(row)
 
-            return pd.DataFrame(rows, None, exception, column_info)
+            return Result.set(rows, None, exception, column_info)
 
         affected_rows = stmt.getUpdateCount()
-        return pd.DataFrame([], affected_rows, exception, column_info)
+        return Result.set([], affected_rows, exception, column_info)
 
     def column_info(self, table):
         meta_data = self.con.getMetaData()
@@ -7852,7 +7852,9 @@ class MSAccess(SQLDriver):
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.fetchone()["MAX_PK"]  # returned as upper case
+        
+        for _, row in rows.iterrows():
+            return row["MAX_PK"]  # returned as upper case
 
     def _get_column_definitions(self, table_name):
         # Creates a comma separated list of column names and types to be used in a
@@ -7898,11 +7900,11 @@ class MSAccess(SQLDriver):
         ]
         for q in query:
             res = self.execute(q)
-            if res.exception:
+            if res.attrs["exception"]:
                 return res
 
         # Now we save the new pk
-        pk = res.lastrowid
+        pk = res.attrs["lastrowid"]
 
         # create list of which children we have duplicated
         child_duplicated = []
@@ -7943,7 +7945,7 @@ class MSAccess(SQLDriver):
                         ]
                         for q in queries:
                             res = self.execute(q)
-                            if res.exception:
+                            if res.attrs["exception"]:
                                 return res
 
                         child_duplicated.append(r.child_table)
