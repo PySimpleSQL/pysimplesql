@@ -5,7 +5,7 @@ import pysimplesql as ss
 import PySimpleGUI as sg
 import logging
 logger=logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 # Let's use a fun language pack
 ss.languagepack(ss.lp_90s)
@@ -36,7 +36,7 @@ win = sg.Window('Test', layout=layout, finalize=True)
 driver = ss.Driver.flatfile('test.csv', header_row_num=10)
 
 # Use a pysimplesql Form to bind the window to the driver
-frm= ss.Form(driver, bind_window=win)
+frm = ss.Form(driver, bind_window=win)
 
 # This is optional. Forces the saving of unchanged records.  This will allow us to use our sortable headers to arrange
 # the data to our liking, then hit save without making any actual changes to the data and have the newly sorted

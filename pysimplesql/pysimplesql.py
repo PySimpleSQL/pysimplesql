@@ -1037,7 +1037,6 @@ class DataSet:
         # Strip trailing white space, as this is what sg[element].get() does, so we
         # can have an equal comparison. Not the prettiest solution.  Will look into
         # this more on the PySimpleGUI end and make a follow-up ticket.
-
         # TODO: Is the [:,:] still needed now that we are working with DateFrames?
         self.rows.loc[:, :] = self.rows.applymap(
             lambda x: x.rstrip() if isinstance(x, str) else x
@@ -1586,7 +1585,6 @@ class DataSet:
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
         logger.debug(f"Saving records for table {self.table}...")
-
         if display_message is None:
             display_message = not self.save_quiet
 
@@ -6919,7 +6917,7 @@ class Flatfile(Sqlite):
 
             # Update the DataSet object's DataFra,e with the changes, so then
             # the entire DataFrame can be written back to file sequentially
-            dataset.rows[dataset.current_index] = changed_row
+            dataset.rows.iloc[dataset.current_index] = pd.Series(changed_row)
 
             # open the CSV file for writing
             with open(self.file_path, "w", newline="\n") as csvfile:
@@ -6932,15 +6930,14 @@ class Flatfile(Sqlite):
                 # Write out the stored pre_header lines
                 for line in self.pre_header:
                     writer.writerow(line)
-
                 # write the header row
                 writer.writerow(list(self.columns))
 
                 # write the DataFrame out.
                 # Use our columns to exclude the possible virtual pk
                 rows = []
-                for r in dataset.rows:
-                    rows.append([r[c] for c in self.columns])
+                for index, row in dataset.rows.iterrows():
+                    rows.append([row[c] for c in self.columns])
 
                 logger.debug(f"Writing the following data to {self.file_path}")
                 logger.debug(rows)
