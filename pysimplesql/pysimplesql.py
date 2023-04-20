@@ -2241,7 +2241,7 @@ class Form:
         if bind_window is not None:
             win_pb.update(lang.startup_binding, 75)
             self.window = bind_window
-            self.popup = Popup()
+            self.popup = Popup(self.window)
             self.bind(self.window)
         win_pb.close()
 
@@ -2283,7 +2283,7 @@ class Form:
         """
         logger.info("Binding Window to Form")
         self.window = win
-        self.popup = Popup()
+        self.popup = Popup(self.window)
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
@@ -3634,13 +3634,15 @@ class Popup:
     Has popup functions for internal use. Stores last info popup as last_info
     """
 
-    def __init__(self):
+    def __init__(self, window = None):
         """
         Create a new Popup instance
         :returns: None.
         """
-        self.last_info_msg = ""
+        self.last_info_msg: str = ""
         self.popup_info = None
+        if window:
+            self.window = window
 
     def ok(self, title, msg):
         """
@@ -3648,8 +3650,8 @@ class Popup:
 
         Creates sg.Window with LanguagePack OK button
         """
-        msg = msg.splitlines()
-        layout = [[sg.T(line, font="bold")] for line in msg]
+        msg_lines = msg.splitlines()
+        layout = [[sg.Text(line, font="bold")] for line in msg_lines]
         layout.append(
             sg.Button(
                 button_text=lang.button_ok,
@@ -3666,11 +3668,12 @@ class Popup:
             finalize=True,
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
+            enable_close_attempted_event=True,
         )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED, "Exit", "ok"]:
+            if event in ["ok", "-WINDOW CLOSE ATTEMPTED-"]:
                 break
         popup_win.close()
 
@@ -3680,8 +3683,8 @@ class Popup:
 
         Creates sg.Window with LanguagePack Yes/No button
         """
-        msg = msg.splitlines()
-        layout = [[sg.T(line, font="bold")] for line in msg]
+        msg_lines = msg.splitlines()
+        layout = [[sg.Text(line, font="bold")] for line in msg_lines]
         layout.append(
             sg.Button(
                 button_text=lang.button_yes,
@@ -3706,11 +3709,12 @@ class Popup:
             finalize=True,
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
+            enable_close_attempted_event=True,
         )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED, "Exit", "no", "yes"]:
+            if event in ["no", "yes", "-WINDOW CLOSE ATTEMPTED-"]:
                 result = event
                 break
         popup_win.close()
@@ -3720,64 +3724,43 @@ class Popup:
         self, msg: str, display_message: bool = True, auto_close_seconds: int = None
     ):
         """
-        Creates sg.Window with no buttons to display passed in message string, and
-        writes message to to self.last_info. Uses title as defined in
-        lang.info_popup_title. By default auto-closes in seconds as defined in
-        themepack.popup_info_auto_close_seconds.
+        Displays a popup message and saves the message to self.last_info, auto-closing
+        after x seconds. The title of the popup window is defined in
+        lang.info_popup_title.
 
-        :param msg: String to display as message
-        :param display_message: (optional) By default True. False only writes
-            [title,msg] to self.last_info.
-        :param auto_close_seconds: (optional) Gets value from
-            themepack.info_popup_auto_close_seconds by default.
-        :returns: None
+        :param msg: The message to display.
+        :param display_message: (optional) If True (default), displays the message in
+            the popup window. If False, only saves `msg` to `self.last_info_msg`.
+        :param auto_close_seconds: (optional) The number of seconds before the popup
+            window auto-closes. If not provided, it is obtained from
+            themepack.popup_info_auto_close_seconds.
         """
-        """
-        Internal use only.
 
-        Creates sg.Window with no buttons, auto-closing after seconds as defined in
-        themepack
-        """
         title = lang.info_popup_title
         if auto_close_seconds is None:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
         self.last_info_msg = msg
         if display_message:
-            msg = msg.splitlines()
-            layout = [sg.T(line, font="bold") for line in msg]
+            msg_lines = msg.splitlines()
+            layout = [[sg.Text(line, font="bold")] for line in msg_lines]
             self.popup_info = sg.Window(
                 title=title,
-                layout=[layout],
+                layout=layout,
                 no_titlebar=False,
                 keep_on_top=True,
                 finalize=True,
                 alpha_channel=themepack.popup_info_alpha_channel,
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
+                enable_close_attempted_event=True,
             )
-            threading.Thread(
-                target=self.auto_close,
-                args=(self.popup_info, auto_close_seconds),
-                daemon=True,
-            ).start()
+            self.window.TKroot.after(auto_close_seconds * 1000, self._auto_close)
 
-    def auto_close(self, window: sg.Window, seconds: int):
+    def _auto_close(self):
         """
-        Use in a thread to automatically close the passed in sg.Window.
-
-        :param window: sg.Window object to close
-        :param seconds: Seconds to keep window open
-        :returns: None
+        Use in a tk.after to automatically close the popup_info.
         """
-        step = 1
-        while step <= seconds:
-            sleep(1)
-            step += 1
-        self.close(window)
-
-    def close(self, window):
-        window.close()
-
+        self.popup_info.close()
 
 class ProgressBar:
     def __init__(self, title: str, max_value: int = 100, hide_delay: int = 100):
