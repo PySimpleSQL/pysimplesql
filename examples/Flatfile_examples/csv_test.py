@@ -4,7 +4,7 @@
 import pysimplesql as ss
 import PySimpleGUI as sg
 import logging
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 # Let's use a fun language pack

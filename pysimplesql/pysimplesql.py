@@ -1966,7 +1966,7 @@ class DataSet:
             self.frm.popup.ok(
                 lang.duplicate_failed_title,
                 lang.duplicate_failed.format_map(
-                    LangFormat(exception=result.exception)
+                    LangFormat(exception=result.attrs["exception"])
                 ),
             )
         else:
@@ -7758,10 +7758,10 @@ class MSAccess(SQLDriver):
                     row[column_name] = value
                 rows.append(row)
 
-            return pd.DataFrame(rows, None, exception, column_info)
+            return Result.set(rows, None, exception, column_info)
 
         affected_rows = stmt.getUpdateCount()
-        return pd.DataFrame([], affected_rows, exception, column_info)
+        return Result.set([], affected_rows, exception, column_info)
 
     def column_info(self, table):
         meta_data = self.con.getMetaData()
@@ -7852,7 +7852,7 @@ class MSAccess(SQLDriver):
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.fetchone()["MAX_PK"]  # returned as upper case
+        return rows.iloc[0]["MAX_PK"]  # returned as upper case
 
     def _get_column_definitions(self, table_name):
         # Creates a comma separated list of column names and types to be used in a
@@ -7862,6 +7862,7 @@ class MSAccess(SQLDriver):
         for c in columns:
             cols += f"{c['name']} {c['domain']}, "
         cols = cols[:-2]
+        print("\ncols\n", cols)
         return cols
 
     def duplicate_record(self, dataset: DataSet, children: bool) -> pd.DataFrame:
@@ -7882,23 +7883,23 @@ class MSAccess(SQLDriver):
         # Create tmp table, update pk column in temp and insert into table
         f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)}"
         query = [
-            f"DROP TABLE IF EXISTS [{tmp_table}];",
-            f"CREATE TABLE [{tmp_table}] ({self._get_column_definitions(table)});",
+            f"DROP TABLE IF EXISTS {tmp_table};",
+            f"CREATE TABLE {tmp_table} ({self._get_column_definitions(table)});",
             (
-                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
+                f"INSERT INTO {tmp_table} (SELECT * FROM {table} "
                 f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)});"
             ),
             (
-                f"UPDATE [{tmp_table}] SET {pk_column} = "
+                f"UPDATE {tmp_table} SET {pk_column} = "
                 f"{self.next_pk(dataset.table, dataset.pk_column)};"
             ),
-            f"UPDATE [{tmp_table}] SET {description_column} = {description}",
-            f"INSERT INTO [{table}] SELECT * FROM [{tmp_table}];",
-            f"DROP TABLE IF EXISTS [{tmp_table}]",
+            f"UPDATE {tmp_table}]SET {description_column} = {description}",
+            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
+            f"DROP TABLE IF EXISTS {tmp_table}",
         ]
         for q in query:
             res = self.execute(q)
-            if res.exception:
+            if res.attrs["exception"]:
                 return res
 
         # Now we save the new pk
@@ -7925,21 +7926,21 @@ class MSAccess(SQLDriver):
                         # Update children's pk_columns to NULL and set correct parent
                         # PK value.
                         queries = [
-                            f"DROP TABLE IF EXISTS [{tmp_child}]",
+                            f"DROP TABLE IF EXISTS {tmp_child}",
                             (
-                                f"CREATE TABLE [{tmp_table}] "
+                                f"CREATE TABLE {tmp_table} "
                                 f"({self._get_column_definitions(table)});"
                             ),
                             (
-                                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
+                                f"INSERT INTO {tmp_table} (SELECT * FROM {table} "
                                 f"WHERE {pk_column}="
                                 f"{dataset.get_current(dataset.pk_column)});"
                             ),
                             # don't next_pk(), because child can be plural.
-                            f"UPDATE [{tmp_child}] SET {pk_column} = NULL;",
-                            f"UPDATE [{tmp_child}] SET {fk_column} = {pk}",
-                            f"INSERT INTO [{child}] SELECT * FROM [{tmp_child}];",
-                            f"DROP TABLE IF EXISTS [{tmp_child}]",
+                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
+                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
+                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
+                            f"DROP TABLE IF EXISTS {tmp_child}",
                         ]
                         for q in queries:
                             res = self.execute(q)
