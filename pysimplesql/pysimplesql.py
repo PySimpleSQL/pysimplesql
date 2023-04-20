@@ -3634,7 +3634,7 @@ class Popup:
     Has popup functions for internal use. Stores last info popup as last_info
     """
 
-    def __init__(self, window = None):
+    def __init__(self, window=None):
         """
         Create a new Popup instance
         :returns: None.
@@ -3761,6 +3761,7 @@ class Popup:
         Use in a tk.after to automatically close the popup_info.
         """
         self.popup_info.close()
+
 
 class ProgressBar:
     def __init__(self, title: str, max_value: int = 100, hide_delay: int = 100):
