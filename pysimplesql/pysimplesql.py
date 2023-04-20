@@ -3631,7 +3631,7 @@ class Popup:
     """
     Popup helper class.
 
-    Has popup functions for internal use. Stores last info popup as last_info
+    Has popup functions for internal use. Stores last info popup text as last_info_msg
     """
 
     def __init__(self):
@@ -3639,8 +3639,7 @@ class Popup:
         Create a new Popup instance
         :returns: None.
         """
-        self.last_info_msg = ""
-        self.popup_info = None
+        self.last_info_msg: str = ""
 
     def ok(self, title, msg):
         """
@@ -3732,12 +3731,6 @@ class Popup:
             themepack.info_popup_auto_close_seconds by default.
         :returns: None
         """
-        """
-        Internal use only.
-
-        Creates sg.Window with no buttons, auto-closing after seconds as defined in
-        themepack
-        """
         title = lang.info_popup_title
         if auto_close_seconds is None:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
@@ -3745,7 +3738,7 @@ class Popup:
         if display_message:
             msg = msg.splitlines()
             layout = [sg.T(line, font="bold") for line in msg]
-            self.popup_info = sg.Window(
+            popup_win = sg.Window(
                 title=title,
                 layout=[layout],
                 no_titlebar=False,
@@ -3755,28 +3748,11 @@ class Popup:
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
             )
-            threading.Thread(
-                target=self.auto_close,
-                args=(self.popup_info, auto_close_seconds),
-                daemon=True,
-            ).start()
-
-    def auto_close(self, window: sg.Window, seconds: int):
-        """
-        Use in a thread to automatically close the passed in sg.Window.
-
-        :param window: sg.Window object to close
-        :param seconds: Seconds to keep window open
-        :returns: None
-        """
-        step = 1
-        while step <= seconds:
-            sleep(1)
-            step += 1
-        self.close(window)
-
-    def close(self, window):
-        window.close()
+            while True:
+                event, values = popup_win.read(timeout=auto_close_seconds * 1000)
+                if event == "__TIMEOUT__":
+                    popup_win.close()
+                    break
 
 
 class ProgressBar:
