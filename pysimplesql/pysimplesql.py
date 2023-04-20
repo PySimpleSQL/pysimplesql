@@ -3647,8 +3647,8 @@ class Popup:
 
         Creates sg.Window with LanguagePack OK button
         """
-        msg = msg.splitlines()
-        layout = [[sg.T(line, font="bold")] for line in msg]
+        msg_lines = msg.splitlines()
+        layout = [[sg.Text(line, font="bold")] for line in msg_lines]
         layout.append(
             sg.Button(
                 button_text=lang.button_ok,
@@ -3665,11 +3665,12 @@ class Popup:
             finalize=True,
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
+            enable_close_attempted_event=True,
         )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED, "Exit", "ok"]:
+            if event in ["ok", "-WINDOW CLOSE ATTEMPTED-"]:
                 break
         popup_win.close()
 
@@ -3679,8 +3680,8 @@ class Popup:
 
         Creates sg.Window with LanguagePack Yes/No button
         """
-        msg = msg.splitlines()
-        layout = [[sg.T(line, font="bold")] for line in msg]
+        msg_lines = msg.splitlines()
+        layout = [[sg.Text(line, font="bold")] for line in msg_lines]
         layout.append(
             sg.Button(
                 button_text=lang.button_yes,
@@ -3705,11 +3706,12 @@ class Popup:
             finalize=True,
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
+            enable_close_attempted_event=True,
         )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED, "Exit", "no", "yes"]:
+            if event in ["no", "yes", "-WINDOW CLOSE ATTEMPTED-"]:
                 result = event
                 break
         popup_win.close()
