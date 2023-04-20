@@ -3747,10 +3747,11 @@ class Popup:
                 alpha_channel=themepack.popup_info_alpha_channel,
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
+                enable_close_attempted_event=True
             )
             while True:
                 event, values = popup_win.read(timeout=auto_close_seconds * 1000)
-                if event == "__TIMEOUT__":
+                if event in ["__TIMEOUT__","-WINDOW CLOSE ATTEMPTED-"]:
                     popup_win.close()
                     break
 
