@@ -7937,15 +7937,7 @@ class MSAccess(SQLDriver):
                                 f"{dataset.get_current(dataset.pk_column)});"
                             ),
                             # don't next_pk(), because child can be plural.
-                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
-                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
-                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
-                            f"DROP TABLE IF EXISTS {tmp_child}",
-                    LangFormat(exception=result.attrs["exception"])
-        print("\ncols\n", cols)
-                            f"DROP TABLE IF EXISTS {tmp_child}",
-                                f"CREATE TABLE {tmp_table} "
-                                f"INSERT INTO {tmp_table} (SELECT * FROM {table} "
+                            # don't next_pk(), because child can be plural.
                             f"UPDATE {tmp_child} SET {pk_column} = NULL;",
                             f"UPDATE {tmp_child} SET {fk_column} = {pk}",
                             f"INSERT INTO {child} SELECT * FROM {tmp_child};",
