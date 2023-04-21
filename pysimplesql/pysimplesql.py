@@ -7177,7 +7177,9 @@ class Postgres(SQLDriver):
         sync_sequences=False,
     ):
         super().__init__(
-            name="Postgres", requires=["psycopg2", "psycopg2.extras"], table_quote='"'
+            name="Postgres",
+            requires=["psycopg2", "psycopg2.extras", "numpy"],
+            table_quote='"',
         )
 
         self.import_required_modules()
@@ -7237,9 +7239,33 @@ class Postgres(SQLDriver):
 
     def import_required_modules(self):
         global psycopg2  # noqa PLW0603
+        global numpy # noqa PLW0603
         try:
+            import numpy as np
             import psycopg2
+            import psycopg2.extensions
             import psycopg2.extras
+
+            def addapt_numpy_float64(numpy_float64):
+                return psycopg2.extensions.AsIs(numpy_float64)
+
+            def addapt_numpy_int64(numpy_int64):
+                return psycopg2.extensions.AsIs(numpy_int64)
+
+            def addapt_numpy_float32(numpy_float32):
+                return psycopg2.extensions.AsIs(numpy_float32)
+
+            def addapt_numpy_int32(numpy_int32):
+                return psycopg2.extensions.AsIs(numpy_int32)
+
+            def addapt_numpy_array(numpy_array):
+                return psycopg2.extensions.AsIs(tuple(numpy_array))
+
+            psycopg2.extensions.register_adapter(np.float64, addapt_numpy_float64)
+            psycopg2.extensions.register_adapter(np.int64, addapt_numpy_int64)
+            psycopg2.extensions.register_adapter(np.float32, addapt_numpy_float32)
+            psycopg2.extensions.register_adapter(np.int32, addapt_numpy_int32)
+            psycopg2.extensions.register_adapter(np.ndarray, addapt_numpy_array)
         except ModuleNotFoundError as e:
             self.import_failed(e)
 
