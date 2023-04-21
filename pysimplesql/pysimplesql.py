@@ -6472,6 +6472,7 @@ class SQLDriver:
         tmp_table = self.quote_table(f"temp_{dataset.table}")
         pk_column = self.quote_column(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
+        pk = None  # we will update this later...
 
         # Create tmp table, update pk column in temp and insert into table
         query = [
@@ -6492,9 +6493,9 @@ class SQLDriver:
             res = self.execute(q)
             if res.attrs["exception"]:
                 return res
-
-        # Now we save the new pk
-        pk = res.attrs["lastrowid"]
+            if pk is None and res.attrs["lastrowid"] is not None:
+                # Now we save the new pk
+                pk = res.attrs["lastrowid"]
 
         # create list of which children we have duplicated
         child_duplicated = []
