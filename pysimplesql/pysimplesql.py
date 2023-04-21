@@ -7239,7 +7239,7 @@ class Postgres(SQLDriver):
 
     def import_required_modules(self):
         global psycopg2  # noqa PLW0603
-        global numpy # noqa PLW0603
+        global numpy  # noqa PLW0603
         try:
             import numpy as np
             import psycopg2
