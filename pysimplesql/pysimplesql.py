@@ -7937,7 +7937,6 @@ class MSAccess(SQLDriver):
                                 f"{dataset.get_current(dataset.pk_column)});"
                             ),
                             # don't next_pk(), because child can be plural.
-                            # don't next_pk(), because child can be plural.
                             f"UPDATE {tmp_child} SET {pk_column} = NULL;",
                             f"UPDATE {tmp_child} SET {fk_column} = {pk}",
                             f"INSERT INTO {child} SELECT * FROM {tmp_child};",
@@ -7952,6 +7951,21 @@ class MSAccess(SQLDriver):
         # If we made it here, we can return the pk.  Since the pk was stored earlier,
         # we will just send and empty DataFrame
         return Result.set(lastrowid=pk)
+
+    def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
+        # Remove the pk column
+        row = {self.quote_column(k): v for k, v in row.items() if k != pk_column}
+
+        # quote appropriately
+        table = self.quote_table(table)
+
+        # Remove the primary key column to ensure autoincrement is used!
+        query = (
+            f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
+            f"({','.join(self.placeholder for _ in range(len(row)))}); "
+        )
+        values = [value for key, value in row.items()]
+        return self.execute(query, tuple(values))
 
 
 # --------------------------
