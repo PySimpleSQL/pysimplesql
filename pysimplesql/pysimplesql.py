@@ -7949,11 +7949,11 @@ class MSAccess(SQLDriver):
                             ),
                             # don't next_pk(), because child can be plural.
                             f"UPDATE [{tmp_child}] SET {pk_column} = NULL;",
-                            f"UPDATE [{tmp_child}] SET {fk_column} = {pk}",
+                            f"UPDATE [{tmp_child}] SET {fk_column} = {lastrowid}",
                             f"INSERT INTO [{child}] SELECT * FROM [{tmp_child}];",
                             f"DROP TABLE [{tmp_child}]",
                         ]
-                        for q in queries:
+                        for q in query:
                             res = self.execute(q)
                             if res.attrs["exception"]:
                                 return res
