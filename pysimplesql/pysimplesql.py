@@ -7766,17 +7766,17 @@ class MSAccess(SQLDriver):
     def column_info(self, table):
         meta_data = self.con.getMetaData()
         rs = meta_data.getColumns(None, None, table, None)
-
+        print("Getting column info...")
         col_info = ColumnInfo(self, table)
         pk_columns = [self.pk_column(table)]
-
+        print("pk_columns", pk_columns)
         while rs.next():
-            name = str(rs.getString("COLUMN_NAME"))
+            name = str(rs.getString("column_name"))
             domain = str(rs.getString("TYPE_NAME")).upper()
             notnull = str(rs.getString("IS_NULLABLE")) == "NO"
             default = str(rs.getString("COLUMN_DEF"))
             pk = name in pk_columns
-
+            print("name", name)
             col_info.append(
                 Column(
                     name=name, domain=domain, notnull=notnull, default=default, pk=pk
@@ -7786,10 +7786,11 @@ class MSAccess(SQLDriver):
         return col_info
 
     def pk_column(self, table):
+        print(f"Getting pk_column for {table}")
         meta_data = self.con.getMetaData()
         rs = meta_data.getPrimaryKeys(None, None, table)
         if rs.next():
-            return str(rs.getString("COLUMN_NAME"))
+            return str(rs.getString("column_name"))
         return None
 
     def get_tables(self):
@@ -7858,6 +7859,7 @@ class MSAccess(SQLDriver):
         # Creates a comma separated list of column names and types to be used in a
         # CREATE TABLE statement
         columns = self.column_info(table_name)
+        print("columns", columns)
         cols = ""
         for c in columns:
             cols += f"{c['name']} {c['domain']}, "
@@ -7875,27 +7877,27 @@ class MSAccess(SQLDriver):
             f"{lang.duplicate_prepend}"
             f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
         )
-        table = self.quote_table(dataset.table)
-        tmp_table = self.quote_table(f"temp_{dataset.table}")
-        pk_column = self.quote_column(dataset.pk_column)
-        description_column = self.quote_column(dataset.description_column)
+        table = dataset.table
+        tmp_table = f"temp_{dataset.table}"
+        pk_column = dataset.pk_column
+        description_column = dataset.description_column
 
         # Create tmp table, update pk column in temp and insert into table
         f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)}"
         query = [
-            f"DROP TABLE IF EXISTS {tmp_table};",
-            f"CREATE TABLE {tmp_table} ({self._get_column_definitions(table)});",
+            f"DROP TABLE IF EXISTS [{tmp_table}];",
+            f"CREATE TABLE [{tmp_table}] ({self._get_column_definitions(table)});",
             (
-                f"INSERT INTO {tmp_table} (SELECT * FROM {table} "
+                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
                 f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)});"
             ),
             (
-                f"UPDATE {tmp_table} SET {pk_column} = "
+                f"UPDATE [{tmp_table}] SET {pk_column} = "
                 f"{self.next_pk(dataset.table, dataset.pk_column)};"
             ),
-            f"UPDATE {tmp_table}]SET {description_column} = {description}",
-            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
-            f"DROP TABLE IF EXISTS {tmp_table}",
+            f"UPDATE [{tmp_table}] SET {description_column} = {description}",
+            f"INSERT INTO [{table}] SELECT * FROM [{tmp_table}];",
+            f"DROP TABLE IF EXISTS [{tmp_table}]",
         ]
         for q in query:
             res = self.execute(q)
@@ -7903,7 +7905,7 @@ class MSAccess(SQLDriver):
                 return res
 
         # Now we save the new pk
-        pk = res.lastrowid
+        pk = res.attrs["lastrowid"]
 
         # create list of which children we have duplicated
         child_duplicated = []
@@ -7916,31 +7918,29 @@ class MSAccess(SQLDriver):
                         and r.on_update_cascade
                         and (r.child_table not in child_duplicated)
                     ):
-                        child = self.quote_table(r.child_table)
-                        tmp_child = self.quote_table(f"temp_{r.child_table}")
-                        pk_column = self.quote_column(
-                            dataset.frm[r.child_table].pk_column
-                        )
-                        fk_column = self.quote_column(r.fk_column)
+                        child = r.child_table
+                        tmp_child = f"temp_{r.child_table}"
+                        pk_column = dataset.frm[r.child_table].pk_column
+                        fk_column = r.fk_column
 
                         # Update children's pk_columns to NULL and set correct parent
                         # PK value.
                         queries = [
-                            f"DROP TABLE IF EXISTS {tmp_child}",
+                            f"DROP TABLE IF EXISTS [{tmp_child}]",
                             (
-                                f"CREATE TABLE {tmp_table} "
+                                f"CREATE TABLE [{tmp_table}] "
                                 f"({self._get_column_definitions(table)});"
                             ),
                             (
-                                f"INSERT INTO {tmp_table} (SELECT * FROM {table} "
+                                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
                                 f"WHERE {pk_column}="
                                 f"{dataset.get_current(dataset.pk_column)});"
                             ),
                             # don't next_pk(), because child can be plural.
-                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
-                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
-                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
-                            f"DROP TABLE IF EXISTS {tmp_child}",
+                            f"UPDATE [{tmp_child}] SET {pk_column} = NULL;",
+                            f"UPDATE [{tmp_child}] SET {fk_column} = {pk}",
+                            f"INSERT INTO [{child}] SELECT * FROM [{tmp_child}];",
+                            f"DROP TABLE IF EXISTS [{tmp_child}]",
                         ]
                         for q in queries:
                             res = self.execute(q)
