@@ -6595,11 +6595,11 @@ class SQLDriver:
 
     def min_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MIN({pk_column}) as min_pk FROM {table}")
-        return rows.iloc[0]["min_pk"]
+        return rows.iloc[0]["min_pk"].tolist()
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.iloc[0]["max_pk"]
+        return rows.iloc[0]["max_pk"].tolist()
 
     def generate_join_clause(self, dataset: DataSet) -> str:
         """
@@ -7378,9 +7378,7 @@ class Mysql(SQLDriver):
     def pk_column(self, table):
         query = "SHOW KEYS FROM {} WHERE Key_name = 'PRIMARY'".format(table)
         rows = self.execute(query, silent=True)
-        for _, row in rows.iterrows():
-            return row["Column_name"]
-        return None
+        return rows.iloc[0]["Column_name"]
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -7636,9 +7634,7 @@ class Postgres(SQLDriver):
             f"tc.table_name = '{table}' "
         )
         rows = self.execute(query, silent=True)
-        for _, row in rows.iterrows():
-            return row["column_name"]
-        return None
+        return rows.iloc[0]["column_name"]
 
     def relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
@@ -7684,7 +7680,7 @@ class Postgres(SQLDriver):
         rows = self.execute(
             f"SELECT COALESCE(MIN({pk_column}), 0) AS min_pk FROM {table};", silent=True
         )
-        return rows.fetchone()["min_pk"]
+        return rows.iloc[0]["min_pk"].tolist()
 
     def max_pk(self, table: str, pk_column: str) -> int:
         table = self.quote_table(table)
@@ -7692,7 +7688,7 @@ class Postgres(SQLDriver):
         rows = self.execute(
             f"SELECT COALESCE(MAX({pk_column}), 0) AS max_pk FROM {table};", silent=True
         )
-        return rows.fetchone()["max_pk"]
+        return rows.iloc[0]["max_pk"].tolist()
 
     def next_pk(self, table: str, pk_column: str) -> int:
         # Working with case-sensitive tables is painful in Postgres.  First, the
@@ -7705,9 +7701,7 @@ class Postgres(SQLDriver):
         # wrap the quoted string in singe quotes.  Phew!
         q = f"SELECT nextval('{seq}') LIMIT 1;"
         rows = self.execute(q, silent=True)
-        for _, row in rows.iterrows():
-            return row["nextval"]
-        return None
+        return rows.iloc[0]["nextval"].tolist()
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # insert_record() for Postgres is a little different from the rest. Instead of
@@ -7841,7 +7835,7 @@ class Sqlserver(SQLDriver):
             "SELECT table_name FROM information_schema.tables WHERE table_catalog = ?"
         )
         rows = self.execute(query, [self.database], silent=True)
-        return [row["table_name"] for row in rows]
+        return list(rows["table_name"])
 
     def column_info(self, table):
         # Return a list of column names
@@ -7857,10 +7851,10 @@ class Sqlserver(SQLDriver):
             WHERE TABLE_NAME = ?
         """
         pk_rows = self.execute(pk_query, [table], silent=True)
-        for pk_row in pk_rows:
+        for _, pk_row in pk_rows.iterrows():
             pk_columns.append(pk_row["COLUMN_NAME"])
 
-        for row in rows:
+        for _, row in rows.iterrows():
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
             notnull = row["IS_NULLABLE"] == "NO"
@@ -7897,7 +7891,7 @@ class Sqlserver(SQLDriver):
 
             rows = self.execute(query, silent=True)
 
-            for row in rows:
+            for _, row in rows.iterrows():
                 dic = {}
                 dic["from_table"] = row["from_table"]
                 dic["to_table"] = row["to_table"]
@@ -7921,8 +7915,8 @@ class Sqlserver(SQLDriver):
 
         rows = self.execute(query, silent=True)
 
-        if rows:
-            return rows[0]["COLUMN_NAME"]
+        if not rows.empty:
+            return rows.iloc[0]["COLUMN_NAME"]
         return None
 
 
