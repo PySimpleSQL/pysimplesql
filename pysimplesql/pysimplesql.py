@@ -62,8 +62,11 @@ import math
 import os.path
 import queue
 import threading  # threaded popup
+import tkinter as tk
+import tkinter.font as tkfont
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
+from tkinter import ttk
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
 import pandas as pd
@@ -189,6 +192,13 @@ DELETE_CASCADE_RECURSION_LIMIT: int = 15
 SORT_NONE = 0
 SORT_ASC = 1
 SORT_DESC = 2
+
+# ---------------------
+# Cell Edit Field Types
+# ---------------------
+CELL_ENTRY = 0
+CELL_COMBOBOX = 1
+CELL_CHECKBUTTON = 2
 
 
 # -------
@@ -557,6 +567,7 @@ class DataSet:
         self.dependents: list = []
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[pd.DataFrame, None] = None
+        self.changed_row = None
         self.search_order: List[str] = []
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
@@ -832,7 +843,11 @@ class DataSet:
         if self.row_is_virtual():
             return True
 
+        if isinstance(self.changed_row, pd.Series):
+            return True
+
         dirty = False
+
         # First check the current record to see if it's dirty
         for mapped in self.frm.element_map:
             # Compare the DB version to the GUI version
@@ -1324,6 +1339,9 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
+        if self.current_index == index:
+            return
+
         logger.debug(f"Moving to the record at index {index} on {self.table}")
         if omit_elements is None:
             omit_elements = []
@@ -1370,6 +1388,13 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
+        # Get the numerical index of where the primary key is located.
+        # If the pk value can't be found, set to the last index
+        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        idx = idx[0] if idx else len(self.rows.index)
+        if self.current_index == idx:
+            return
+
         logger.debug(f"Setting table {self.table} record by primary key {pk}")
         if omit_elements is None:
             omit_elements = []
@@ -1384,9 +1409,6 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         # Move to the numerical index of where the primary key is located.
-        # If the pk value can't be found, move to the last index
-        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
-        idx = idx[0] if idx else len(self.rows.index)
         self.current_index = idx
 
         if update_elements:
@@ -1616,7 +1638,10 @@ class DataSet:
         # Work with a copy of the original row and transform it if needed
         # Note that while saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
-        current_row = self.get_current_row().copy()
+        if isinstance(self.changed_row, pd.Series):
+            current_row = self.changed_row.copy()
+        else:
+            current_row = self.get_current_row().copy()
 
         # Track the keyed queries we have to run.  Set to None, so we can tell later if
         # there were keyed elements
@@ -1624,39 +1649,47 @@ class DataSet:
             List
         ] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
-        # Propagate GUI data back to the stored current_row
-        for mapped in [m for m in self.frm.element_map if m.dataset == self]:
-            # convert the data into the correct type using the domain in ColumnInfo
-            element_val = self.column_info[mapped.column].cast(mapped.element.get())
+        # if we are saving from a sg.Table CellEdit
+        if isinstance(self.changed_row, pd.Series):
+            for column, value in current_row.items():
+                # convert the data into the correct type using the domain in ColumnInfo
+                element_val = self.column_info[column].cast(value)
+                current_row[column] = element_val
 
-            # Looked for keyed elements first
-            if mapped.where_column is not None:
-                if keyed_queries is None:
-                    # Make the list here so != None if keyed elements
-                    keyed_queries = []
-                for row in self.rows:
-                    if (
-                        row[mapped.where_column] == mapped.where_value
-                        and row[mapped.column] != element_val
-                    ):
-                        # This record has changed.  We will save it
-                        row[mapped.column] = element_val  # propagate the value
-                        changed = {mapped.column: element_val}
-                        where_col = self.driver.quote_column(mapped.where_column)
-                        where_val = self.driver.quote_value(mapped.where_value)
-                        where_clause = f"WHERE {where_col} = {where_val}"
-                        keyed_queries.append(
-                            {
-                                "column": mapped.column,
-                                "changed_row": changed,
-                                "where_clause": where_clause,
-                            }
-                        )
-            else:
-                current_row[mapped.column] = element_val
+        else:
+            # Propagate GUI data back to the stored current_row
+            for mapped in [m for m in self.frm.element_map if m.dataset == self]:
+                # convert the data into the correct type using the domain in ColumnInfo
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
+                # Looked for keyed elements first
+                if mapped.where_column is not None:
+                    if keyed_queries is None:
+                        # Make the list here so != None if keyed elements
+                        keyed_queries = []
+                    for row in self.rows:
+                        if (
+                            row[mapped.where_column] == mapped.where_value
+                            and row[mapped.column] != element_val
+                        ):
+                            # This record has changed.  We will save it
+                            row[mapped.column] = element_val  # propagate the value
+                            changed = {mapped.column: element_val}
+                            where_col = self.driver.quote_column(mapped.where_column)
+                            where_val = self.driver.quote_value(mapped.where_value)
+                            where_clause = f"WHERE {where_col} = {where_val}"
+                            keyed_queries.append(
+                                {
+                                    "column": mapped.column,
+                                    "changed_row": changed,
+                                    "where_clause": where_clause,
+                                }
+                            )
+                else:
+                    current_row[mapped.column] = element_val
 
         changed_row = dict(current_row.items())
         cascade_fk_changed = False
+
         # check to see if cascading-fk has changed before we update database
         cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
         if cascade_fk_column:
@@ -1754,7 +1787,11 @@ class DataSet:
         self.driver.commit()
 
         # Sort so the saved row honors the current order.
-        self.sort(self.table)
+        if "sort_column" in self.rows.attrs and self.rows.attrs["sort_column"]:
+            self.sort(self.table)
+
+        # Discard changed_row
+        self.changed_row = None
 
         if update_elements:
             self.frm.update_elements(self.key)
@@ -2352,7 +2389,7 @@ class DataSet:
             element = e["element"]
             if (
                 "TableHeading" in element.metadata
-                and element.metadata["TableHeading"]._sort_enable
+                and element.metadata["TableHeading"].sort_enable
             ):
                 element.metadata["TableHeading"].update_headings(
                     element, column, sort_order
@@ -2378,7 +2415,6 @@ class DataSet:
             idx = len(self.rows.index)
         idx_label = self.rows.index.max() if len(self.rows.index) > 0 else 0
         self.rows.attrs["virtual"].loc[idx_label] = 1  # True, series only holds int64
-
 
 class Form:
 
@@ -2485,6 +2521,10 @@ class Form:
             win_pb.update(lang.startup_binding, 75)
             self.window = bind_window
             self.popup = Popup(self.window)
+            # Creating cell edit instance, even if we arn't going to use it.
+            self._cell_edit = _CellEdit(self)
+            self.window.TKroot.bind("<Double-Button-1>", self._cell_edit)
+
             self.bind(self.window)
         win_pb.close()
 
@@ -3428,12 +3468,12 @@ class Form:
                 # Populate the combobox entries
                 else:
                     lst = []
-                    for index, row in target_table.rows.iterrows():
+                    for _, row in target_table.rows.iterrows():
                         lst.append(ElementRow(row[pk_column], row[description]))
 
                     # Map the value to the combobox, by getting the description_column
                     # and using it to set the value
-                    for index, row in target_table.rows.iterrows():
+                    for _, row in target_table.rows.iterrows():
                         if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
                             for entry in lst:
                                 if entry.get_pk() == mapped.dataset[rel.fk_column]:
@@ -3441,6 +3481,7 @@ class Form:
                                     break
                             break
                     mapped.element.update(values=lst)
+
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
@@ -3478,6 +3519,7 @@ class Form:
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
                 updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
+
             elif type(mapped.element) is sg.PySimpleGUI.Image:
                 val = mapped.dataset[mapped.column]
 
@@ -5138,14 +5180,16 @@ class TableHeadings(list):
     # store our instances
     instances = []
 
-    def __init__(self, sort_enable: bool = True) -> None:
+    def __init__(self, sort_enable: bool = True, edit_enable: bool = False) -> None:
         """
         Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
+        :param edit_enable: True to enable editting cells
         :returns: None
         """
-        self._sort_enable = sort_enable
+        self.sort_enable = sort_enable
+        self.edit_enable = edit_enable
         self._width_map = []
         self._visible_map = []
 
@@ -5252,7 +5296,7 @@ class TableHeadings(list):
             should take one column parameter.
         :returns: None
         """
-        if self._sort_enable:
+        if self.sort_enable:
             for i in range(len(self)):
                 if self[i]["column"] is not None:
                     element.widget.heading(
@@ -5281,6 +5325,326 @@ class _SortCallbackWrapper:
 
     def __call__(self, column):
         self.frm[self.data_key].sort_cycle(column, self.data_key, update_elements=True)
+
+
+class _CellEdit:
+
+    """Internal class used when sg.Table cells are double-clicked if edit enabled"""
+
+    def __init__(self, frm_reference: Form):
+        self.frm = frm_reference
+        self.active_edit = False
+
+    def __call__(self, event):
+        # if double click a treeview
+        if event.widget.__class__.__name__ == "Treeview":
+            tk_widget = event.widget
+            # identify region
+            region = tk_widget.identify("region", event.x, event.y)
+            if region == "cell":
+                self.edit(event)
+
+    def edit(self, event):
+        treeview = event.widget
+
+        # only allow 1 edit at a time
+        if self.active_edit or self.frm._edit_protect:
+            return
+
+        # get row and column
+        row = int(treeview.identify_row(event.y))
+        col_identified = treeview.identify_column(event.x)
+        if col_identified:
+            col_idx = int(treeview.identify_column(event.x)[1:]) - 1
+
+        try:
+            data_key, element = self.get_datakey_and_sg_table(treeview, self.frm)
+        except TypeError:
+            return
+
+        if not element:
+            return
+
+        # found a table we can edit, don't allow another double-click
+        self.active_edit = True
+
+        # get table_headings
+        table_heading = element.metadata["TableHeading"]
+
+        # get column name
+        column_names = table_heading.columns()
+        column = column_names[col_idx - 1]
+
+        # make sure it's not the marker column or pk_column
+        if col_idx > 0 and column != self.frm[data_key].pk_column:
+            # use table_element to distinguish
+            table_element = element.Widget
+            root = table_element.master
+
+            # get cell text, coordinates, width and height
+            text = table_element.item(row, "values")[col_idx]
+            x, y, width, height = table_element.bbox(row, col_idx)
+
+            # see if we should use a combobox
+            combobox_values = self.get_combobox_values(data_key, column)
+
+            if combobox_values:
+                field_type = CELL_COMBOBOX
+                width = (
+                    width
+                    if width >= themepack.combobox_min_width
+                    else themepack.combobox_min_width
+                )
+
+            # or a checkbox
+            elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
+                field_type = CELL_CHECKBUTTON
+                width = (
+                    width
+                    if width >= themepack.checkbutton_min_width
+                    else themepack.checkbutton_min_width
+                )
+
+            # else, its a normal ttk.entry
+            else:
+                field_type = CELL_ENTRY
+                width = (
+                    width
+                    if width >= themepack.entry_min_width
+                    else themepack.entry_min_width
+                )
+
+            # float a frame over the cell
+            frame = ttk.Frame(root)
+            frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+
+            # setup the widgets
+            # ------------------
+
+            # checkbutton
+            # need to use tk.IntVar for checkbox
+            if field_type == CELL_CHECKBUTTON:
+                field_var = tk.IntVar()
+                field_var.set(text)
+                self.field = ttk.Checkbutton(frame, variable=field_var)
+            else:
+                # create tk.StringVar for combo/entry
+                field_var = tk.StringVar()
+                field_var.set(text)
+
+            # entry
+            if field_type == CELL_ENTRY:
+                self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+
+            # combobox
+            if field_type == CELL_COMBOBOX:
+                self.field = ttk.Combobox(frame, textvariable=field_var, justify="left")
+                self.field["values"] = combobox_values
+                self.field.bind("<Configure>", self.combo_configure)
+
+            # bind text to Return (for save), and Escape (for discard)
+            # event is discarded
+            self.field.bind(
+                "<Return>",
+                lambda event: self.save(
+                    data_key,
+                    table_element,
+                    row,
+                    column,
+                    col_idx,
+                    combobox_values,
+                    field_type,
+                    field_var,
+                ),
+            )
+            self.field.bind("<Escape>", lambda event: self.discard())
+
+            # buttons
+            self.save_button = tk.Button(
+                frame,
+                text="\u2714",
+                relief=tk.GROOVE,
+                command=lambda: self.save(
+                    data_key,
+                    table_element,
+                    row,
+                    column,
+                    col_idx,
+                    combobox_values,
+                    field_type,
+                    field_var,
+                ),
+            )
+            self.discard_button = tk.Button(
+                frame, text="\u274E", relief=tk.GROOVE, command=lambda: self.discard()
+            )
+            # pack buttons
+            self.discard_button.pack(side="right")
+            self.save_button.pack(side="right")
+
+            # have entry use remaining space
+            self.field.pack(side="left", expand=True, fill="both")
+
+            # select text and focus to begin with
+            if field_type != CELL_CHECKBUTTON:
+                self.field.select_range(0, tk.END)
+                self.field.focus_force()
+
+            # bind single-clicks
+            self.discard_bind = self.frm.window.TKroot.bind(
+                "<Button-1>", lambda event: self.single_click_callback(event)
+            )
+        else:
+            # didn't find a cell we can edit
+            self.active_edit = False
+
+    def save(
+        self,
+        data_key,
+        table_element,
+        row,
+        column,
+        col_idx,
+        combobox_values: ElementRow,
+        field_type,
+        field_var,
+    ):
+        # get current entry text
+        new_value = field_var.get()
+
+        # get current table row
+        values = list(table_element.item(row, "values"))
+
+        # update cell with new text
+        values[col_idx] = new_value
+
+        # push changes to table element row
+        table_element.item(row, values=values)
+
+        # if we have already modfied DataSet changed_row:
+        if self.frm[data_key].changed_row is not None:
+            changed_row = self.frm[data_key].changed_row
+        else:
+            changed_row = self.frm[data_key].get_current_row().copy()
+
+        # set the value to the parent pk
+        if field_type == CELL_COMBOBOX:
+            new_value = combobox_values[self.field.current()].get_pk()
+
+        changed_row[column] = new_value
+
+        # see if there was a change
+        if self.cell_changed(data_key, column, field_type, new_value):
+            # push row to dataset
+            self.frm[data_key].changed_row = changed_row
+
+        self.discard()
+
+    def discard(self):
+        # unbind
+        self.frm.window.TKroot.unbind("<Button-1>", self.discard_bind)
+        # destroy widets and window
+        self.field.destroy()
+        self.save_button.destroy()
+        self.discard_button.destroy()
+        self.field.master.destroy()
+        # reset edit
+        self.active_edit = False
+
+    def single_click_callback(self, event):
+        if event and event.widget in [
+            self.field,
+            self.save_button,
+            self.discard_button,
+        ]:
+            return
+        self.discard()
+
+    def get_combobox_values(self, data_key, heading_column):
+        rels = Relationship.get_relationships(self.frm[data_key].table)
+        found = False
+        for rel in rels:
+            if rel.fk_column == heading_column:
+                target_table = self.frm[rel.parent_table]
+                pk_column = target_table.pk_column
+                description = target_table.description_column
+                found = True
+                break
+
+        if not found:
+            return None
+
+        lst = []
+        for _, r in target_table.rows.iterrows():
+            lst.append(ElementRow(r[pk_column], r[description]))
+        return lst
+
+    def get_datakey_and_sg_table(self, treeview, frm):
+        # loop through datasets, trying to identify sg.Table selector
+        for data_key in [
+            data_key for data_key in frm.datasets if len(frm[data_key].selector)
+        ]:
+            for e in frm[data_key].selector:
+                element = e["element"]
+                if (
+                    element.widget == treeview
+                    and "TableHeading" in element.metadata
+                    and element.metadata["TableHeading"].edit_enable
+                ):
+                    return data_key, element
+        return None
+
+    def cell_changed(self, data_key, column, field_type, new_value):
+        # get value from rows
+        table_val = self.frm[data_key].rows.loc[self.frm[data_key].current_index][
+            column
+        ]
+
+        # convert numpy to normal type
+        with contextlib.suppress(AttributeError):
+            table_val = table_val.tolist()
+
+        # get cast new value to correct type
+        for col in self.frm[data_key].column_info:
+            if col["name"] == column:
+                element_val = col.cast(new_value)
+                break
+
+        if field_type == CELL_CHECKBUTTON:
+            table_val = checkbox_to_bool(table_val)
+            element_val = checkbox_to_bool(element_val)
+
+        # Sanitize things a bit due to empty values being slightly different in
+        # the two cases.
+        if table_val is None:
+            table_val = ""
+
+        # Strip trailing whitespace from strings
+        if type(table_val) is str:
+            table_val = table_val.rstrip()
+        if type(element_val) is str:
+            element_val = element_val.rstrip()
+
+        if element_val != table_val:
+            return True
+        return None
+
+    def combo_configure(self, event):
+        """Configures combobox drop-down to be at least as wide as longest value"""
+
+        combo = event.widget
+        style = ttk.Style()
+
+        # get longest value
+        long = max(combo.cget("values"), key=len)
+        # get font
+        font = tkfont.nametofont(str(combo.cget("font")))
+        # set initial width
+        width = font.measure(long.strip() + "0")
+        # make it width size if smaller
+        width = width if width > combo["width"] else combo["width"]
+        style.configure("SS.TCombobox", postoffset=(0, 0, width, 0))
+        combo.configure(style="SS.TCombobox")
 
 
 # ======================================================================================
@@ -5360,6 +5724,10 @@ class ThemePack:
         # Sets the default multi-line text size when `field()` is used.
         # The size= parameter of `field()` will override this.
         "default_mline_size": (30, 7),  # (width, height)
+        # Default minimum sizes for CellEdit widgets:
+        "entry_min_width": 80,
+        "combobox_min_width": 80,
+        "checkbutton_min_width": 75,
     }
     """
     Default Themepack.
