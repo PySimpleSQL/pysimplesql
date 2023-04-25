@@ -62,8 +62,10 @@ import math
 import os.path
 import queue
 import threading  # threaded popup
+import tkinter as tk
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
+from tkinter import ttk
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
 import pandas as pd
@@ -189,6 +191,13 @@ DELETE_CASCADE_RECURSION_LIMIT: int = 15
 SORT_NONE = 0
 SORT_ASC = 1
 SORT_DESC = 2
+
+# ---------------------
+# Cell Edit Field Types
+# ---------------------
+CELL_ENTRY = 0
+CELL_COMBOBOX = 1
+CELL_CHECKBUTTON = 2
 
 
 # -------
@@ -557,6 +566,7 @@ class DataSet:
         self.dependents: list = []
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[pd.DataFrame, None] = None
+        self.changed_row = None
         self.search_order: List[str] = []
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
@@ -832,7 +842,11 @@ class DataSet:
         if self.row_is_virtual():
             return True
 
+        if isinstance(self.changed_row, pd.Series):
+            return True
+
         dirty = False
+
         # First check the current record to see if it's dirty
         for mapped in self.frm.element_map:
             # Compare the DB version to the GUI version
@@ -1324,6 +1338,9 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
+        if self.current_index == index:
+            return
+
         logger.debug(f"Moving to the record at index {index} on {self.table}")
         if omit_elements is None:
             omit_elements = []
@@ -1370,6 +1387,13 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
+        # Get the numerical index of where the primary key is located.
+        # If the pk value can't be found, set to the last index
+        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        idx = idx[0] if idx else len(self.rows.index)
+        if self.current_index == idx:
+            return
+
         logger.debug(f"Setting table {self.table} record by primary key {pk}")
         if omit_elements is None:
             omit_elements = []
@@ -1384,9 +1408,6 @@ class DataSet:
             self.prompt_save(update_elements=False)
 
         # Move to the numerical index of where the primary key is located.
-        # If the pk value can't be found, move to the last index
-        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
-        idx = idx[0] if idx else len(self.rows.index)
         self.current_index = idx
 
         if update_elements:
@@ -1616,7 +1637,10 @@ class DataSet:
         # Work with a copy of the original row and transform it if needed
         # Note that while saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
-        current_row = self.get_current_row().copy()
+        if isinstance(self.changed_row, pd.Series):
+            current_row = self.changed_row.copy()
+        else:
+            current_row = self.get_current_row().copy()
 
         # Track the keyed queries we have to run.  Set to None, so we can tell later if
         # there were keyed elements
@@ -1624,48 +1648,53 @@ class DataSet:
             List
         ] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
 
-        # Propagate GUI data back to the stored current_row
-        for mapped in [m for m in self.frm.element_map if m.dataset == self]:
-            # convert the data into the correct type using the domain in ColumnInfo
-            element_val = self.column_info[mapped.column].cast(mapped.element.get())
-
-            # Looked for keyed elements first
-            if mapped.where_column is not None:
-                if keyed_queries is None:
-                    # Make the list here so != None if keyed elements
-                    keyed_queries = []
-                for row in self.rows:
-                    if (
-                        row[mapped.where_column] == mapped.where_value
-                        and row[mapped.column] != element_val
-                    ):
-                        # This record has changed.  We will save it
-                        row[mapped.column] = element_val  # propagate the value
-                        changed = {mapped.column: element_val}
-                        where_col = self.driver.quote_column(mapped.where_column)
-                        where_val = self.driver.quote_value(mapped.where_value)
-                        where_clause = f"WHERE {where_col} = {where_val}"
-                        keyed_queries.append(
-                            {
-                                "column": mapped.column,
-                                "changed_row": changed,
-                                "where_clause": where_clause,
-                            }
-                        )
-            else:
-                current_row[mapped.column] = element_val
+        if isinstance(self.changed_row, pd.Series):
+            for column, value in current_row.items():
+                # convert the data into the correct type using the domain in ColumnInfo
+                element_val = self.column_info[column].cast(value)
+        else:
+            # Propagate GUI data back to the stored current_row
+            for mapped in [m for m in self.frm.element_map if m.dataset == self]:
+                # convert the data into the correct type using the domain in ColumnInfo
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
+                # Looked for keyed elements first
+                if mapped.where_column is not None:
+                    if keyed_queries is None:
+                        # Make the list here so != None if keyed elements
+                        keyed_queries = []
+                    for row in self.rows:
+                        if (
+                            row[mapped.where_column] == mapped.where_value
+                            and row[mapped.column] != element_val
+                        ):
+                            # This record has changed.  We will save it
+                            row[mapped.column] = element_val  # propagate the value
+                            changed = {mapped.column: element_val}
+                            where_col = self.driver.quote_column(mapped.where_column)
+                            where_val = self.driver.quote_value(mapped.where_value)
+                            where_clause = f"WHERE {where_col} = {where_val}"
+                            keyed_queries.append(
+                                {
+                                    "column": mapped.column,
+                                    "changed_row": changed,
+                                    "where_clause": where_clause,
+                                }
+                            )
+                else:
+                    current_row[mapped.column] = element_val
 
         changed_row = dict(current_row.items())
         cascade_fk_changed = False
-        # check to see if cascading-fk has changed before we update database
-        cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
-        if cascade_fk_column:
-            # check if fk
-            for mapped in self.frm.element_map:
-                if mapped.dataset == self and mapped.column == cascade_fk_column:
-                    cascade_fk_changed = self.records_changed(
-                        column=cascade_fk_column, recursive=False
-                    )
+        if not isinstance(self.changed_row, pd.Series):
+            # check to see if cascading-fk has changed before we update database
+            cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
+            if cascade_fk_column:
+                # check if fk
+                for mapped in self.frm.element_map:
+                    if mapped.dataset == self and mapped.column == cascade_fk_column:
+                        cascade_fk_changed = self.records_changed(
+                            column=cascade_fk_column, recursive=False
+                        )
 
         # Update the database from the stored rows
         if self.transform is not None:
@@ -1754,7 +1783,11 @@ class DataSet:
         self.driver.commit()
 
         # Sort so the saved row honors the current order.
-        self.sort(self.table)
+        if "sort_column" in self.rows.attrs and self.rows.attrs["sort_column"]:
+            self.sort(self.table)
+
+        # Discard changed_row
+        self.changed_row = None
 
         if update_elements:
             self.frm.update_elements(self.key)
@@ -2352,7 +2385,7 @@ class DataSet:
             element = e["element"]
             if (
                 "TableHeading" in element.metadata
-                and element.metadata["TableHeading"]._sort_enable
+                and element.metadata["TableHeading"].sort_enable
             ):
                 element.metadata["TableHeading"].update_headings(
                     element, column, sort_order
@@ -2484,7 +2517,11 @@ class Form:
         if bind_window is not None:
             win_pb.update(lang.startup_binding, 75)
             self.window = bind_window
-            self.popup = Popup()
+            self.popup = Popup(self.window)
+            # Creating cell edit instance, even if we arn't going to use it.
+            self._cell_edit = _CellEdit(self)
+            self.window.TKroot.bind("<Double-Button-1>", self._cell_edit)
+
             self.bind(self.window)
         win_pb.close()
 
@@ -2526,7 +2563,7 @@ class Form:
         """
         logger.info("Binding Window to Form")
         self.window = win
-        self.popup = Popup()
+        self.popup = Popup(self.window)
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
@@ -3428,12 +3465,12 @@ class Form:
                 # Populate the combobox entries
                 else:
                     lst = []
-                    for index, row in target_table.rows.iterrows():
+                    for _, row in target_table.rows.iterrows():
                         lst.append(ElementRow(row[pk_column], row[description]))
 
                     # Map the value to the combobox, by getting the description_column
                     # and using it to set the value
-                    for index, row in target_table.rows.iterrows():
+                    for _, row in target_table.rows.iterrows():
                         if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
                             for entry in lst:
                                 if entry.get_pk() == mapped.dataset[rel.fk_column]:
@@ -3441,6 +3478,7 @@ class Form:
                                     break
                             break
                     mapped.element.update(values=lst)
+
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
@@ -3478,6 +3516,7 @@ class Form:
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
                 updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
+
             elif type(mapped.element) is sg.PySimpleGUI.Image:
                 val = mapped.dataset[mapped.column]
 
@@ -3881,13 +3920,15 @@ class Popup:
     Has popup functions for internal use. Stores last info popup as last_info
     """
 
-    def __init__(self):
+    def __init__(self, window=None):
         """
         Create a new Popup instance
         :returns: None.
         """
-        self.last_info_msg = ""
+        self.last_info_msg: str = ""
         self.popup_info = None
+        if window:
+            self.window = window
 
     def ok(self, title, msg):
         """
@@ -3895,8 +3936,8 @@ class Popup:
 
         Creates sg.Window with LanguagePack OK button
         """
-        msg = msg.splitlines()
-        layout = [[sg.T(line, font="bold")] for line in msg]
+        msg_lines = msg.splitlines()
+        layout = [[sg.Text(line, font="bold")] for line in msg_lines]
         layout.append(
             sg.Button(
                 button_text=lang.button_ok,
@@ -3913,11 +3954,12 @@ class Popup:
             finalize=True,
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
+            enable_close_attempted_event=True,
         )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED, "Exit", "ok"]:
+            if event in ["ok", "-WINDOW CLOSE ATTEMPTED-"]:
                 break
         popup_win.close()
 
@@ -3927,8 +3969,8 @@ class Popup:
 
         Creates sg.Window with LanguagePack Yes/No button
         """
-        msg = msg.splitlines()
-        layout = [[sg.T(line, font="bold")] for line in msg]
+        msg_lines = msg.splitlines()
+        layout = [[sg.Text(line, font="bold")] for line in msg_lines]
         layout.append(
             sg.Button(
                 button_text=lang.button_yes,
@@ -3953,11 +3995,12 @@ class Popup:
             finalize=True,
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
+            enable_close_attempted_event=True,
         )
 
         while True:
             event, values = popup_win.read()
-            if event in [sg.WIN_CLOSED, "Exit", "no", "yes"]:
+            if event in ["no", "yes", "-WINDOW CLOSE ATTEMPTED-"]:
                 result = event
                 break
         popup_win.close()
@@ -3967,63 +4010,43 @@ class Popup:
         self, msg: str, display_message: bool = True, auto_close_seconds: int = None
     ):
         """
-        Creates sg.Window with no buttons to display passed in message string, and
-        writes message to to self.last_info. Uses title as defined in
-        lang.info_popup_title. By default auto-closes in seconds as defined in
-        themepack.popup_info_auto_close_seconds.
+        Displays a popup message and saves the message to self.last_info, auto-closing
+        after x seconds. The title of the popup window is defined in
+        lang.info_popup_title.
 
-        :param msg: String to display as message
-        :param display_message: (optional) By default True. False only writes
-            [title,msg] to self.last_info.
-        :param auto_close_seconds: (optional) Gets value from
-            themepack.info_popup_auto_close_seconds by default.
-        :returns: None
+        :param msg: The message to display.
+        :param display_message: (optional) If True (default), displays the message in
+            the popup window. If False, only saves `msg` to `self.last_info_msg`.
+        :param auto_close_seconds: (optional) The number of seconds before the popup
+            window auto-closes. If not provided, it is obtained from
+            themepack.popup_info_auto_close_seconds.
         """
-        """
-        Internal use only.
 
-        Creates sg.Window with no buttons, auto-closing after seconds as defined in
-        themepack
-        """
         title = lang.info_popup_title
         if auto_close_seconds is None:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
         self.last_info_msg = msg
         if display_message:
-            msg = msg.splitlines()
-            layout = [sg.T(line, font="bold") for line in msg]
+            msg_lines = msg.splitlines()
+            layout = [[sg.Text(line, font="bold")] for line in msg_lines]
             self.popup_info = sg.Window(
                 title=title,
-                layout=[layout],
+                layout=layout,
                 no_titlebar=False,
                 keep_on_top=True,
                 finalize=True,
                 alpha_channel=themepack.popup_info_alpha_channel,
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
+                enable_close_attempted_event=True,
             )
-            threading.Thread(
-                target=self.auto_close,
-                args=(self.popup_info, auto_close_seconds),
-                daemon=True,
-            ).start()
+            self.window.TKroot.after(auto_close_seconds * 1000, self._auto_close)
 
-    def auto_close(self, window: sg.Window, seconds: int):
+    def _auto_close(self):
         """
-        Use in a thread to automatically close the passed in sg.Window.
-
-        :param window: sg.Window object to close
-        :param seconds: Seconds to keep window open
-        :returns: None
+        Use in a tk.after to automatically close the popup_info.
         """
-        step = 1
-        while step <= seconds:
-            sleep(1)
-            step += 1
-        self.close(window)
-
-    def close(self, window):
-        window.close()
+        self.popup_info.close()
 
 
 class ProgressBar:
@@ -5154,14 +5177,16 @@ class TableHeadings(list):
     # store our instances
     instances = []
 
-    def __init__(self, sort_enable: bool = True) -> None:
+    def __init__(self, sort_enable: bool = True, edit_enable: bool = False) -> None:
         """
         Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
+        :param edit_enable: True to enable editting cells
         :returns: None
         """
-        self._sort_enable = sort_enable
+        self.sort_enable = sort_enable
+        self.edit_enable = edit_enable
         self._width_map = []
         self._visible_map = []
 
@@ -5268,7 +5293,7 @@ class TableHeadings(list):
             should take one column parameter.
         :returns: None
         """
-        if self._sort_enable:
+        if self.sort_enable:
             for i in range(len(self)):
                 if self[i]["column"] is not None:
                     element.widget.heading(
@@ -5297,6 +5322,276 @@ class _SortCallbackWrapper:
 
     def __call__(self, column):
         self.frm[self.data_key].sort_cycle(column, self.data_key, update_elements=True)
+
+
+class _CellEdit:
+
+    """Internal class used when sg.Table cells are double-clicked if edit enabled"""
+
+    def __init__(self, frm_reference: Form):
+        self.frm = frm_reference
+        self.active_edit = False
+        self.current_row = None
+        self.combobox_values = None
+        self.field_var = None
+        self.field = None
+        self.save_button = None
+        self.discard_button = None
+        self.discard_bind = None
+
+    def save(self, data_key, table_element, row, column_names, column):
+        # get current entry text
+        new_value = self.field_var.get()
+
+        # get current table row
+        values = list(table_element.item(row, "values"))
+
+        # update cell with new text
+        values[column] = new_value
+
+        # push changes to table element row
+        table_element.item(row, values=values)
+
+        # if we have already modfied DataSet changed_row:
+        if self.frm[data_key].changed_row is not None:
+            changed_row = self.frm[data_key].changed_row
+        else:
+            changed_row = self.frm[data_key].get_current_row().copy()
+
+        # set the value to the parent pk
+        if self.field_type == CELL_COMBOBOX:
+            new_value = self.combobox_values[self.field.current()].get_pk()
+
+        changed_row[column_names[column - 1]] = new_value
+
+        # see if there was a change
+        if self.cell_changed(data_key, column, new_value):
+            # push row to dataset
+            self.frm[data_key].changed_row = changed_row
+
+        self.discard()
+
+    def discard(self):
+        # unbind
+        self.frm.window.TKroot.unbind("<Button-1>", self.discard_bind)
+        # destroy widets and window
+        self.field.destroy()
+        self.save_button.destroy()
+        self.discard_button.destroy()
+        self.field.master.destroy()
+        # reset edit
+        self.active_edit = False
+
+    def edit(self, event, tk_widget):
+        # only allow 1 edit at a time
+        if self.active_edit or self.frm._edit_protect:
+            return
+
+        # get row and column
+        row = int(tk_widget.identify_row(event.y))
+        col_identified = tk_widget.identify_column(event.x)
+        if col_identified:
+            column = int(tk_widget.identify_column(event.x)[1:]) - 1
+
+        try:
+            data_key, element = self.get_datakey_and_sg_table(tk_widget, self.frm)
+        except TypeError:
+            return
+
+        if not element:
+            return
+
+        # found a table we can edit, don't allow another double-click
+        self.active_edit = True
+
+        # get table_headings
+        table_heading = element.metadata["TableHeading"]
+
+        # get column name
+        column_names = table_heading.columns()
+        heading_column = column_names[column - 1]
+
+        # make sure it's not the marker column or pk_column
+        if column > 0 and heading_column != self.frm[data_key].pk_column:
+            # use table_element to distinguish
+            table_element = element.Widget
+            root = table_element.master
+
+            # get cell text, coordinates, width and height
+            text = table_element.item(row, "values")[column]
+            x, y, width, height = table_element.bbox(row, column)
+
+            # float a frame over the cell
+            frame = ttk.Frame(root)
+            frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+
+            # see if we should use a combobox
+            self.combobox_values = self.get_combobox_values(data_key, heading_column)
+
+            if self.combobox_values:
+                self.field_type = CELL_COMBOBOX
+
+            # or a checkbox
+            elif self.frm[data_key].column_info[heading_column]["domain"] in [
+                "BOOLEAN"
+            ]:
+                self.field_type = CELL_CHECKBUTTON
+
+            # else, its a normal ttk.entry
+            else:
+                self.field_type = CELL_ENTRY
+
+            # setup the widgets
+            # ------------------
+
+            # checkbox
+            # need to use tk.IntVar for checkbox
+            if self.field_type == CELL_CHECKBUTTON:
+                self.field_var = tk.IntVar()
+                self.field_var.set(text)
+                self.field = ttk.Checkbutton(frame, variable=self.field_var)
+            else:
+                # create tk.StringVar for combo/entry
+                self.field_var = tk.StringVar()
+                self.field_var.set(text)
+
+            # combobox
+            if self.field_type == CELL_COMBOBOX:
+                self.field = ttk.Combobox(
+                    frame, textvariable=self.field_var, justify="left"
+                )
+                self.field["values"] = self.combobox_values
+
+            # or setup entry
+            if self.field_type == CELL_ENTRY:
+                self.field = ttk.Entry(
+                    frame, textvariable=self.field_var, justify="left"
+                )
+
+            # bind text to Return (for save), and Escape (for discard)
+            self.field.bind(
+                "<Return>",
+                lambda event, d=data_key, t=table_element, r=row, cn=column_names, c=column: self.save(  # noqa E501
+                    d, t, r, cn, c
+                ),
+            )
+            self.field.bind("<Escape>", lambda event: self.discard())
+
+            # buttons
+            self.save_button = tk.Button(
+                frame,
+                text="\u2714",
+                relief=tk.GROOVE,
+                command=lambda d=data_key, t=table_element, r=row, cn=column_names, c=column: self.save(  # noqa E501
+                    d, t, r, cn, c
+                ),
+            )
+            self.discard_button = tk.Button(
+                frame, text="\u274E", relief=tk.GROOVE, command=lambda: self.discard()
+            )
+            # pack buttons
+            self.discard_button.pack(side="right")
+            self.save_button.pack(side="right")
+
+            # have entry use remaining space
+            self.field.pack(side="left", expand=True, fill="both")
+
+            # select text and focus to begin with
+            if self.field_type != CELL_CHECKBUTTON:
+                self.field.select_range(0, tk.END)
+                self.field.focus_force()
+
+            # bind single-clicks
+            self.discard_bind = self.frm.window.TKroot.bind(
+                "<Button-1>", lambda event: self.single_click_callback(event)
+            )
+        else:
+            # didn't find a cell we can edit
+            self.active_edit = False
+
+    def __call__(self, event):
+        # if double click a treeview
+        if event.widget.__class__.__name__ == "Treeview":
+            tk_widget = event.widget
+            # identify region
+            region = tk_widget.identify("region", event.x, event.y)
+            if region == "cell":
+                self.edit(event, tk_widget)
+
+    def single_click_callback(self, event):
+        if event and event.widget in [
+            self.field,
+            self.save_button,
+            self.discard_button,
+        ]:
+            return
+        self.discard()
+
+    def get_combobox_values(self, data_key, heading_column):
+        rels = Relationship.get_relationships(self.frm[data_key].table)
+        found = False
+        for rel in rels:
+            if rel.fk_column == heading_column:
+                target_table = self.frm[rel.parent_table]
+                pk_column = target_table.pk_column
+                description = target_table.description_column
+                found = True
+                break
+
+        if not found:
+            return None
+
+        lst = []
+        for _, r in target_table.rows.iterrows():
+            lst.append(ElementRow(r[pk_column], r[description]))
+        return lst
+
+    def get_datakey_and_sg_table(self, tk_widget, frm):
+        # loop through datasets, trying to identify sg.Table selector
+        for data_key in [
+            data_key for data_key in frm.datasets if len(frm[data_key].selector)
+        ]:
+            for e in frm[data_key].selector:
+                element = e["element"]
+                if (
+                    element.widget == tk_widget
+                    and "TableHeading" in element.metadata
+                    and element.metadata["TableHeading"].edit_enable
+                ):
+                    return data_key, element
+        return None
+
+    def cell_changed(self, data_key, column, new_value):
+        # get value from rows
+        table_val = self.frm[data_key].rows.iloc[self.frm[data_key].current_index][
+            column - 1
+        ]
+
+        # convert numpy to normal type
+        with contextlib.suppress(AttributeError):
+            table_val = table_val.tolist()
+
+        # get cast new value to correct type
+        element_val = self.frm[data_key].column_info[column - 1].cast(new_value)
+
+        if self.field_type == CELL_CHECKBUTTON:
+            table_val = checkbox_to_bool(table_val)
+            element_val = checkbox_to_bool(element_val)
+
+        # Sanitize things a bit due to empty values being slightly different in
+        # the two cases.
+        if table_val is None:
+            table_val = ""
+
+        # Strip trailing whitespace from strings
+        if type(table_val) is str:
+            table_val = table_val.rstrip()
+        if type(element_val) is str:
+            element_val = element_val.rstrip()
+
+        if element_val != table_val:
+            return True
+        return None
 
 
 # ======================================================================================
