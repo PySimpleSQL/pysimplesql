@@ -5679,7 +5679,7 @@ class Column:
     def __setitem__(self, key, value):
         self._column[key] = value
 
-    def __lt__(self, other, key):
+    def __lt__(self, other, key): # noqa PLE0302
         return self._column[key] < other._column[key]
 
     def __contains__(self, item):
