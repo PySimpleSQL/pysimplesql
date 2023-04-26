@@ -1756,7 +1756,8 @@ class DataSet:
         self.driver.commit()
 
         # Sort so the saved row honors the current order.
-        self.sort(self.table)
+        if "sort_column" in self.rows.attrs and self.rows.attrs["sort_column"]:
+            self.sort(self.table)
 
         if update_elements:
             self.frm.update_elements(self.key)
