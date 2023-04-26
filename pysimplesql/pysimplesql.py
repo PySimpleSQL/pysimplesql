@@ -7536,7 +7536,7 @@ class Sqlserver(SQLDriver):
 
         lastrowid = cursor.rowcount if cursor.rowcount else None
 
-        return pd.DataFrame(
+        return Result.set(
             [
                 dict(zip([column[0] for column in cursor.description], row))
                 for row in rows
