@@ -6476,38 +6476,45 @@ class SQLDriver:
         # This can be done using * syntax without knowing the schema of the table
         # (other than primary key column). The trick is to create a temporary table
         # using the "CREATE TABLE AS" syntax.
-        description = self.quote_value(
+        description = (
             f"{lang.duplicate_prepend}"
             f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
         )
         table = self.quote_table(dataset.table)
-        tmp_table = self.quote_table(f"temp_{dataset.table}")
         pk_column = self.quote_column(dataset.pk_column)
+        current_pk = dataset.get_current(dataset.pk_column)
         description_column = self.quote_column(dataset.description_column)
+        columns = [
+            self.quote_column(column["name"])
+            for column in dataset.column_info
+            if column["name"] != dataset.pk_column
+        ]
+        columns = ", ".join(columns)
         pk = None  # we will update this later...
 
-        # Create tmp table, update pk column in temp and insert into table
-        query = [
-            f"DROP TABLE IF EXISTS {tmp_table};",
-            (
-                f"CREATE TEMPORARY TABLE {tmp_table} AS SELECT * FROM {table} WHERE "
-                f"{pk_column}={dataset.get_current(dataset.pk_column)};"
-            ),
-            (
-                f"UPDATE {tmp_table} SET {pk_column} = "
-                f"{self.next_pk(dataset.table, dataset.pk_column)};"
-            ),
-            f"UPDATE {tmp_table} SET {description_column} = {description}",
-            f"INSERT INTO {table} SELECT * FROM {tmp_table};",
-            f"DROP TABLE IF EXISTS {tmp_table};",
-        ]
-        for q in query:
-            res = self.execute(q)
-            if res.attrs["exception"]:
-                return res
-            if pk is None and res.attrs["lastrowid"] is not None:
-                # Now we save the new pk
-                pk = res.attrs["lastrowid"]
+        # Insert new row
+        query = (
+            f"INSERT INTO {table} ({columns}) "
+            f"SELECT {columns} FROM {table} "
+            f"WHERE {pk_column} = {current_pk};"
+        )
+        res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
+        if pk is None and res.attrs["lastrowid"] is not None:
+            # Now we save the new pk
+            pk = res.attrs["lastrowid"]
+
+        # Update the description
+        query = (
+            f"UPDATE {table} "
+            f"SET {description_column} = ? "
+            f"WHERE {pk_column} = {pk};"
+        )
+
+        res = self.execute(query, [description])
+        if res.attrs["exception"]:
+            return res
 
         # create list of which children we have duplicated
         child_duplicated = []
@@ -6521,31 +6528,34 @@ class SQLDriver:
                         and (r.child_table not in child_duplicated)
                     ):
                         child = self.quote_table(r.child_table)
-                        tmp_child = self.quote_table(f"temp_{r.child_table}")
                         pk_column = self.quote_column(
                             dataset.frm[r.child_table].pk_column
                         )
                         fk_column = self.quote_column(r.fk_column)
-
-                        # Update children's pk_columns to NULL and set correct parent
-                        # PK value.
-                        queries = [
-                            f"DROP TABLE IF EXISTS {tmp_child};",
-                            (
-                                f"CREATE TEMPORARY TABLE {tmp_child} AS "
-                                f"SELECT * FROM {child} WHERE {fk_column}="
-                                f"{dataset.get_current(dataset.pk_column)};"
-                            ),
-                            # don't next_pk(), because child can be plural.
-                            f"UPDATE {tmp_child} SET {pk_column} = NULL;",
-                            f"UPDATE {tmp_child} SET {fk_column} = {pk}",
-                            f"INSERT INTO {child} SELECT * FROM {tmp_child};",
-                            f"DROP TABLE IF EXISTS {tmp_child};",
+                        columns = [
+                            self.quote_column(column["name"])
+                            for column in dataset.frm[r.child_table].column_info
+                            if column["name"] != dataset.frm[r.child_table].pk_column
                         ]
-                        for q in queries:
-                            res = self.execute(q)
-                            if res.attrs["exception"]:
-                                return res
+                        
+                        # use new pk on insert
+                        select_columns = [
+                            str(pk)
+                            if column == self.quote_column(r.fk_column)
+                            else column
+                            for column in columns
+                        ]
+                        columns = ", ".join(columns)
+                        select_columns = ", ".join(select_columns)
+
+                        query = (
+                            f"INSERT INTO {child} ({columns}) "
+                            f"SELECT {select_columns} FROM {child} "
+                            f"WHERE {fk_column} = {current_pk};"
+                        )
+                        res = self.execute(query)
+                        if res.attrs["exception"]:
+                            return res
 
                         child_duplicated.append(r.child_table)
         # If we made it here, we can return the pk.  Since the pk was stored earlier,
