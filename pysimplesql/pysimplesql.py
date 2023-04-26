@@ -998,7 +998,9 @@ class DataSet:
                 not len(self.frm[parent_table].rows.index)
                 or Relationship.parent_virtual(self.table, self.frm)
             ):
-                self.rows = pd.DataFrame(columns=self.rows.columns)  # purge rows
+                # purge rows
+                self.rows = Result.set(pd.DataFrame(columns=self.rows.columns))
+
                 if update_elements:
                     self.frm.update_elements(self.key)
                 if requery_dependents:
@@ -2369,13 +2371,22 @@ class DataSet:
         :returns: None
         """
         row_series = pd.Series(row)
-        attrs = self.rows.attrs.copy()
-        self.rows = pd.concat([self.rows, row_series.to_frame().T], ignore_index=True)
-        self.rows.attrs = attrs
+        if self.rows.empty:
+            self.rows = Result.set(
+                pd.concat([self.rows, row_series.to_frame().T], ignore_index=True)
+            )
+        else:
+            attrs = self.rows.attrs.copy()
 
-        # I don't have the idx parameter working yet
-        if idx is None:
-            idx = len(self.rows.index)
+            # TODO: idx currently does nothing
+            if idx is None:
+                idx = len(self.rows.index)
+
+            self.rows = pd.concat(
+                [self.rows, row_series.to_frame().T], ignore_index=True
+            )
+            self.rows.attrs = attrs
+
         idx_label = self.rows.index.max() if len(self.rows.index) > 0 else 0
         self.rows.attrs["virtual"].loc[idx_label] = 1  # True, series only holds int64
 
