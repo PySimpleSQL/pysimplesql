@@ -8,6 +8,8 @@ import pytest
 import pysimplesql as ss
 from pysimplesql.docker_utils import *  # noqa F403
 
+# ruff: noqa
+
 
 # --------------------------------------------------------------------------------------
 # Create session-level fixtures for the docker containers to provide database servers
