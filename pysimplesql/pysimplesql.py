@@ -6574,7 +6574,17 @@ class SQLDriver:
         # Since the pk was stored earlier, we will just send an empty dataframe.
         return Result.set(lastrowid=new_pk)
 
-    def _insert_duplicate_record(self, table, columns, pk_column, pk):
+    def _insert_duplicate_record(
+        self, table: str, columns: str, pk_column: str, pk: int
+    ) -> pd.DataFrame:
+        """
+        Inserts duplicate record, sets attrs["lastrowid"] to new record's pk.
+
+        :param table: Escaped table name of record to be duplicated
+        :param columns: Escaped and comman (,) seperated list of columns
+        :param pk_column: Non-escaped pk_column
+        :param pk: Primary key of record
+        """
         query = (
             f"INSERT INTO {table} ({columns}) "
             f"SELECT {columns} FROM {table} "
@@ -7680,7 +7690,9 @@ class Sqlserver(SQLDriver):
             return rows.iloc[0]["COLUMN_NAME"]
         return None
 
-    def _insert_duplicate_record(self, table, columns, pk_column, pk):
+    def _insert_duplicate_record(
+        self, table: str, columns: str, pk_column: str, pk: int
+    ) -> pd.DataFrame:
         query = (
             f"INSERT INTO {table} ({columns}) "
             f"OUTPUT inserted.{self.quote_column(pk_column)} "
@@ -7936,7 +7948,9 @@ class MSAccess(SQLDriver):
 
         return cols
 
-    def _insert_duplicate_record(self, table, columns, pk_column, pk):
+    def _insert_duplicate_record(
+        self, table: str, columns: str, pk_column: str, pk: int
+    ) -> pd.DataFrame:
         query = (
             f"INSERT INTO {table} ({columns}) "
             f"SELECT {columns} FROM {table} "
