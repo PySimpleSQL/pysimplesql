@@ -6579,7 +6579,7 @@ class SQLDriver:
     ) -> pd.DataFrame:
         """
         Inserts duplicate record, sets attrs["lastrowid"] to new record's pk.
-        
+
         Used by `SQLDriver.duplicate_record` to handle database-specific differences in
         returning new primary keys.
 
