@@ -6502,23 +6502,25 @@ class SQLDriver:
             if column["name"] != dataset.pk_column
         ]
         columns = ", ".join(columns)
-        pk_column = self.quote_column(dataset.pk_column)
-        current_pk = dataset.get_current(dataset.pk_column)
+        pk_column = dataset.pk_column
+        pk = dataset.get_current(dataset.pk_column)
 
         # Insert new record
-        query = self.get_duplicate_parent_query(table, columns, pk_column, current_pk)
-        res = self.execute(query)
+        res = self._insert_duplicate_record(table, columns, pk_column, pk)
+        
         if res.attrs["exception"]:
             return res
 
         # Get pk of new record
-        new_pk = self.get_duplicate_parent_new_pk(res, dataset.pk_column)
+        new_pk = res.attrs["lastrowid"]
+        # now wrap pk_column
+        pk_column = self.quote_column(dataset.pk_column)
 
         # Set description
         description_column = self.quote_column(dataset.description_column)
         description = (
             f"{lang.duplicate_prepend}"
-            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
+            f"{dataset.get_description_for_pk(pk)}"
         )
         query = (
             f"UPDATE {table} "
@@ -6564,7 +6566,7 @@ class SQLDriver:
                         query = (
                             f"INSERT INTO {child} ({columns}) "
                             f"SELECT {select_columns} FROM {child} "
-                            f"WHERE {fk_column} = {current_pk};"
+                            f"WHERE {fk_column} = {pk};"
                         )
                         res = self.execute(query)
                         if res.attrs["exception"]:
@@ -6575,16 +6577,18 @@ class SQLDriver:
         # Since the pk was stored earlier, we will just send an empty dataframe.
         return Result.set(lastrowid=new_pk)
 
-    def get_duplicate_parent_query(self, table, columns, pk_column, current_pk):
-        return (
+    def _insert_duplicate_record(self, table, columns, pk_column, pk):
+        query = (
             f"INSERT INTO {table} ({columns}) "
             f"SELECT {columns} FROM {table} "
-            f"WHERE {pk_column} = {current_pk} "
-            f"RETURNING {pk_column};"
+            f"WHERE {self.quote_column(pk_column)} = {pk} "
+            f"RETURNING {self.quote_column(pk_column)};"
         )
-
-    def get_duplicate_parent_new_pk(self, res, pk_column):
-        return res.iloc[0][pk_column].tolist()
+        res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
+        res.attrs["lastrowid"] = res.iloc[0][pk_column].tolist()
+        return res
 
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
@@ -7678,15 +7682,19 @@ class Sqlserver(SQLDriver):
         if not rows.empty:
             return rows.iloc[0]["COLUMN_NAME"]
         return None
-
-    def get_duplicate_parent_query(self, table, columns, pk_column, current_pk):
-        return (
+    
+    def _insert_duplicate_record(self, table, columns, pk_column, pk):
+        query = (
             f"INSERT INTO {table} ({columns}) "
-            f"OUTPUT inserted.{pk_column} "
+            f"OUTPUT inserted.{self.quote_column(pk_column)} "
             f"SELECT {columns} FROM {table} "
-            f"WHERE {pk_column} = {current_pk};"
+            f"WHERE {self.quote_column(pk_column)} = {pk};"
         )
-
+        res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
+        res.attrs["lastrowid"] = res.iloc[0][pk_column].tolist()
+        return res
 
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
@@ -7929,17 +7937,19 @@ class MSAccess(SQLDriver):
         cols = cols[:-2]
 
         return cols
-
-    def get_duplicate_parent_query(self, table, columns, pk_column, current_pk):
-        return (
+    
+    def _insert_duplicate_record(self, table, columns, pk_column, pk):
+        query = (
             f"INSERT INTO {table} ({columns}) "
             f"SELECT {columns} FROM {table} "
-            f"WHERE {pk_column} = {current_pk};"
+            f"WHERE {pk_column} = {pk};"
         )
-
-    def get_duplicate_parent_new_pk(self, res, pk_column):
+        res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
         res = self.execute("SELECT @@IDENTITY AS ID")
-        return res.iloc[0]["ID"].tolist()
+        res.attrs["lastrowid"] = res.iloc[0]["ID"].tolist()
+        return res
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # Remove the pk column
