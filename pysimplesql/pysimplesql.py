@@ -6541,7 +6541,7 @@ class SQLDriver:
                         child = self.quote_table(r.child_table)
                         fk_column = self.quote_column(r.fk_column)
 
-                        # all columns except fk_column
+                        # all columns except pk_column
                         columns = [
                             self.quote_column(column["name"])
                             for column in dataset.frm[r.child_table].column_info
