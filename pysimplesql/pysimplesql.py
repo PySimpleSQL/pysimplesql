@@ -6472,46 +6472,57 @@ class SQLDriver:
         return None
 
     def duplicate_record(self, dataset: DataSet, children: bool) -> pd.DataFrame:
-        # https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa E501
-        # This can be done using * syntax without knowing the schema of the table
-        # (other than primary key column). The trick is to create a temporary table
-        # using the "CREATE TABLE AS" syntax.
-        description = (
-            f"{lang.duplicate_prepend}"
-            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
-        )
+        """
+        Duplicates a record in a database table and optionally duplicates its dependent
+        records.
+
+        The function uses all columns found in `Dataset.column_info` and
+        select all except the primary key column, inserting a duplicate record with the
+        same column values.
+
+        If the `children` parameter is set to `True`, the function duplicates the
+        dependent records by setting the foreign key column of the child records to the
+        primary key value of the newly duplicated record before inserting them.
+
+        Note that this function assumes the primary key column is auto-incrementing and
+        that no columns are set to unique.
+
+        :param dataset: The `Dataset` of the the record to be duplicated.
+        :param children: (optional) Whether to duplicate dependent records. Defaults to
+            False.
+        """
+
+        # Get variables
         table = self.quote_table(dataset.table)
-        pk_column = self.quote_column(dataset.pk_column)
-        current_pk = dataset.get_current(dataset.pk_column)
-        description_column = self.quote_column(dataset.description_column)
         columns = [
             self.quote_column(column["name"])
             for column in dataset.column_info
             if column["name"] != dataset.pk_column
         ]
         columns = ", ".join(columns)
-        pk = None  # we will update this later...
+        pk_column = self.quote_column(dataset.pk_column)
+        current_pk = dataset.get_current(dataset.pk_column)
 
-        # Insert new row
-        query = (
-            f"INSERT INTO {table} ({columns}) "
-            f"SELECT {columns} FROM {table} "
-            f"WHERE {pk_column} = {current_pk};"
-        )
+        # Insert new record
+        query = self.get_duplicate_parent_query(table, columns, pk_column, current_pk)
         res = self.execute(query)
         if res.attrs["exception"]:
             return res
-        if pk is None and res.attrs["lastrowid"] is not None:
-            # Now we save the new pk
-            pk = res.attrs["lastrowid"]
 
-        # Update the description
+        # Get pk of new record
+        new_pk = self.get_duplicate_parent_new_pk(res, dataset.pk_column)
+
+        # Set description
+        description_column = self.quote_column(dataset.description_column)
+        description = (
+            f"{lang.duplicate_prepend}"
+            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
+        )
         query = (
             f"UPDATE {table} "
-            f"SET {description_column} = ? "
-            f"WHERE {pk_column} = {pk};"
+            f"SET {description_column} = {self.placeholder} "
+            f"WHERE {pk_column} = {new_pk};"
         )
-
         res = self.execute(query, [description])
         if res.attrs["exception"]:
             return res
@@ -6528,26 +6539,26 @@ class SQLDriver:
                         and (r.child_table not in child_duplicated)
                     ):
                         child = self.quote_table(r.child_table)
-                        pk_column = self.quote_column(
-                            dataset.frm[r.child_table].pk_column
-                        )
                         fk_column = self.quote_column(r.fk_column)
+
+                        # all columns except fk_column
                         columns = [
                             self.quote_column(column["name"])
                             for column in dataset.frm[r.child_table].column_info
                             if column["name"] != dataset.frm[r.child_table].pk_column
                         ]
-                        
-                        # use new pk on insert
+
+                        # replace fk_column with pk of new parent
                         select_columns = [
-                            str(pk)
+                            str(new_pk)
                             if column == self.quote_column(r.fk_column)
                             else column
                             for column in columns
                         ]
+
+                        # prepare query & execute
                         columns = ", ".join(columns)
                         select_columns = ", ".join(select_columns)
-
                         query = (
                             f"INSERT INTO {child} ({columns}) "
                             f"SELECT {select_columns} FROM {child} "
@@ -6558,9 +6569,20 @@ class SQLDriver:
                             return res
 
                         child_duplicated.append(r.child_table)
-        # If we made it here, we can return the pk.  Since the pk was stored earlier,
-        # we will just send and empty dataframe. TODO: will this work as expeted still?
-        return Result.set(lastrowid=pk)
+        # If we made it here, we can return the pk.
+        # Since the pk was stored earlier, we will just send an empty dataframe.
+        return Result.set(lastrowid=new_pk)
+
+    def get_duplicate_parent_query(self, table, columns, pk_column, current_pk):
+        return (
+            f"INSERT INTO {table} ({columns}) "
+            f"SELECT {columns} FROM {table} "
+            f"WHERE {pk_column} = {current_pk} "
+            f"RETURNING {pk_column};"
+        )
+
+    def get_duplicate_parent_new_pk(self, res, pk_column):
+        return res.iloc[0][pk_column].tolist()
 
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
@@ -7646,6 +7668,14 @@ class Sqlserver(SQLDriver):
             return rows.iloc[0]["COLUMN_NAME"]
         return None
 
+    def get_duplicate_parent_query(self, table, columns, pk_column, current_pk):
+        return (
+            f"INSERT INTO {table} ({columns}) "
+            f"OUTPUT inserted.{pk_column} "
+            f"SELECT {columns} FROM {table} "
+            f"WHERE {pk_column} = {current_pk};"
+        )
+
 
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
@@ -7889,96 +7919,16 @@ class MSAccess(SQLDriver):
 
         return cols
 
-    def duplicate_record(self, dataset: DataSet, children: bool) -> pd.DataFrame:
-        # https://stackoverflow.com/questions/1716320/how-to-insert-duplicate-rows-in-sqlite-with-a-unique-id # fmt: skip # noqa: E501
-        # This can be done using * syntax without knowing the schema of the table
-        # (other than primary key column). The trick is to create a temporary table
-        # using the "CREATE TABLE AS" syntax.
-
-        description = self.quote_value(
-            f"{lang.duplicate_prepend}"
-            f"{dataset.get_description_for_pk(dataset.get_current_pk())}"
+    def get_duplicate_parent_query(self, table, columns, pk_column, current_pk):
+        return (
+            f"INSERT INTO {table} ({columns}) "
+            f"SELECT {columns} FROM {table} "
+            f"WHERE {pk_column} = {current_pk};"
         )
-        table = dataset.table
-        tmp_table = f"temp_{dataset.table}"
-        pk_column = dataset.pk_column
-        description_column = dataset.description_column
 
-        # Create tmp table, update pk column in temp and insert into table
-        query = []
-        if tmp_table in self.get_tables():
-            query.append(f"DROP TABLE [{tmp_table}];")
-
-        query += [
-            f"CREATE TABLE [{tmp_table}] ({self._get_column_definitions(table)});",
-            (
-                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
-                f"WHERE {pk_column}={dataset.get_current(dataset.pk_column)});"
-            ),
-            (
-                f"UPDATE [{tmp_table}] SET {pk_column} = "
-                f"{self.next_pk(dataset.table, dataset.pk_column)};"
-            ),
-            f"UPDATE [{tmp_table}] SET {description_column} = {description}",
-            f"INSERT INTO [{table}] SELECT * FROM [{tmp_table}];",
-            f"DROP TABLE [{tmp_table}]",
-        ]
-        for q in query:
-            res = self.execute(q, auto_commit_rollback=True)
-            if res.attrs["exception"]:
-                return res
-
-        # Now we save the new pk
+    def get_duplicate_parent_new_pk(self, res, pk_column):
         res = self.execute("SELECT @@IDENTITY AS ID")
-        lastrowid = res.loc[0]["ID"]
-
-        # create list of which children we have duplicated
-        child_duplicated = []
-        # Next, duplicate the child records!
-        if children:
-            for _ in dataset.frm.datasets:
-                for r in dataset.frm.relationships:
-                    if (
-                        r.parent_table == dataset.table
-                        and r.on_update_cascade
-                        and (r.child_table not in child_duplicated)
-                    ):
-                        child = r.child_table
-                        tmp_child = f"temp_{r.child_table}"
-                        pk_column = dataset.frm[r.child_table].pk_column
-                        fk_column = r.fk_column
-
-                        # Update children's pk_columns to NULL and set correct parent
-                        # PK value.
-                        query = []
-                        if tmp_child in self.get_tables():
-                            query.append(f"DROP TABLE [{tmp_child}];")
-
-                        query += [
-                            (
-                                f"CREATE TABLE [{tmp_table}] "
-                                f"({self._get_column_definitions(table)});"
-                            ),
-                            (
-                                f"INSERT INTO [{tmp_table}] (SELECT * FROM [{table}] "
-                                f"WHERE {pk_column}="
-                                f"{dataset.get_current(dataset.pk_column)});"
-                            ),
-                            # don't next_pk(), because child can be plural.
-                            f"UPDATE [{tmp_child}] SET {pk_column} = NULL;",
-                            f"UPDATE [{tmp_child}] SET {fk_column} = {lastrowid}",
-                            f"INSERT INTO [{child}] SELECT * FROM [{tmp_child}];",
-                            f"DROP TABLE [{tmp_child}]",
-                        ]
-                        for q in query:
-                            res = self.execute(q)
-                            if res.attrs["exception"]:
-                                return res
-
-                        child_duplicated.append(r.child_table)
-        # If we made it here, we can return the pk.  Since the pk was stored earlier,
-        # we will just send and empty DataFrame
-        return Result.set(lastrowid=lastrowid)
+        return res.iloc[0]["ID"].tolist()
 
     def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
         # Remove the pk column
