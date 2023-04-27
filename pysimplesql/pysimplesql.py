@@ -6507,7 +6507,7 @@ class SQLDriver:
 
         # Insert new record
         res = self._insert_duplicate_record(table, columns, pk_column, pk)
-        
+
         if res.attrs["exception"]:
             return res
 
@@ -6518,10 +6518,7 @@ class SQLDriver:
 
         # Set description
         description_column = self.quote_column(dataset.description_column)
-        description = (
-            f"{lang.duplicate_prepend}"
-            f"{dataset.get_description_for_pk(pk)}"
-        )
+        description = f"{lang.duplicate_prepend}{dataset.get_description_for_pk(pk)}"
         query = (
             f"UPDATE {table} "
             f"SET {description_column} = {self.placeholder} "
@@ -7682,7 +7679,7 @@ class Sqlserver(SQLDriver):
         if not rows.empty:
             return rows.iloc[0]["COLUMN_NAME"]
         return None
-    
+
     def _insert_duplicate_record(self, table, columns, pk_column, pk):
         query = (
             f"INSERT INTO {table} ({columns}) "
@@ -7695,6 +7692,7 @@ class Sqlserver(SQLDriver):
             return res
         res.attrs["lastrowid"] = res.iloc[0][pk_column].tolist()
         return res
+
 
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
@@ -7937,7 +7935,7 @@ class MSAccess(SQLDriver):
         cols = cols[:-2]
 
         return cols
-    
+
     def _insert_duplicate_record(self, table, columns, pk_column, pk):
         query = (
             f"INSERT INTO {table} ({columns}) "
