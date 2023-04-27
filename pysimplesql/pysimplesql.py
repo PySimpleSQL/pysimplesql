@@ -5729,10 +5729,12 @@ class Column:
         elif domain == "DATE":
             try:
                 value = datetime.strptime(value, "%Y-%m-%d").date()
-            except TypeError:
+            # TODO: ValueError for sqlserver returns date(): 2023-04-27 15:31:13.170000
+            except (TypeError, ValueError) as e:
                 logger.debug(
                     f"Unable to cast {value} to a datetime.date object. "
-                    f"Casting to string instead."
+                    f"Casting to string instead. "
+                    f"{e=}"
                 )
                 value = str(value)
 
@@ -7607,7 +7609,16 @@ class Sqlserver(SQLDriver):
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
             notnull = row["IS_NULLABLE"] == "NO"
-            default = row["COLUMN_DEFAULT"]
+            if row["COLUMN_DEFAULT"]:
+                col_default = row["COLUMN_DEFAULT"]
+                if (col_default.startswith("('") and col_default.endswith("')")) or (
+                    col_default.startswith('("') and col_default.endswith('")')
+                ):
+                    default = col_default[2:-2]
+                else:
+                    default = col_default[1:-1]
+            else:
+                default = None
             pk = name in pk_columns
             col_info.append(
                 Column(
