@@ -6548,7 +6548,7 @@ class SQLDriver:
                             if column["name"] != dataset.frm[r.child_table].pk_column
                         ]
 
-                        # replace fk_column with pk of new parent
+                        # replace fk_column value with pk of new parent
                         select_columns = [
                             str(new_pk)
                             if column == self.quote_column(r.fk_column)
