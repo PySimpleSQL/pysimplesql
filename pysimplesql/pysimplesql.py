@@ -2134,9 +2134,14 @@ class DataSet:
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
         :returns: None
         """
+        # prompt_save
+        if (
+            not skip_prompt_save
+            # don't update self/dependents if we are going to below anyway
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
+            return
 
-        if skip_prompt_save is False:
-            self.frm.prompt_save()
         # Reset the keygen to keep consistent naming
         logger.info("Creating Quick Editor window")
         keygen.reset()
