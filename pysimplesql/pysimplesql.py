@@ -147,10 +147,9 @@ SHOW_MESSAGE: int = 4096
 # ---------------------------
 # PROMPT_SAVE RETURN BITMASKS
 # ---------------------------
-PROMPT_SAVE_DISCARDED: int = 1
 PROMPT_SAVE_PROCEED: int = 2
 PROMPT_SAVE_NONE: int = 4
-
+PROMPT_SAVE_DISCARDED: int = 8
 # ---------------------------
 # PROMPT_SAVE MODES
 # ---------------------------
@@ -948,7 +947,10 @@ class DataSet:
                     )
                     & SAVE_FAIL
                 ):
-                    return PROMPT_SAVE_DISCARDED
+                    logger.debug("Save failed during prompt-save. Resetting selectors")
+                    # set all selectors back to previous position
+                    self.frm.update_selectors()
+                    return SAVE_FAIL
                 return PROMPT_SAVE_PROCEED
             # if no
             self.purge_virtual()
@@ -1099,7 +1101,8 @@ class DataSet:
         logger.debug(f"Moving to the first record of table {self.table}")
         if skip_prompt_save is False:
             # don't update self/dependents if we are going to below anyway
-            self.prompt_save(update_elements=False)
+            if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                return
 
         self.current_index = 0
         if update_elements:
@@ -1133,7 +1136,8 @@ class DataSet:
         logger.debug(f"Moving to the last record of table {self.table}")
         if skip_prompt_save is False:
             # don't update self/dependents if we are going to below anyway
-            self.prompt_save(update_elements=False)
+            if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                return
 
         self.current_index = len(self.rows.index) - 1
         if update_elements:
@@ -1168,7 +1172,8 @@ class DataSet:
             logger.debug(f"Moving to the next record of table {self.table}")
             if skip_prompt_save is False:
                 # don't update self/dependents if we are going to below anyway
-                self.prompt_save(update_elements=False)
+                if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                    return
 
             self.current_index += 1
             if update_elements:
@@ -1203,7 +1208,8 @@ class DataSet:
             logger.debug(f"Moving to the previous record of table {self.table}")
             if skip_prompt_save is False:
                 # don't update self/dependents if we are going to below anyway
-                self.prompt_save(update_elements=False)
+                if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                    return
 
             self.current_index -= 1
             if update_elements:
@@ -1337,7 +1343,8 @@ class DataSet:
                 # discard virtual or update after save
                 omit_elements = []
             # don't update self/dependents if we are going to below anyway
-            self.prompt_save(update_elements=False)
+            if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                return
 
         self.current_index = index
         if update_elements:
@@ -1383,7 +1390,8 @@ class DataSet:
                 # discard virtual or update after save
                 omit_elements = []
             # don't update self/dependents if we are going to below anyway
-            self.prompt_save(update_elements=False)
+            if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                return
 
         # Move to the numerical index of where the primary key is located.
         # If the pk value can't be found, move to the last index
@@ -1530,7 +1538,8 @@ class DataSet:
         # todo: bring back the values parameter?
         if skip_prompt_save is False:
             # don't update self/dependents if we are going to below anyway
-            self.prompt_save(update_elements=False)
+            if self.prompt_save(update_elements=False) == SAVE_FAIL:
+                return
 
         # Don't insert if parent has no records or is virtual
         parent_table = Relationship.get_parent(self.table)
