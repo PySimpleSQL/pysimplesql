@@ -1099,10 +1099,13 @@ class DataSet:
         :returns: None
         """
         logger.debug(f"Moving to the first record of table {self.table}")
-        if skip_prompt_save is False:
+        # prompt_save
+        if (
+            not skip_prompt_save
             # don't update self/dependents if we are going to below anyway
-            if self.prompt_save(update_elements=False) == SAVE_FAIL:
-                return
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
+            return
 
         self.current_index = 0
         if update_elements:
@@ -1134,10 +1137,13 @@ class DataSet:
         :returns: None
         """
         logger.debug(f"Moving to the last record of table {self.table}")
-        if skip_prompt_save is False:
+        # prompt_save
+        if (
+            not skip_prompt_save
             # don't update self/dependents if we are going to below anyway
-            if self.prompt_save(update_elements=False) == SAVE_FAIL:
-                return
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
+            return
 
         self.current_index = len(self.rows.index) - 1
         if update_elements:
@@ -1170,10 +1176,13 @@ class DataSet:
         """
         if self.current_index < len(self.rows.index) - 1:
             logger.debug(f"Moving to the next record of table {self.table}")
-            if skip_prompt_save is False:
+            # prompt_save
+            if (
+                not skip_prompt_save
                 # don't update self/dependents if we are going to below anyway
-                if self.prompt_save(update_elements=False) == SAVE_FAIL:
-                    return
+                and self.prompt_save(update_elements=False) == SAVE_FAIL
+            ):
+                return
 
             self.current_index += 1
             if update_elements:
@@ -1206,10 +1215,13 @@ class DataSet:
         """
         if self.current_index > 0:
             logger.debug(f"Moving to the previous record of table {self.table}")
-            if skip_prompt_save is False:
+            # prompt_save
+            if (
+                not skip_prompt_save
                 # don't update self/dependents if we are going to below anyway
-                if self.prompt_save(update_elements=False) == SAVE_FAIL:
-                    return
+                and self.prompt_save(update_elements=False) == SAVE_FAIL
+            ):
+                return
 
             self.current_index -= 1
             if update_elements:
@@ -1265,9 +1277,13 @@ class DataSet:
             return SEARCH_ABORTED
 
         # TODO: Should this be before the before_search callback?
-        if skip_prompt_save is False:
+        # prompt_save
+        if (
+            not skip_prompt_save
             # don't update self/dependents if we are going to below anyway
-            self.prompt_save(update_elements=False)
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
+            return None
 
         # First lets make a search order.. TODO: remove this hard coded garbage
         if len(self.rows.index):
@@ -1536,10 +1552,13 @@ class DataSet:
         # todo: this is currently filtered out by enabling of the element, but it should
         #  be filtered here too!
         # todo: bring back the values parameter?
-        if skip_prompt_save is False:
+        # prompt_save
+        if (
+            not skip_prompt_save
             # don't update self/dependents if we are going to below anyway
-            if self.prompt_save(update_elements=False) == SAVE_FAIL:
-                return
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
+            return
 
         # Don't insert if parent has no records or is virtual
         parent_table = Relationship.get_parent(self.table)
