@@ -865,6 +865,11 @@ class DataSet:
         if self.row_is_virtual():
             return True
 
+        if self.current_row_has_backup and not self.get_current_row().equals(
+            self.get_original_current_row()
+        ):
+            return True
+
         dirty = False
         # First check the current record to see if it's dirty
         for mapped in self.frm.element_map:
@@ -887,34 +892,19 @@ class DataSet:
                 # the appropriate table column.
                 table_val = None
                 if mapped.where_column is not None:
-                    for index, row in self.rows.itterrows():
+                    for _, row in self.rows.iterrows():
                         if row[mapped.where_column] == mapped.where_value:
                             table_val = row[mapped.column]
                 else:
                     table_val = self[mapped.column]
 
-                if type(mapped.element) is sg.PySimpleGUI.Checkbox:
-                    table_val = checkbox_to_bool(table_val)
-                    element_val = checkbox_to_bool(element_val)
-
-                # Sanitize things a bit due to empty values being slightly different in
-                # the two cases.
-                if table_val is None:
-                    table_val = ""
-
-                # Strip trailing whitespace from strings
-                if type(table_val) is str:
-                    table_val = table_val.rstrip()
-                if type(element_val) is str:
-                    element_val = element_val.rstrip()
-
-                # Make the comparison
-                # Temporary debug output
-                # print(
-                #    f"element: {element_val}({type(element_val)}),
-                #    db: {table_val}({type(table_val)})"
-                # )
-                if element_val != table_val:
+                new_value = self.value_changed(
+                    mapped.column,
+                    table_val,
+                    element_val,
+                    bool(type(mapped.element) is sg.PySimpleGUI.Checkbox),
+                )
+                if new_value is not Boolean.FALSE:
                     dirty = True
                     logger.debug("CHANGED RECORD FOUND!")
                     logger.debug(
@@ -926,7 +916,6 @@ class DataSet:
                         f"{mapped.column}:{table_val}"
                     )
                     return dirty
-                dirty = False
 
         # handle recursive checking next
         if recursive:
@@ -936,6 +925,59 @@ class DataSet:
                     if dirty:
                         break
         return dirty
+
+    # TODO: How to type-hint this return?
+    def value_changed(
+        self, column_name: str, old_value, new_value, is_checkbox: bool
+    ) -> Union[Any, bool]:
+        """
+        Verifies if a new value is different from an old value and returns the cast
+        value ready to be inserted into a database.
+
+        :param column_name: The name of the column used in casting.
+        :param old_value: The value to check against.
+        :param new_value: The value being checked.
+        :param is_checkbox: Whether or not additional logic should be applied to handle
+            checkboxes.
+        :returns: The cast value ready to be inserted into a database if the new value
+            is different from the old value. Returns `Boolean.FALSE` otherwise.
+        """
+        table_val = old_value
+        # convert numpy to normal type
+        with contextlib.suppress(AttributeError):
+            table_val = table_val.tolist()
+
+        # get cast new value to correct type
+        for col in self.column_info:
+            if col["name"] == column_name:
+                new_value = col.cast(new_value)
+                element_val = new_value
+                break
+
+        if is_checkbox:
+            table_val = checkbox_to_bool(table_val)
+            element_val = checkbox_to_bool(element_val)
+
+        # Sanitize things a bit due to empty values being slightly different in
+        # the two cases.
+        if table_val is None:
+            table_val = ""
+
+        # Strip trailing whitespace from strings
+        if type(table_val) is str:
+            table_val = table_val.rstrip()
+        if type(element_val) is str:
+            element_val = element_val.rstrip()
+
+        # Make the comparison
+        # Temporary debug output
+        # print(
+        #    f"element: {element_val}({type(element_val)}),
+        #    db: {table_val}({type(table_val)})"
+        # )
+        if element_val != table_val:
+            return new_value
+        return Boolean.FALSE
 
     def prompt_save(
         self, update_elements: bool = True
@@ -1471,7 +1513,8 @@ class DataSet:
 
     def set_current(self, column: str, value: Union[str, int]) -> None:
         """
-        Set the current value for the supplied column.
+        Set the value for the supplied column in the current row, making a backup if
+        needed.
 
         You can also use indexing of the `Form` object to set the current value of a
         column. I.e. frm[{DataSet}].[{column}] = 'New value'.
@@ -1480,8 +1523,9 @@ class DataSet:
         :param value: A value to set the current record's column to
         :returns: None
         """
-        logger.debug(f"Setting current record for {self.table}.{column} = {value}")
-        self.get_current_row()[column] = value
+        logger.debug(f"Setting current record for {self.key}.{column} = {value}")
+        self.backup_current_row()
+        self.rows.loc[self.rows.index[self.current_index], column] = value
 
     def get_keyed_value(
         self, value_column: str, key_column: str, key_value: Union[str, int]
@@ -1698,7 +1742,12 @@ class DataSet:
                         and row[mapped.column] != element_val
                     ):
                         # This record has changed.  We will save it
-                        row[mapped.column] = element_val  # propagate the value
+
+                        # propagate the value back to self.rows
+                        self.rows.loc[
+                            self.rows.index[index], mapped.column
+                        ] = element_val
+
                         changed = {mapped.column: element_val}
                         where_col = self.driver.quote_column(mapped.where_column)
                         where_val = self.driver.quote_value(mapped.where_value)
@@ -1711,11 +1760,31 @@ class DataSet:
                             }
                         )
             else:
+                # field elements override _CellEdit's
                 current_row[mapped.column] = element_val
 
-        changed_row = dict(current_row.items())
-        cascade_fk_changed = False
+        # create diff of columns if not virtual
+        new_dict = dict(current_row.items())
+        if self.row_is_virtual():
+            changed_row_dict = new_dict
+        else:
+            old_dict = dict(self.get_original_current_row().items())
+            changed_row_dict = {
+                key: new_dict[key]
+                for key in new_dict
+                if old_dict.get(key) != new_dict[key]
+            }
+        if not bool(changed_row_dict) and not keyed_queries:
+            # if user is not using liveupdate, they can change something using celledit
+            # but then change it back in field element (which overrides the celledit)
+            # this refreshes the selector so that gui is up-to-date.
+            if self.current_row_has_backup:
+                self.restore_current_row()
+                self.frm.update_selectors(self.key)
+            return SAVE_NONE + SHOW_MESSAGE
+
         # check to see if cascading-fk has changed before we update database
+        cascade_fk_changed = False
         cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk
@@ -1726,8 +1795,10 @@ class DataSet:
                     )
 
         # Update the database from the stored rows
+        # ----------------------------------------
+
         if self.transform is not None:
-            self.transform(self, changed_row, TFORM_ENCODE)
+            self.transform(self, changed_row_dict, TFORM_ENCODE)
 
         # Save or Insert the record as needed
         if keyed_queries is not None:
@@ -1748,13 +1819,14 @@ class DataSet:
                     )
                     self.driver.rollback()
                     return SAVE_FAIL  # Do not show the message in this case
+
         else:
             if self.row_is_virtual():
                 result = self.driver.insert_record(
-                    self.table, self.get_current_pk(), self.pk_column, changed_row
+                    self.table, self.get_current_pk(), self.pk_column, changed_row_dict
                 )
             else:
-                result = self.driver.save_record(self, changed_row)
+                result = self.driver.save_record(self, changed_row_dict)
 
             if result.attrs["exception"] is not None:
                 self.frm.popup.ok(
@@ -1798,7 +1870,7 @@ class DataSet:
                         requery_dependents=False,
                     )
                     # only need to reset the Insert button
-                    self.frm.update_elements(edit_protect_only=True)
+                    self.frm.update_actions()
 
         # callback
         if "after_save" in self.callbacks and not self.callbacks["after_save"](
@@ -1814,6 +1886,9 @@ class DataSet:
         # Sort so the saved row honors the current order.
         if "sort_column" in self.rows.attrs and self.rows.attrs["sort_column"]:
             self.sort(self.table)
+
+        # Discard backup
+        self.purge_row_backup()
 
         if update_elements:
             self.frm.update_elements(self.key)
@@ -2086,6 +2161,66 @@ class DataSet:
         if isinstance(self.rows, pd.DataFrame):
             return len(self.rows.index)
         return 0
+
+    @property
+    def current_row_has_backup(self) -> bool:
+        """
+        Returns True if the current_row has a backup row, and False otherwise.
+
+        A pandas Series object is stored rows.attrs["row_backup"] before a CellEdit or
+        SyncSelector operation is initiated, so that it can be compared in
+        `Dataset.records_changed` and `Dataset.save_record` or used to restore if
+        changes are discarded during a `prompt_save` operations.
+
+        :returns: True if a backup row is present that matches, and False otherwise.
+        """
+        if self.rows is None:
+            return False
+        if (
+            isinstance(self.rows.attrs["row_backup"], pd.Series)
+            and self.rows.attrs["row_backup"][self.pk_column]
+            == self.get_current_row()[self.pk_column]
+        ):
+            return True
+        return False
+
+    def purge_row_backup(self) -> None:
+        """
+        Deletes the backup row from the dataset.
+
+        This method sets the "row_backup" attribute of the dataset to None.
+        """
+        self.rows.attrs["row_backup"] = None
+
+    def restore_current_row(self) -> None:
+        """
+        Restores the backup row to the current row in `DataSet.rows`.
+
+        This method replaces the current row in the dataset with the backup row, if a
+        backup row is present.
+        """
+        if self.current_row_has_backup:
+            self.rows.iloc[self.current_index] = self.rows.attrs["row_backup"].copy()
+
+    def get_original_current_row(self) -> pd.Series:
+        """
+        Returns a copy of current row as it was fetched in a query from `SQLDriver`.
+
+        If a backup of the current row is present, this method returns a copy of that
+        row. Otherwise, it returns a copy of the current row. Returns None if
+        `DataSet.rows` is empty.
+        """
+        if self.current_row_has_backup:
+            return self.rows.attrs["row_backup"].copy()
+        if not self.rows.empty:
+            return self.get_current_row().copy()
+        return None
+
+    def backup_current_row(self) -> None:
+        """Creates a backup copy of the current row in `DataSet.rows`"""
+        if not self.current_row_has_backup:
+            self.rows.attrs["row_backup"] = self.get_current_row().copy()
+
     def table_values(
         self, columns: List[str] = None, mark_virtual: bool = False
     ) -> List[TableRow]:
@@ -6181,6 +6316,7 @@ class Result:
         lastrowid: int = None,
         exception: Exception = None,
         column_info: ColumnInfo = None,
+        row_backup: pd.Series = None,
     ):
         """
         Create a pandas DataFrame with the row data and expected attrs set.
@@ -6194,6 +6330,7 @@ class Result:
         df.attrs["lastrowid"] = lastrowid
         df.attrs["exception"] = exception
         df.attrs["column_info"] = column_info
+        df.attrs["row_backup"] = row_backup
 
         # Store virtual flags for each row
         df.attrs["virtual"] = pd.Series(
