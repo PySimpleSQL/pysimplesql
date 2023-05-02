@@ -1901,7 +1901,7 @@ class DataSet:
             self.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
-            self.frm.update_elements(edit_protect_only=True)
+            self.frm.update_actions()
             return None
 
         # Delete child records first!
@@ -2140,6 +2140,34 @@ class DataSet:
             values.append(TableRow(pk, lst))
 
         return values
+
+    def combobox_values(self, column_name) -> List[ElementRow] or None:
+        """
+        Returns the values to use in a sg.Combobox as a list of ElementRow objects.
+
+        :param column_name: The name of the table column for which to get the values.
+        :returns: A list of ElementRow objects representing the possible values for the
+            combobox column, or None if no matching relationship is found.
+        """
+        if not self.row_count:
+            return None
+        rels = Relationship.get_relationships(self.table)
+        found = False
+        for rel in rels:
+            if rel.fk_column == column_name:
+                target_table = self.frm[rel.parent_table]
+                pk_column = target_table.pk_column
+                description = target_table.description_column
+                found = True
+                break
+
+        if not found:
+            return None
+
+        lst = []
+        for _, r in target_table.rows.sort_index().iterrows():
+            lst.append(ElementRow(r[pk_column], r[description]))
+        return lst
 
     def get_related_table_for_column(self, column: str) -> str:
         """
@@ -2394,7 +2422,7 @@ class DataSet:
         )
         if update_elements and self.row_count:
             self.frm.update_selectors(self.key)
-            self.frm.update_elements(self.table, edit_protect_only=True)
+            self.frm.update_actions(self.key)
             self.update_headings(self.rows.attrs["sort_column"], sort_order)
 
     def sort_cycle(self, column: str, table: str, update_elements: bool = True) -> int:
@@ -3365,20 +3393,50 @@ class Form:
 
             # disable mapped elements for this table if
             # there are no records in this table or edit protect mode
-            disable = len(self[data_key].rows.index) == 0 or self._edit_protect
+            disable = not self[data_key].row_count or self._edit_protect
             self.update_element_states(data_key, disable)
+
+        self.update_actions(target_data_key)
+
+        if edit_protect_only:
+            return
+
+        self.update_fields(target_data_key, omit_elements)
+
+        self.update_selectors(target_data_key, omit_elements)
+
+        # Run callbacks
+        if "update_elements" in self.callbacks:
+            # Running user update function
+            logger.info("Running the update_elements callback...")
+            self.callbacks["update_elements"](self, self.window)
+
+    def update_actions(self, target_data_key: str = None) -> None:
+        """
+        Update state for action-buttons
+
+        :param target_data_key: (optional) dataset key to update elements for, otherwise
+            updates elements for all datasets
+        """
+        win = self.window
+        for data_key in self.datasets:
+            if target_data_key is not None and data_key != target_data_key:
+                continue
+
+            # call row_count @property once
+            row_count = self[data_key].row_count
 
             for m in (m for m in self.event_map if m["table"] == self[data_key].table):
                 # Disable delete and mapped elements for this table if there are no
                 # records in this table or edit protect mode
                 if ":table_delete" in m["event"]:
-                    disable = len(self[data_key].rows.index) == 0 or self._edit_protect
+                    disable = not row_count or self._edit_protect
                     win[m["event"]].update(disabled=disable)
 
                 # Disable duplicate if no rows, edit protect, or current row virtual
                 elif ":table_duplicate" in m["event"]:
                     disable = bool(
-                        len(self[data_key].rows.index) == 0
+                        not row_count
                         or self._edit_protect
                         or self[data_key]
                         .get_current_row()
@@ -3389,17 +3447,13 @@ class Form:
 
                 # Disable first/prev if only 1 row, or first row
                 elif ":table_first" in m["event"] or ":table_previous" in m["event"]:
-                    disable = (
-                        len(self[data_key].rows.index) < 2
-                        or self[data_key].current_index == 0
-                    )
+                    disable = row_count < 2 or self[data_key].current_index == 0
                     win[m["event"]].update(disabled=disable)
 
                 # Disable next/last if only 1 row, or last row
                 elif ":table_next" in m["event"] or ":table_last" in m["event"]:
-                    disable = len(self[data_key].rows.index) < 2 or (
-                        self[data_key].current_index
-                        == len(self[data_key].rows.index) - 1
+                    disable = row_count < 2 or (
+                        self[data_key].current_index == row_count - 1
                     )
                     win[m["event"]].update(disabled=disable)
 
@@ -3409,7 +3463,7 @@ class Form:
                     parent = Relationship.get_parent(data_key)
                     if parent is not None:
                         disable = bool(
-                            len(self[parent].rows.index) == 0
+                            not self[parent].row_count
                             or self._edit_protect
                             or Relationship.parent_virtual(data_key, self)
                         )
@@ -3419,14 +3473,36 @@ class Form:
 
                 # Disable db_save when needed
                 elif ":db_save" in m["event"] or ":save_table" in m["event"]:
-                    disable = len(self[data_key].rows.index) == 0 or self._edit_protect
+                    disable = not row_count or self._edit_protect
                     win[m["event"]].update(disabled=disable)
 
                 # Enable/Disable quick edit buttons
                 elif ":quick_edit" in m["event"]:
                     win[m["event"]].update(disabled=disable)
-        if edit_protect_only:
-            return
+
+    def update_fields(
+        self,
+        target_data_key: str = None,
+        omit_elements: List[str] = None,
+        column_names: List[str] = None,
+        combobox_values_only: bool = False,
+    ) -> None:
+        """
+        Updated the field elements to reflect their `rows` DataFrame for this `Form`
+        instance only.
+
+        :param target_data_key: (optional) dataset key to update elements for, otherwise
+            updates elements for all datasets
+        :param omit_elements: A list of elements to omit updating
+        :param column_names: A list of column names to update
+        :param comboboxes_only: Updates the value list only for comboboxes. This option
+            will fail if adding or deleting entries.
+        """
+        if omit_elements is None:
+            omit_elements = []
+
+        if column_names is None:
+            column_names = []
 
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
@@ -3441,6 +3517,15 @@ class Form:
 
             # skip updating this element if requested
             if mapped.element in omit_elements:
+                continue
+
+            if (
+                combobox_values_only
+                and type(mapped.element) is not sg.PySimpleGUI.Combo
+            ):
+                continue
+
+            if len(column_names) and mapped.column not in column_names:
                 continue
 
             if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
@@ -3472,7 +3557,7 @@ class Form:
             if mapped.element.key in self.callbacks:
                 self.callbacks[mapped.element.key]()
 
-            elif mapped.where_column is not None:
+            if mapped.where_column is not None:
                 # We are looking for a key,value pair or similar.
                 # Sift through and see what to put
                 updated_val = mapped.dataset.get_keyed_value(
@@ -3488,43 +3573,30 @@ class Form:
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
                 # Find the relationship to determine which table to get data from
-                target_table = None
                 # TODO this should be get_relationships_for_data?
-                rels = Relationship.get_relationships(mapped.dataset.table)
-                for rel in rels:
-                    if rel.fk_column == mapped.column:
-                        target_table = self[rel.parent_table]
-                        pk_column = target_table.pk_column
-                        description = target_table.description_column
-                        break
-
-                if target_table is None:
+                combobox_values = mapped.dataset.combobox_values(mapped.column)
+                if not combobox_values:
                     logger.info(
                         f"Error! Could not find related data for element "
                         f"{mapped.element.key} bound to DataSet "
                         f"key {mapped.table}, column: {mapped.column}"
                     )
-
                     # we don't want to update the list in this case, as it was most
                     # likely supplied and not tied to data
                     updated_val = mapped.dataset[mapped.column]
-
-                # Populate the combobox entries
+                    mapped.element.update(updated_val)
+                    continue
+                # else, set combobox selected value to matching in record
+                if combobox_values_only:
+                    val = mapped.element.widget.current()
+                    updated_val = combobox_values[val]
+                    mapped.element.update(values=combobox_values)
                 else:
-                    lst = []
-                    for index, row in target_table.rows.iterrows():
-                        lst.append(ElementRow(row[pk_column], row[description]))
+                    mapped.element.update(values=combobox_values)
+                    for entry in combobox_values:
+                        if entry.get_pk() == mapped.dataset[mapped.column]:
+                            updated_val = entry
 
-                    # Map the value to the combobox, by getting the description_column
-                    # and using it to set the value
-                    for index, row in target_table.rows.iterrows():
-                        if row[target_table.pk_column] == mapped.dataset[rel.fk_column]:
-                            for entry in lst:
-                                if entry.get_pk() == mapped.dataset[rel.fk_column]:
-                                    updated_val = entry
-                                    break
-                            break
-                    mapped.element.update(values=lst)
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
@@ -3562,6 +3634,7 @@ class Form:
 
             elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
                 updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
+
             elif type(mapped.element) is sg.PySimpleGUI.Image:
                 val = mapped.dataset[mapped.column]
 
@@ -3582,24 +3655,14 @@ class Form:
             if updated_val is not None:
                 mapped.element.update(updated_val)
 
-        self.update_selectors(target_data_key, omit_elements)
-
-        # Run callbacks
-        if "update_elements" in self.callbacks:
-            # Running user update function
-            logger.info("Running the update_elements callback...")
-            self.callbacks["update_elements"](self, self.window)
-
     def update_selectors(
         self, target_data_key: str = None, omit_elements: List[str] = None
     ) -> None:
         """
-        Updated the GUI elements to reflect values from the database for this `Form`
-        instance only. Not to be confused with the main `update_elements()`, which
-        updates GUI elements for all `Form` instances.
+        Updated the selector elements to reflect their `rows` DataFrame.
 
         :param target_data_key: (optional) dataset key to update elements for, otherwise
-            updates elements for all datasets
+            updates elements for all datasets.
         :param omit_elements: A list of elements to omit updating
         :returns: None
         """
