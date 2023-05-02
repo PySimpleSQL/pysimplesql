@@ -2790,8 +2790,8 @@ class Form:
         # Creating cell edit instance, even if we arn't going to use it.
         self._celledit = _CellEdit(self)
         self.window.TKroot.bind("<Double-Button-1>", self._celledit)
+        self._liveupdate = _LiveUpdate(self)
         if self.live_update:
-            self._liveupdate = _LiveUpdate(self)
             self.set_live_update(enable=True)
         logger.debug("Binding finished!")
 
