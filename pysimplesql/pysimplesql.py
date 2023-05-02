@@ -3430,7 +3430,7 @@ class Form:
         reflected in other elements in the same Form. This is achieved by binding the
         Window to watch for events that may trigger updates, such as mouse clicks, key
         presses, or selection changes in a combo box.
-        
+
         :param enable: If True, changes in a field element are immediately reflected in
             other elements in the same Form. If False, live-update is disabled.
         """
