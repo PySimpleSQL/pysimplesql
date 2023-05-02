@@ -1433,29 +1433,21 @@ class DataSet:
         :returns: None
         """
         logger.debug(f"Setting table {self.table} record by primary key {pk}")
-        if omit_elements is None:
-            omit_elements = []
 
-        if skip_prompt_save is False:
-            # see if sg.Table has potential changes
-            if len(omit_elements) and self.records_changed(recursive=False):
-                # most likely will need to update, either to
-                # discard virtual or update after save
-                omit_elements = []
-            # don't update self/dependents if we are going to below anyway
-            if self.prompt_save(update_elements=False) == SAVE_FAIL:
-                return
-
-        # Move to the numerical index of where the primary key is located.
-        # If the pk value can't be found, move to the last index
+        # Get the numerical index of where the primary key is located.
+        # If the pk value can't be found, set to the last index
         idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
-        idx = idx[0] if idx else len(self.rows.index)
-        self.current_index = idx
+        idx = idx[0] if idx else self.row_count
+        if self.current_index == idx:
+            return
 
-        if update_elements:
-            self.frm.update_elements(self.table, omit_elements=omit_elements)
-        if requery_dependents:
-            self.requery_dependents()
+        self.set_by_index(
+            index=idx,
+            update_elements=update_elements,
+            requery_dependents=requery_dependents,
+            skip_prompt_save=skip_prompt_save,
+            omit_elements=omit_elements,
+        )
 
     def get_current(
         self, column: str, default: Union[str, int] = ""
