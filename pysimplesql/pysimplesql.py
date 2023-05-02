@@ -3430,12 +3430,9 @@ class Form:
         reflected in other elements in the same Form. This is achieved by binding the
         Window to watch for events that may trigger updates, such as mouse clicks, key
         presses, or selection changes in a combo box.
-
-        When this method is called, it either enables or disables the binding
-        of these events to a callback function that performs the synchronization.
-        If synchronization was not previously enabled, this function binds the
-        events to the callback and returns. If synchronization was already
-        enabled, this function unbinds the events and their associated callbacks.
+        
+        :param enable: If True, changes in a field element are immediately reflected in
+            other elements in the same Form. If False, live-update is disabled.
         """
         bind_events = ["<ButtonRelease-1>", "<KeyPress>", "<<ComboboxSelected>>"]
         if enable and not self._liveupdate_binds:
