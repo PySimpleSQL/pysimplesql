@@ -56,15 +56,19 @@ from __future__ import annotations  # docstrings
 
 import asyncio
 import contextlib
+import enum
 import functools
 import logging
 import math
 import os.path
 import queue
 import threading  # threaded popup
+import tkinter as tk
+import tkinter.font as tkfont
 from datetime import date, datetime
 from time import sleep, time  # threaded popup
-from typing import Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
+from tkinter import ttk
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
 import pandas as pd
 import PySimpleGUI as sg
@@ -188,6 +192,18 @@ DELETE_CASCADE_RECURSION_LIMIT: int = 15
 SORT_NONE = 0
 SORT_ASC = 1
 SORT_DESC = 2
+
+# ---------------------
+# TK/TTK Widget Types
+# ---------------------
+TK_ENTRY = "Entry"
+TK_COMBOBOX = "Combobox"
+TK_CHECKBUTTON = "Checkbutton"
+
+
+class Boolean(enum.Flag):
+    TRUE = True
+    FALSE = False
 
 
 # -------
@@ -575,9 +591,27 @@ class DataSet:
             self.duplicate_children: bool = duplicate_children
         self._simple_transform: SimpleTransformsDict = {}
 
-    # Override the [] operator to retrieve columns by key
-    def __getitem__(self, key: str):
-        return self.get_current(key)
+    # Override the [] operator to retrieve current columns by key
+    def __getitem__(self, column: str) -> Union[str, int]:
+        """
+        Retrieve the value of the specified column in the current row.
+
+        :param column: The key of the column to retrieve.
+        :returns: The current value of the specified column.
+        """
+        return self.get_current(column)
+
+    # Override the [] operator to set current columns value
+    def __setitem__(self, column, value: Union[str, int]) -> None:
+        """
+        Set the value of the specified column in the current row.
+
+        :param column: The key of the column to set.
+        :param value: The value to set the column to.
+
+        :returns: None
+        """
+        self.set_current(column, value)
 
     # Make current_index a property so that bounds can be respected
     @property
@@ -587,8 +621,8 @@ class DataSet:
     @current_index.setter
     # Keeps the current_index in bounds
     def current_index(self, val: int):
-        if val > len(self.rows) - 1:
-            self._current_index = len(self.rows) - 1
+        if val > self.row_count - 1:
+            self._current_index = self.row_count - 1
         elif val < 0:
             self._current_index = 0
         else:
@@ -919,11 +953,7 @@ class DataSet:
         """
         # Return False if there is nothing to check or _prompt_save is False
         # TODO: children too?
-        if (
-            self.current_index is None
-            or len(self.rows.index) == 0
-            or not self._prompt_save
-        ):
+        if self.current_index is None or not self.row_count or not self._prompt_save:
             return PROMPT_SAVE_NONE
 
         # See if any rows are virtual
@@ -1023,7 +1053,7 @@ class DataSet:
         rows = self.driver.execute(query)
         self.rows = rows
 
-        if len(self.rows.index) and self.pk_column is not None:
+        if self.row_count and self.pk_column is not None:
             if "sort_order" not in self.rows.attrs:
                 # Store the sort order as a dictionary in the attrs of the DataFrame
                 sort_order = self.rows[self.pk_column].to_list()
@@ -1145,7 +1175,8 @@ class DataSet:
         ):
             return
 
-        self.current_index = len(self.rows.index) - 1
+        self.current_index = self.row_count - 1
+
         if update_elements:
             self.frm.update_elements(self.key)
         if requery_dependents:
@@ -1174,7 +1205,7 @@ class DataSet:
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
-        if self.current_index < len(self.rows.index) - 1:
+        if self.current_index < self.row_count - 1:
             logger.debug(f"Moving to the next record of table {self.table}")
             # prompt_save
             if (
@@ -1286,12 +1317,12 @@ class DataSet:
             return None
 
         # First lets make a search order.. TODO: remove this hard coded garbage
-        if len(self.rows.index):
+        if self.row_count:
             logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
         for field in self.search_order:
             # Perform a search for str, from the current position to the end and back by
             # creating a list of all indexes
-            for i in list(range(self.current_index + 1, len(self.rows.index))) + list(
+            for i in list(range(self.current_index + 1, self.row_count)) + list(
                 range(0, self.current_index)
             ):
                 if (
@@ -1299,6 +1330,8 @@ class DataSet:
                     and search_string.lower() in str(self.rows.iloc[i][field]).lower()
                 ):
                     old_index = self.current_index
+                    if i == old_index:
+                        return None
                     self.current_index = i
                     if update_elements:
                         self.frm.update_elements(self.key)
@@ -1348,6 +1381,10 @@ class DataSet:
         :param omit_elements: (optional) A list of elements to omit from updating
         :returns: None
         """
+        # if already there
+        if self.current_index == index:
+            return
+
         logger.debug(f"Moving to the record at index {index} on {self.table}")
         if omit_elements is None:
             omit_elements = []
@@ -1424,7 +1461,7 @@ class DataSet:
         self, column: str, default: Union[str, int] = ""
     ) -> Union[str, int]:
         """
-        Get the current value for the supplied column.
+        Get the value for the supplied column in the current row.
 
         You can also use indexing of the `Form` object to get the current value of a
         column I.e. frm[{DataSet}].[{column}].
@@ -1434,7 +1471,7 @@ class DataSet:
         :returns: The value of the column requested
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
-        if len(self.rows.index):
+        if self.row_count:
             if self.get_current_row()[column]:
                 return self.get_current_row()[column]
             return default
@@ -1467,9 +1504,9 @@ class DataSet:
         :param key_value: The value to search for
         :returns: Returns the value found in `value_column`
         """
-        for i, r in self.rows.itterrows():
-            if r[key_column] == key_value:
-                return r[value_column]
+        for _, row in self.rows.iterrows():
+            if row[key_column] == key_value:
+                return row[value_column]
         return None
 
     def get_current_pk(self) -> int:
@@ -1619,7 +1656,7 @@ class DataSet:
             display_message = not self.save_quiet
 
         # Ensure that there is actually something to save
-        if not len(self.rows):
+        if not self.row_count:
             self.frm.popup.info(
                 lang.dataset_save_empty, display_message=display_message
             )
@@ -1648,11 +1685,10 @@ class DataSet:
         # unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
-        # Track the keyed queries we have to run.  Set to None, so we can tell later if
-        # there were keyed elements
-        keyed_queries: Optional[
-            List
-        ] = None  # {'column':column, 'changed_row': row, 'where_clause': where_clause}
+        # Track the keyed queries we have to run.
+        # Set to None, so we can tell later if there were keyed elements
+        # {'column':column, 'changed_row': row, 'where_clause': where_clause}
+        keyed_queries: Optional[List] = None
 
         # Propagate GUI data back to the stored current_row
         for mapped in [m for m in self.frm.element_map if m.dataset == self]:
@@ -1664,7 +1700,7 @@ class DataSet:
                 if keyed_queries is None:
                     # Make the list here so != None if keyed elements
                     keyed_queries = []
-                for row in self.rows:
+                for index, row in self.rows.iterrows():
                     if (
                         row[mapped.where_column] == mapped.where_value
                         and row[mapped.column] != element_val
@@ -1847,7 +1883,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to delete
-        if not len(self.rows):
+        if not self.row_count:
             return None
 
         # callback
@@ -1923,7 +1959,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not len(self.rows.index) or self.row_is_virtual():
+        if not self.row_count or self.row_is_virtual():
             return None
 
         # callback
@@ -2028,7 +2064,7 @@ class DataSet:
         :param pk: The primary key from which to find the description for
         :returns: The value found in the description column, or None if nothing is found
         """
-        for index, row in self.rows.iterrows():
+        for _, row in self.rows.iterrows():
             if row[self.pk_column] == pk:
                 return row[self.description_column]
         return None
@@ -2043,10 +2079,21 @@ class DataSet:
         """
         if index is None:
             index = self.current_index
-        if self.rows is not None and len(self.rows.index):
+        if self.rows is not None and self.row_count:
             return self.rows.attrs["virtual"][index]
         return False
 
+    @property
+    def row_count(self) -> int:
+        """
+        Returns the number of rows in the dataset. If the dataset is not a pandas
+        DataFrame, returns 0.
+
+        :returns: The number of rows in the dataset.
+        """
+        if isinstance(self.rows, pd.DataFrame):
+            return len(self.rows.index)
+        return 0
     def table_values(
         self, columns: List[str] = None, mark_virtual: bool = False
     ) -> List[TableRow]:
@@ -2353,8 +2400,8 @@ class DataSet:
             requery_dependents=False,
             skip_prompt_save=True,
         )
-        if update_elements and len(self.rows.index):
-            self.frm.update_selectors(self.table)
+        if update_elements and self.row_count:
+            self.frm.update_selectors(self.key)
             self.frm.update_elements(self.table, edit_protect_only=True)
             self.update_headings(self.rows.attrs["sort_column"], sort_order)
 
@@ -2414,14 +2461,14 @@ class DataSet:
 
             # TODO: idx currently does nothing
             if idx is None:
-                idx = len(self.rows.index)
+                idx = self.row_count
 
             self.rows = pd.concat(
                 [self.rows, row_series.to_frame().T], ignore_index=True
             )
             self.rows.attrs = attrs
 
-        idx_label = self.rows.index.max() if len(self.rows.index) > 0 else 0
+        idx_label = self.rows.index.max() if self.row_count else 0
         self.rows.attrs["virtual"].loc[idx_label] = 1  # True, series only holds int64
 
 
@@ -3171,7 +3218,7 @@ class Form:
                     # update the elements to erase any GUI changes,
                     # since we are choosing not to save
                     for data_key_ in self.datasets:
-                        self[data_key_].rows.purge_virtual()
+                        self[data_key_].purge_virtual()
                     self.update_elements()
                     # We did have a change, regardless if the user chose not to save
                     return PROMPT_SAVE_DISCARDED
@@ -3597,7 +3644,7 @@ class Form:
                     ):
                         logger.debug("update_elements: List/Combo selector found...")
                         lst = []
-                        for r in dataset.rows:
+                        for _, r in dataset.rows.iterrows():
                             if e["where_column"] is not None:
                                 if str(r[e["where_column"]]) == str(
                                     e["where_value"]
@@ -3626,7 +3673,7 @@ class Form:
 
                     elif type(element) == sg.PySimpleGUI.Slider:
                         # Re-range the element depending on the number of records
-                        l = len(dataset.rows)  # noqa: E741
+                        l = dataset.row_count  # noqa: E741
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
                     elif type(element) is sg.PySimpleGUI.Table:
@@ -6799,7 +6846,7 @@ class Sqlite(SQLDriver):
         names = []
         col_info = ColumnInfo(self, table)
 
-        for index, row in rows.iterrows():
+        for _, row in rows.iterrows():
             name = row["name"]
             names.append(name)
             domain = row["type"]
@@ -6828,7 +6875,7 @@ class Sqlite(SQLDriver):
                 f"PRAGMA foreign_key_list({self.quote_table(from_table)})", silent=True
             )
 
-            for index, row in rows.iterrows():
+            for _, row in rows.iterrows():
                 dic = {}
                 # Add the relationship if it's in the requery list
                 if row["on_update"] == "CASCADE":
@@ -7014,7 +7061,7 @@ class Flatfile(Sqlite):
                 # write the DataFrame out.
                 # Use our columns to exclude the possible virtual pk
                 rows = []
-                for index, row in dataset.rows.iterrows():
+                for _, row in dataset.rows.iterrows():
                     rows.append([row[c] for c in self.columns])
 
                 logger.debug(f"Writing the following data to {self.file_path}")
