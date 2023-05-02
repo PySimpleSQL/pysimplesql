@@ -3382,6 +3382,20 @@ class Form:
             self.save_records(check_prompt_save=True)
         return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
 
+    def set_prompt_save(self, mode: int) -> None:
+        """
+        Set the prompt to save action when navigating records for all `DataSet` objects
+        associated with this `Form`.
+
+        :param mode: a constant value. If pysimplesql is imported as `ss`, use:
+                    `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+                    `ss.AUTOSAVE_MODE` to autosave when unsaved changes are present.
+        :returns: None
+        """
+        self._prompt_save = mode
+        for data_key in self.datasets:
+            self[data_key].set_prompt_save(mode)
+
     def set_force_save(self, force: bool = False) -> None:
         """
         Force save without checking for changes first, so even an unchanged record will
@@ -3480,20 +3494,6 @@ class Form:
         if show_message:
             self.popup.info(msg, display_message=display_message)
         return result
-
-    def set_prompt_save(self, mode: int) -> None:
-        """
-        Set the prompt to save action when navigating records for all `DataSet` objects
-        associated with this `Form`.
-
-        :param mode: a constant value. If pysimplesql is imported as `ss`, use:
-                    `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                    `ss.AUTOSAVE_MODE` to autosave when unsaved changes are present.
-        :returns: None
-        """
-        self._prompt_save = mode
-        for data_key in self.datasets:
-            self[data_key].set_prompt_save(mode)
 
     def update_elements(
         self,
