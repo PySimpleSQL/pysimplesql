@@ -2590,7 +2590,7 @@ class DataSet:
             element = e["element"]
             if (
                 "TableHeading" in element.metadata
-                and element.metadata["TableHeading"]._sort_enable
+                and element.metadata["TableHeading"].sort_enable
             ):
                 element.metadata["TableHeading"].update_headings(
                     element, column, sort_order
@@ -2653,6 +2653,7 @@ class Form:
         delete_cascade: bool = True,
         duplicate_children: bool = True,
         description_column_names: List[str] = None,
+        live_update: bool = False,
     ) -> None:
         """
         Initialize a new `Form` instance.
@@ -2685,6 +2686,10 @@ class Form:
             Tables instead of the primary key. The first matching column of the table is
             given priority. If no match is found, the second column is used. Default
             list: ['description', 'name', 'title'].
+        :param live_update: (optional) Default value is False. If True, changes made in
+            a field will be immediately pushed to associated selectors. In addition,
+            editing the description column will trigger the update of comboboxes.
+            If False, changes will be pushed only after a save action.
         :returns: None
         """
         win_pb = ProgressBar(lang.startup_form)
@@ -2698,7 +2703,6 @@ class Form:
         self._edit_protect: bool = False
         self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
-        self.popup = None
         """
         The element map dict is set up as below:
 
@@ -2719,6 +2723,13 @@ class Form:
             self.description_column_names = ["description", "name", "title"]
         else:
             self.description_column_names = description_column_names
+        self.live_update: bool = live_update
+
+        # empty variables, just in-case bind() never called
+        self.popup = None
+        self._celledit = None
+        self._liveupdate = None
+        self._liveupdate_binds = {}
 
         # Add our default datasets and relationships
         win_pb.update(lang.startup_datasets, 25)
@@ -2731,7 +2742,6 @@ class Form:
         if bind_window is not None:
             win_pb.update(lang.startup_binding, 75)
             self.window = bind_window
-            self.popup = Popup(self.window)
             self.bind(self.window)
         win_pb.close()
 
@@ -2777,6 +2787,12 @@ class Form:
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
+        # Creating cell edit instance, even if we arn't going to use it.
+        self._celledit = _CellEdit(self)
+        self.window.TKroot.bind("<Double-Button-1>", self._celledit)
+        if self.live_update:
+            self._liveupdate = _LiveUpdate(self)
+            self.set_live_update(enable=True)
         logger.debug("Binding finished!")
 
     def execute(self, query: str) -> pd.DataFrame:
@@ -3374,6 +3390,7 @@ class Form:
                     # since we are choosing not to save
                     for data_key_ in self.datasets:
                         self[data_key_].purge_virtual()
+                        self[data_key_].restore_current_row()
                     self.update_elements()
                     # We did have a change, regardless if the user chose not to save
                     return PROMPT_SAVE_DISCARDED
@@ -3405,6 +3422,33 @@ class Form:
         :returns: None
         """
         self.force_save = force
+
+    def set_live_update(self, enable: bool):
+        """Toggle the immediate sync of field elements with other elements in Form.
+
+        When live-update is enabled, changes in a field element are immediately
+        reflected in other elements in the same Form. This is achieved by binding the
+        Window to watch for events that may trigger updates, such as mouse clicks, key
+        presses, or selection changes in a combo box.
+
+        When this method is called, it either enables or disables the binding
+        of these events to a callback function that performs the synchronization.
+        If synchronization was not previously enabled, this function binds the
+        events to the callback and returns. If synchronization was already
+        enabled, this function unbinds the events and their associated callbacks.
+        """
+        bind_events = ["<ButtonRelease-1>", "<KeyPress>", "<<ComboboxSelected>>"]
+        if enable and not self._liveupdate_binds:
+            self.live_update = True
+            for event in bind_events:
+                self._liveupdate_binds[event] = self.window.TKroot.bind(
+                    event, self._liveupdate, "+"
+                )
+        elif not enable and self._liveupdate_binds:
+            for event, bind in self._liveupdate_binds.items():
+                self.window.TKroot.unbind(event, bind)
+            self._liveupdate_binds = {}
+            self.live_update = False
 
     def save_records(
         self,
@@ -3519,7 +3563,6 @@ class Form:
 
         msg = "edit protect" if edit_protect_only else "PySimpleGUI"
         logger.debug(f"update_elements(): Updating {msg} elements")
-        win = self.window
         # Disable/Enable action elements based on edit_protect or other situations
 
         for data_key in self.datasets:
@@ -3980,7 +4023,9 @@ class Form:
                                 row = values[event]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) is sg.PySimpleGUI.Table:
+                            elif type(element) is sg.PySimpleGUI.Table and len(
+                                values[event]
+                            ):
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
 
@@ -5420,14 +5465,19 @@ class TableHeadings(list):
     # store our instances
     instances = []
 
-    def __init__(self, sort_enable: bool = True) -> None:
+    def __init__(self, sort_enable: bool = True, edit_enable: bool = False) -> None:
         """
         Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
+        :param edit_enable: True to enable editing cells. If cell editing is enabled,
+            any accepted edits will immediately push to the associated field element.
+            In addition, editing the set description column will trigger the update of
+            all comboboxes.
         :returns: None
         """
-        self._sort_enable = sort_enable
+        self.sort_enable = sort_enable
+        self.edit_enable = edit_enable
         self._width_map = []
         self._visible_map = []
 
@@ -5534,7 +5584,7 @@ class TableHeadings(list):
             should take one column parameter.
         :returns: None
         """
-        if self._sort_enable:
+        if self.sort_enable:
             for i in range(len(self)):
                 if self[i]["column"] is not None:
                     element.widget.heading(
@@ -5563,6 +5613,345 @@ class _SortCallbackWrapper:
 
     def __call__(self, column):
         self.frm[self.data_key].sort_cycle(column, self.data_key, update_elements=True)
+
+
+class _CellEdit:
+
+    """Internal class used when sg.Table cells are double-clicked if edit enabled"""
+
+    def __init__(self, frm_reference: Form):
+        self.frm = frm_reference
+        self.active_edit = False
+
+    def __call__(self, event):
+        # if double click a treeview
+        if event.widget.__class__.__name__ == "Treeview":
+            tk_widget = event.widget
+            # identify region
+            region = tk_widget.identify("region", event.x, event.y)
+            if region == "cell":
+                self.edit(event)
+
+    def edit(self, event):
+        treeview = event.widget
+
+        # only allow 1 edit at a time
+        if self.active_edit or self.frm._edit_protect:
+            return
+
+        # get row and column
+        row = int(treeview.identify_row(event.y))
+        col_identified = treeview.identify_column(event.x)
+        if col_identified:
+            col_idx = int(treeview.identify_column(event.x)[1:]) - 1
+
+        try:
+            data_key, element = self.get_datakey_and_sg_table(treeview, self.frm)
+        except TypeError:
+            return
+
+        if not element:
+            return
+
+        # found a table we can edit, don't allow another double-click
+        self.active_edit = True
+
+        # get table_headings
+        table_heading = element.metadata["TableHeading"]
+
+        # get column name
+        column_names = table_heading.columns()
+        column = column_names[col_idx - 1]
+
+        # make sure it's not the marker column or pk_column
+        if col_idx > 0 and column != self.frm[data_key].pk_column:
+            # use table_element to distinguish
+            table_element = element.Widget
+            root = table_element.master
+
+            # get cell text, coordinates, width and height
+            text = table_element.item(row, "values")[col_idx]
+            x, y, width, height = table_element.bbox(row, col_idx)
+
+            # see if we should use a combobox
+            combobox_values = self.frm[data_key].combobox_values(column)
+
+            if combobox_values:
+                field_type = TK_COMBOBOX
+                width = (
+                    width
+                    if width >= themepack.combobox_min_width
+                    else themepack.combobox_min_width
+                )
+
+            # or a checkbox
+            elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
+                field_type = TK_CHECKBUTTON
+                width = (
+                    width
+                    if width >= themepack.checkbox_min_width
+                    else themepack.checkbox_min_width
+                )
+
+            # else, its a normal ttk.entry
+            else:
+                field_type = TK_ENTRY
+                width = (
+                    width
+                    if width >= themepack.text_min_width
+                    else themepack.text_min_width
+                )
+
+            # float a frame over the cell
+            frame = ttk.Frame(root)
+            frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+
+            # setup the widgets
+            # ------------------
+
+            # checkbutton
+            # need to use tk.IntVar for checkbox
+            if field_type == TK_CHECKBUTTON:
+                field_var = tk.IntVar()
+                field_var.set(text)
+                self.field = ttk.Checkbutton(frame, variable=field_var)
+            else:
+                # create tk.StringVar for combo/entry
+                field_var = tk.StringVar()
+                field_var.set(text)
+
+            # entry
+            if field_type == TK_ENTRY:
+                self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+
+            # combobox
+            if field_type == TK_COMBOBOX:
+                self.field = ttk.Combobox(frame, textvariable=field_var, justify="left")
+                self.field["values"] = combobox_values
+                self.field.bind("<Configure>", self.combo_configure)
+
+            # bind text to Return (for save), and Escape (for discard)
+            # event is discarded
+            accept_dict = {
+                "data_key": data_key,
+                "table_element": table_element,
+                "row": row,
+                "column": column,
+                "col_idx": col_idx,
+                "combobox_values": combobox_values,
+                "field_type": field_type,
+                "field_var": field_var,
+            }
+
+            self.field.bind(
+                "<Return>",
+                lambda event: self.accept(**accept_dict),
+            )
+            self.field.bind("<Escape>", lambda event: self.destroy())
+
+            if themepack.use_cell_buttons:
+                # buttons
+                self.accept_button = tk.Button(
+                    frame,
+                    text="\u2714",
+                    foreground="green",
+                    relief=tk.GROOVE,
+                    command=lambda: self.accept(**accept_dict),
+                )
+                self.cancel_button = tk.Button(
+                    frame,
+                    text="\u274E",
+                    foreground="red",
+                    relief=tk.GROOVE,
+                    command=lambda: self.destroy(),
+                )
+                # pack buttons
+                self.cancel_button.pack(side="right")
+                self.accept_button.pack(side="right")
+
+            # have entry use remaining space
+            self.field.pack(side="left", expand=True, fill="both")
+
+            # select text and focus to begin with
+            if field_type != TK_CHECKBUTTON:
+                self.field.select_range(0, tk.END)
+                self.field.focus_force()
+
+            # bind single-clicks
+            self.destroy_bind = self.frm.window.TKroot.bind(
+                "<Button-1>",
+                lambda event: self.single_click_callback(event, accept_dict),
+            )
+        else:
+            # didn't find a cell we can edit
+            self.active_edit = False
+
+    def accept(
+        self,
+        data_key,
+        table_element,
+        row,
+        column,
+        col_idx,
+        combobox_values: ElementRow,
+        field_type,
+        field_var,
+    ):
+        # get current entry text
+        new_value = field_var.get()
+
+        # get current table row
+        values = list(table_element.item(row, "values"))
+
+        # update cell with new text
+        values[col_idx] = new_value
+
+        # push changes to table element row
+        table_element.item(row, values=values)
+
+        # set the value to the parent pk
+        if field_type == TK_COMBOBOX:
+            new_value = combobox_values[self.field.current()].get_pk()
+
+        dataset = self.frm[data_key]
+
+        # see if there was a change
+        old_value = dataset.get_current_row().copy()[column]
+        new_value = dataset.value_changed(
+            column, old_value, new_value, bool(field_type == TK_CHECKBUTTON)
+        )
+        if new_value is not Boolean.FALSE:
+            # push row to dataset and update
+            dataset.set_current(column, new_value)
+            # Update matching field
+            self.frm.update_fields(data_key, column_names=[column])
+            # Update all combobox values if the description_column
+            if column == dataset.description_column:
+                self.frm.update_fields(combobox_values_only=True)
+        self.destroy()
+
+    def destroy(self):
+        # unbind
+        self.frm.window.TKroot.unbind("<Button-1>", self.destroy_bind)
+        # destroy widets and window
+        self.field.destroy()
+        if themepack.use_cell_buttons:
+            self.accept_button.destroy()
+            self.cancel_button.destroy()
+        self.field.master.destroy()
+        # reset edit
+        self.active_edit = False
+
+    def single_click_callback(
+        self,
+        event,
+        accept_dict,
+    ):
+        # destroy if you click a heading while editing
+        if event.widget.__class__.__name__ == "Treeview":
+            tk_widget = event.widget
+            # identify region
+            region = tk_widget.identify("region", event.x, event.y)
+            if region == "heading":
+                self.destroy()
+                return
+
+        # disregard if you click the field/buttons of celledit
+        widget_list = [self.field]
+        if themepack.use_cell_buttons:
+            widget_list.append(self.accept_button)
+            widget_list.append(self.cancel_button)
+        if event and event.widget in widget_list:
+            return
+
+        # otherwise, accept
+        self.accept(**accept_dict)
+
+    def get_datakey_and_sg_table(self, treeview, frm):
+        # loop through datasets, trying to identify sg.Table selector
+        for data_key in [
+            data_key for data_key in frm.datasets if len(frm[data_key].selector)
+        ]:
+            for e in frm[data_key].selector:
+                element = e["element"]
+                if (
+                    element.widget == treeview
+                    and "TableHeading" in element.metadata
+                    and element.metadata["TableHeading"].edit_enable
+                ):
+                    return data_key, element
+        return None
+
+    def combo_configure(self, event):
+        """Configures combobox drop-down to be at least as wide as longest value"""
+
+        combo = event.widget
+        style = ttk.Style()
+
+        # get longest value
+        long = max(combo.cget("values"), key=len)
+        # get font
+        font = tkfont.nametofont(str(combo.cget("font")))
+        # set initial width
+        width = font.measure(long.strip() + "0")
+        # make it width size if smaller
+        width = width if width > combo["width"] else combo["width"]
+        style.configure("SS.TCombobox", postoffset=(0, 0, width, 0))
+        combo.configure(style="SS.TCombobox")
+
+
+class _LiveUpdate:
+
+    """Internal class used to automatically sync selectors with field changes"""
+
+    def __init__(self, frm_reference: Form):
+        self.frm = frm_reference
+        self.active_sync = False
+
+    def __call__(self, event):
+        if self.active_sync:
+            return
+        field_type = event.widget.__class__.__name__
+        if field_type in ["Entry", "Text", "Combobox", "Checkbutton"]:
+            self.active_sync = True
+            self.sync(event.widget, field_type)
+            return
+
+    def sync(self, widget, field_type):
+        for e in self.frm.element_map:
+            if e["element"].widget == widget:
+                data_key = e["table"]
+                column = e["column"]
+                element = e["element"]
+                new_value = element.get()
+
+                dataset = self.frm[data_key]
+
+                # set the value to the parent pk
+                if field_type == TK_COMBOBOX:
+                    combobox_values = dataset.combobox_values(column)
+                    new_value = combobox_values[widget.current()].get_pk()
+
+                # get cast new value to correct type
+                for col in dataset.column_info:
+                    if col["name"] == column:
+                        new_value = col.cast(new_value)
+                        break
+
+                # see if there was a change
+                old_value = dataset.get_current_row()[column]
+                new_value = dataset.value_changed(
+                    column, old_value, new_value, bool(field_type == TK_CHECKBUTTON)
+                )
+                if new_value is not Boolean.FALSE:
+                    # push row to dataset and update
+                    dataset.set_current(column, new_value)
+
+                    self.frm.update_selectors(dataset.key)
+                    # Update all combobox values if the description_column
+                    if column == dataset.description_column:
+                        self.frm.update_fields(combobox_values_only=True)
+        self.active_sync = False
 
 
 # ======================================================================================
@@ -5642,6 +6031,12 @@ class ThemePack:
         # Sets the default multi-line text size when `field()` is used.
         # The size= parameter of `field()` will override this.
         "default_mline_size": (30, 7),  # (width, height)
+        # CellEdit widgets:
+        "use_cell_buttons": True,
+        # Default minimum sizes for
+        "text_min_width": 80,
+        "combobox_min_width": 80,
+        "checkbox_min_width": 75,
     }
     """
     Default Themepack.
