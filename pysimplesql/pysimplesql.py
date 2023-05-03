@@ -5826,7 +5826,7 @@ class _CellEdit:
             # Update matching field
             self.frm.update_fields(data_key, column_names=[column])
             # Update all combobox values if the description_column
-            if column == dataset.description_column:
+            if column == dataset.description_column and not dataset.row_is_virtual():
                 self.frm.update_fields(combobox_values_only=True)
         self.destroy()
 
@@ -5962,7 +5962,10 @@ class _LiveUpdate:
 
                     self.frm.update_selectors(dataset.key)
                     # Update all combobox values if the description_column
-                    if column == dataset.description_column:
+                    if (
+                        column == dataset.description_column
+                        and not dataset.row_is_virtual()
+                    ):
                         self.frm.update_fields(combobox_values_only=True)
 
     def delay(self, widget, widget_type):
