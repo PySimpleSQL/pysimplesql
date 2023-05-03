@@ -2144,10 +2144,13 @@ class DataSet:
             be used.
         :returns: True or False based on whether the row is virtual
         """
-        if index is None:
-            index = self.current_index
+        if index is None and self.row_count:
+            pk = self.rows.loc[self.rows.index[self.current_index]][self.pk_column]
+            for idx, row in self.rows.iterrows():
+                if row[self.pk_column] == pk:
+                    index = idx
         if self.rows is not None and self.row_count:
-            return self.rows.attrs["virtual"][index]
+            return self.rows.attrs["virtual"][index].tolist()
         return False
 
     @property
