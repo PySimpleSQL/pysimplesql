@@ -4325,7 +4325,7 @@ class Popup:
                 ttk_theme=themepack.ttk_theme,
                 enable_close_attempted_event=True,
             )
-            self.window.TKroot.after(auto_close_seconds * 1000, self._auto_close)
+            self.window.TKroot.after(int(auto_close_seconds * 1000), self._auto_close)
 
     def _auto_close(self):
         """
@@ -5674,7 +5674,7 @@ class _CellEdit:
             combobox_values = self.frm[data_key].combobox_values(column)
 
             if combobox_values:
-                field_type = TK_COMBOBOX
+                widget_type = TK_COMBOBOX
                 width = (
                     width
                     if width >= themepack.combobox_min_width
@@ -5683,7 +5683,7 @@ class _CellEdit:
 
             # or a checkbox
             elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
-                field_type = TK_CHECKBUTTON
+                widget_type = TK_CHECKBUTTON
                 width = (
                     width
                     if width >= themepack.checkbox_min_width
@@ -5692,7 +5692,7 @@ class _CellEdit:
 
             # else, its a normal ttk.entry
             else:
-                field_type = TK_ENTRY
+                widget_type = TK_ENTRY
                 width = (
                     width
                     if width >= themepack.text_min_width
@@ -5708,7 +5708,7 @@ class _CellEdit:
 
             # checkbutton
             # need to use tk.IntVar for checkbox
-            if field_type == TK_CHECKBUTTON:
+            if widget_type == TK_CHECKBUTTON:
                 field_var = tk.IntVar()
                 field_var.set(text)
                 self.field = ttk.Checkbutton(frame, variable=field_var)
@@ -5718,11 +5718,11 @@ class _CellEdit:
                 field_var.set(text)
 
             # entry
-            if field_type == TK_ENTRY:
+            if widget_type == TK_ENTRY:
                 self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
 
             # combobox
-            if field_type == TK_COMBOBOX:
+            if widget_type == TK_COMBOBOX:
                 self.field = ttk.Combobox(frame, textvariable=field_var, justify="left")
                 self.field["values"] = combobox_values
                 self.field.bind("<Configure>", self.combo_configure)
@@ -5736,7 +5736,7 @@ class _CellEdit:
                 "column": column,
                 "col_idx": col_idx,
                 "combobox_values": combobox_values,
-                "field_type": field_type,
+                "widget_type": widget_type,
                 "field_var": field_var,
             }
 
@@ -5770,7 +5770,7 @@ class _CellEdit:
             self.field.pack(side="left", expand=True, fill="both")
 
             # select text and focus to begin with
-            if field_type != TK_CHECKBUTTON:
+            if widget_type != TK_CHECKBUTTON:
                 self.field.select_range(0, tk.END)
                 self.field.focus_force()
 
@@ -5791,7 +5791,7 @@ class _CellEdit:
         column,
         col_idx,
         combobox_values: ElementRow,
-        field_type,
+        widget_type,
         field_var,
     ):
         # get current entry text
@@ -5807,7 +5807,7 @@ class _CellEdit:
         table_element.item(row, values=values)
 
         # set the value to the parent pk
-        if field_type == TK_COMBOBOX:
+        if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()].get_pk()
 
         dataset = self.frm[data_key]
@@ -5815,7 +5815,7 @@ class _CellEdit:
         # see if there was a change
         old_value = dataset.get_current_row().copy()[column]
         new_value = dataset.value_changed(
-            column, old_value, new_value, bool(field_type == TK_CHECKBUTTON)
+            column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
         )
         if new_value is not Boolean.FALSE:
             # push row to dataset and update
@@ -5903,18 +5903,31 @@ class _LiveUpdate:
 
     def __init__(self, frm_reference: Form):
         self.frm = frm_reference
-        self.active_sync = False
+        self.last_event_widget = None
+        self.last_event_time = None
+        self.delay_seconds = 0.5
 
     def __call__(self, event):
-        if self.active_sync:
-            return
-        field_type = event.widget.__class__.__name__
-        if field_type in ["Entry", "Text", "Combobox", "Checkbutton"]:
-            self.active_sync = True
-            self.sync(event.widget, field_type)
-            return
+        # keep track of time on same widget
+        if event.widget == self.last_event_widget:
+            self.last_event_time = time()
+        self.last_event_widget = event.widget
 
-    def sync(self, widget, field_type):
+        # get widget type
+        widget_type = event.widget.__class__.__name__
+
+        # immediately sync combo/checkboxs
+        if widget_type in ["Combobox", "Checkbutton"]:
+            self.sync(event.widget, widget_type)
+
+        # use tk.after() for text, so waits for pause in typing to update selector.
+        if widget_type in ["Entry", "Text"]:
+            self.frm.window.TKroot.after(
+                int(self.delay_seconds * 1000),
+                lambda: self.delay(event.widget, widget_type),
+            )
+
+    def sync(self, widget, widget_type):
         for e in self.frm.element_map:
             if e["element"].widget == widget:
                 data_key = e["table"]
@@ -5925,7 +5938,7 @@ class _LiveUpdate:
                 dataset = self.frm[data_key]
 
                 # set the value to the parent pk
-                if field_type == TK_COMBOBOX:
+                if widget_type == TK_COMBOBOX:
                     combobox_values = dataset.combobox_values(column)
                     new_value = combobox_values[widget.current()].get_pk()
 
@@ -5938,7 +5951,7 @@ class _LiveUpdate:
                 # see if there was a change
                 old_value = dataset.get_current_row()[column]
                 new_value = dataset.value_changed(
-                    column, old_value, new_value, bool(field_type == TK_CHECKBUTTON)
+                    column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
                 )
                 if new_value is not Boolean.FALSE:
                     # push row to dataset and update
@@ -5948,7 +5961,14 @@ class _LiveUpdate:
                     # Update all combobox values if the description_column
                     if column == dataset.description_column:
                         self.frm.update_fields(combobox_values_only=True)
-        self.active_sync = False
+
+    def delay(self, widget, widget_type):
+        if self.last_event_time:
+            elapsed_sec = time() - self.last_event_time
+            if elapsed_sec >= self.delay_seconds:
+                self.sync(widget, widget_type)
+        else:
+            self.sync(widget, widget_type)
 
 
 # ======================================================================================
