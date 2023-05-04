@@ -382,6 +382,30 @@ class Relationship:
                 return r.fk_column
         return None
 
+    @classmethod
+    def get_dependent_columns(cls, frm_reference: Form, table: str) -> Dict[str, str]:
+        """
+        Returns a dictionary of the `DataSet.key` and column names that use the
+        description_column text of the given parent table in their `ElementRow` objects.
+
+        This method is used to determine which GUI field and selector elements to update
+        when a new `DataSet.description_column` value is saved. The returned dictionary
+        contains the `DataSet.key` as the key and the corresponding column name as the
+        value.
+
+        :param frm_reference: A `Form` object representing the parent form.
+        :param table: The name of the parent table.
+        :returns: A dictionary of `{datakey: column}` pairs.
+        """
+        return {
+            frm_reference[dataset].key: r.fk_column
+            for r in cls.instances
+            for dataset in frm_reference.datasets
+            if r.parent_table == table
+            and frm_reference[dataset].table == r.child_table
+            and not r.on_update_cascade
+        }
+
     def __init__(
         self,
         join_type: str,
@@ -1002,6 +1026,7 @@ class DataSet:
         vrows = len(
             [row for idx, row in self.rows.iterrows() if self.row_is_virtual(idx)]
         )
+
         # Check if any records have changed
         changed = self.records_changed() or vrows
         if changed:
@@ -1026,8 +1051,20 @@ class DataSet:
                 return PROMPT_SAVE_PROCEED
             # if no
             self.purge_virtual()
+            self.restore_current_row()
+
+            # set_by_index already takes care of this, but just in-case this method is
+            # called another way.
             if vrows and update_elements:
                 self.frm.update_elements(self.key)
+
+            # if the description_column has changed, make sure to update other elements
+            # that may depend on it, that otherwise wouldn't be requeried.
+            to_update = Relationship.get_dependent_columns(self.frm, self.table)
+            for key, col in to_update.items():
+                self.frm.update_fields(key, combobox_values_only=True)
+                if self.frm[key].tableview_displays_column(col):
+                    self.frm.update_selectors(key)
             return PROMPT_SAVE_DISCARDED
         # if no changes
         return PROMPT_SAVE_NONE
@@ -1774,10 +1811,11 @@ class DataSet:
         if not bool(changed_row_dict) and not keyed_queries:
             # if user is not using liveupdate, they can change something using celledit
             # but then change it back in field element (which overrides the celledit)
-            # this refreshes the selector so that gui is up-to-date.
+            # this refreshes the selector/comboboxes so that gui is up-to-date.
             if self.current_row_has_backup:
                 self.restore_current_row()
                 self.frm.update_selectors(self.key)
+                self.frm.update_fields(self.key)
             return SAVE_NONE + SHOW_MESSAGE
 
         # check to see if cascading-fk has changed before we update database
@@ -1889,6 +1927,18 @@ class DataSet:
 
         if update_elements:
             self.frm.update_elements(self.key)
+
+        # if the description_column has changed, make sure to update other elements
+        # that may depend on it, that otherwise wouldn't be requeried because they are
+        # not setup as on_update_cascade.
+        for column in changed_row_dict:
+            if column == self.description_column:
+                to_update = Relationship.get_dependent_columns(self.frm, self.table)
+                for key, col in to_update.items():
+                    self.frm.update_fields(key, combobox_values_only=True)
+                    if self.frm[key].tableview_displays_column(col):
+                        self.frm.update_selectors(key)
+
         logger.debug("Record Saved!")
         self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
 
@@ -2122,16 +2172,22 @@ class DataSet:
         """
         Get the description from the `DataSet` on the matching pk.
 
-        Return the desctription from `DataSet.description_column` for the row where the
+        Return the description from `DataSet.description_column` for the row where the
         `DataSet.pk_column` = `pk`.
 
         :param pk: The primary key from which to find the description for
         :returns: The value found in the description column, or None if nothing is found
         """
-        for _, row in self.rows.iterrows():
-            if row[self.pk_column] == pk:
-                return row[self.description_column]
-        return None
+        # We don't want to update other views comboboxes/tableviews until row is
+        # actually saved. So first check their current
+        current_row = self.get_original_current_row()
+        if current_row[self.pk_column] == pk:
+            return current_row[self.description_column]
+        try:
+            index = self.rows.loc[self.rows[self.pk_column] == pk].index[0]
+        except IndexError:
+            return None
+        return self.rows.iloc[index][self.description_column]
 
     def row_is_virtual(self, index: int = None) -> bool:
         """
@@ -2225,7 +2281,7 @@ class DataSet:
         if not self.current_row_has_backup:
             self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
-    def table_values(
+    def tableview_values(
         self, columns: List[str] = None, mark_virtual: bool = False
     ) -> List[TableRow]:
         """
@@ -2280,6 +2336,19 @@ class DataSet:
 
         return values
 
+    def tableview_displays_column(self, column: str) -> bool:
+        """
+        Returns if tableview displays column.
+
+        :param column: The name of the column
+        :returns: True if column is displayed, else False.
+        """
+        return any(
+            "TableHeading" in e["element"].metadata
+            and column in e["element"].metadata["TableHeading"].columns()
+            for e in self.selector
+        )
+
     def combobox_values(self, column_name) -> List[ElementRow] or None:
         """
         Returns the values to use in a sg.Combobox as a list of ElementRow objects.
@@ -2290,22 +2359,25 @@ class DataSet:
         """
         if not self.row_count:
             return None
-        rels = Relationship.get_relationships(self.table)
-        found = False
-        for rel in rels:
-            if rel.fk_column == column_name:
-                target_table = self.frm[rel.parent_table]
-                pk_column = target_table.pk_column
-                description = target_table.description_column
-                found = True
-                break
 
-        if not found:
+        rels = Relationship.get_relationships(self.table)
+        rel = next((r for r in rels if r.fk_column == column_name), None)
+        if rel is None:
             return None
 
+        target_table = self.frm[rel.parent_table]
+        pk_column = target_table.pk_column
+        description = target_table.description_column
+
+        backup = None
+        if target_table.current_row_has_backup:
+            backup = target_table.get_original_current_row()
         lst = []
         for _, r in target_table.rows.sort_index().iterrows():
-            lst.append(ElementRow(r[pk_column], r[description]))
+            if backup and backup[pk_column] == r[pk_column]:
+                lst.append(ElementRow(backup[pk_column].tolist(), backup[description]))
+            else:
+                lst.append(ElementRow(r[pk_column], r[description]))
         return lst
 
     def get_related_table_for_column(self, column: str) -> str:
@@ -3779,7 +3851,7 @@ class Form:
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
-                values = mapped.dataset.table_values()
+                values = mapped.dataset.tableview_values()
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
 
@@ -3918,7 +3990,7 @@ class Form:
                         except KeyError:
                             columns = None  # default to all columns
 
-                        values = dataset.table_values(columns, mark_virtual=True)
+                        values = dataset.tableview_values(columns, mark_virtual=True)
 
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
@@ -5647,7 +5719,7 @@ class _CellEdit:
             col_idx = int(treeview.identify_column(event.x)[1:]) - 1
 
         try:
-            data_key, element = self.get_datakey_and_sg_table(treeview, self.frm)
+            data_key, element = self.get_datakey_and_tableview(treeview, self.frm)
         except TypeError:
             return
 
@@ -5826,9 +5898,7 @@ class _CellEdit:
             dataset.set_current(column, new_value)
             # Update matching field
             self.frm.update_fields(data_key, column_names=[column])
-            # Update all combobox values if the description_column
-            if column == dataset.description_column and not dataset.row_is_virtual():
-                self.frm.update_fields(combobox_values_only=True)
+
         self.destroy()
 
     def destroy(self):
@@ -5868,7 +5938,7 @@ class _CellEdit:
         # otherwise, accept
         self.accept(**accept_dict)
 
-    def get_datakey_and_sg_table(self, treeview, frm):
+    def get_datakey_and_tableview(self, treeview, frm):
         # loop through datasets, trying to identify sg.Table selector
         for data_key in [
             data_key for data_key in frm.datasets if len(frm[data_key].selector)
@@ -5961,13 +6031,9 @@ class _LiveUpdate:
                     # push row to dataset and update
                     dataset.set_current(column, new_value)
 
-                    self.frm.update_selectors(dataset.key)
-                    # Update all combobox values if the description_column
-                    if (
-                        column == dataset.description_column
-                        and not dataset.row_is_virtual()
-                    ):
-                        self.frm.update_fields(combobox_values_only=True)
+                    # Update tableview if uses column:
+                    if dataset.tableview_displays_column(column):
+                        self.frm.update_selectors(dataset.key)
 
     def delay(self, widget, widget_type):
         if self.last_event_time:
