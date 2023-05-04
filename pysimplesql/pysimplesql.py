@@ -1058,13 +1058,6 @@ class DataSet:
             if vrows and update_elements:
                 self.frm.update_elements(self.key)
 
-            # if the description_column has changed, make sure to update other elements
-            # that may depend on it, that otherwise wouldn't be requeried.
-            to_update = Relationship.get_dependent_columns(self.frm, self.table)
-            for key, col in to_update.items():
-                self.frm.update_fields(key, combobox_values_only=True)
-                if self.frm[key].tableview_displays_column(col):
-                    self.frm.update_selectors(key)
             return PROMPT_SAVE_DISCARDED
         # if no changes
         return PROMPT_SAVE_NONE
@@ -2374,7 +2367,7 @@ class DataSet:
             backup = target_table.get_original_current_row()
         lst = []
         for _, r in target_table.rows.sort_index().iterrows():
-            if backup and backup[pk_column] == r[pk_column]:
+            if backup is not None and backup[pk_column] == r[pk_column]:
                 lst.append(ElementRow(backup[pk_column].tolist(), backup[description]))
             else:
                 lst.append(ElementRow(r[pk_column], r[description]))
