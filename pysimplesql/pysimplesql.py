@@ -1443,7 +1443,7 @@ class DataSet:
 
         self.current_index = index
         if update_elements:
-            self.frm.update_elements(self.table, omit_elements=omit_elements)
+            self.frm.update_elements(self.key, omit_elements=omit_elements)
         if requery_dependents:
             self.requery_dependents()
 
@@ -1480,8 +1480,6 @@ class DataSet:
         # If the pk value can't be found, set to the last index
         idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
         idx = idx[0] if idx else self.row_count
-        if self.current_index == idx:
-            return
 
         self.set_by_index(
             index=idx,
@@ -1665,12 +1663,11 @@ class DataSet:
         self.insert_row(new_values)
 
         # and move to the new record
-        self.set_by_pk(
-            new_values[self.pk_column],
-            update_elements=True,
-            requery_dependents=True,
-            skip_prompt_save=True,  # already saved
-        )
+        # do this in insert_record, because possibly current_index is already 0
+        # and set_by_index will return early before update/requery if so.
+        self.current_index = self.row_count
+        self.frm.update_elements(self.key)
+        self.requery_dependents()
 
     def save_record(
         self, display_message: bool = None, update_elements: bool = True
