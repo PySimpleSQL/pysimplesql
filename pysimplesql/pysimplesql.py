@@ -1929,7 +1929,7 @@ class DataSet:
                 to_update = Relationship.get_dependent_columns(self.frm, self.table)
                 for key, col in to_update.items():
                     self.frm.update_fields(key, combo_values_only=True)
-                    if self.frm[key].tableview_displays_column(col):
+                    if self.frm[key].column_in_tableheading(col):
                         self.frm.update_selectors(key)
 
         logger.debug("Record Saved!")
@@ -2274,7 +2274,7 @@ class DataSet:
         if not self.current_row_has_backup:
             self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
-    def tableview_values(
+    def table_values(
         self, columns: List[str] = None, mark_virtual: bool = False
     ) -> List[TableRow]:
         """
@@ -2329,9 +2329,9 @@ class DataSet:
 
         return values
 
-    def tableview_displays_column(self, column: str) -> bool:
+    def column_in_tableheading(self, column: str) -> bool:
         """
-        Returns if tableview displays column.
+        Returns True if column is found in TableHeading
 
         :param column: The name of the column
         :returns: True if column is displayed, else False.
@@ -3846,7 +3846,7 @@ class Form:
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
-                values = mapped.dataset.tableview_values()
+                values = mapped.dataset.table_values()
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
 
@@ -3985,7 +3985,7 @@ class Form:
                         except KeyError:
                             columns = None  # default to all columns
 
-                        values = dataset.tableview_values(columns, mark_virtual=True)
+                        values = dataset.table_values(columns, mark_virtual=True)
 
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
@@ -5714,7 +5714,7 @@ class _CellEdit:
             col_idx = int(treeview.identify_column(event.x)[1:]) - 1
 
         try:
-            data_key, element = self.get_datakey_and_tableview(treeview, self.frm)
+            data_key, element = self.get_datakey_and_sgtable(treeview, self.frm)
         except TypeError:
             return
 
@@ -5933,7 +5933,7 @@ class _CellEdit:
         # otherwise, accept
         self.accept(**accept_dict)
 
-    def get_datakey_and_tableview(self, treeview, frm):
+    def get_datakey_and_sgtable(self, treeview, frm):
         # loop through datasets, trying to identify sg.Table selector
         for data_key in [
             data_key for data_key in frm.datasets if len(frm[data_key].selector)
@@ -6027,7 +6027,7 @@ class _LiveUpdate:
                     dataset.set_current(column, new_value)
 
                     # Update tableview if uses column:
-                    if dataset.tableview_displays_column(column):
+                    if dataset.column_in_tableheading(column):
                         self.frm.update_selectors(dataset.key)
 
     def delay(self, widget, widget_type):
