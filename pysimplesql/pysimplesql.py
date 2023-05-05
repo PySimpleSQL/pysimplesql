@@ -1928,7 +1928,7 @@ class DataSet:
             if column == self.description_column:
                 to_update = Relationship.get_dependent_columns(self.frm, self.table)
                 for key, col in to_update.items():
-                    self.frm.update_fields(key, combobox_values_only=True)
+                    self.frm.update_fields(key, combo_values_only=True)
                     if self.frm[key].tableview_displays_column(col):
                         self.frm.update_selectors(key)
 
@@ -2366,7 +2366,7 @@ class DataSet:
         if target_table.current_row_has_backup:
             backup = target_table.get_original_current_row()
         lst = []
-        for _, r in target_table.rows.sort_index().iterrows():
+        for _, r in target_table.rows.iterrows():
             if backup is not None and backup[pk_column] == r[pk_column]:
                 lst.append(ElementRow(backup[pk_column].tolist(), backup[description]))
             else:
@@ -3729,7 +3729,7 @@ class Form:
         target_data_key: str = None,
         omit_elements: List[str] = None,
         column_names: List[str] = None,
-        combobox_values_only: bool = False,
+        combo_values_only: bool = False,
     ) -> None:
         """
         Updated the field elements to reflect their `rows` DataFrame for this `Form`
@@ -3739,8 +3739,7 @@ class Form:
             updates elements for all datasets
         :param omit_elements: A list of elements to omit updating
         :param column_names: A list of column names to update
-        :param comboboxes_only: Updates the value list only for comboboxes. This option
-            will fail if adding or deleting entries.
+        :param combo_values_only: Updates the value list only for comboboxes.
         """
         if omit_elements is None:
             omit_elements = []
@@ -3764,7 +3763,7 @@ class Form:
                 continue
 
             if (
-                combobox_values_only
+                combo_values_only
                 and type(mapped.element) is not sg.PySimpleGUI.Combo
             ):
                 continue
@@ -3831,9 +3830,12 @@ class Form:
                     mapped.element.update(updated_val)
                     continue
                 # else, set combobox selected value to matching in record
-                if combobox_values_only:
-                    val = mapped.element.widget.current()
-                    updated_val = combobox_values[val]
+                if combo_values_only:
+                    val = mapped.element.get().get_pk()
+                    for entry in combobox_values:
+                        if entry.get_pk() == val:
+                            updated_val = entry.get_val()
+                            break
                     mapped.element.update(values=combobox_values)
                 else:
                     mapped.element.update(values=combobox_values)
