@@ -1924,13 +1924,12 @@ class DataSet:
         # if the description_column has changed, make sure to update other elements
         # that may depend on it, that otherwise wouldn't be requeried because they are
         # not setup as on_update_cascade.
-        for column in changed_row_dict:
-            if column == self.description_column:
-                to_update = Relationship.get_dependent_columns(self.frm, self.table)
-                for key, col in to_update.items():
-                    self.frm.update_fields(key, combo_values_only=True)
-                    if self.frm[key].column_in_tableheading(col):
-                        self.frm.update_selectors(key)
+        if self.description_column in changed_row_dict:
+            dependent_columns = Relationship.get_dependent_columns(self.frm, self.table)
+            for key, col in dependent_columns.items():
+                self.frm.update_fields(key, columns=[col], combo_values_only=True)
+                if self.frm[key].column_likely_in_selector(col):
+                    self.frm.update_selectors(key)
 
         logger.debug("Record Saved!")
         self.frm.popup.info(lang.dataset_save_success, display_message=display_message)
@@ -2329,13 +2328,24 @@ class DataSet:
 
         return values
 
-    def column_in_tableheading(self, column: str) -> bool:
+    def column_likely_in_selector(self, column: str) -> bool:
         """
-        Returns True if column is found in TableHeading
+        Determines whether the given column is likely to be displayed in a selector.
 
-        :param column: The name of the column
-        :returns: True if column is displayed, else False.
+        :param column: The name of the column to check.
+        :return: True if the column is likely to be displayed, False otherwise.
         """
+        # If there are no sg.Table selectors, return False
+        if not any(
+            isinstance(e["element"], sg.PySimpleGUI.Table) for e in self.selector
+        ):
+            return False
+
+        # If table headings are not used, assume the column is displayed, return True
+        if not any("TableHeading" in e["element"].metadata for e in self.selector):
+            return True
+
+        # Otherwise, Return True/False if the column is in the list of table headings
         return any(
             "TableHeading" in e["element"].metadata
             and column in e["element"].metadata["TableHeading"].columns()
@@ -3728,7 +3738,7 @@ class Form:
         self,
         target_data_key: str = None,
         omit_elements: List[str] = None,
-        column_names: List[str] = None,
+        columns: List[str] = None,
         combo_values_only: bool = False,
     ) -> None:
         """
@@ -3738,14 +3748,14 @@ class Form:
         :param target_data_key: (optional) dataset key to update elements for, otherwise
             updates elements for all datasets
         :param omit_elements: A list of elements to omit updating
-        :param column_names: A list of column names to update
+        :param columns: A list of column names to update
         :param combo_values_only: Updates the value list only for comboboxes.
         """
         if omit_elements is None:
             omit_elements = []
 
-        if column_names is None:
-            column_names = []
+        if columns is None:
+            columns = []
 
         # Render GUI Elements
         # d= dictionary (the element map dictionary)
@@ -3765,7 +3775,7 @@ class Form:
             if combo_values_only and type(mapped.element) is not sg.PySimpleGUI.Combo:
                 continue
 
-            if len(column_names) and mapped.column not in column_names:
+            if len(columns) and mapped.column not in columns:
                 continue
 
             if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
@@ -5728,8 +5738,8 @@ class _CellEdit:
         table_heading = element.metadata["TableHeading"]
 
         # get column name
-        column_names = table_heading.columns()
-        column = column_names[col_idx - 1]
+        columns = table_heading.columns()
+        column = columns[col_idx - 1]
 
         # make sure it's not the marker column or pk_column
         if col_idx > 0 and column != self.frm[data_key].pk_column:
@@ -5892,7 +5902,7 @@ class _CellEdit:
             # push row to dataset and update
             dataset.set_current(column, new_value)
             # Update matching field
-            self.frm.update_fields(data_key, column_names=[column])
+            self.frm.update_fields(data_key, columns=[column])
 
         self.destroy()
 
@@ -6027,7 +6037,7 @@ class _LiveUpdate:
                     dataset.set_current(column, new_value)
 
                     # Update tableview if uses column:
-                    if dataset.column_in_tableheading(column):
+                    if dataset.column_likely_in_selector(column):
                         self.frm.update_selectors(dataset.key)
 
     def delay(self, widget, widget_type):
