@@ -2274,14 +2274,15 @@ class DataSet:
             self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
     def table_values(
-        self, columns: List[str] = None, mark_virtual: bool = False
+        self, columns: List[str] = None, mark_unsaved: bool = False
     ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
 
         :param columns: A list of column names to create table values for.
             Defaults to getting them from the `DataSet.rows` DataFrame.
-        :param mark_virtual: Place a marker next to virtual records
+        :param mark_unsaved: Place a marker next to virtual records, or records with
+            unsaved changes.
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
@@ -2296,10 +2297,21 @@ class DataSet:
 
         pk_column = self.column_info.pk_column()
 
+        unsaved_pk_idx = None
+        if self.current_row_has_backup and not self.get_current_row().equals(
+            self.get_original_current_row()
+        ):
+            unsaved_pk_idx = index = self.rows.loc[
+                self.rows[self.pk_column] == self.get_current_row()[self.pk_column]
+            ].index[0]
+
         for index, row in self.rows.iterrows():
-            if mark_virtual:
+            if mark_unsaved:
                 lst = (
-                    [themepack.marker_virtual] if self.row_is_virtual(index) else [" "]
+                    [themepack.marker_unsaved]
+                    if self.row_is_virtual(index)
+                    or (unsaved_pk_idx is not None and unsaved_pk_idx == index)
+                    else [" "]
                 )
             else:
                 lst = []
@@ -3995,7 +4007,7 @@ class Form:
                         except KeyError:
                             columns = None  # default to all columns
 
-                        values = dataset.table_values(columns, mark_virtual=True)
+                        values = dataset.table_values(columns, mark_unsaved=True)
 
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
@@ -5881,12 +5893,6 @@ class _CellEdit:
         # get current table row
         values = list(table_element.item(row, "values"))
 
-        # update cell with new text
-        values[col_idx] = new_value
-
-        # push changes to table element row
-        table_element.item(row, values=values)
-
         # set the value to the parent pk
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()].get_pk()
@@ -5895,14 +5901,28 @@ class _CellEdit:
 
         # see if there was a change
         old_value = dataset.get_current_row().copy()[column]
-        new_value = dataset.value_changed(
+        cast_new_value = dataset.value_changed(
             column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
         )
-        if new_value is not Boolean.FALSE:
+        if cast_new_value is not Boolean.FALSE:
             # push row to dataset and update
-            dataset.set_current(column, new_value)
+            dataset.set_current(column, cast_new_value)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
+
+        # update cell with new text
+        values[col_idx] = new_value
+
+        # set marker
+        values[0] = (
+            themepack.marker_unsaved
+            if dataset.current_row_has_backup
+            and not dataset.get_current_row().equals(dataset.get_original_current_row())
+            else " "
+        )
+
+        # push changes to table element row
+        table_element.item(row, values=values)
 
         self.destroy()
 
@@ -6101,7 +6121,7 @@ class ThemePack:
         # fmt: on
         # Markers
         # ----------------------------------------
-        "marker_virtual": "\u2731",
+        "marker_unsaved": "\u2731",
         "marker_required": "\u2731",
         "marker_required_color": "red2",
         # Sorting icons
@@ -6169,7 +6189,7 @@ class ThemePack:
                 'delete' : either base64 image (eg b''), or string eg '', f''
                 'duplicate' : either base64 image (eg b''), or string eg '', f''
                 'search' : either base64 image (eg b''), or string eg '', f''
-                'marker_virtual' : string eg '', f'',  unicode
+                'marker_unsaved' : string eg '', f'',  unicode
                 'marker_required' : string eg '', f'',  unicode
                 'marker_required_color': string eg 'red', Tuple eg (255,0,0)
                 'marker_sort_asc': string eg '', f'',  unicode
