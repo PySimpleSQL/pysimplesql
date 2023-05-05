@@ -3762,10 +3762,7 @@ class Form:
             if mapped.element in omit_elements:
                 continue
 
-            if (
-                combo_values_only
-                and type(mapped.element) is not sg.PySimpleGUI.Combo
-            ):
+            if combo_values_only and type(mapped.element) is not sg.PySimpleGUI.Combo:
                 continue
 
             if len(column_names) and mapped.column not in column_names:
@@ -3817,8 +3814,8 @@ class Form:
                 # TODO: move this to only compute if something else changes?
                 # Find the relationship to determine which table to get data from
                 # TODO this should be get_relationships_for_data?
-                combobox_values = mapped.dataset.combobox_values(mapped.column)
-                if not combobox_values:
+                combo_vals = mapped.dataset.combobox_values(mapped.column)
+                if not combo_vals:
                     logger.info(
                         f"Error! Could not find related data for element "
                         f"{mapped.element.key} bound to DataSet "
@@ -3829,19 +3826,22 @@ class Form:
                     updated_val = mapped.dataset[mapped.column]
                     mapped.element.update(updated_val)
                     continue
-                # else, set combobox selected value to matching in record
+
+                # else, first...
+                # set to currently selected pk in gui
                 if combo_values_only:
-                    val = mapped.element.get().get_pk()
-                    for entry in combobox_values:
-                        if entry.get_pk() == val:
-                            updated_val = entry.get_val()
-                            break
-                    mapped.element.update(values=combobox_values)
+                    match_val = mapped.element.get().get_pk()
+                # or set to what is saved in current row
                 else:
-                    mapped.element.update(values=combobox_values)
-                    for entry in combobox_values:
-                        if entry.get_pk() == mapped.dataset[mapped.column]:
-                            updated_val = entry
+                    match_val = mapped.dataset[mapped.column]
+
+                # grab first matching entry (value)
+                updated_val = next(
+                    (entry for entry in combo_vals if entry.get_pk() == match_val),
+                    None,
+                )
+                # and update element
+                mapped.element.update(values=combo_vals)
 
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
