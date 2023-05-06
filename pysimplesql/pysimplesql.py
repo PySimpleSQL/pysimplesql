@@ -2194,7 +2194,7 @@ class DataSet:
         if index is None and self.row_count:
             index = self.current_index
 
-            pk = self.rows.loc[self.rows.index[index]][self.pk_column]
+        pk = self.rows.loc[self.rows.index[index]][self.pk_column]
 
         if self.rows is not None and self.row_count:
             return bool(pk in self.virtual_pks)
