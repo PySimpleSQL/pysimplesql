@@ -2191,10 +2191,16 @@ class DataSet:
             be used.
         :returns: True or False based on whether the row is virtual
         """
-        if index is None and self.row_count:
+        if not self.row_count:
+            return False
+
+        if index is None:
             index = self.current_index
 
-        pk = self.rows.loc[self.rows.index[index]][self.pk_column]
+        try:
+            pk = self.rows.loc[self.rows.index[index]][self.pk_column]
+        except IndexError:
+            return False
 
         if self.rows is not None and self.row_count:
             return bool(pk in self.virtual_pks)
@@ -2521,7 +2527,6 @@ class DataSet:
         # virtual attribute
         virtual_rows = self.rows[self.rows[self.pk_column].isin(self.virtual_pks)]
         self.rows.drop(index=virtual_rows.index, inplace=True)
-        self.rows.reset_index(drop=True, inplace=True)
         self.rows.attrs["virtual"] = []
 
     def sort_by_column(self, column: str, table: str, reverse=False) -> None:
