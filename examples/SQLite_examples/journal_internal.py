@@ -71,7 +71,7 @@ layout = [
     [ss.field('Journal.entry', sg.MLine, size=(71, 20))]
 ]
 win = sg.Window('Journal (internal) example', layout, finalize=True)
-driver = ss.Driver.sqlite('./SQLite_examples/Journal.db', sql_commands=sql)
+driver = ss.Driver.sqlite('Journal.db', sql_commands=sql)
 # Here is the magic!
 frm = ss.Form(
     driver,
