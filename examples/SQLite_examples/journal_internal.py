@@ -48,8 +48,11 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
-# Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
-headings = ss.TableHeadings(sort_enable=True, edit_enable=True)
+# Define the columns for the table selector using the TableHeading convenience class.
+headings = ss.TableHeadings(
+    sort_enable=True, # Click a header to sort
+    edit_enable=True # Double-click a cell to make edits
+    )
 headings.add_column('title', 'Title', width=40)
 headings.add_column('entry_date', 'Date', width=10)
 headings.add_column('mood_id', 'Mood', width=20)
@@ -69,7 +72,12 @@ layout = [
 ]
 win = sg.Window('Journal (internal) example', layout, finalize=True)
 driver = ss.Driver.sqlite('./SQLite_examples/Journal.db', sql_commands=sql)
-frm = ss.Form(driver, bind_window=win, live_update=True)  # <=== Here is the magic!
+# Here is the magic!
+frm = ss.Form(
+    driver,
+    bind_window=win,
+    live_update=True # this updates the `Selector`, sg.Table as we type in fields!
+    )
 # Note:  sql_commands in only run if Journal.db does not exist!  This has the effect of creating a new blank
 # database as defined by the sql_commands if the database does not yet exist, otherwise it will use the database!
 

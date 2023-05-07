@@ -1023,9 +1023,7 @@ class DataSet:
             return PROMPT_SAVE_NONE
 
         # See if any rows are virtual
-        vrows = len(
-            [row for idx, row in self.rows.iterrows() if self.row_is_virtual(idx)]
-        )
+        vrows = len(self.virtual_pks)
 
         # Check if any records have changed
         changed = self.records_changed() or vrows
@@ -2177,9 +2175,13 @@ class DataSet:
             return current_row[self.description_column]
         try:
             index = self.rows.loc[self.rows[self.pk_column] == pk].index[0]
+            return self.rows[self.description_column].iat[index]
         except IndexError:
             return None
-        return self.rows.iloc[index][self.description_column]
+
+    @property
+    def virtual_pks(self):
+        return self.rows.attrs["virtual"]
 
     def row_is_virtual(self, index: int = None) -> bool:
         """
@@ -2189,17 +2191,19 @@ class DataSet:
             be used.
         :returns: True or False based on whether the row is virtual
         """
-        if index is None and self.row_count:
+        if not self.row_count:
+            return False
+
+        if index is None:
             index = self.current_index
 
+        try:
             pk = self.rows.loc[self.rows.index[index]][self.pk_column]
-            try:
-                index = self.rows.loc[self.rows[self.pk_column] == pk].index[0]
-            except IndexError:
-                return False
+        except IndexError:
+            return False
 
         if self.rows is not None and self.row_count:
-            return bool(self.rows.attrs["virtual"][index].tolist())
+            return bool(pk in self.virtual_pks)
         return False
 
     @property
@@ -2274,19 +2278,21 @@ class DataSet:
             self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
     def table_values(
-        self, columns: List[str] = None, mark_virtual: bool = False
+        self, columns: List[str] = None, mark_unsaved: bool = False
     ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
 
         :param columns: A list of column names to create table values for.
             Defaults to getting them from the `DataSet.rows` DataFrame.
-        :param mark_virtual: Place a marker next to virtual records
+        :param mark_unsaved: Place a marker next to virtual records, or records with
+            unsaved changes.
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
+        if not self.row_count:
+            return []
 
-        values = []
         try:
             all_columns = list(self.rows.columns)
         except IndexError:
@@ -2294,39 +2300,43 @@ class DataSet:
 
         columns = all_columns if columns is None else columns
 
-        pk_column = self.column_info.pk_column()
+        pk_column = self.pk_column
 
-        for index, row in self.rows.iterrows():
-            if mark_virtual:
-                lst = (
-                    [themepack.marker_virtual] if self.row_is_virtual(index) else [" "]
-                )
+        virtual_row_pks = self.virtual_pks
+        unsaved_pk_idx = None
+        if self.current_row_has_backup and not self.get_current_row().equals(
+            self.get_original_current_row()
+        ):
+            unsaved_pk_idx = self.rows.loc[
+                self.rows[pk_column] == self.get_current_row()[pk_column]
+            ].index[0]
+
+        def process_row(row, rels):
+            lst = []
+            pk = row[pk_column]
+            if mark_unsaved and (pk in virtual_row_pks or unsaved_pk_idx == row.name):
+                lst.append(themepack.marker_unsaved)
             else:
-                lst = []
+                lst.append(" ")
 
-            rels = Relationship.get_relationships(self.table)
-            pk = None
-            for col in all_columns:
-                # Is this the primary key column?
-                if col == pk_column:
-                    pk = row[col]
-                # Skip this column if we aren't supposed to grab it
-                if col not in columns:
-                    continue
-                # Get this column info, including fk descriptions
-                found = False
-                for rel in rels:
-                    if col == rel.fk_column:
-                        lst.append(
-                            self.frm[rel.parent_table].get_description_for_pk(row[col])
-                        )
-                        found = True
-                        break
-                if not found:
+            for col in self.rows.columns:
+                is_fk_column = any(rel.fk_column == col for rel in rels)
+                if is_fk_column:
+                    for rel in rels:
+                        if col == rel.fk_column:
+                            lst.append(
+                                self.frm[rel.parent_table].get_description_for_pk(
+                                    row[col]
+                                )
+                            )
+                            break
+                else:
                     lst.append(row[col])
-            values.append(TableRow(pk, lst))
 
-        return values
+            return TableRow(pk, lst)
+
+        rels = Relationship.get_relationships(self.table)
+        return self.rows.apply(process_row, args=(rels,), axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
@@ -2375,13 +2385,13 @@ class DataSet:
         backup = None
         if target_table.current_row_has_backup:
             backup = target_table.get_original_current_row()
-        lst = []
-        for _, r in target_table.rows.iterrows():
-            if backup is not None and backup[pk_column] == r[pk_column]:
-                lst.append(ElementRow(backup[pk_column].tolist(), backup[description]))
-            else:
-                lst.append(ElementRow(r[pk_column], r[description]))
-        return lst
+
+        def process_row(row):
+            if backup is not None and backup[pk_column] == row[pk_column]:
+                return ElementRow(backup[pk_column].tolist(), backup[description])
+            return ElementRow(row[pk_column], row[description])
+
+        return target_table.rows.apply(process_row, axis=1).tolist()
 
     def get_related_table_for_column(self, column: str) -> str:
         """
@@ -2515,10 +2525,9 @@ class DataSet:
         """
         # remove the rows where virtual is True in place, along with the corresponding
         # virtual attribute
-        idx_to_remove = [idx for idx, v in self.rows.attrs["virtual"].items() if v]
-        self.rows.drop(index=idx_to_remove, inplace=True)
-        for idx in idx_to_remove:
-            del self.rows.attrs["virtual"][idx]
+        virtual_rows = self.rows[self.rows[self.pk_column].isin(self.virtual_pks)]
+        self.rows.drop(index=virtual_rows.index, inplace=True)
+        self.rows.attrs["virtual"] = []
 
     def sort_by_column(self, column: str, table: str, reverse=False) -> None:
         """
@@ -2702,8 +2711,7 @@ class DataSet:
             )
             self.rows.attrs = attrs
 
-        idx_label = self.rows.index.max() if self.row_count else 0
-        self.rows.attrs["virtual"].loc[idx_label] = 1  # True, series only holds int64
+        self.rows.attrs["virtual"].append(row[self.pk_column])
 
 
 class Form:
@@ -3692,10 +3700,7 @@ class Form:
                     disable = bool(
                         not row_count
                         or self._edit_protect
-                        or self[data_key]
-                        .get_current_row()
-                        .attrs.get("virtual", False)
-                        .iloc[0]
+                        or self[data_key].row_is_virtual()
                     )
                     win[m["event"]].update(disabled=disable)
 
@@ -3995,7 +4000,7 @@ class Form:
                         except KeyError:
                             columns = None  # default to all columns
 
-                        values = dataset.table_values(columns, mark_virtual=True)
+                        values = dataset.table_values(columns, mark_unsaved=True)
 
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
@@ -5881,12 +5886,6 @@ class _CellEdit:
         # get current table row
         values = list(table_element.item(row, "values"))
 
-        # update cell with new text
-        values[col_idx] = new_value
-
-        # push changes to table element row
-        table_element.item(row, values=values)
-
         # set the value to the parent pk
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()].get_pk()
@@ -5895,14 +5894,28 @@ class _CellEdit:
 
         # see if there was a change
         old_value = dataset.get_current_row().copy()[column]
-        new_value = dataset.value_changed(
+        cast_new_value = dataset.value_changed(
             column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
         )
-        if new_value is not Boolean.FALSE:
+        if cast_new_value is not Boolean.FALSE:
             # push row to dataset and update
-            dataset.set_current(column, new_value)
+            dataset.set_current(column, cast_new_value)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
+
+        # update cell with new text
+        values[col_idx] = new_value
+
+        # set marker
+        values[0] = (
+            themepack.marker_unsaved
+            if dataset.current_row_has_backup
+            and not dataset.get_current_row().equals(dataset.get_original_current_row())
+            else " "
+        )
+
+        # push changes to table element row
+        table_element.item(row, values=values)
 
         self.destroy()
 
@@ -6101,7 +6114,7 @@ class ThemePack:
         # fmt: on
         # Markers
         # ----------------------------------------
-        "marker_virtual": "\u2731",
+        "marker_unsaved": "\u2731",
         "marker_required": "\u2731",
         "marker_required_color": "red2",
         # Sorting icons
@@ -6169,7 +6182,7 @@ class ThemePack:
                 'delete' : either base64 image (eg b''), or string eg '', f''
                 'duplicate' : either base64 image (eg b''), or string eg '', f''
                 'search' : either base64 image (eg b''), or string eg '', f''
-                'marker_virtual' : string eg '', f'',  unicode
+                'marker_unsaved' : string eg '', f'',  unicode
                 'marker_required' : string eg '', f'',  unicode
                 'marker_required_color': string eg 'red', Tuple eg (255,0,0)
                 'marker_sort_asc': string eg '', f'',  unicode
@@ -6821,11 +6834,7 @@ class Result:
         df.attrs["exception"] = exception
         df.attrs["column_info"] = column_info
         df.attrs["row_backup"] = row_backup
-
-        # Store virtual flags for each row
-        df.attrs["virtual"] = pd.Series(
-            [False] * len(df.index), index=df.index, dtype="int64"
-        )
+        df.attrs["virtual"] = []
         return df
 
 
