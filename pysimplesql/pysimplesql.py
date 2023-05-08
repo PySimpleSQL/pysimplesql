@@ -2311,7 +2311,9 @@ class DataSet:
                 self.rows[pk_column] == self.get_current_row()[pk_column]
             ].index[0]
 
-        def process_row(row, rels):
+        rels = Relationship.get_relationships(self.table)
+
+        def process_row(row):
             lst = []
             pk = row[pk_column]
             if mark_unsaved and (pk in virtual_row_pks or unsaved_pk_idx == row.name):
@@ -2319,7 +2321,8 @@ class DataSet:
             else:
                 lst.append(" ")
 
-            for col in self.rows.columns:
+            # only loop through passed-in columns
+            for col in columns:
                 is_fk_column = any(rel.fk_column == col for rel in rels)
                 if is_fk_column:
                     for rel in rels:
@@ -2335,8 +2338,7 @@ class DataSet:
 
             return TableRow(pk, lst)
 
-        rels = Relationship.get_relationships(self.table)
-        return self.rows.apply(process_row, args=(rels,), axis=1)
+        return self.rows.apply(process_row, axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
@@ -5886,7 +5888,7 @@ class _CellEdit:
         # get current table row
         values = list(table_element.item(row, "values"))
 
-        # set the value to the parent pk
+        # if combo, set the value to the parent pk
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()].get_pk()
 
@@ -5902,8 +5904,17 @@ class _CellEdit:
             dataset.set_current(column, cast_new_value)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
+            # TODO: make sure we actually want to set new_value to cast
+            new_value = cast_new_value
 
-        # update cell with new text
+        # now we can update the GUI table
+        # -------------------------------
+
+        # if combo, set new_value to actual text (not pk)
+        if widget_type == TK_COMBOBOX:
+            new_value = combobox_values[self.field.current()]
+
+        # update value row with new text
         values[col_idx] = new_value
 
         # set marker
