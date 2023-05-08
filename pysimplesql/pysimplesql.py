@@ -3999,7 +3999,6 @@ class Form:
                         # Populate entries
                         try:
                             columns = element.metadata["TableHeading"].columns()
-                            print(columns)
                         except KeyError:
                             columns = None  # default to all columns
 
