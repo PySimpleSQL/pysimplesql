@@ -2329,7 +2329,7 @@ class DataSet:
 
             # only loop through passed-in columns
             for col in columns:
-                if col in bool_columns and themepack.display_checkbox_for_boolean:
+                if col in bool_columns and themepack.display_boolean_as_checkbox:
                     row[col] = (
                         themepack.checkbox_true
                         if checkbox_to_bool(row[col])
@@ -5930,7 +5930,7 @@ class _CellEdit:
             new_value = combobox_values[self.field.current()]
 
         # if boolean, set
-        if widget_type == TK_CHECKBUTTON and themepack.display_checkbox_for_boolean:
+        if widget_type == TK_CHECKBUTTON and themepack.display_boolean_as_checkbox:
             new_value = (
                 themepack.checkbox_true
                 if checkbox_to_bool(new_value)
@@ -6179,8 +6179,8 @@ class ThemePack:
         "text_min_width": 80,
         "combobox_min_width": 80,
         "checkbox_min_width": 75,
-        # Checkboxes for boolean fields
-        "display_checkbox_for_boolean": True,
+        # Display boolean columns as checkboxes in sg.Tables
+        "display_boolean_as_checkbox": True,
         "checkbox_true": "☑",
         "checkbox_false": "☐",
     }
