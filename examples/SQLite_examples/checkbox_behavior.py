@@ -1,4 +1,16 @@
-sql = f"""
+# fmt: off
+import logging
+import PySimpleGUI as sg
+
+sg.change_look_and_feel("SystemDefaultForReal")
+sg.set_options(font=("Roboto", 11))  # Set the font and font size for the table
+
+import pysimplesql as ss # noqa: E402
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
+
+sql = """
 CREATE TABLE checkboxes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bool_none BOOLEAN,
@@ -15,14 +27,6 @@ CREATE TABLE checkboxes (
 INSERT INTO checkboxes (bool_none, bool_true, bool_false, int_none, int_true, int_false, text_none, text_true, text_false)
 VALUES (NULL,True,False,NULL,1,0,NULL,"True","False");
 """
-sg.change_look_and_feel("SystemDefaultForReal")
-sg.set_options(font=("Roboto", 11))  # Set the font and font size for the table
-
-import pysimplesql as ss  # <=== PySimpleSQL lines will be marked like this.  There's only a few!
-
-import logging
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)  # <=== Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
