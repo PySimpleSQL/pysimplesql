@@ -5930,7 +5930,7 @@ class _CellEdit:
             new_value = combobox_values[self.field.current()]
 
         # if boolean, set
-        if widget_type == TK_CHECKBUTTON:
+        if widget_type == TK_CHECKBUTTON and themepack.display_checkbox_for_boolean:
             new_value = (
                 themepack.checkbox_true
                 if checkbox_to_bool(new_value)
