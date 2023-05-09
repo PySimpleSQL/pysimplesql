@@ -2313,6 +2313,12 @@ class DataSet:
 
         rels = Relationship.get_relationships(self.table)
 
+        bool_columns = [
+            column
+            for column in columns
+            if self.column_info[column]["domain"] in ["BOOLEAN"]
+        ]
+
         def process_row(row):
             lst = []
             pk = row[pk_column]
@@ -2323,8 +2329,14 @@ class DataSet:
 
             # only loop through passed-in columns
             for col in columns:
-                is_fk_column = any(rel.fk_column == col for rel in rels)
-                if is_fk_column:
+                if col in bool_columns and themepack.display_checkbox_for_boolean:
+                    row[col] = (
+                        themepack.checkbox_true
+                        if checkbox_to_bool(row[col])
+                        else themepack.checkbox_false
+                    )
+                    lst.append(row[col])
+                elif any(rel.fk_column == col for rel in rels):
                     for rel in rels:
                         if col == rel.fk_column:
                             lst.append(
@@ -4282,7 +4294,7 @@ def checkbox_to_bool(value):
     :param value: Value to convert into True or False
     :returns: bool
     """
-    return str(value).lower() in ["y", "yes", "t", "true", "1"]
+    return str(value).lower() in ["y", "yes", "t", "true", "1", themepack.checkbox_true]
 
 
 class Popup:
@@ -5797,9 +5809,10 @@ class _CellEdit:
             # checkbutton
             # need to use tk.IntVar for checkbox
             if widget_type == TK_CHECKBUTTON:
-                field_var = tk.IntVar()
-                field_var.set(text)
-                self.field = ttk.Checkbutton(frame, variable=field_var)
+                field_var = tk.BooleanVar()
+                field_var.set(checkbox_to_bool(text))
+                self.field = tk.Checkbutton(frame, variable=field_var)
+                expand = False
             else:
                 # create tk.StringVar for combo/entry
                 field_var = tk.StringVar()
@@ -5808,12 +5821,14 @@ class _CellEdit:
             # entry
             if widget_type == TK_ENTRY:
                 self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+                expand = True
 
             # combobox
             if widget_type == TK_COMBOBOX:
                 self.field = ttk.Combobox(frame, textvariable=field_var, justify="left")
                 self.field["values"] = combobox_values
                 self.field.bind("<Configure>", self.combo_configure)
+                expand = True
 
             # bind text to Return (for save), and Escape (for discard)
             # event is discarded
@@ -5855,7 +5870,7 @@ class _CellEdit:
                 self.accept_button.pack(side="right")
 
             # have entry use remaining space
-            self.field.pack(side="left", expand=True, fill="both")
+            self.field.pack(side="left", expand=expand, fill="both")
 
             # select text and focus to begin with
             if widget_type != TK_CHECKBUTTON:
@@ -5913,6 +5928,14 @@ class _CellEdit:
         # if combo, set new_value to actual text (not pk)
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()]
+
+        # if boolean, set
+        if widget_type == TK_CHECKBUTTON:
+            new_value = (
+                themepack.checkbox_true
+                if checkbox_to_bool(new_value)
+                else themepack.checkbox_false
+            )
 
         # update value row with new text
         values[col_idx] = new_value
@@ -6156,6 +6179,10 @@ class ThemePack:
         "text_min_width": 80,
         "combobox_min_width": 80,
         "checkbox_min_width": 75,
+        # Checkboxes for boolean fields
+        "display_checkbox_for_boolean": True,
+        "checkbox_true": "☑",
+        "checkbox_false": "☐",
     }
     """
     Default Themepack.
