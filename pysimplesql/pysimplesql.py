@@ -3860,6 +3860,21 @@ class Form:
                 # and update element
                 mapped.element.update(values=combo_vals)
 
+            elif type(mapped.element) is sg.Text:
+                rels = Relationship.get_relationships(mapped.dataset.table)
+                found = False
+                # try to get description of linked if foreign-key
+                for rel in rels:
+                    if mapped.column == rel.fk_column:
+                        updated_val = mapped.dataset.frm[
+                            rel.parent_table
+                        ].get_description_for_pk(mapped.dataset[mapped.column])
+                        found = True
+                        break
+                if not found:
+                    updated_val = mapped.dataset[mapped.column]
+                mapped.element.update("")
+
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
@@ -3885,7 +3900,6 @@ class Form:
             elif type(mapped.element) in [
                 sg.PySimpleGUI.InputText,
                 sg.PySimpleGUI.Multiline,
-                sg.PySimpleGUI.Text,
             ]:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
