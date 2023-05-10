@@ -5567,22 +5567,26 @@ class TableHeadings(list):
         Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
-        :param edit_enable: True to enable editing cells. If cell editing is enabled,
-            any accepted edits will immediately push to the associated field element.
-            In addition, editing the set description column will trigger the update of
-            all comboboxes.
+        :param edit_enable: Enables cell editing if True. Accepted edits update both
+            `sg.Table` and associated `field` element.
         :returns: None
         """
         self.sort_enable = sort_enable
         self.edit_enable = edit_enable
         self._width_map = []
         self._visible_map = []
+        self.readonly_columns = []
 
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
     def add_column(
-        self, column: str, heading_column: str, width: int, visible: bool = True
+        self,
+        column: str,
+        heading_column: str,
+        width: int,
+        visible: bool = True,
+        readonly: bool = False,
     ) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the
@@ -5595,11 +5599,15 @@ class TableHeadings(list):
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
+        :param readonly: Indicates if the column is read-only when
+            `TableHeading.edit_enable` is True.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
         self._width_map.append(width)
         self._visible_map.append(visible)
+        if readonly:
+            self.readonly_columns.append(column)
 
     def heading_names(self) -> List[str]:
         """
@@ -5750,9 +5758,6 @@ class _CellEdit:
         if not element:
             return
 
-        # found a table we can edit, don't allow another double-click
-        self.active_edit = True
-
         # get table_headings
         table_heading = element.metadata["TableHeading"]
 
@@ -5760,8 +5765,15 @@ class _CellEdit:
         columns = table_heading.columns()
         column = columns[col_idx - 1]
 
+        if column in table_heading.readonly_columns:
+            logger.debug(f"{column} is readonly")
+            return
+
         # make sure it's not the marker column or pk_column
         if col_idx > 0 and column != self.frm[data_key].pk_column:
+            # found a table/column we can edit, don't allow another double-click
+            self.active_edit = True
+
             # use table_element to distinguish
             table_element = element.Widget
             root = table_element.master
