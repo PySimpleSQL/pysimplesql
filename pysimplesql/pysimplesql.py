@@ -1506,7 +1506,14 @@ class DataSet:
 
         # Get the numerical index of where the primary key is located.
         # If the pk value can't be found, set to the last index
-        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        try:
+            idx = [
+                i for i, value in enumerate(self.rows[self.pk_column]) if value == pk
+            ]
+        except IndexError:
+            idx = None
+            logger.debug("Error finding pk!")
+
         idx = idx[0] if idx else self.row_count
 
         self.set_by_index(
@@ -1789,11 +1796,12 @@ class DataSet:
                 current_row[mapped.column] = element_val
 
         # create diff of columns if not virtual
-        new_dict = dict(current_row.items())
+        new_dict = current_row.fillna("").to_dict()
+
         if self.row_is_virtual():
             changed_row_dict = new_dict
         else:
-            old_dict = dict(self.get_original_current_row().items())
+            old_dict = self.get_original_current_row().fillna("").to_dict()
             changed_row_dict = {
                 key: new_dict[key]
                 for key in new_dict
@@ -2338,7 +2346,7 @@ class DataSet:
 
             return TableRow(pk, lst)
 
-        return self.rows.apply(process_row, axis=1)
+        return self.rows.fillna("").apply(process_row, axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
