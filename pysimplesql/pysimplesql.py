@@ -4897,19 +4897,6 @@ class ProgressAnimate:
         return current_message
 
 
-class LangFormat(dict):
-
-    """
-    This is a convenience class used by LanguagePack format_map calls, allowing users to
-    not include expected variables.
-
-    Note: This is typically not used by the end user.
-    """
-
-    def __missing__(self, key):
-        return None
-
-
 class KeyGen:
 
     """
@@ -6841,6 +6828,19 @@ class LanguagePack:
 
 # set a default languagepack
 lang = LanguagePack()
+
+
+class LangFormat(dict):
+
+    """
+    This is a convenience class used by LanguagePack format_map calls, allowing users to
+    not include expected variables.
+
+    Note: This is typically not used by the end user.
+    """
+
+    def __missing__(self, key):
+        return None
 
 
 # ======================================================================================
