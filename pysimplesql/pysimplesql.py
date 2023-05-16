@@ -959,7 +959,7 @@ class DataSet:
     # TODO: How to type-hint this return?
     def value_changed(
         self, column_name: str, old_value, new_value, is_checkbox: bool
-    ) -> Union[Any, bool]:
+    ) -> Union[Any, Boolean]:
         """
         Verifies if a new value is different from an old value and returns the cast
         value ready to be inserted into a database.
@@ -982,6 +982,7 @@ class DataSet:
             if col["name"] == column_name:
                 new_value = col.cast(new_value)
                 element_val = new_value
+                table_val = col.cast(table_val)
                 break
 
         if is_checkbox:
@@ -994,9 +995,9 @@ class DataSet:
             table_val = ""
 
         # Strip trailing whitespace from strings
-        if type(table_val) is str:
+        if isinstance(table_val, str):
             table_val = table_val.rstrip()
-        if type(element_val) is str:
+        if isinstance(element_val, str):
             element_val = element_val.rstrip()
 
         # Make the comparison
@@ -4982,7 +4983,7 @@ def field(
         elif label_above:
             layout = [[layout_label], [sg.Text("  "), layout_element]]
         else:
-            layout = [[layout_label, sg.Text("  "), layout_element]]
+            layout = [[layout_label, layout_element]]
     else:
         if no_label:
             layout = [[layout_marker, layout_element]]
