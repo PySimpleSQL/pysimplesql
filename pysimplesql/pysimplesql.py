@@ -1563,7 +1563,9 @@ class DataSet:
             return default
         return default
 
-    def set_current(self, column: str, value: Union[str, int]) -> None:
+    def set_current(
+        self, column: str, value: Union[str, int], write_event: bool = False
+    ) -> None:
         """
         Set the value for the supplied column in the current row, making a backup if
         needed.
@@ -1573,11 +1575,28 @@ class DataSet:
 
         :param column: The column you want to set the value for
         :param value: A value to set the current record's column to
+        :param write_event: (optional) If True, writes an event to PySimpleGui
+            as `current_row_updated`.
         :returns: None
         """
         logger.debug(f"Setting current record for {self.key}.{column} = {value}")
         self.backup_current_row()
         self.rows.loc[self.rows.index[self.current_index], column] = value
+        if write_event:
+            self.frm.window.write_event_value(
+                "current_row_updated",
+                {
+                    "frm_reference": self.frm,
+                    "data_key": self.key,
+                    "column": column,
+                    "value": value,
+                },
+            )
+    #			  # TODO: I'd like to talk about extending callbacks to include
+    #             # data_key (if callback is for a specific data_key)
+    #             if "current_row_updated" in dataset.callbacks:
+    #                 dataset.callbacks["current_row_updated"](
+    #                     self.frm, self.frm.window, self.key)
 
     def get_keyed_value(
         self, value_column: str, key_column: str, key_value: Union[str, int]
