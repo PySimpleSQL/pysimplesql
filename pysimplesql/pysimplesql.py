@@ -1692,10 +1692,6 @@ class DataSet:
             the insert.
         :returns: None
         """
-        # todo: you don't add a record if there isn't a parent!!!
-        # todo: this is currently filtered out by enabling of the element, but it should
-        #  be filtered here too!
-        # todo: bring back the values parameter?
         # prompt_save
         if (
             not skip_prompt_save
@@ -1787,7 +1783,7 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data,
+        # While saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
