@@ -1834,11 +1834,12 @@ class DataSet:
                 current_row[mapped.column] = element_val
 
         # create diff of columns if not virtual
-        new_dict = dict(current_row.items())
+        new_dict = current_row.fillna("").to_dict()
+
         if self.row_is_virtual():
             changed_row_dict = new_dict
         else:
-            old_dict = dict(self.get_original_current_row().items())
+            old_dict = self.get_original_current_row().fillna("").to_dict()
             changed_row_dict = {
                 key: new_dict[key]
                 for key in new_dict
@@ -1870,6 +1871,13 @@ class DataSet:
 
         if self.transform is not None:
             self.transform(self, changed_row_dict, TFORM_ENCODE)
+
+        # delete generated rows
+        changed_row_dict = {
+            col: value
+            for col, value in changed_row_dict.items()
+            if self.column_info[col] and not self.column_info[col]["generated"]
+        }
 
         # Save or Insert the record as needed
         if keyed_queries is not None:
@@ -1917,7 +1925,7 @@ class DataSet:
                 if result.attrs["lastrowid"] is not None
                 else self.get_current_pk()
             )
-            current_row[self.pk_column] = pk
+            self.set_current(self.pk_column, pk, write_event=False)
 
             # then update the current row data
             self.rows.iloc[self.current_index] = current_row
@@ -2358,6 +2366,13 @@ class DataSet:
 
         rels = Relationship.get_relationships(self.table)
 
+        bool_columns = [
+            column
+            for column in columns
+            if self.column_info[column]
+            and self.column_info[column]["domain"] in ["BOOLEAN"]
+        ]
+
         def process_row(row):
             lst = []
             pk = row[pk_column]
@@ -2368,8 +2383,14 @@ class DataSet:
 
             # only loop through passed-in columns
             for col in columns:
-                is_fk_column = any(rel.fk_column == col for rel in rels)
-                if is_fk_column:
+                if col in bool_columns and themepack.display_boolean_as_checkbox:
+                    row[col] = (
+                        themepack.checkbox_true
+                        if checkbox_to_bool(row[col])
+                        else themepack.checkbox_false
+                    )
+                    lst.append(row[col])
+                elif any(rel.fk_column == col for rel in rels):
                     for rel in rels:
                         if col == rel.fk_column:
                             lst.append(
@@ -2383,7 +2404,7 @@ class DataSet:
 
             return TableRow(pk, lst)
 
-        return self.rows.apply(process_row, axis=1)
+        return self.rows.fillna("").apply(process_row, axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
@@ -6483,6 +6504,7 @@ class Column:
         default: None,
         pk: bool,
         virtual: bool = False,
+        generated: bool = False,
     ):
         self._column = {
             "name": name,
@@ -6491,6 +6513,7 @@ class Column:
             "default": default,
             "pk": pk,
             "virtual": virtual,
+            "generated": generated,
         }
 
     def __str__(self):
@@ -7601,7 +7624,7 @@ class Sqlite(SQLDriver):
 
     def column_info(self, table):
         # Return a list of column names
-        q = f"PRAGMA table_info({self.quote_table(table)})"
+        q = f"PRAGMA table_xinfo({self.quote_table(table)})"
         rows = self.execute(q, silent=True)
         names = []
         col_info = ColumnInfo(self, table)
@@ -7613,9 +7636,15 @@ class Sqlite(SQLDriver):
             notnull = row["notnull"]
             default = row["dflt_value"]
             pk = row["pk"]
+            generated = row["hidden"]
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
