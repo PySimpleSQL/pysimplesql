@@ -905,6 +905,10 @@ class DataSet:
                 if column is not None and mapped.column != column:
                     continue
 
+                # if sg.Text
+                if type(mapped.element) is sg.Text:
+                    continue
+
                 # don't check if there aren't any rows. Fixes checkbox = '' when no
                 # rows.
                 if not len(self.frm[mapped.table].rows.index):
@@ -1755,6 +1759,10 @@ class DataSet:
 
         # Propagate GUI data back to the stored current_row
         for mapped in [m for m in self.frm.element_map if m.dataset == self]:
+            # skip if sg.Text
+            if type(mapped.element) is sg.Text:
+                continue
+
             # convert the data into the correct type using the domain in ColumnInfo
             element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
@@ -3860,7 +3868,22 @@ class Form:
                     None,
                 )
                 # and update element
-                mapped.element.update(values=combo_vals)
+                mapped.element.update(values=combo_vals, readonly=True)
+
+            elif type(mapped.element) is sg.Text:
+                rels = Relationship.get_relationships(mapped.dataset.table)
+                found = False
+                # try to get description of linked if foreign-key
+                for rel in rels:
+                    if mapped.column == rel.fk_column:
+                        updated_val = mapped.dataset.frm[
+                            rel.parent_table
+                        ].get_description_for_pk(mapped.dataset[mapped.column])
+                        found = True
+                        break
+                if not found:
+                    updated_val = mapped.dataset[mapped.column]
+                mapped.element.update("")
 
             elif type(mapped.element) is sg.PySimpleGUI.Table:
                 # Tables use an array of arrays for values.  Note that the headings
@@ -3887,7 +3910,6 @@ class Form:
             elif type(mapped.element) in [
                 sg.PySimpleGUI.InputText,
                 sg.PySimpleGUI.Multiline,
-                sg.PySimpleGUI.Text,
             ]:
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
@@ -4956,11 +4978,11 @@ def field(
     )
     if element.__name__ == "Text":  # don't show markers for sg.Text
         if no_label:
-            layout = [[layout_element]]
+            layout = [[sg.Text("  "), layout_element]]
         elif label_above:
-            layout = [[layout_label], [layout_element]]
+            layout = [[layout_label], [sg.Text("  "), layout_element]]
         else:
-            layout = [[layout_label, layout_element]]
+            layout = [[layout_label, sg.Text("  "), layout_element]]
     else:
         if no_label:
             layout = [[layout_marker, layout_element]]
@@ -5002,7 +5024,6 @@ def field(
                 )
             )
     # return layout
-    # TODO: Does this actually need wrapped in a sg.Col???
     return sg.Col(layout=layout, pad=(0, 0))
 
 
