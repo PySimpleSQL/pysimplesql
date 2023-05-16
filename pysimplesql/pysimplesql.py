@@ -2561,6 +2561,8 @@ class DataSet:
                 break
 
             logger.debug(f"This event ({event}) is not yet handled.")
+        if quick_frm.popup.popup_info:
+            quick_frm.popup.popup_info.close()
         quick_win.close()
         self.requery()
         self.frm.update_elements()
@@ -2922,6 +2924,8 @@ class Form:
         """
         # First delete the dataset associated
         DataSet.purge_form(self, reset_keygen)
+        if self.popup.popup_info:
+            self.popup.popup_info.close()
         self.driver.close()
 
     def bind(self, win: sg.Window) -> None:
@@ -2944,7 +2948,7 @@ class Form:
         self.update_elements()
         # Creating cell edit instance, even if we arn't going to use it.
         self._celledit = _CellEdit(self)
-        self.window.TKroot.bind("<Double-Button-1>", self._celledit)
+        self.window.TKroot.bind("<Double-Button-1>", self._celledit, "+")
         self._liveupdate = _LiveUpdate(self)
         if self.live_update:
             self.set_live_update(enable=True)
@@ -4482,6 +4486,8 @@ class Popup:
         if display_message:
             msg_lines = msg.splitlines()
             layout = [[sg.Text(line, font="bold")] for line in msg_lines]
+            if self.popup_info:
+                self.popup_info.close()
             self.popup_info = sg.Window(
                 title=title,
                 layout=layout,
@@ -4499,7 +4505,8 @@ class Popup:
         """
         Use in a tk.after to automatically close the popup_info.
         """
-        self.popup_info.close()
+        if self.popup_info:
+            self.popup_info.close()
 
 
 class ProgressBar:
@@ -5038,7 +5045,7 @@ def field(
         elif label_above:
             layout = [[layout_label], [sg.Text("  "), layout_element]]
         else:
-            layout = [[layout_label, layout_element]]
+            layout = [[layout_label, sg.Text("  "), layout_element]]
     else:
         if no_label:
             layout = [[layout_marker, layout_element]]
