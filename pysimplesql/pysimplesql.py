@@ -3337,9 +3337,9 @@ class Form:
                         # 2 Run TableHeading.update_headings() with the:
                         #   Table element, sort_column, sort_reverse
                         # 3 Run update_elements() to see the changes
-                        table_heading.enable_sorting(
+                        table_heading.enable_heading_function(
                             element,
-                            _SortCallbackWrapper(self, data_key),
+                            _HeadingCallback(self, data_key),
                         )
 
                 else:
@@ -3890,17 +3890,14 @@ class Form:
                 updated_val = mapped.dataset.get_keyed_value(
                     mapped.column, mapped.where_column, mapped.where_value
                 )
-                if type(mapped.element) in [
-                    sg.PySimpleGUI.CBox
-                ]:  # TODO, may need to add more??
+                # TODO, may need to add more??
+                if type(mapped.element) in [sg.PySimpleGUI.CBox]:
                     updated_val = checkbox_to_bool(updated_val)
 
             elif type(mapped.element) is sg.PySimpleGUI.Combo:
                 # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
-                # TODO: move this to only compute if something else changes?
                 # Find the relationship to determine which table to get data from
-                # TODO this should be get_relationships_for_data?
                 combo_vals = mapped.dataset.combobox_values(mapped.column)
                 if not combo_vals:
                     logger.info(
@@ -4048,9 +4045,8 @@ class Form:
                         lst = []
                         for _, r in dataset.rows.iterrows():
                             if e["where_column"] is not None:
-                                if str(r[e["where_column"]]) == str(
-                                    e["where_value"]
-                                ):  # TODO: Kind of a hackish way to check for equality.
+                                # TODO: Kind of a hackish way to check for equality.
+                                if str(r[e["where_column"]]) == str(e["where_value"]):
                                     lst.append(
                                         ElementRow(r[pk_column], r[description_column])
                                     )
@@ -4061,7 +4057,11 @@ class Form:
                                     ElementRow(r[pk_column], r[description_column])
                                 )
 
-                        element.update(values=lst, set_to_index=dataset.current_index)
+                        element.update(
+                            values=lst,
+                            set_to_index=dataset.current_index,
+                            readonly=True,
+                        )
 
                         # set vertical scroll bar to follow selected element
                         # (for listboxes only)
@@ -4223,7 +4223,7 @@ class Form:
                 continue
             element = mapped.element
             if type(element) in [
-                sg.PySimpleGUI.InputText,
+                sg.PySimpleGUI.Input,
                 sg.PySimpleGUI.MLine,
                 sg.PySimpleGUI.Combo,
                 sg.PySimpleGUI.Checkbox,
@@ -5600,21 +5600,26 @@ def selector(
         kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
         kwargs["justification"] = "left"
 
-        # Create a narrow column for displaying a * character for virtual rows.
-        # This will have to be the 2nd column right after the pk
-        kwargs["headings"].insert(0, "")
-        kwargs["visible_column_map"].insert(0, 1)
-        if "col_widths" in kwargs:
-            kwargs["col_widths"].insert(0, 2)
-
         # Make an empty list of values
         vals = [[""] * len(kwargs["headings"])]
+
+        # Create a narrow column for displaying a * character for virtual rows.
+        # This will be the 1st column
+        kwargs["visible_column_map"].insert(0, 1)
+        if "col_widths" in kwargs:
+            kwargs["col_widths"].insert(0, themepack.unsaved_column_width)
 
         # Change the headings parameter to be a list so
         # the heading doesn't display dicts when it first loads
         # The TableHeadings instance is already stored in metadata
-        if kwargs["headings"].__class__.__name__ == "TableHeadings":
+        if isinstance(kwargs["headings"], TableHeadings):
+            if kwargs["headings"].save_enable:
+                kwargs["headings"].insert(0, themepack.unsaved_column_header)
+            else:
+                kwargs["headings"].insert(0, "")
             kwargs["headings"] = kwargs["headings"].heading_names()
+        else:
+            kwargs["headings"].insert(0, "")
 
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
     else:
@@ -5636,27 +5641,38 @@ class TableHeadings(list):
     # store our instances
     instances = []
 
-    def __init__(self, sort_enable: bool = True, edit_enable: bool = False) -> None:
+    def __init__(
+        self,
+        sort_enable: bool = True,
+        edit_enable: bool = False,
+        save_enable: bool = False,
+    ) -> None:
         """
         Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
-        :param edit_enable: True to enable editing cells. If cell editing is enabled,
-            any accepted edits will immediately push to the associated field element.
-            In addition, editing the set description column will trigger the update of
-            all comboboxes.
+        :param edit_enable: Enables cell editing if True. Accepted edits update both
+            `sg.Table` and associated `field` element.
+        :param save_enable: Enables saving record by double-clicking unsaved marker col.
         :returns: None
         """
         self.sort_enable = sort_enable
         self.edit_enable = edit_enable
+        self.save_enable = save_enable
         self._width_map = []
         self._visible_map = []
+        self.readonly_columns = []
 
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
     def add_column(
-        self, column: str, heading_column: str, width: int, visible: bool = True
+        self,
+        column: str,
+        heading_column: str,
+        width: int,
+        visible: bool = True,
+        readonly: bool = False,
     ) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the
@@ -5669,11 +5685,15 @@ class TableHeadings(list):
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
+        :param readonly: Indicates if the column is read-only when
+            `TableHeading.edit_enable` is True.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
         self._width_map.append(width)
         self._visible_map.append(visible)
+        if readonly:
+            self.readonly_columns.append(column)
 
     def heading_names(self) -> List[str]:
         """
@@ -5745,9 +5765,10 @@ class TableHeadings(list):
                 x["heading"] += asc if sort_order == SORT_ASC else desc
             element.Widget.heading(i, text=x["heading"], anchor="w")
 
-    def enable_sorting(self, element: sg.Table, fn: callable) -> None:
+    def enable_heading_function(self, element: sg.Table, fn: callable) -> None:
         """
-        Enable the sorting callbacks for each column index.
+        Enable the sorting callbacks for each column index, or saving by click the
+        unsaved changes column
         Note: Not typically used by the end user. Called from `Form.auto_map_elements()`
 
         :param element: The PySimpleGUI Table element associated with this TableHeading
@@ -5759,21 +5780,23 @@ class TableHeadings(list):
             for i in range(len(self)):
                 if self[i]["column"] is not None:
                     element.widget.heading(
-                        i, command=functools.partial(fn, self[i]["column"])
+                        i, command=functools.partial(fn, self[i]["column"], False)
                     )
-        self.update_headings(element)
+            self.update_headings(element)
+        if self.save_enable:
+            element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
     def insert(self, idx, heading_column: str, column: str = None, *args, **kwargs):
         super().insert(idx, {"heading": heading_column, "column": column})
 
 
-class _SortCallbackWrapper:
+class _HeadingCallback:
 
-    """Internal class used when sg.Table column headers are clicked."""
+    """Internal class used when sg.Table column headings are clicked."""
 
     def __init__(self, frm_reference: Form, data_key: str):
         """
-        Create a new _SortCallbackWrapper object.
+        Create a new _HeadingCallback object.
 
         :param frm_reference: `Form` object
         :param data_key: `DataSet` key
@@ -5782,8 +5805,16 @@ class _SortCallbackWrapper:
         self.frm: Form = frm_reference
         self.data_key = data_key
 
-    def __call__(self, column):
-        self.frm[self.data_key].sort_cycle(column, self.data_key, update_elements=True)
+    def __call__(self, column, save):
+        if save:
+            self.frm[self.data_key].save_record()
+            # force a timeout, without this
+            # info popup creation broke pysimplegui events, weird!
+            self.frm.window.read(timeout=1)
+        else:
+            self.frm[self.data_key].sort_cycle(
+                column, self.data_key, update_elements=True
+            )
 
 
 class _CellEdit:
@@ -6211,8 +6242,10 @@ class ThemePack:
         # fmt: on
         # Markers
         # ----------------------------------------
-        "marker_unsaved": "\u2731",
-        "marker_required": "\u2731",
+        "marker_unsaved": "✱",
+        "unsaved_column_header": "💾",
+        "unsaved_column_width": 3,
+        "marker_required": "✱",
         "marker_required_color": "red2",
         # Sorting icons
         # ----------------------------------------
