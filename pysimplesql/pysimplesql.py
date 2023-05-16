@@ -1025,7 +1025,6 @@ class DataSet:
             `PROMPT_DISCARDED`, or `PROMPT_NONE`.
         """
         # Return False if there is nothing to check or _prompt_save is False
-        # TODO: children too?
         if self.current_index is None or not self.row_count or not self._prompt_save:
             return PROMPT_SAVE_NONE
 
@@ -1393,42 +1392,55 @@ class DataSet:
         ):
             return None
 
-        # First lets make a search order.. TODO: remove this hard coded garbage
         if self.row_count:
             logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
-        for field in self.search_order:
-            # Perform a search for str, from the current position to the end and back by
-            # creating a list of all indexes
-            for i in list(range(self.current_index + 1, self.row_count)) + list(
-                range(0, self.current_index)
-            ):
-                if (
-                    field in list(self.rows.columns)
-                    and search_string.lower() in str(self.rows.iloc[i][field]).lower()
-                ):
-                    old_index = self.current_index
-                    if i == old_index:
-                        return None
-                    self.current_index = i
-                    if update_elements:
-                        self.frm.update_elements(self.key)
-                    if requery_dependents:
-                        self.requery_dependents()
 
-                    # callback
-                    if "after_search" in self.callbacks and not self.callbacks[
-                        "after_search"
-                    ](self.frm, self.frm.window):
-                        self.current_index = old_index
-                        self.frm.update_elements(self.key)
-                        self.requery_dependents()
-                        return SEARCH_ABORTED
+        # fill in descriptions for cols in search_order
+        rels = Relationship.get_relationships(self.table)
 
-                    # callback
-                    if "record_changed" in self.callbacks:
-                        self.callbacks["record_changed"](self.frm, self.frm.window)
+        def process_row(row):
+            for col in self.search_order:
+                for rel in rels:
+                    if col == rel.fk_column:
+                        # change value in row to below
+                        value = self.frm[rel.parent_table].get_description_for_pk(
+                            row[col]
+                        )
+                        row[col] = value
+                return row
+            return None
 
-                    return SEARCH_RETURNED
+        rows = self.rows.apply(process_row, axis=1)
+
+        for column in self.search_order:
+            # search through processed rows, looking for search_string
+            result = rows[rows[column].str.contains(search_string, case=False)]
+            if not result.empty:
+                old_index = self.current_index
+                # grab the first result
+                pk = result.iloc[0][self.pk_column]
+                if pk == self[self.pk_column]:
+                    return None
+                self.set_by_pk(
+                    pk=pk,
+                    update_elements=update_elements,
+                    requery_dependents=requery_dependents,
+                )
+
+                # callback
+                if "after_search" in self.callbacks and not self.callbacks[
+                    "after_search"
+                ](self.frm, self.frm.window):
+                    self.current_index = old_index
+                    self.frm.update_elements(self.key)
+                    self.requery_dependents()
+                    return SEARCH_ABORTED
+
+                # callback
+                if "record_changed" in self.callbacks:
+                    self.callbacks["record_changed"](self.frm, self.frm.window)
+
+                return SEARCH_RETURNED
         return SEARCH_FAILED
         # If we have made it here, then it was not found!
         # sg.Popup('Search term "'+str+'" not found!')
