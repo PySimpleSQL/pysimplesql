@@ -4379,6 +4379,119 @@ def checkbox_to_bool(value):
     ]
 
 
+class PlaceholderState(object):
+    # Author: Miguel Martinez Lopez
+    __slots__ = (
+        "normal_color",
+        "normal_font",
+        "placeholder_text",
+        "placeholder_color",
+        "placeholder_font",
+        "with_placeholder",
+    )
+
+
+def add_placeholder_to(
+    element, placeholder: str, color: str = "grey", font=None
+) -> PlaceholderState:
+    """
+    Add a placeholder to the given element.
+
+    This function adds a placeholder to the given tkinter or PySimpleGUI element.
+    The placeholder text is displayed in the element when the element is empty and
+    unfocused. When the element is clicked or focused, the placeholder text disappears
+    and the element becomes blank. When the element loses focus and is still empty, the
+    placeholder text reappears.
+
+    This function is based on the recipe by Miguel Martinez Lopez, licensed under MIT.
+    It has been updated to allow tk.Text elements in addition to tk.Entry elements,
+    and to work with PySimpleGUI elements.
+
+    :param element: A tkinter or PySimpleGUI element to add the placeholder to.
+    :type element: tkinter.Entry or tkinter.Text or PySimpleGUI.Input or
+        PySimpleGUI.Multiline
+    :param placeholder: The text to display as the placeholder.
+    :param color: The color of the placeholder text, default is 'grey'.
+    :type color: str
+    :param font: The font of the placeholder text, default is the same font as the
+        element.
+    :type font: str or None
+    :return: The PlaceholderState object that tracks the state of the placeholder.
+    :rtype: PlaceholderState
+    :raises ValueError: If the widget type is not supported.
+
+    """
+    if isinstance(element, (sg.Input, sg.Multiline)):
+        widget = element.Widget
+    else:
+        widget = element
+
+    normal_color = widget.cget("fg")
+    normal_font = widget.cget("font")
+
+    if font is None:
+        font = normal_font
+
+    state = PlaceholderState()
+    state.normal_color = normal_color
+    state.normal_font = normal_font
+    state.placeholder_color = color
+    state.placeholder_font = font
+    state.placeholder_text = placeholder
+    state.with_placeholder = True
+
+    if isinstance(widget, tk.Entry):
+
+        def on_focusin(event, widget=widget, state=state):
+            if state.with_placeholder:
+                widget.delete(0, "end")
+                widget.config(fg=state.normal_color, font=state.normal_font)
+
+                state.with_placeholder = False
+
+        def on_focusout(event, widget=widget, state=state):
+            if not widget.get():
+                widget.insert(0, state.placeholder_text)
+                widget.config(fg=state.placeholder_color, font=state.placeholder_font)
+
+                state.with_placeholder = True
+
+        widget.insert(0, placeholder)
+        widget.config(fg=color, font=font)
+
+        widget.bind("<FocusIn>", on_focusin, "+")
+        widget.bind("<FocusOut>", on_focusout, "+")
+
+    elif isinstance(widget, tk.Text):
+
+        def on_focusin(event, widget=widget, state=state):
+            if state.with_placeholder:
+                widget.delete("1.0", "end")
+                widget.config(fg=state.normal_color, font=state.normal_font)
+
+                state.with_placeholder = False
+
+        def on_focusout(event, widget=widget, state=state):
+            if not widget.get("1.0", "end-1c"):
+                widget.insert("1.0", state.placeholder_text)
+                widget.config(fg=state.placeholder_color, font=state.placeholder_font)
+
+                state.with_placeholder = True
+
+        widget.insert("1.0", placeholder)
+        widget.config(fg=color, font=font)
+
+        widget.bind("<FocusIn>", on_focusin, "+")
+        widget.bind("<FocusOut>", on_focusout, "+")
+
+    else:
+        raise ValueError("Widget type not supported")
+
+    widget.PlaceholderState = state
+
+    return state
+
+
 class Popup:
 
     """
