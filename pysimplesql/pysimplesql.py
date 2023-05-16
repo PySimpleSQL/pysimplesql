@@ -201,6 +201,7 @@ SORT_DESC = 2
 TK_ENTRY = "Entry"
 TK_COMBOBOX = "Combobox"
 TK_CHECKBUTTON = "Checkbutton"
+TK_DATEPICKER = "Datepicker"
 
 
 class Boolean(enum.Flag):
@@ -5855,9 +5856,6 @@ class _CellEdit:
         if not element:
             return
 
-        # found a table we can edit, don't allow another double-click
-        self.active_edit = True
-
         # get table_headings
         table_heading = element.metadata["TableHeading"]
 
@@ -5865,128 +5863,169 @@ class _CellEdit:
         columns = table_heading.columns()
         column = columns[col_idx - 1]
 
-        # make sure it's not the marker column or pk_column
-        if col_idx > 0 and column != self.frm[data_key].pk_column:
-            # use table_element to distinguish
-            table_element = element.Widget
-            root = table_element.master
+        # use table_element to distinguish
+        table_element = element.Widget
+        root = table_element.master
 
-            # get cell text, coordinates, width and height
-            text = table_element.item(row, "values")[col_idx]
-            x, y, width, height = table_element.bbox(row, col_idx)
+        # get cell text, coordinates, width and height
+        text = table_element.item(row, "values")[col_idx]
+        x, y, width, height = table_element.bbox(row, col_idx)
 
-            # see if we should use a combobox
-            combobox_values = self.frm[data_key].combobox_values(column)
+        # return early due to following conditions:
+        if col_idx == 0:
+            return
 
-            if combobox_values:
-                widget_type = TK_COMBOBOX
-                width = (
-                    width
-                    if width >= themepack.combobox_min_width
-                    else themepack.combobox_min_width
-                )
+        if column in table_heading.readonly_columns:
+            logger.debug(f"{column} is readonly")
+            return
 
-            # or a checkbox
-            elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
-                widget_type = TK_CHECKBUTTON
-                width = (
-                    width
-                    if width >= themepack.checkbox_min_width
-                    else themepack.checkbox_min_width
-                )
+        if column == self.frm[data_key].pk_column:
+            logger.debug(f"{column} is pk_column")
+            return
 
-            # else, its a normal ttk.entry
-            else:
-                widget_type = TK_ENTRY
-                width = (
-                    width
-                    if width >= themepack.text_min_width
-                    else themepack.text_min_width
-                )
+        if self.frm[data_key].column_info[column]["generated"]:
+            logger.debug(f"{column} is a generated column")
+            return
 
-            # float a frame over the cell
-            frame = ttk.Frame(root)
-            frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+        if not table_heading.edit_enable:
+            logger.debug("This Table element does not allow editing")
+            return
 
-            # setup the widgets
-            # ------------------
+        # else, we can continue:
+        self.active_edit = True
 
-            # checkbutton
-            # need to use tk.IntVar for checkbox
-            if widget_type == TK_CHECKBUTTON:
-                field_var = tk.IntVar()
-                field_var.set(text)
-                self.field = ttk.Checkbutton(frame, variable=field_var)
-            else:
-                # create tk.StringVar for combo/entry
-                field_var = tk.StringVar()
-                field_var.set(text)
+        # see if we should use a combobox
+        combobox_values = self.frm[data_key].combobox_values(column)
 
-            # entry
-            if widget_type == TK_ENTRY:
-                self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
-
-            # combobox
-            if widget_type == TK_COMBOBOX:
-                self.field = ttk.Combobox(frame, textvariable=field_var, justify="left")
-                self.field["values"] = combobox_values
-                self.field.bind("<Configure>", self.combo_configure)
-
-            # bind text to Return (for save), and Escape (for discard)
-            # event is discarded
-            accept_dict = {
-                "data_key": data_key,
-                "table_element": table_element,
-                "row": row,
-                "column": column,
-                "col_idx": col_idx,
-                "combobox_values": combobox_values,
-                "widget_type": widget_type,
-                "field_var": field_var,
-            }
-
-            self.field.bind(
-                "<Return>",
-                lambda event: self.accept(**accept_dict),
+        if combobox_values:
+            widget_type = TK_COMBOBOX
+            width = (
+                width
+                if width >= themepack.combobox_min_width
+                else themepack.combobox_min_width
             )
-            self.field.bind("<Escape>", lambda event: self.destroy())
 
-            if themepack.use_cell_buttons:
-                # buttons
-                self.accept_button = tk.Button(
-                    frame,
-                    text="\u2714",
-                    foreground="green",
-                    relief=tk.GROOVE,
-                    command=lambda: self.accept(**accept_dict),
-                )
-                self.cancel_button = tk.Button(
-                    frame,
-                    text="\u274E",
-                    foreground="red",
-                    relief=tk.GROOVE,
-                    command=lambda: self.destroy(),
-                )
-                # pack buttons
-                self.cancel_button.pack(side="right")
-                self.accept_button.pack(side="right")
-
-            # have entry use remaining space
-            self.field.pack(side="left", expand=True, fill="both")
-
-            # select text and focus to begin with
-            if widget_type != TK_CHECKBUTTON:
-                self.field.select_range(0, tk.END)
-                self.field.focus_force()
-
-            # bind single-clicks
-            self.destroy_bind = self.frm.window.TKroot.bind(
-                "<Button-1>",
-                lambda event: self.single_click_callback(event, accept_dict),
+        # or a checkbox
+        elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
+            widget_type = TK_CHECKBUTTON
+            width = (
+                width
+                if width >= themepack.checkbox_min_width
+                else themepack.checkbox_min_width
             )
+
+        # or a date
+        elif self.frm[data_key].column_info[column]["domain"] in ["DATE"]:
+            text = self.frm[data_key].column_info[column].cast(text)
+            widget_type = TK_DATEPICKER
+            width = (
+                width
+                if width >= themepack.datepicker_min_width
+                else themepack.datepicker_min_width
+            )
+
+        # else, its a normal ttk.entry
         else:
-            # didn't find a cell we can edit
-            self.active_edit = False
+            widget_type = TK_ENTRY
+            width = (
+                width if width >= themepack.text_min_width else themepack.text_min_width
+            )
+
+        # float a frame over the cell
+        frame = tk.Frame(root)
+        frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+
+        # setup the widgets
+        # ------------------
+
+        # checkbutton
+        # need to use tk.IntVar for checkbox
+        if widget_type == TK_CHECKBUTTON:
+            field_var = tk.BooleanVar()
+            field_var.set(checkbox_to_bool(text))
+            self.field = tk.Checkbutton(frame, variable=field_var)
+            expand = False
+        else:
+            # create tk.StringVar for combo/entry
+            field_var = tk.StringVar()
+            field_var.set(text)
+
+        # entry
+        if widget_type == TK_ENTRY:
+            self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+            expand = True
+
+        if widget_type == TK_DATEPICKER:
+            text = dt.date.today() if type(text) is str else text
+            self.field = DatePicker(
+                frame, self.frm, init_date=text, textvariable=field_var
+            )
+            expand = True
+
+        # combobox
+        if widget_type == TK_COMBOBOX:
+            self.field = ttk.Combobox(
+                frame, textvariable=field_var, justify="left", state="readonly"
+            )
+            self.field["values"] = combobox_values
+            self.field.bind("<Configure>", self.combo_configure)
+            expand = True
+
+        # bind text to Return (for save), and Escape (for discard)
+        # event is discarded
+        accept_dict = {
+            "data_key": data_key,
+            "table_element": table_element,
+            "row": row,
+            "column": column,
+            "col_idx": col_idx,
+            "combobox_values": combobox_values,
+            "widget_type": widget_type,
+            "field_var": field_var,
+        }
+
+        self.field.bind(
+            "<Return>",
+            lambda event: self.accept(**accept_dict),
+        )
+        self.field.bind("<Escape>", lambda event: self.destroy())
+
+        if themepack.use_cell_buttons:
+            # buttons
+            self.accept_button = tk.Button(
+                frame,
+                text="\u2714",
+                foreground="green",
+                relief=tk.GROOVE,
+                command=lambda: self.accept(**accept_dict),
+            )
+            self.cancel_button = tk.Button(
+                frame,
+                text="\u274E",
+                foreground="red",
+                relief=tk.GROOVE,
+                command=lambda: self.destroy(),
+            )
+            # pack buttons
+            self.cancel_button.pack(side="right")
+            self.accept_button.pack(side="right")
+
+        if widget_type == TK_DATEPICKER:
+            self.field.button.pack(side="right")
+        # have entry use remaining space
+        self.field.pack(side="left", expand=expand, fill="both")
+
+        # select text and focus to begin with
+        if widget_type != TK_CHECKBUTTON:
+            self.field.select_range(0, tk.END)
+            self.field.focus_force()
+
+        # bind single-clicks
+        self.destroy_bind = self.frm.window.TKroot.bind(
+            "<Button-1>",
+            lambda event: self.single_click_callback(event, accept_dict),
+            "+",
+        )
 
     def accept(
         self,
@@ -6018,7 +6057,7 @@ class _CellEdit:
         )
         if cast_new_value is not Boolean.FALSE:
             # push row to dataset and update
-            dataset.set_current(column, cast_new_value)
+            dataset.set_current(column, cast_new_value, write_event=True)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
             # TODO: make sure we actually want to set new_value to cast
@@ -6030,6 +6069,14 @@ class _CellEdit:
         # if combo, set new_value to actual text (not pk)
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()]
+
+        # if boolean, set
+        if widget_type == TK_CHECKBUTTON and themepack.display_boolean_as_checkbox:
+            new_value = (
+                themepack.checkbox_true
+                if checkbox_to_bool(new_value)
+                else themepack.checkbox_false
+            )
 
         # update value row with new text
         values[col_idx] = new_value
@@ -6050,6 +6097,7 @@ class _CellEdit:
     def destroy(self):
         # unbind
         self.frm.window.TKroot.unbind("<Button-1>", self.destroy_bind)
+
         # destroy widets and window
         self.field.destroy()
         if themepack.use_cell_buttons:
@@ -6072,16 +6120,20 @@ class _CellEdit:
             if region == "heading":
                 self.destroy()
                 return
-
         # disregard if you click the field/buttons of celledit
         widget_list = [self.field]
         if themepack.use_cell_buttons:
             widget_list.append(self.accept_button)
             widget_list.append(self.cancel_button)
-        if event and event.widget in widget_list:
+
+        # for datepicker
+        with contextlib.suppress(AttributeError):
+            widget_list.append(self.field.button)
+        if "ttkcalendar" in str(event.widget):
             return
 
-        # otherwise, accept
+        if event.widget in widget_list:
+            return
         self.accept(**accept_dict)
 
     def get_datakey_and_sgtable(self, treeview, frm):
@@ -6091,11 +6143,7 @@ class _CellEdit:
         ]:
             for e in frm[data_key].selector:
                 element = e["element"]
-                if (
-                    element.widget == treeview
-                    and "TableHeading" in element.metadata
-                    and element.metadata["TableHeading"].edit_enable
-                ):
+                if element.widget == treeview and "TableHeading" in element.metadata:
                     return data_key, element
         return None
 
@@ -6115,6 +6163,183 @@ class _CellEdit:
         width = width if width > combo["width"] else combo["width"]
         style.configure("SS.TCombobox", postoffset=(0, 0, width, 0))
         combo.configure(style="SS.TCombobox")
+
+
+class TtkCalendar(ttk.Frame):
+    """Internal Class."""
+
+    # Modified from Tkinter GUI Application Development Cookbook, MIT License.
+
+    def __init__(self, master, init_date, textvariable, **kwargs):
+        # TODO, set these in themepack?
+        fwday = kwargs.pop("firstweekday", calendar.MONDAY)
+        sel_bg = kwargs.pop("selectbackground", "#ecffc4")
+        sel_fg = kwargs.pop("selectforeground", "#05640e")
+
+        super().__init__(master, class_="TtkCalendar", **kwargs)
+
+        self.master = master
+        self.cal_date = init_date
+        self.textvariable = textvariable
+        self.cal = calendar.TextCalendar(fwday)
+        self.font = tkfont.Font(self)
+        self.header = self.create_header()
+        self.table = self.create_table()
+        self.canvas = self.create_canvas(sel_bg, sel_fg)
+        self.build_calendar()
+
+    def create_header(self):
+        left_arrow = {"children": [("Button.leftarrow", None)]}
+        right_arrow = {"children": [("Button.rightarrow", None)]}
+        style = ttk.Style(self)
+        style.layout("L.TButton", [("Button.focus", left_arrow)])
+        style.layout("R.TButton", [("Button.focus", right_arrow)])
+
+        hframe = ttk.Frame(self)
+        btn_left = ttk.Button(
+            hframe, style="L.TButton", command=lambda: self.move_month(-1)
+        )
+        btn_right = ttk.Button(
+            hframe, style="R.TButton", command=lambda: self.move_month(1)
+        )
+        label = ttk.Label(hframe, width=15, anchor="center")
+
+        hframe.pack(pady=5, anchor=tk.CENTER)
+        btn_left.grid(row=0, column=0)
+        label.grid(row=0, column=1, padx=12)
+        btn_right.grid(row=0, column=2)
+        return label
+
+    def create_table(self):
+        cols = self.cal.formatweekheader(3).split()
+        table = ttk.Treeview(self, show="", selectmode="none", height=7, columns=cols)
+        table.bind("<Map>", self.minsize, "+")
+        table.pack(expand=1, fill=tk.BOTH)
+        table.tag_configure("header", background="grey90")
+        table.insert("", tk.END, values=cols, tag="header")
+        for _ in range(6):
+            table.insert("", tk.END)
+
+        width = max(map(self.font.measure, cols))
+        for col in cols:
+            table.column(col, width=width, minwidth=width, anchor=tk.E)
+        return table
+
+    def create_canvas(self, bg, fg):
+        canvas = tk.Canvas(
+            self.table, background=bg, borderwidth=1, highlightthickness=0
+        )
+        canvas.text = canvas.create_text(0, 0, fill=fg, anchor=tk.W)
+        self.table.bind("<ButtonPress-1>", self.pressed_callback, "+")
+        return canvas
+
+    def build_calendar(self):
+        year, month = self.cal_date.year, self.cal_date.month
+        month_name = self.cal.formatmonthname(year, month, 0)
+        month_weeks = self.cal.monthdayscalendar(year, month)
+
+        self.header.config(text=month_name.title())
+        items = self.table.get_children()[1:]
+        for week, item in itertools.zip_longest(month_weeks, items):
+            fmt_week = [f"{day:02d}" if day else "" for day in (week or [])]
+            self.table.item(item, values=fmt_week)
+
+    def pressed_callback(self, event):
+        x, y, widget = event.x, event.y, event.widget
+        item = widget.identify_row(y)
+        column = widget.identify_column(x)
+        items = self.table.get_children()[1:]
+
+        if not column or item not in items:
+            # clicked te header or outside the columns
+            return
+
+        index = int(column[1]) - 1
+        values = widget.item(item)["values"]
+        text = values[index] if len(values) else None
+        bbox = widget.bbox(item, column)
+        if bbox and text:
+            self.cal_date = dt.date(self.cal_date.year, self.cal_date.month, int(text))
+            self.draw_selection(bbox)
+            self.textvariable.set(self.cal_date.strftime("%Y-%m-%d"))
+
+    def draw_selection(self, bbox):
+        canvas, text = self.canvas, "%02d" % self.cal_date.day
+        x, y, width, height = bbox
+        textw = self.font.measure(text)
+        canvas.configure(width=width, height=height)
+        canvas.coords(canvas.text, width - textw, height / 2 - 1)
+        canvas.itemconfigure(canvas.text, text=text)
+        canvas.place(x=x, y=y)
+
+    def set_date(self, dateobj):
+        self.cal_date = dateobj
+        self.canvas.place_forget()
+        self.build_calendar()
+
+    def select_date(self):
+        bbox = self.get_bbox_for_date(self.cal_date)
+        if bbox:
+            self.draw_selection(bbox)
+
+    def get_bbox_for_date(self, new_date):
+        items = self.table.get_children()[1:]
+        for item in items:
+            values = self.table.item(item)["values"]
+            for i, value in enumerate(values):
+                if isinstance(value, int) and value == new_date.day:
+                    column = "#{}".format(i + 1)
+                    self.table.update()
+                    return self.table.bbox(item, column)
+        return None
+
+    def move_month(self, offset):
+        self.canvas.place_forget()
+        month = self.cal_date.month - 1 + offset
+        year = self.cal_date.year + month // 12
+        month = month % 12 + 1
+        self.cal_date = dt.date(year, month, 1)
+        self.build_calendar()
+
+    def minsize(self, e):
+        width, height = self.master.geometry().split("x")
+        height = height[: height.index("+")]
+        self.master.minsize(width, height)
+
+
+class DatePicker(ttk.Entry):
+    def __init__(self, master, frm_reference, init_date, **kwargs):
+        self.frm = frm_reference
+        textvariable = kwargs["textvariable"]
+        self.calendar = TtkCalendar(self.frm.window.TKroot, init_date, textvariable)
+        self.calendar.place_forget()
+        self.button = ttk.Button(master, text="▼", width=2, command=self.show_calendar)
+        super().__init__(master, **kwargs)
+
+        self.bind("<KeyRelease>", self.on_entry_key_release, "+")
+        self.calendar.bind("<Leave>", self.hide_calendar, "+")
+
+    def show_calendar(self, event=None):
+        self.configure(state="disabled")
+        self.calendar.place(in_=self, relx=0, rely=1)
+        self.calendar.focus_force()
+        self.calendar.select_date()
+
+    def hide_calendar(self, event=None):
+        self.configure(state="!disabled")
+        self.calendar.place_forget()
+        self.focus_force()
+
+    def on_entry_key_release(self, event=None):
+        # Check if the user has typed a valid date
+        try:
+            date_str = self.get()
+            date = dt.datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return
+
+        # Update the calendar to show the new date
+        self.calendar.set_date(date)
 
 
 class _LiveUpdate:
@@ -6175,7 +6400,7 @@ class _LiveUpdate:
                 )
                 if new_value is not Boolean.FALSE:
                     # push row to dataset and update
-                    dataset.set_current(column, new_value)
+                    dataset.set_current(column, new_value, write_event=True)
 
                     # Update tableview if uses column:
                     if dataset.column_likely_in_selector(column):
@@ -6275,6 +6500,11 @@ class ThemePack:
         "text_min_width": 80,
         "combobox_min_width": 80,
         "checkbox_min_width": 75,
+        "datepicker_min_width": 80,
+        # Display boolean columns as checkboxes in sg.Tables
+        "display_boolean_as_checkbox": True,
+        "checkbox_true": "☑",
+        "checkbox_false": "☐",
     }
     """
     Default Themepack.
@@ -6454,7 +6684,7 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         "quick_edit_title": "Quick Edit - {data_key}",
         # ------------------------------------------------------------------------------
-        # Error when importing module for driver
+        # For Error when importing module for driver
         # ------------------------------------------------------------------------------
         "import_module_failed_title": "Problem importing module",
         "import_module_failed": "Unable to import module neccessary for {name}\nException: {exception}\n\nTry `pip install {requires}`",  # fmt: skip # noqa: E501
