@@ -1426,6 +1426,7 @@ class DataSet:
                     pk=pk,
                     update_elements=update_elements,
                     requery_dependents=requery_dependents,
+                    skip_prompt_save=True,
                 )
 
                 # callback
