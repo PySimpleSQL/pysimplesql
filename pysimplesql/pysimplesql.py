@@ -6612,7 +6612,7 @@ class ThemePack:
         # Label Size
         # Sets the default label (text) size when `field()` is used.
         # A label is static text that is displayed near the element to describe it.
-        "default_label_size": (20, 1),  # (width, height)
+        "default_label_size": (15, 1),  # (width, height)
         # Element Size
         # Sets the default element size when `field()` is used.
         # The size= parameter of `field()` will override this.
