@@ -5153,7 +5153,7 @@ def field(
         ],
         pad=(0, 0),
     )
-    if element.__name__ == "Text":  # don't show markers for sg.Text
+    if isinstance(element, sg.Text):  # don't show markers for sg.Text
         if no_label:
             layout = [[sg.Text("  "), layout_element]]
         elif label_above:
