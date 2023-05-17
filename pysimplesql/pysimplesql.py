@@ -5106,7 +5106,7 @@ def field(
     else:
         first_param = ""
 
-    if isinstance(element, sg.Multiline):
+    if element == sg.Multiline:
         layout_element = element(
             first_param,
             key=key,
@@ -5153,7 +5153,7 @@ def field(
         ],
         pad=(0, 0),
     )
-    if isinstance(element, sg.Text):  # don't show markers for sg.Text
+    if element == sg.Text:  # don't show markers for sg.Text
         if no_label:
             layout = [[sg.Text("  "), layout_element]]
         elif label_above:
@@ -7189,7 +7189,8 @@ class ColumnInfo(List):
                         else:
                             default = null_default
                     # string-like, not description_column
-                    default = ""
+                    else:
+                        default = ""
             else:
                 # Load the default that was fetched from the database
                 # during ColumnInfo creation
