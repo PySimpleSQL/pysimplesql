@@ -1346,6 +1346,7 @@ class DataSet:
         update_elements: bool = True,
         requery_dependents: bool = True,
         skip_prompt_save: bool = False,
+        display_message: bool = None,
     ) -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
         Move to the next record in the `DataSet` that contains `search_string`.
@@ -1364,6 +1365,8 @@ class DataSet:
             records.
         :param requery_dependents: (optional) Requery dependents after switching records
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
+        :param display_message: Displays a message "Search Failed: ...", otherwise is
+            silent on success.
         :returns: One of the following search values: `SEARCH_FAILED`,
             `SEARCH_RETURNED`, `SEARCH_ABORTED`.
         """
@@ -1443,9 +1446,14 @@ class DataSet:
                     self.callbacks["record_changed"](self.frm, self.frm.window)
 
                 return SEARCH_RETURNED
+        self.frm.popup.ok(
+            lang.dataset_search_failed_title,
+            lang.dataset_search_failed.format_map(
+                LangFormat(search_string=search_string)
+            ),
+        )
         return SEARCH_FAILED
         # If we have made it here, then it was not found!
-        # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
     def set_by_index(
@@ -6773,6 +6781,9 @@ class LanguagePack:
         "dataset_save_keyed_fail": "Query failed: {exception}.",
         "dataset_save_fail_title": "Problem Saving",
         "dataset_save_fail": "Query failed: {exception}.",
+        # DataSet search
+        "dataset_search_failed_title": "Search Failed",
+        "dataset_search_failed": "Failed to find:\n{search_string}",
         # ------------------------------------------------------------------------------
         # Delete
         # ------------------------------------------------------------------------------

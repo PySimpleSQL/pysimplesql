@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS Orders (
     "Total" REAL,
     "Completed" BOOLEAN NOT NULL,
     FOREIGN KEY ("CustomerID") REFERENCES Customers(CustomerID),
-	PRIMARY KEY("OrderID" AUTOINCREMENT)
+    PRIMARY KEY("OrderID" AUTOINCREMENT)
 );
 
 CREATE TABLE IF NOT EXISTS Products (
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS OrderDetails (
     "SubTotal" REAL GENERATED ALWAYS AS ("Price" * "Quantity") STORED,
     FOREIGN KEY ("OrderID") REFERENCES "Orders"("OrderID") ON UPDATE CASCADE ON DELETE CASCADE,
     FOREIGN KEY ("ProductID") REFERENCES "Products"("ProductID"),
-	PRIMARY KEY("OrderDetailID" AUTOINCREMENT)
+    PRIMARY KEY("OrderDetailID" AUTOINCREMENT)
 );
 
 -- Create a compound index on OrderID and ProductID columns in OrderDetails table
