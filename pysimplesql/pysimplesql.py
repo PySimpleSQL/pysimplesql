@@ -4611,7 +4611,7 @@ class Popup:
             msg_lines = msg.splitlines()
             layout = [[sg.Text(line, font="bold")] for line in msg_lines]
             if self.popup_info:
-                self.popup_info.close()
+                return
             self.popup_info = sg.Window(
                 title=title,
                 layout=layout,
@@ -4631,6 +4631,7 @@ class Popup:
         """
         if self.popup_info:
             self.popup_info.close()
+            self.popup_info = None
 
 
 class ProgressBar:
