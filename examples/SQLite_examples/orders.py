@@ -8,7 +8,10 @@ import pysimplesql as ss
 automatically_save_orderdetails = True
 
 sg.change_look_and_feel("SystemDefaultForReal")
-sg.set_options(font=("Roboto", 11))  # Set the font and font size for the table
+
+# Set a better looking font, and standard font-size.
+# Enable dpi_awareness to reduce fuzziness on Windows
+sg.set_options(font=("Arial", 11), dpi_awareness=True)
 font = ("Roboto", 16)  # To be used later to sg.Text headings
 
 logger = logging.getLogger(__name__)
@@ -250,7 +253,7 @@ layout.append(
             )
         ],
         [ss.actions("Orders")],
-        [sg.HorizontalSeparator()],
+        [sg.Sizer(h_pixels=0, v_pixels=20)],
     ]
 )
 
@@ -261,34 +264,29 @@ details_heading.add_column("Quantity", "Quantity", 10)
 details_heading.add_column("Price", "Price/Ea", 10, readonly=True)
 details_heading.add_column("SubTotal", "SubTotal", 10)
 
-layout.append(
+orderdetails_layout = [
+    [ss.field("Orders.CustomerID", sg.Combo, label="Customer")],
     [
-        [sg.Text("Order Details", font=font)],
-        [ss.field("Orders.CustomerID", sg.Combo, label="Customer")],
-        [
-            ss.field("Orders.OrderDate", label="Date"),
-        ],
-        [ss.field("Orders.Completed", sg.Checkbox, default=False)],
-        [
-            ss.selector(
-                "OrderDetails",
-                sg.Table,
-                num_rows=10,
-                headings=details_heading,
-                row_height=25,
-            )
-        ],
-        [
-            ss.actions(
-                "OrderDetails", default=False, save=True, insert=True, delete=True
-            )
-        ],
-        [ss.field("OrderDetails.ProductID", sg.Combo)],
-        [ss.field("OrderDetails.Quantity")],
-        [ss.field("OrderDetails.Price", sg.Text)],
-        [ss.field("OrderDetails.SubTotal", sg.Text)],
-    ]
-)
+        ss.field("Orders.OrderDate", label="Date"),
+    ],
+    [ss.field("Orders.Completed", sg.Checkbox, default=False)],
+    [
+        ss.selector(
+            "OrderDetails",
+            sg.Table,
+            num_rows=10,
+            headings=details_heading,
+            row_height=25,
+        )
+    ],
+    [ss.actions("OrderDetails", default=False, save=True, insert=True, delete=True)],
+    [ss.field("OrderDetails.ProductID", sg.Combo)],
+    [ss.field("OrderDetails.Quantity")],
+    [ss.field("OrderDetails.Price", sg.Text)],
+    [ss.field("OrderDetails.SubTotal", sg.Text)],
+]
+
+layout.append([sg.Frame("Order Details", orderdetails_layout, expand_x=True)])
 
 win = sg.Window(
     "Order Example",
