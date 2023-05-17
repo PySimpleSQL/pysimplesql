@@ -907,7 +907,7 @@ class DataSet:
                     continue
 
                 # if sg.Text
-                if type(mapped.element) is sg.Text:
+                if isinstance(mapped.element, sg.Text):
                     continue
 
                 # don't check if there aren't any rows. Fixes checkbox = '' when no
@@ -933,7 +933,7 @@ class DataSet:
                     mapped.column,
                     table_val,
                     element_val,
-                    bool(type(mapped.element) is sg.PySimpleGUI.Checkbox),
+                    bool(isinstance(mapped.element, sg.Checkbox)),
                 )
                 if new_value is not Boolean.FALSE:
                     dirty = True
@@ -1669,12 +1669,7 @@ class DataSet:
         :param where_value: (optional)
         :returns: None
         """
-        if type(element) not in [
-            sg.PySimpleGUI.Listbox,
-            sg.PySimpleGUI.Slider,
-            sg.Combo,
-            sg.Table,
-        ]:
+        if not isinstance(element, (sg.Listbox, sg.Slider, sg.Combo, sg.Table)):
             raise RuntimeError(
                 f"add_selector() error: {element} is not a supported element."
             )
@@ -1806,7 +1801,7 @@ class DataSet:
         # Propagate GUI data back to the stored current_row
         for mapped in [m for m in self.frm.element_map if m.dataset == self]:
             # skip if sg.Text
-            if type(mapped.element) is sg.Text:
+            if isinstance(mapped.element, sg.Text):
                 continue
 
             # convert the data into the correct type using the domain in ColumnInfo
@@ -3268,7 +3263,7 @@ class Form:
             element = win[key]
 
             # Skip this element if there is no metadata present
-            if type(element.metadata) is not dict:
+            if not isinstance(element.metadata, dict):
                 continue
 
             # Process the filter to ensure this element should be mapped to this Form
@@ -3342,7 +3337,10 @@ class Form:
                     )
 
                     # Enable sorting if TableHeading  is present
-                    if type(element) is sg.Table and "TableHeading" in element.metadata:
+                    if (
+                        isinstance(element, sg.Table)
+                        and "TableHeading" in element.metadata
+                    ):
                         table_heading: TableHeadings = element.metadata["TableHeading"]
                         # We need a whole chain of things to happen
                         # when a heading is clicked on:
@@ -3435,7 +3433,7 @@ class Form:
             # key = str(key)  # sometimes end up with an integer element 0?TODO:Research
             element = win[key]
             # Skip this element if there is no metadata present
-            if type(element.metadata) is not dict:
+            if not isinstance(element.metadata, dict):
                 logger.debug(f"Skipping mapping of {key}")
                 continue
             if element.metadata["Form"] != self:
@@ -3862,13 +3860,14 @@ class Form:
             if mapped.element in omit_elements:
                 continue
 
-            if combo_values_only and type(mapped.element) is not sg.PySimpleGUI.Combo:
+            if combo_values_only and not isinstance(mapped.element, sg.Combo):
                 continue
 
             if len(columns) and mapped.column not in columns:
                 continue
 
-            if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
+            # don't show markers for sg.Text
+            if not isinstance(mapped.element, sg.Text):
                 # Show the Required Record marker if the column has notnull set and
                 # this is a virtual row
                 marker_key = mapped.element.key + ":marker"
@@ -3904,10 +3903,10 @@ class Form:
                     mapped.column, mapped.where_column, mapped.where_value
                 )
                 # TODO, may need to add more??
-                if type(mapped.element) in [sg.PySimpleGUI.CBox]:
+                if isinstance(mapped.element, sg.Checkbox):
                     updated_val = checkbox_to_bool(updated_val)
 
-            elif type(mapped.element) is sg.PySimpleGUI.Combo:
+            elif isinstance(mapped.element, sg.Combo):
                 # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
                 # Find the relationship to determine which table to get data from
@@ -3940,7 +3939,7 @@ class Form:
                 # and update element
                 mapped.element.update(values=combo_vals, readonly=True)
 
-            elif type(mapped.element) is sg.Text:
+            elif isinstance(mapped.element, sg.Text):
                 rels = Relationship.get_relationships(mapped.dataset.table)
                 found = False
                 # try to get description of linked if foreign-key
@@ -3955,7 +3954,7 @@ class Form:
                     updated_val = mapped.dataset[mapped.column]
                 mapped.element.update("")
 
-            elif type(mapped.element) is sg.PySimpleGUI.Table:
+            elif isinstance(mapped.element, sg.Table):
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
                 values = mapped.dataset.table_values()
@@ -3977,10 +3976,7 @@ class Form:
                 )
                 continue
 
-            elif type(mapped.element) in [
-                sg.PySimpleGUI.InputText,
-                sg.PySimpleGUI.Multiline,
-            ]:
+            elif isinstance(mapped.element, (sg.Input, sg.Multiline)):
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
 
@@ -3989,10 +3985,10 @@ class Form:
 
                 updated_val = mapped.dataset[mapped.column]
 
-            elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
+            elif isinstance(mapped.element, sg.Checkbox):
                 updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
 
-            elif type(mapped.element) is sg.PySimpleGUI.Image:
+            elif isinstance(mapped.element, sg.Image):
                 val = mapped.dataset[mapped.column]
 
                 try:
@@ -4050,10 +4046,7 @@ class Form:
                     if element.key in self.callbacks:
                         self.callbacks[element.key]()
 
-                    if (
-                        type(element) == sg.PySimpleGUI.Listbox
-                        or type(element) == sg.PySimpleGUI.Combo
-                    ):
+                    if isinstance(element, (sg.Listbox, sg.Combo)):
                         logger.debug("update_elements: List/Combo selector found...")
                         lst = []
                         for _, r in dataset.rows.iterrows():
@@ -4078,7 +4071,7 @@ class Form:
 
                         # set vertical scroll bar to follow selected element
                         # (for listboxes only)
-                        if type(element) == sg.PySimpleGUI.Listbox:
+                        if isinstance(element, sg.Listbox):
                             try:
                                 element.set_vscroll_position(
                                     dataset.current_index / len(lst)
@@ -4086,12 +4079,12 @@ class Form:
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
 
-                    elif type(element) == sg.PySimpleGUI.Slider:
+                    elif isinstance(element, sg.Slider):
                         # Re-range the element depending on the number of records
                         l = dataset.row_count  # noqa: E741
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
-                    elif type(element) is sg.PySimpleGUI.Table:
+                    elif isinstance(element, sg.Table):
                         logger.debug("update_elements: Table selector found...")
                         # Populate entries
                         try:
@@ -4194,20 +4187,18 @@ class Form:
                         element: sg.Element = e["element"]
                         if element.key == event and len(dataset.rows) > 0:
                             changed = False  # assume that a change will not take place
-                            if type(element) == sg.PySimpleGUI.Listbox:
+                            if isinstance(element, sg.Listbox):
                                 row = values[element.Key][0]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) == sg.PySimpleGUI.Slider:
+                            elif isinstance(element, sg.Slider):
                                 dataset.set_by_index(int(values[event]) - 1)
                                 changed = True
-                            elif type(element) == sg.PySimpleGUI.Combo:
+                            elif isinstance(element, sg.Combo):
                                 row = values[event]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) is sg.PySimpleGUI.Table and len(
-                                values[event]
-                            ):
+                            elif isinstance(element, sg.Table) and len(values[event]):
                                 index = values[event][0]
                                 pk = self.window[event].Values[index].pk
 
@@ -4235,12 +4226,7 @@ class Form:
             if mapped.table != table:
                 continue
             element = mapped.element
-            if type(element) in [
-                sg.PySimpleGUI.Input,
-                sg.PySimpleGUI.MLine,
-                sg.PySimpleGUI.Combo,
-                sg.PySimpleGUI.Checkbox,
-            ]:
+            if isinstance(element, (sg.Input, sg.Multiline, sg.Combo, sg.Checkbox)):
                 # if element.Key in self.window.key_dict.keys():
                 logger.debug(
                     f"Updating element {element.Key} to disabled: "
@@ -5120,7 +5106,7 @@ def field(
     else:
         first_param = ""
 
-    if element.__name__ == "Multiline":
+    if isinstance(element, sg.Multiline):
         layout_element = element(
             first_param,
             key=key,
@@ -5707,7 +5693,7 @@ def selector(
         )
     elif element == sg.Table:
         # Check if the headings arg is a Table heading...
-        if kwargs["headings"].__class__.__name__ == "TableHeadings":
+        if isinstance(kwargs["headings"], TableHeadings):
             # Overwrite the kwargs from the TableHeading info
             kwargs["visible_column_map"] = kwargs["headings"].visible_map()
             kwargs["col_widths"] = kwargs["headings"].width_map()
@@ -5955,7 +5941,7 @@ class _CellEdit:
 
     def __call__(self, event):
         # if double click a treeview
-        if event.widget.__class__.__name__ == "Treeview":
+        if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
             # identify region
             region = tk_widget.identify("region", event.x, event.y)
@@ -6240,7 +6226,7 @@ class _CellEdit:
         accept_dict,
     ):
         # destroy if you click a heading while editing
-        if event.widget.__class__.__name__ == "Treeview":
+        if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
             # identify region
             region = tk_widget.identify("region", event.x, event.y)
