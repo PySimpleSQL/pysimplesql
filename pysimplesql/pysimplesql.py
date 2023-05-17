@@ -1568,7 +1568,7 @@ class DataSet:
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
         if self.row_count:
-            if self.get_current_row()[column]:
+            if self.get_current_row()[column] is not None:
                 return self.get_current_row()[column]
             return default
         return default
@@ -2772,7 +2772,9 @@ class DataSet:
         :param idx: The index where the row should be inserted (default to last index)
         :returns: None
         """
-        row_series = pd.Series(row)
+        row_series = pd.Series(row, dtype=object)
+        # Infer better data types for the Series
+        # row_series = row_series.infer_objects()
         if self.rows.empty:
             self.rows = Result.set(
                 pd.concat([self.rows, row_series.to_frame().T], ignore_index=True)
@@ -3866,8 +3868,9 @@ class Form:
             if len(columns) and mapped.column not in columns:
                 continue
 
-            # don't show markers for sg.Text
-            if not isinstance(mapped.element, sg.Text):
+            # Update Markers
+            # --------------------------------------------------------------------------
+            if not isinstance(mapped.element, sg.Text):  # not for sg.Text
                 # Show the Required Record marker if the column has notnull set and
                 # this is a virtual row
                 marker_key = mapped.element.key + ":marker"
