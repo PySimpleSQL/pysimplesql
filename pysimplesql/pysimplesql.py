@@ -1659,7 +1659,7 @@ class DataSet:
             self.current_index = self.current_index
 
             # make sure to return as python type
-            return self.rows.astype('O').iloc[self.current_index]
+            return self.rows.astype("O").iloc[self.current_index]
         return None
 
     def add_selector(
@@ -2437,7 +2437,7 @@ class DataSet:
             return TableRow(pk, lst)
 
         # fill in nan, and display as python types.
-        return self.rows.fillna("").astype('O').apply(process_row, axis=1)
+        return self.rows.fillna("").astype("O").apply(process_row, axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
