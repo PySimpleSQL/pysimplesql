@@ -54,6 +54,7 @@ Naming conventions can fall under 4 categories:
 
 from __future__ import annotations  # docstrings
 
+import abc
 import asyncio
 import calendar
 import contextlib
@@ -2290,7 +2291,7 @@ class DataSet:
 
         :returns: True if a backup row is present that matches, and False otherwise.
         """
-        if self.rows is None:
+        if self.rows is None or self.rows.empty:
             return False
         if (
             isinstance(self.rows.attrs["row_backup"], pd.Series)
@@ -3317,6 +3318,15 @@ class Form:
                     self.map_element(
                         element, self[table], col, where_column, where_value
                     )
+                    if isinstance(
+                        element, (PlaceholderInput, PlaceholderMultiline)
+                    ) and (
+                        col in self[table].column_info.names()
+                        and self[table].column_info[col].notnull
+                    ):
+                        element.add_placeholder(
+                            lang.notnull_placeholder, themepack.placeholder_color
+                        )
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -3484,6 +3494,9 @@ class Form:
                     search_box = f"{search_element}:search_input"
                     if data_key:
                         funct = functools.partial(self[data_key].search, search_box)
+                    self.window[search_box].add_placeholder(
+                        lang.search_placeholder, themepack.placeholder_color
+                    )
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table = table
@@ -3870,29 +3883,28 @@ class Form:
 
             # Update Markers
             # --------------------------------------------------------------------------
-            if not isinstance(mapped.element, sg.Text):  # not for sg.Text
-                # Show the Required Record marker if the column has notnull set and
-                # this is a virtual row
-                marker_key = mapped.element.key + ":marker"
-                try:
-                    if mapped.dataset.row_is_virtual():
-                        # get the column name from the key
-                        col = mapped.column
-                        # get notnull from the column info
-                        if (
-                            col in mapped.dataset.column_info.names()
-                            and mapped.dataset.column_info[col].notnull
-                        ):
-                            self.window[marker_key].update(
-                                visible=True,
-                                text_color=themepack.marker_required_color,
-                            )
-                    else:
-                        self.window[marker_key].update(visible=False)
-                        if self.window is not None:
-                            self.window[marker_key].update(visible=False)
-                except AttributeError:
+            # Show the Required Record marker if the column has notnull set and
+            # this is a virtual row
+            marker_key = mapped.element.key + ":marker"
+            try:
+                if mapped.dataset.row_is_virtual():
+                    # get the column name from the key
+                    col = mapped.column
+                    # get notnull from the column info
+                    if (
+                        col in mapped.dataset.column_info.names()
+                        and mapped.dataset.column_info[col].notnull
+                    ):
+                        self.window[marker_key].update(
+                            visible=True,
+                            text_color=themepack.marker_required_color,
+                        )
+                else:
                     self.window[marker_key].update(visible=False)
+                    if self.window is not None:
+                        self.window[marker_key].update(visible=False)
+            except AttributeError:
+                self.window[marker_key].update(visible=False)
 
             updated_val = None
             # If there is a callback for this element, use it
@@ -4381,15 +4393,13 @@ def checkbox_to_bool(value):
 
 
 class PlaceholderState(object):
-    # Author: Miguel Martinez Lopez
-    __slots__ = (
-        "normal_color",
-        "normal_font",
-        "placeholder_text",
-        "placeholder_color",
-        "placeholder_font",
-        "with_placeholder",
-    )
+    def __init__(self):
+        self.normal_color = None
+        self.normal_font = None
+        self.placeholder_text = ""
+        self.placeholder_color = None
+        self.placeholder_font = None
+        self.active_placeholder = True
 
 
 def add_placeholder_to(
@@ -4439,26 +4449,27 @@ def add_placeholder_to(
     state.placeholder_color = color
     state.placeholder_font = font
     state.placeholder_text = placeholder
-    state.with_placeholder = True
+    state.active_placeholder = True
 
     if isinstance(widget, tk.Entry):
 
         def on_focusin(event, widget=widget, state=state):
-            if state.with_placeholder:
+            if state.active_placeholder:
                 widget.delete(0, "end")
                 widget.config(fg=state.normal_color, font=state.normal_font)
 
-                state.with_placeholder = False
+                state.active_placeholder = False
 
         def on_focusout(event, widget=widget, state=state):
             if not widget.get():
                 widget.insert(0, state.placeholder_text)
                 widget.config(fg=state.placeholder_color, font=state.placeholder_font)
 
-                state.with_placeholder = True
+                state.active_placeholder = True
 
-        widget.insert(0, placeholder)
-        widget.config(fg=color, font=font)
+        if not widget.get():
+            widget.insert(0, placeholder)
+            widget.config(fg=color, font=font)
 
         widget.bind("<FocusIn>", on_focusin, "+")
         widget.bind("<FocusOut>", on_focusout, "+")
@@ -4466,18 +4477,18 @@ def add_placeholder_to(
     elif isinstance(widget, tk.Text):
 
         def on_focusin(event, widget=widget, state=state):
-            if state.with_placeholder:
+            if state.active_placeholder:
                 widget.delete("1.0", "end")
                 widget.config(fg=state.normal_color, font=state.normal_font)
 
-                state.with_placeholder = False
+                state.active_placeholder = False
 
         def on_focusout(event, widget=widget, state=state):
             if not widget.get("1.0", "end-1c"):
                 widget.insert("1.0", state.placeholder_text)
                 widget.config(fg=state.placeholder_color, font=state.placeholder_font)
 
-                state.with_placeholder = True
+                state.active_placeholder = True
 
         widget.insert("1.0", placeholder)
         widget.config(fg=color, font=font)
@@ -4491,6 +4502,87 @@ def add_placeholder_to(
     widget.PlaceholderState = state
 
     return state
+
+
+class AbstractPlaceholder(abc.ABC):
+    """
+    An abstract class for PySimpleGUI text-entry elements that allows for the display of
+    a placeholder text when the input is empty.
+
+    :param args: Optional arguments to pass to `sg.Element`.
+    :param kwargs: Optional keyword arguments to pass to `sg.Element`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state = PlaceholderState()
+        self.placeholder = ""
+
+    def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
+        """
+        Adds a placeholder text to the input.
+
+        :param placeholder: The text to display as placeholder when the input is empty.
+        :param color: The color of the placeholder text (default None).
+        :param font: The font of the placeholder text (default None).
+        """
+        self.state = add_placeholder_to(self, placeholder, color, font)
+
+    def update(self, *args, **kwargs):
+        """
+        Updates the input widget with a new value and displays the placeholder text if
+        the value is empty.
+
+        :param args: Optional arguments to pass to `sg.Element.update`.
+        :param kwargs: Optional keyword arguments to pass to `sg.Element.update`.
+        """
+        if "value" in kwargs and kwargs["value"] is not None:
+            # If the value is not None, use it as the new value
+            value = kwargs.pop("value", None)
+        elif len(args) > 0 and args[0] is not None:
+            # If the value is passed as an argument, use it as the new value
+            value = args[0]
+            # Remove the value argument from args
+            args = args[1:]
+        else:
+            # Otherwise, use the current value
+            value = self.get()
+
+        if self.state.active_placeholder and value != "":  # noqa PLC1901
+            # Replace the placeholder with the new value
+            super().update(value=value)
+            self.state.active_placeholder = False
+            self.Widget.config(fg=self.state.normal_color, font=self.state.normal_font)
+        elif value == "":  # noqa PLC1901
+            # If the value is empty, reinsert the placeholder
+            super().update(value=self.state.placeholder_text, *args, **kwargs)
+            self.state.active_placeholder = True
+            self.Widget.config(
+                fg=self.state.placeholder_color, font=self.state.placeholder_font
+            )
+        else:
+            super().update(*args, **kwargs)
+
+    def get(self) -> str:
+        """
+        Returns the current value of the input, or an empty string if the input displays
+        the placeholder text.
+
+        :return: The current value of the input.
+        """
+        if self.state.active_placeholder:
+            return ""
+        return super().get()
+
+
+class PlaceholderInput(AbstractPlaceholder, sg.Input):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class PlaceholderMultiline(AbstractPlaceholder, sg.Multiline):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class Popup:
@@ -5038,7 +5130,7 @@ class Convenience:
 
 def field(
     field: str,
-    element: Type[sg.Element] = sg.I,
+    element: Type[sg.Element] = PlaceholderInput,
     size: Tuple[int, int] = None,
     label: str = "",
     no_label: bool = False,
@@ -5109,7 +5201,7 @@ def field(
     else:
         first_param = ""
 
-    if element == sg.Multiline:
+    if element in [sg.Multiline, PlaceholderMultiline]:
         layout_element = element(
             first_param,
             key=key,
@@ -5156,20 +5248,12 @@ def field(
         ],
         pad=(0, 0),
     )
-    if element == sg.Text:  # don't show markers for sg.Text
-        if no_label:
-            layout = [[sg.Text("  "), layout_element]]
-        elif label_above:
-            layout = [[layout_label], [sg.Text("  "), layout_element]]
-        else:
-            layout = [[layout_label, sg.Text("  "), layout_element]]
+    if no_label:
+        layout = [[layout_marker, layout_element]]
+    elif label_above:
+        layout = [[layout_label], [layout_marker, layout_element]]
     else:
-        if no_label:
-            layout = [[layout_marker, layout_element]]
-        elif label_above:
-            layout = [[layout_label], [layout_marker, layout_element]]
-        else:
-            layout = [[layout_label, layout_marker, layout_element]]
+        layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
     if element == sg.Combo and quick_editor:
         meta = {
@@ -5603,7 +5687,9 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                PlaceholderInput(
+                    "", key=keygen.get(f"{key}search_input"), size=search_size
+                ),
                 sg.B(
                     "",
                     key=keygen.get(f"{key}search_button"),
@@ -6583,11 +6669,12 @@ class ThemePack:
         # fmt: on
         # Markers
         # ----------------------------------------
-        "marker_unsaved": "✱",
         "unsaved_column_header": "💾",
         "unsaved_column_width": 3,
+        "marker_unsaved": "✱",
         "marker_required": "✱",
         "marker_required_color": "red2",
+        "placeholder_color": "grey",
         # Sorting icons
         # ----------------------------------------
         "marker_sort_asc": "\u25BC",
@@ -6715,6 +6802,10 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         # Text, Varchar, Char, Null Default, used exclusively for description_column
         "description_column_str_null_default": "New Record",
+        # Placeholder automatically added to PlaceholderInput/PlaceholderMultiline
+        # that represent Not-Null fields.
+        "notnull_placeholder": "*Required",
+        "search_placeholder": "🔍 Search...",
         # Prepended to parent description_column
         "duplicate_prepend": "Copy of ",
         # ------------------------------------------------------------------------------
