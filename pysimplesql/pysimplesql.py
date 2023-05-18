@@ -181,9 +181,10 @@ SEARCH_ENDED: int = 8  # We have reached the end of the search
 # ----------------------------
 # DELETE RETURNS BITMASKS
 # ----------------------------
-DELETE_FAILED: int = 1  # No result was found
-DELETE_RETURNED: int = 2  # A result was found
-DELETE_ABORTED: int = 4  # The search was aborted, likely during a callback
+# TODO Which ones of these are we actually using?
+DELETE_FAILED: int = 1  # Delete failed
+DELETE_RETURNED: int = 2  # Delete returned
+DELETE_ABORTED: int = 4  # The delete was aborted, likely during a callback
 DELETE_RECURSION_LIMIT_ERROR: int = 8  # We hit max nested levels
 
 # Mysql sets this as 15 when using foreign key CASCADE DELETE
@@ -203,6 +204,11 @@ TK_ENTRY = "Entry"
 TK_COMBOBOX = "Combobox"
 TK_CHECKBUTTON = "Checkbutton"
 TK_DATEPICKER = "Datepicker"
+
+# --------------
+# Misc Constants
+# --------------
+PK_PLACEHOLDER = "Null"
 
 
 class Boolean(enum.Flag):
@@ -267,8 +273,8 @@ class ElementRow:
         # Return the value portion of the row
         return self.val
 
-    def get_pk_ignore_null(self):
-        if self.pk == "Null":
+    def get_pk_ignore_placeholder(self):
+        if self.pk == PK_PLACEHOLDER:
             return None
         return self.pk
 
@@ -1372,7 +1378,7 @@ class DataSet:
         :param requery_dependents: (optional) Requery dependents after switching records
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :param display_message: Displays a message "Search Failed: ...", otherwise is
-            silent on success.
+            silent on fail.
         :returns: One of the following search values: `SEARCH_FAILED`,
             `SEARCH_RETURNED`, `SEARCH_ABORTED`.
         """
@@ -1812,9 +1818,16 @@ class DataSet:
 
             # convert the data into the correct type using the domain in ColumnInfo
             if isinstance(mapped.element, sg.Combo):
-                element_val = self.column_info[mapped.column].cast(
-                    mapped.element.get().get_pk_ignore_null()
-                )
+                # try to get ElementRow pk
+                try:
+                    element_val = self.column_info[mapped.column].cast(
+                        mapped.element.get().get_pk_ignore_placeholder()
+                    )
+                # of if plain-ole combobox:
+                except AttributeError:
+                    element_val = self.column_info[mapped.column].cast(
+                        mapped.element.get()
+                    )
             else:
                 element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
@@ -6602,7 +6615,10 @@ class _LiveUpdate:
                 # set the value to the parent pk
                 if widget_type == TK_COMBOBOX:
                     combobox_values = dataset.combobox_values(column)
-                    new_value = combobox_values[widget.current()].get_pk()
+                    if combobox_values:
+                        new_value = combobox_values[widget.current()].get_pk()
+                    else:
+                        widget.get()
 
                 # get cast new value to correct type
                 for col in dataset.column_info:
@@ -7280,12 +7296,12 @@ class ColumnInfo(List):
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
 
-                # return "Null" if this is a fk_relationship.
+                # return PK_PLACEHOLDER if this is a fk_relationship.
                 # trick used in Combo for the pk to display placeholder
                 rels = Relationship.get_relationships(dataset.table)
                 rel = next((r for r in rels if r.fk_column == c.name), None)
                 if rel:
-                    null_default = "Null"
+                    null_default = PK_PLACEHOLDER
 
                 # skip primary keys
                 if not c.pk:
@@ -7726,7 +7742,7 @@ class SQLDriver:
 
                 # Children without cascade-filtering parent aren't displayed
                 if not parent_pk:
-                    parent_pk = "NULL"
+                    parent_pk = PK_PLACEHOLDER
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
                 if where:
