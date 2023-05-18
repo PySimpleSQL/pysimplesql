@@ -2551,7 +2551,7 @@ class DataSet:
             width = int(55 / (len(self.column_info.names()) - 1))
             if col == self.pk_column:
                 # make pk column either max length of contained pks, or len of name
-                width = max(self.rows[col].astype(str).map(len).max(), len(col))
+                width = max(self.rows[col].astype(str).map(len).max(), len(col)+1)
             headings.add_column(col, col.capitalize(), width=width)
 
         layout.append(
