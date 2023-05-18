@@ -267,6 +267,11 @@ class ElementRow:
         # Return the value portion of the row
         return self.val
 
+    def get_pk_ignore_null(self):
+        if self.pk == "Null":
+            return None
+        return self.pk
+
     def get_instance(self):
         # Return this instance of the row
         return self
@@ -1806,7 +1811,12 @@ class DataSet:
                 continue
 
             # convert the data into the correct type using the domain in ColumnInfo
-            element_val = self.column_info[mapped.column].cast(mapped.element.get())
+            if isinstance(mapped.element, sg.Combo):
+                element_val = self.column_info[mapped.column].cast(
+                    mapped.element.get().get_pk_ignore_null()
+                )
+            else:
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
             # Looked for keyed elements first
             if mapped.where_column is not None:
@@ -2438,7 +2448,9 @@ class DataSet:
             for e in self.selector
         )
 
-    def combobox_values(self, column_name) -> List[ElementRow] or None:
+    def combobox_values(
+        self, column_name, insert_placeholder: bool = True
+    ) -> List[ElementRow] or None:
         """
         Returns the values to use in a sg.Combobox as a list of ElementRow objects.
 
@@ -2467,7 +2479,10 @@ class DataSet:
                 return ElementRow(backup[pk_column].tolist(), backup[description])
             return ElementRow(row[pk_column], row[description])
 
-        return target_table.rows.apply(process_row, axis=1).tolist()
+        combobox_values = target_table.rows.apply(process_row, axis=1).tolist()
+        if insert_placeholder:
+            combobox_values.insert(0, ElementRow("Null", lang.combo_placeholder))
+        return combobox_values
 
     def get_related_table_for_column(self, column: str) -> str:
         """
@@ -3318,15 +3333,15 @@ class Form:
                     self.map_element(
                         element, self[table], col, where_column, where_value
                     )
-                    if isinstance(
-                        element, (PlaceholderInput, PlaceholderMultiline)
-                    ) and (
+                    if isinstance(element, (Input, Multiline)) and (
                         col in self[table].column_info.names()
                         and self[table].column_info[col].notnull
                     ):
                         element.add_placeholder(
                             lang.notnull_placeholder, themepack.placeholder_color
                         )
+                if isinstance(element, Combo):
+                    element._finalize()
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -4504,7 +4519,7 @@ def add_placeholder_to(
     return state
 
 
-class AbstractPlaceholder(abc.ABC):
+class ElementPlaceholder(abc.ABC):
     """
     An abstract class for PySimpleGUI text-entry elements that allows for the display of
     a placeholder text when the input is empty.
@@ -4575,14 +4590,43 @@ class AbstractPlaceholder(abc.ABC):
         return super().get()
 
 
-class PlaceholderInput(AbstractPlaceholder, sg.Input):
+class Input(ElementPlaceholder, sg.Input):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class PlaceholderMultiline(AbstractPlaceholder, sg.Multiline):
+class Multiline(ElementPlaceholder, sg.Multiline):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+
+class Combo(sg.Combo):
+    """
+    Custom combobox widget with additional placeholder functionality.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.values = []
+        super().__init__(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        """Copies values to internal values"""
+        if "values" in kwargs and kwargs["values"] is not None:
+            # If the value is not None, use it as the new value
+            self.values = kwargs["values"]
+        super().update(*args, **kwargs)
+
+    def _on_combobox_selected(self, event):
+        """Event handler that doesn't allow placeholder to be selected"""
+        if event.widget.current() == 0 and self.values[0].get_pk() == "Null":
+            super().update(self.values[1])
+
+    def _finalize(self):
+        """
+        With PySimpleGUI elements, the Widget is only created after the sg.Window is
+        finalized. This calls binds `<<ComboboxSelected>>` to widget after creation.
+        """
+        self.Widget.bind("<<ComboboxSelected>>", self._on_combobox_selected, "+")
 
 
 class Popup:
@@ -5130,7 +5174,7 @@ class Convenience:
 
 def field(
     field: str,
-    element: Type[sg.Element] = PlaceholderInput,
+    element: Type[sg.Element] = Input,
     size: Tuple[int, int] = None,
     label: str = "",
     no_label: bool = False,
@@ -5171,6 +5215,9 @@ def field(
         Column, but can be treated as a single Element.
     """
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
+    element = Input if element == sg.Input else element
+    element = Multiline if element == sg.Multiline else element
+    element = Combo if element == sg.Combo else element
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -5201,7 +5248,7 @@ def field(
     else:
         first_param = ""
 
-    if element in [sg.Multiline, PlaceholderMultiline]:
+    if element == Multiline:
         layout_element = element(
             first_param,
             key=key,
@@ -5255,7 +5302,7 @@ def field(
     else:
         layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
-    if element == sg.Combo and quick_editor:
+    if element == Combo and quick_editor:
         meta = {
             "type": TYPE_EVENT,
             "event_type": EVENT_QUICK_EDIT,
@@ -5687,9 +5734,7 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                PlaceholderInput(
-                    "", key=keygen.get(f"{key}search_input"), size=search_size
-                ),
+                Input("", key=keygen.get(f"{key}search_input"), size=search_size),
                 sg.B(
                     "",
                     key=keygen.get(f"{key}search_button"),
@@ -6097,7 +6142,9 @@ class _CellEdit:
         self.active_edit = True
 
         # see if we should use a combobox
-        combobox_values = self.frm[data_key].combobox_values(column)
+        combobox_values = self.frm[data_key].combobox_values(
+            column, insert_placeholder=False
+        )
 
         if combobox_values:
             widget_type = TK_COMBOBOX
@@ -6802,10 +6849,11 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         # Text, Varchar, Char, Null Default, used exclusively for description_column
         "description_column_str_null_default": "New Record",
-        # Placeholder automatically added to PlaceholderInput/PlaceholderMultiline
+        # Placeholder automatically added to Input/Multiline
         # that represent Not-Null fields.
         "notnull_placeholder": "*Required",
         "search_placeholder": "🔍 Search...",
+        "combo_placeholder": "Please select one:",
         # Prepended to parent description_column
         "duplicate_prepend": "Copy of ",
         # ------------------------------------------------------------------------------
@@ -7263,6 +7311,13 @@ class ColumnInfo(List):
                 except KeyError:
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
+
+                # return "Null" if this is a fk_relationship.
+                # trick used in Combo for the pk to display placeholder
+                rels = Relationship.get_relationships(dataset.table)
+                rel = next((r for r in rels if r.fk_column == c.name), None)
+                if rel:
+                    null_default = "Null"
 
                 # skip primary keys
                 if not c.pk:
