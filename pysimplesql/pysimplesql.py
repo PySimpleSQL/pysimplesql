@@ -4598,23 +4598,6 @@ class Multiline(ElementPlaceholder, sg.Multiline):
         super().__init__(*args, **kwargs)
 
 
-class Combo(sg.Combo):
-    """
-    Custom combobox widget with additional placeholder functionality.
-    """
-
-    def __init__(self, *args, **kwargs):
-        self.values = []
-        super().__init__(*args, **kwargs)
-
-    def update(self, *args, **kwargs):
-        """Copies values to internal values"""
-        if "values" in kwargs and kwargs["values"] is not None:
-            # If the value is not None, use it as the new value
-            self.values = kwargs["values"]
-        super().update(*args, **kwargs)
-
-
 class Popup:
 
     """
@@ -5203,7 +5186,6 @@ def field(
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
     element = Input if element == sg.Input else element
     element = Multiline if element == sg.Multiline else element
-    element = Combo if element == sg.Combo else element
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -5288,7 +5270,7 @@ def field(
     else:
         layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
-    if element == Combo and quick_editor:
+    if element == sg.Combo and quick_editor:
         meta = {
             "type": TYPE_EVENT,
             "event_type": EVENT_QUICK_EDIT,
