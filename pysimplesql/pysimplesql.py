@@ -3340,8 +3340,6 @@ class Form:
                         element.add_placeholder(
                             lang.notnull_placeholder, themepack.placeholder_color
                         )
-                if isinstance(element, Combo):
-                    element._finalize()
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -4615,18 +4613,6 @@ class Combo(sg.Combo):
             # If the value is not None, use it as the new value
             self.values = kwargs["values"]
         super().update(*args, **kwargs)
-
-    def _on_combobox_selected(self, event):
-        """Event handler that doesn't allow placeholder to be selected"""
-        if event.widget.current() == 0 and self.values[0].get_pk() == "Null":
-            super().update(self.values[1])
-
-    def _finalize(self):
-        """
-        With PySimpleGUI elements, the Widget is only created after the sg.Window is
-        finalized. This calls binds `<<ComboboxSelected>>` to widget after creation.
-        """
-        self.Widget.bind("<<ComboboxSelected>>", self._on_combobox_selected, "+")
 
 
 class Popup:
