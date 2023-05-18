@@ -220,11 +220,9 @@ layout = [[sg.Menu(menu_def, key="-MENUBAR-", font="_ 12")]]
 order_heading = ss.TableHeadings(
     # Click a heading to sort
     sort_enable=True,
-
     # Double-click a cell to make edits.
     # Exempted: Primary Key columns, Generated columns, and columns set as readonly
     edit_enable=True,
-
     # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
     save_enable=True,
 )
