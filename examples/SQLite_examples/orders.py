@@ -321,12 +321,6 @@ frm["Orders"].requery()
 # Set the column order for search operations.
 frm["Orders"].set_search_order(["CustomerID"])
 
-# Add a placeholder to the search input
-ss.add_placeholder_to(
-    win["Orders:search_input"],
-    "🔍 Search...",
-)
-
 # ---------
 # MAIN LOOP
 # ---------
