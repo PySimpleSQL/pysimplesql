@@ -1658,7 +1658,8 @@ class DataSet:
             # For child reparenting
             self.current_index = self.current_index
 
-            return self.rows.iloc[self.current_index]
+            # make sure to return as python type
+            return self.rows.astype('O').iloc[self.current_index]
         return None
 
     def add_selector(
@@ -2435,7 +2436,8 @@ class DataSet:
 
             return TableRow(pk, lst)
 
-        return self.rows.fillna("").apply(process_row, axis=1)
+        # fill in nan, and display as python types.
+        return self.rows.fillna("").astype('O').apply(process_row, axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
@@ -6618,7 +6620,7 @@ class _LiveUpdate:
                     if combobox_values:
                         new_value = combobox_values[widget.current()].get_pk()
                     else:
-                        widget.get()
+                        new_value = widget.get()
 
                 # get cast new value to correct type
                 for col in dataset.column_info:
