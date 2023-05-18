@@ -2552,7 +2552,7 @@ class DataSet:
             if col == self.pk_column:
                 # make pk column either max length of contained pks, or len of name
                 width = max(self.rows[col].astype(str).map(len).max(), len(col))
-            headings.add_column(col, col.capitalize().ljust(width, " "), width=width)
+            headings.add_column(col, col.capitalize(), width=width)
 
         layout.append(
             [
