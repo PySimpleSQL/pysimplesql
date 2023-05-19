@@ -354,8 +354,9 @@ while True:
             frm.update_selectors("Orders")
             # will need to requery if updating, rather than inserting a new record
             if not row_is_virtual:
+                pk = current_row[dataset.pk_column]
                 dataset.requery(select_first=False)
-                frm.update_elements("OrderDetails")
+                dataset.set_by_pk(pk, skip_prompt_save=True)
     # ----------------------------------------------------
 
     # Display the quick_editor for products and customers

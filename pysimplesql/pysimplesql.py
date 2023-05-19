@@ -4628,6 +4628,7 @@ def _autocomplete_combo(widget, completion_list, delta=0):
         if len(_hits) == 1 and closest_match != prefix:
             # If there is only one hit and it's not equal to the prefix, open dropdown
             widget.event_generate("<Down>")
+            widget.event_generate("<<ComboboxSelected>>")
 
     else:
         # If there are no hits, move the cursor to the current position
@@ -6710,12 +6711,18 @@ class _LiveUpdate:
         # get widget type
         widget_type = event.widget.__class__.__name__
 
-        # immediately sync combo/checkboxs
-        if widget_type in ["Combobox", "Checkbutton"]:
+        # if <<ComboboxSelected>> and a combobox...
+        if event.type == "35" and widget_type == "Combobox":
+            self.frm.window.TKroot.after(
+                int(self.delay_seconds * 500),
+                lambda: self.sync(event.widget, widget_type),
+            )
+
+        elif widget_type == "Checkbutton":
             self.sync(event.widget, widget_type)
 
         # use tk.after() for text, so waits for pause in typing to update selector.
-        if widget_type in ["Entry", "Text"]:
+        elif widget_type in ["Entry", "Text"]:
             self.frm.window.TKroot.after(
                 int(self.delay_seconds * 1000),
                 lambda: self.delay(event.widget, widget_type),
@@ -6727,17 +6734,12 @@ class _LiveUpdate:
                 data_key = e["table"]
                 column = e["column"]
                 element = e["element"]
-                new_value = element.get()
+                if widget_type == TK_COMBOBOX and isinstance(element.get(), ElementRow):
+                    new_value = element.get().get_pk()
+                else:
+                    new_value = element.get()
 
                 dataset = self.frm[data_key]
-
-                # set the value to the parent pk
-                if widget_type == TK_COMBOBOX:
-                    combobox_values = dataset.combobox_values(column)
-                    if combobox_values:
-                        new_value = combobox_values[widget.current()].get_pk()
-                    else:
-                        new_value = widget.get()
 
                 # get cast new value to correct type
                 for col in dataset.column_info:
