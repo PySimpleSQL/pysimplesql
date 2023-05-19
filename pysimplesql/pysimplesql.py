@@ -4010,7 +4010,7 @@ class Form:
                     None,
                 )
                 # and update element
-                mapped.element.update(values=combo_vals, readonly=True)
+                mapped.element.update(values=combo_vals)
 
             elif isinstance(mapped.element, sg.Text):
                 rels = Relationship.get_relationships(mapped.dataset.table)
@@ -4139,7 +4139,6 @@ class Form:
                         element.update(
                             values=lst,
                             set_to_index=dataset.current_index,
-                            readonly=True,
                         )
 
                         # set vertical scroll bar to follow selected element
@@ -4600,6 +4599,89 @@ class Multiline(_PlaceholderText, sg.Multiline):
 
         widget.bind("<FocusIn>", on_focusin, "+")
         widget.bind("<FocusOut>", on_focusout, "+")
+
+
+class Combo(sg.Combo):
+    """Customized Combo widget with autocompletion feature."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = []
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        """Update the Combo widget with new values."""
+        if "values" in kwargs and kwargs["values"] is not None:
+            self._completion_list = [str(row) for row in kwargs["values"]]
+            if not self.finalized:
+                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
+            self._hits = []
+            self._hit_index = 0
+            self.position = 0
+        super().update(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        if delta:
+            # Delete text from current position to end
+            self.Widget.delete(self.position, tk.END)
+        else:
+            # Set the position to the length of the current input text
+            self.position = len(self.Widget.get())
+
+        prefix = self.Widget.get()
+        _hits = [
+            element for element in self._completion_list if element.startswith(prefix)
+        ]
+        # Create a list of elements that start with the prefix
+
+        if _hits:
+            common_prefix = os.path.commonprefix(_hits)
+            if prefix != common_prefix:
+                # Insert the common prefix at the beginning, move the cursor to the end
+                self.Widget.delete(0, tk.END)
+                self.Widget.insert(0, common_prefix)
+                self.Widget.icursor(len(common_prefix))
+
+                # Highlight the remaining text after the common prefix
+                self.Widget.select_range(self.position, tk.END)
+
+            if len(_hits) == 1 and common_prefix != prefix:
+                # If there is only one hit and it's not equal to the prefix
+                self.Widget.event_generate("<Down>")  # Open the dropdown
+
+        else:
+            # If there are no hits, move the cursor to the current position
+            self.Widget.icursor(self.position)
+
+        self._hits = _hits
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.Widget.delete(self.Widget.index(tk.INSERT), tk.END)
+            self.position = self.Widget.index(tk.END)
+        if event.keysym == "Left":
+            if self.position < self.Widget.index(tk.END):
+                self.Widget.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.Widget.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.Widget.index(tk.END)
+        if event.keysym == "Return":
+            self.Widget.icursor(tk.END)
+            self.Widget.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
 
 
 class Popup:
@@ -5190,6 +5272,7 @@ def field(
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
     element = Input if element == sg.Input else element
     element = Multiline if element == sg.Multiline else element
+    element = Combo if element == sg.Combo else element
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -5274,7 +5357,7 @@ def field(
     else:
         layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
-    if element == sg.Combo and quick_editor:
+    if element == Combo and quick_editor:
         meta = {
             "type": TYPE_EVENT,
             "event_type": EVENT_QUICK_EDIT,
@@ -5763,6 +5846,7 @@ def selector(
     :param kwargs: Any additional arguments supplied will be passed on to the
         PySimpleGUI element.
     """
+    element = Combo if element == sg.Combo else element
 
     key = f"{table}:selector" if key is None else key
     key = keygen.get(key)
@@ -5786,12 +5870,11 @@ def selector(
             key=key,
             metadata=meta,
         )
-    elif element == sg.Combo:
+    elif element == Combo:
         w = themepack.default_element_size[0]
         layout = element(
             values=(),
             size=size or (w, 10),
-            readonly=True,
             enable_events=True,
             key=key,
             auto_size_text=False,
