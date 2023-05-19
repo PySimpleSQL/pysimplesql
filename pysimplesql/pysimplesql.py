@@ -4601,6 +4601,41 @@ class Multiline(_PlaceholderText, sg.Multiline):
         widget.bind("<FocusOut>", on_focusout, "+")
 
 
+def _autocomplete_combo(widget, completion_list, delta=0):
+    """Perform autocompletion on a Combobox widget based on the current input."""
+    if delta:
+        # Delete text from current position to end
+        widget.delete(widget.position, tk.END)
+    else:
+        # Set the position to the length of the current input text
+        widget.position = len(widget.get())
+
+    prefix = widget.get()
+    _hits = [element for element in completion_list if element.startswith(prefix)]
+    # Create a list of elements that start with the prefix
+
+    if _hits:
+        closest_match = min(_hits, key=len)
+        if prefix != closest_match:
+            # Insert the closest match at the beginning, move the cursor to the end
+            widget.delete(0, tk.END)
+            widget.insert(0, closest_match)
+            widget.icursor(len(closest_match))
+
+            # Highlight the remaining text after the closest match
+            widget.select_range(widget.position, tk.END)
+
+        if len(_hits) == 1 and closest_match != prefix:
+            # If there is only one hit and it's not equal to the prefix, open dropdown
+            widget.event_generate("<Down>")
+
+    else:
+        # If there are no hits, move the cursor to the current position
+        widget.icursor(widget.position)
+
+    return _hits
+
+
 class Combo(sg.Combo):
     """Customized Combo widget with autocompletion feature."""
 
@@ -4627,46 +4662,14 @@ class Combo(sg.Combo):
 
     def autocomplete(self, delta=0):
         """Perform autocompletion based on the current input."""
-        if delta:
-            # Delete text from current position to end
-            self.Widget.delete(self.position, tk.END)
-        else:
-            # Set the position to the length of the current input text
-            self.position = len(self.Widget.get())
-
-        prefix = self.Widget.get()
-        _hits = [
-            element for element in self._completion_list if element.startswith(prefix)
-        ]
-        # Create a list of elements that start with the prefix
-
-        if _hits:
-            common_prefix = os.path.commonprefix(_hits)
-            if prefix != common_prefix:
-                # Insert the common prefix at the beginning, move the cursor to the end
-                self.Widget.delete(0, tk.END)
-                self.Widget.insert(0, common_prefix)
-                self.Widget.icursor(len(common_prefix))
-
-                # Highlight the remaining text after the common prefix
-                self.Widget.select_range(self.position, tk.END)
-
-            if len(_hits) == 1 and common_prefix != prefix:
-                # If there is only one hit and it's not equal to the prefix
-                self.Widget.event_generate("<Down>")  # Open the dropdown
-
-        else:
-            # If there are no hits, move the cursor to the current position
-            self.Widget.icursor(self.position)
-
-        self._hits = _hits
+        self._hits = _autocomplete_combo(self.Widget, self._completion_list, delta)
         self._hit_index = 0
 
     def handle_keyrelease(self, event):
         """Handle key release event for autocompletion and navigation."""
         if event.keysym == "BackSpace":
-            self.Widget.delete(self.Widget.index(tk.INSERT), tk.END)
-            self.position = self.Widget.index(tk.END)
+            self.Widget.delete(self.Widget.position, tk.END)
+            self.position = self.Widget.position
         if event.keysym == "Left":
             if self.position < self.Widget.index(tk.END):
                 self.Widget.delete(self.position, tk.END)
@@ -6268,10 +6271,9 @@ class _CellEdit:
 
         # combobox
         if widget_type == TK_COMBOBOX:
-            self.field = ttk.Combobox(
-                frame, textvariable=field_var, justify="left", state="readonly"
+            self.field = _CellEditCombo(
+                frame, textvariable=field_var, justify="left", values=combobox_values
             )
-            self.field["values"] = combobox_values
             self.field.bind("<Configure>", self.combo_configure)
             expand = True
 
@@ -6323,6 +6325,9 @@ class _CellEdit:
         if widget_type != TK_CHECKBUTTON:
             self.field.select_range(0, tk.END)
             self.field.focus_force()
+
+        if widget_type == TK_COMBOBOX:
+            self.field.bind("<KeyRelease>", self.field.handle_keyrelease, "+")
 
         # bind single-clicks
         self.destroy_bind = self.frm.window.TKroot.bind(
@@ -6467,6 +6472,46 @@ class _CellEdit:
         width = width if width > combo["width"] else combo["width"]
         style.configure("SS.TCombobox", postoffset=(0, 0, width, 0))
         combo.configure(style="SS.TCombobox")
+
+
+class _CellEditCombo(ttk.Combobox):
+    """Customized Combo widget with autocompletion feature."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = [str(row) for row in kwargs["values"]]
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.delete(self.position, tk.END)
+            self.position = self.position
+        if event.keysym == "Left":
+            if self.position < self.index(tk.END):
+                self.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.index(tk.END)
+        if event.keysym == "Return":
+            self.icursor(tk.END)
+            self.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
 
 
 class TtkCalendar(ttk.Frame):
