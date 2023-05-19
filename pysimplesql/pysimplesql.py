@@ -4559,15 +4559,15 @@ class Input(_PlaceholderText, sg.Input):
                 self.active_placeholder = False
 
         def on_focusout(event):
-            if not widget.get():
+            if widget.get() == "":  # noqa PLC1901
                 widget.insert(0, self.placeholder_text)
                 widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
                 self.active_placeholder = True
 
-        if not widget.get():
+        if widget.get() == "" and self.active_placeholder:  # noqa PLC1901
             widget.insert(0, self.placeholder_text)
-            widget.config(fg=self.normal_color, font=self.normal_font)
+            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
         widget.bind("<FocusIn>", on_focusin, "+")
         widget.bind("<FocusOut>", on_focusout, "+")
@@ -4588,14 +4588,17 @@ class Multiline(_PlaceholderText, sg.Multiline):
                 self.active_placeholder = False
 
         def on_focusout(event):
-            if not widget.get("1.0", "end-1c"):
+            if not widget.get("1.0", "end-1c").strip():
                 widget.insert("1.0", self.placeholder_text)
                 widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
                 self.active_placeholder = True
 
-        widget.insert("1.0", self.placeholder_text)
-        widget.config(fg=self.normal_color, font=self.normal_font)
+        if (
+            not widget.get("1.0", "end-1c").strip() and self.active_placeholder
+        ):  # noqa PLC1901
+            widget.insert("1.0", self.placeholder_text)
+            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
         widget.bind("<FocusIn>", on_focusin, "+")
         widget.bind("<FocusOut>", on_focusout, "+")
