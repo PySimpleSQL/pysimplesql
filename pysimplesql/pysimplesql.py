@@ -3381,7 +3381,8 @@ class Form:
                         and self[table].column_info[col].notnull
                     ):
                         element.add_placeholder(
-                            lang.notnull_placeholder, themepack.placeholder_color
+                            placeholder=lang.notnull_placeholder,
+                            color=themepack.placeholder_color,
                         )
 
             # Map Selector Element
@@ -3551,7 +3552,8 @@ class Form:
                     if data_key:
                         funct = functools.partial(self[data_key].search, search_box)
                     self.window[search_box].add_placeholder(
-                        lang.search_placeholder, themepack.placeholder_color
+                        placeholder=lang.search_placeholder,
+                        color=themepack.placeholder_color,
                     )
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
@@ -4448,8 +4450,14 @@ def checkbox_to_bool(value):
     ]
 
 
-class PlaceholderState(object):
-    def __init__(self):
+class _PlaceholderText(abc.ABC):
+    """
+    An abstract class for PySimpleGUI text-entry elements that allows for the display of
+    a placeholder text when the input is empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.normal_color = None
         self.normal_font = None
         self.placeholder_text = ""
@@ -4457,132 +4465,40 @@ class PlaceholderState(object):
         self.placeholder_font = None
         self.active_placeholder = True
 
-
-def add_placeholder_to(
-    element, placeholder: str, color: str = "grey", font=None
-) -> PlaceholderState:
-    """
-    Add a placeholder to the given element.
-
-    This function adds a placeholder to the given tkinter or PySimpleGUI element.
-    The placeholder text is displayed in the element when the element is empty and
-    unfocused. When the element is clicked or focused, the placeholder text disappears
-    and the element becomes blank. When the element loses focus and is still empty, the
-    placeholder text reappears.
-
-    This function is based on the recipe by Miguel Martinez Lopez, licensed under MIT.
-    It has been updated to allow tk.Text elements in addition to tk.Entry elements,
-    and to work with PySimpleGUI elements.
-
-    :param element: A tkinter or PySimpleGUI element to add the placeholder to.
-    :type element: tkinter.Entry or tkinter.Text or PySimpleGUI.Input or
-        PySimpleGUI.Multiline
-    :param placeholder: The text to display as the placeholder.
-    :param color: The color of the placeholder text, default is 'grey'.
-    :type color: str
-    :param font: The font of the placeholder text, default is the same font as the
-        element.
-    :type font: str or None
-    :return: The PlaceholderState object that tracks the state of the placeholder.
-    :rtype: PlaceholderState
-    :raises ValueError: If the widget type is not supported.
-
-    """
-    if isinstance(element, (sg.Input, sg.Multiline)):
-        widget = element.Widget
-    else:
-        widget = element
-
-    normal_color = widget.cget("fg")
-    normal_font = widget.cget("font")
-
-    if font is None:
-        font = normal_font
-
-    state = PlaceholderState()
-    state.normal_color = normal_color
-    state.normal_font = normal_font
-    state.placeholder_color = color
-    state.placeholder_font = font
-    state.placeholder_text = placeholder
-    state.active_placeholder = True
-
-    if isinstance(widget, tk.Entry):
-
-        def on_focusin(event, widget=widget, state=state):
-            if state.active_placeholder:
-                widget.delete(0, "end")
-                widget.config(fg=state.normal_color, font=state.normal_font)
-
-                state.active_placeholder = False
-
-        def on_focusout(event, widget=widget, state=state):
-            if not widget.get():
-                widget.insert(0, state.placeholder_text)
-                widget.config(fg=state.placeholder_color, font=state.placeholder_font)
-
-                state.active_placeholder = True
-
-        if not widget.get():
-            widget.insert(0, placeholder)
-            widget.config(fg=color, font=font)
-
-        widget.bind("<FocusIn>", on_focusin, "+")
-        widget.bind("<FocusOut>", on_focusout, "+")
-
-    elif isinstance(widget, tk.Text):
-
-        def on_focusin(event, widget=widget, state=state):
-            if state.active_placeholder:
-                widget.delete("1.0", "end")
-                widget.config(fg=state.normal_color, font=state.normal_font)
-
-                state.active_placeholder = False
-
-        def on_focusout(event, widget=widget, state=state):
-            if not widget.get("1.0", "end-1c"):
-                widget.insert("1.0", state.placeholder_text)
-                widget.config(fg=state.placeholder_color, font=state.placeholder_font)
-
-                state.active_placeholder = True
-
-        widget.insert("1.0", placeholder)
-        widget.config(fg=color, font=font)
-
-        widget.bind("<FocusIn>", on_focusin, "+")
-        widget.bind("<FocusOut>", on_focusout, "+")
-
-    else:
-        raise ValueError("Widget type not supported")
-
-    widget.PlaceholderState = state
-
-    return state
-
-
-class ElementPlaceholder(abc.ABC):
-    """
-    An abstract class for PySimpleGUI text-entry elements that allows for the display of
-    a placeholder text when the input is empty.
-
-    :param args: Optional arguments to pass to `sg.Element`.
-    :param kwargs: Optional keyword arguments to pass to `sg.Element`.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.state = PlaceholderState()
-        self.placeholder = ""
-
     def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
         """
-        Adds a placeholder text to the input.
+        Adds a placeholder text to the element.
+
+        The placeholder text is displayed in the element when the element is empty and
+        unfocused. When the element is clicked or focused, the placeholder text
+        disappears and the element becomes blank. When the element loses focus and is
+        still empty, the placeholder text reappears.
+
+        This function is based on the recipe by Miguel Martinez Lopez, licensed under
+        MIT. It has been updated to work with PySimpleGUI elements.
 
         :param placeholder: The text to display as placeholder when the input is empty.
         :param color: The color of the placeholder text (default None).
         :param font: The font of the placeholder text (default None).
         """
-        self.state = add_placeholder_to(self, placeholder, color, font)
+        normal_color = self.widget.cget("fg")
+        normal_font = self.widget.cget("font")
+
+        if font is None:
+            font = normal_font
+
+        self.normal_color = normal_color
+        self.normal_font = normal_font
+        self.placeholder_color = color
+        self.placeholder_font = font
+        self.placeholder_text = placeholder
+        self.active_placeholder = True
+
+        self._add_binds()
+
+    @abc.abstractmethod
+    def _add_binds(self):
+        pass
 
     def update(self, *args, **kwargs):
         """
@@ -4604,18 +4520,16 @@ class ElementPlaceholder(abc.ABC):
             # Otherwise, use the current value
             value = self.get()
 
-        if self.state.active_placeholder and value != "":  # noqa PLC1901
+        if self.active_placeholder and value != "":  # noqa PLC1901
             # Replace the placeholder with the new value
             super().update(value=value)
-            self.state.active_placeholder = False
-            self.Widget.config(fg=self.state.normal_color, font=self.state.normal_font)
+            self.active_placeholder = False
+            self.Widget.config(fg=self.normal_color, font=self.normal_font)
         elif value == "":  # noqa PLC1901
             # If the value is empty, reinsert the placeholder
-            super().update(value=self.state.placeholder_text, *args, **kwargs)
-            self.state.active_placeholder = True
-            self.Widget.config(
-                fg=self.state.placeholder_color, font=self.state.placeholder_font
-            )
+            super().update(value=self.placeholder_text, *args, **kwargs)
+            self.active_placeholder = True
+            self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
         else:
             super().update(*args, **kwargs)
 
@@ -4626,19 +4540,66 @@ class ElementPlaceholder(abc.ABC):
 
         :return: The current value of the input.
         """
-        if self.state.active_placeholder:
+        if self.active_placeholder:
             return ""
         return super().get()
 
 
-class Input(ElementPlaceholder, sg.Input):
+class Input(_PlaceholderText, sg.Input):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def _add_binds(self):
+        widget = self.widget
 
-class Multiline(ElementPlaceholder, sg.Multiline):
+        def on_focusin(event):
+            if self.active_placeholder:
+                widget.delete(0, "end")
+                widget.config(fg=self.normal_color, font=self.normal_font)
+
+                self.active_placeholder = False
+
+        def on_focusout(event):
+            if not widget.get():
+                widget.insert(0, self.placeholder_text)
+                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+                self.active_placeholder = True
+
+        if not widget.get():
+            widget.insert(0, self.placeholder_text)
+            widget.config(fg=self.normal_color, font=self.normal_font)
+
+        widget.bind("<FocusIn>", on_focusin, "+")
+        widget.bind("<FocusOut>", on_focusout, "+")
+
+
+class Multiline(_PlaceholderText, sg.Multiline):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                widget.delete("1.0", "end")
+                widget.config(fg=self.normal_color, font=self.normal_font)
+
+                self.active_placeholder = False
+
+        def on_focusout(event):
+            if not widget.get("1.0", "end-1c"):
+                widget.insert("1.0", self.placeholder_text)
+                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+                self.active_placeholder = True
+
+        widget.insert("1.0", self.placeholder_text)
+        widget.config(fg=self.normal_color, font=self.normal_font)
+
+        widget.bind("<FocusIn>", on_focusin, "+")
+        widget.bind("<FocusOut>", on_focusout, "+")
 
 
 class Popup:
