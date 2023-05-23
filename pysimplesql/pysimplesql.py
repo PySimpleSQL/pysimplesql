@@ -73,6 +73,7 @@ from time import sleep, time
 from tkinter import ttk
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
+import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -366,7 +367,7 @@ class Relationship:
         for r in cls.instances:
             if r.child_table == table and r.on_update_cascade:
                 try:
-                    return frm[r.parent_table].row_is_virtual()
+                    return frm[r.parent_table].pk_is_virtual()
                 except AttributeError:
                     return False
         return None
@@ -901,7 +902,7 @@ class DataSet:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             return True
 
         if self.current_row_has_backup and not self.get_current_row().equals(
@@ -1411,26 +1412,37 @@ class DataSet:
         if self.row_count:
             logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
 
+        rows = self.rows.copy()
+
         # fill in descriptions for cols in search_order
         rels = Relationship.get_relationships(self.table)
+        for col in self.search_order:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
 
-        def process_row(row):
-            for col in self.search_order:
-                for rel in rels:
-                    if col == rel.fk_column:
-                        # change value in row to below
-                        value = self.frm[rel.parent_table].get_description_for_pk(
-                            row[col]
-                        )
-                        row[col] = value
-                return row
-            return None
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
 
-        rows = self.rows.apply(process_row, axis=1)
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
+
+                    # revert any unsaved changes
+                    rows.loc[condition, col] = parent_current_row[description_column]
+                    continue
 
         for column in self.search_order:
             # search through processed rows, looking for search_string
-            result = rows[rows[column].str.contains(search_string, case=False)]
+            result = rows[
+                rows[column].astype(str).str.contains(str(search_string), case=False)
+            ]
             if not result.empty:
                 old_index = self.current_index
                 # grab the first result
@@ -1867,7 +1879,7 @@ class DataSet:
         # create diff of columns if not virtual
         new_dict = current_row.fillna("").to_dict()
 
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             changed_row_dict = new_dict
         else:
             old_dict = self.get_original_current_row().fillna("").to_dict()
@@ -1931,7 +1943,7 @@ class DataSet:
                     return SAVE_FAIL  # Do not show the message in this case
 
         else:
-            if self.row_is_virtual():
+            if self.pk_is_virtual():
                 result = self.driver.insert_record(
                     self.table, self.get_current_pk(), self.pk_column, changed_row_dict
                 )
@@ -1963,13 +1975,13 @@ class DataSet:
 
             # If child changes parent, move index back and requery/requery_dependents
             if (
-                cascade_fk_changed and not self.row_is_virtual()
+                cascade_fk_changed and not self.pk_is_virtual()
             ):  # Virtual rows already requery, and have no dependents.
                 self.frm[self.table].requery(select_first=False)  # keep spot in table
                 self.frm[self.table].requery_dependents()
 
             # Lets refresh our data
-            if self.row_is_virtual():
+            if self.pk_is_virtual():
                 # Requery so that the new row honors the order clause
                 self.requery(select_first=False, update_elements=False)
                 if update_elements:
@@ -2093,7 +2105,7 @@ class DataSet:
         if answer == "no":
             return True
 
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             self.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
@@ -2147,7 +2159,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not self.row_count or self.row_is_virtual():
+        if not self.row_count or self.pk_is_virtual():
             return None
 
         # callback
@@ -2268,28 +2280,20 @@ class DataSet:
     def virtual_pks(self):
         return self.rows.attrs["virtual"]
 
-    def row_is_virtual(self, index: int = None) -> bool:
+    def pk_is_virtual(self, pk: int = None) -> bool:
         """
-        Check whether the row at `index` is virtual
+        Check whether pk is virtual
 
-        :param index: The index to check. If none is passed, then the current index will
-            be used.
+        :param pk: The pk to check. If None, the pk of the current row will be checked.
         :returns: True or False based on whether the row is virtual
         """
         if not self.row_count:
             return False
 
-        if index is None:
-            index = self.current_index
+        if pk is None:
+            pk = self.get_current_row()[self.pk_column]
 
-        try:
-            pk = self.rows.loc[self.rows.index[index]][self.pk_column]
-        except IndexError:
-            return False
-
-        if self.rows is not None and self.row_count:
-            return bool(pk in self.virtual_pks)
-        return False
+        return bool(pk in self.virtual_pks)
 
     @property
     def row_count(self) -> int:
@@ -2385,59 +2389,85 @@ class DataSet:
 
         columns = all_columns if columns is None else columns
 
+        rows = self.rows.copy()
         pk_column = self.pk_column
 
-        virtual_row_pks = self.virtual_pks
-        unsaved_pk_idx = None
-        if self.current_row_has_backup and not self.get_current_row().equals(
-            self.get_original_current_row()
-        ):
-            unsaved_pk_idx = self.rows.loc[
-                self.rows[pk_column] == self.get_current_row()[pk_column]
-            ].index[0]
+        if mark_unsaved:
+            virtual_row_pks = self.virtual_pks
+            # add pk of current row if it has changes
+            if self.current_row_has_backup and not self.get_current_row().equals(
+                self.get_original_current_row()
+            ):
+                virtual_row_pks.append(
+                    self.rows.loc[
+                        self.rows[pk_column] == self.get_current_row()[pk_column],
+                        pk_column,
+                    ].values[0]
+                )
 
+            # Create a new column 'marker' with the desired values
+            rows["marker"] = " "
+            mask = rows[pk_column].isin(virtual_row_pks)
+            rows.loc[mask, "marker"] = themepack.marker_unsaved
+        else:
+            rows["marker"] = " "
+
+        # get fk descriptions
         rels = Relationship.get_relationships(self.table)
+        for col in columns:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
 
-        bool_columns = [
-            column
-            for column in columns
-            if self.column_info[column]
-            and self.column_info[column]["domain"] in ["BOOLEAN"]
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
+
+                    # map descriptions to fk column
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
+
+                    # revert any unsaved changes for the single row
+                    rows.loc[condition, col] = parent_current_row[description_column]
+                    continue
+
+        # transform bool
+        if themepack.display_boolean_as_checkbox:
+            bool_columns = [
+                column
+                for column in columns
+                if self.column_info[column]
+                and self.column_info[column]["domain"] in ["BOOLEAN"]
+            ]
+            for col in bool_columns:
+                rows[col] = np.where(
+                    rows[col], themepack.checkbox_true, themepack.checkbox_false
+                )
+
+        # set the pk to the index to use below
+        rows["pk_idx"] = rows[pk_column].copy()
+        rows.set_index("pk_idx", inplace=True)
+
+        # insert the marker
+        columns.insert(0, "marker")
+
+        # resort rows with requested columns
+        rows = rows[columns]
+
+        # fastest way yet to generate list of TableRows
+        return [
+            TableRow(pk, values.tolist())
+            for pk, values in zip(
+                rows.index,
+                np.vstack((rows.fillna("").astype("O").values.T, rows.index)).T,
+            )
         ]
-
-        def process_row(row):
-            lst = []
-            pk = row[pk_column]
-            if mark_unsaved and (pk in virtual_row_pks or unsaved_pk_idx == row.name):
-                lst.append(themepack.marker_unsaved)
-            else:
-                lst.append(" ")
-
-            # only loop through passed-in columns
-            for col in columns:
-                if col in bool_columns and themepack.display_boolean_as_checkbox:
-                    row[col] = (
-                        themepack.checkbox_true
-                        if checkbox_to_bool(row[col])
-                        else themepack.checkbox_false
-                    )
-                    lst.append(row[col])
-                elif any(rel.fk_column == col for rel in rels):
-                    for rel in rels:
-                        if col == rel.fk_column:
-                            lst.append(
-                                self.frm[rel.parent_table].get_description_for_pk(
-                                    row[col]
-                                )
-                            )
-                            break
-                else:
-                    lst.append(row[col])
-
-            return TableRow(pk, lst)
-
-        # fill in nan, and display as python types.
-        return self.rows.fillna("").astype("O").apply(process_row, axis=1)
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
@@ -2481,20 +2511,20 @@ class DataSet:
         if rel is None:
             return None
 
-        target_table = self.frm[rel.parent_table]
-        pk_column = target_table.pk_column
-        description = target_table.description_column
+        rows = self.frm[rel.parent_table].rows.copy()
+        pk_column = self.frm[rel.parent_table].pk_column
+        description = self.frm[rel.parent_table].description_column
 
-        backup = None
-        if target_table.current_row_has_backup:
-            backup = target_table.get_original_current_row()
+        # revert to original row (so unsaved changes don't show up in dropdowns)
+        parent_current_row = self.frm[rel.parent_table].get_original_current_row()
+        rows.iloc[self.frm[rel.parent_table].current_index] = parent_current_row
 
-        def process_row(row):
-            if backup is not None and backup[pk_column] == row[pk_column]:
-                return ElementRow(backup[pk_column].tolist(), backup[description])
-            return ElementRow(row[pk_column], row[description])
+        # fastest way yet to generate this list of ElementRow
+        combobox_values = [
+            ElementRow(*values)
+            for values in np.column_stack((rows[pk_column], rows[description]))
+        ]
 
-        combobox_values = target_table.rows.apply(process_row, axis=1).tolist()
         if insert_placeholder:
             combobox_values.insert(0, ElementRow("Null", lang.combo_placeholder))
         return combobox_values
@@ -3856,7 +3886,7 @@ class Form:
                     disable = bool(
                         not row_count
                         or self._edit_protect
-                        or self[data_key].row_is_virtual()
+                        or self[data_key].pk_is_virtual()
                     )
                     win[m["event"]].update(disabled=disable)
 
@@ -3945,7 +3975,7 @@ class Form:
             # this is a virtual row
             marker_key = mapped.element.key + ":marker"
             try:
-                if mapped.dataset.row_is_virtual():
+                if mapped.dataset.pk_is_virtual():
                     # get the column name from the key
                     col = mapped.column
                     # get notnull from the column info
@@ -4034,19 +4064,14 @@ class Form:
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
 
-                if len(values):
+                if len(values):  # noqa SIM108
                     # set index to pk
                     index = [[v[0] for v in values].index(pk)]
-                    # calculate pk percentage position
-                    pk_position = index[0] / len(values)
                 else:  # if empty
                     index = []
-                    pk_position = 0
 
                 # Update table, and set vertical scroll bar to follow selected element
-                update_table_element(
-                    self.window, mapped.element, values, index, pk_position
-                )
+                update_table_element(self.window, mapped.element, values, index)
                 continue
 
             elif isinstance(mapped.element, (sg.Input, sg.Multiline)):
@@ -4175,19 +4200,14 @@ class Form:
                         if len(values):
                             # set to index by pk
                             index = [[v.pk for v in values].index(pk)]
-                            # calculate pk percentage position
-                            pk_position = index[0] / len(values)
                             found = True
                         else:  # if empty
                             index = []
-                            pk_position = 0
 
                         logger.debug(f"Selector:: index:{index} found:{found}")
 
                         # Update table, and set vertical scroll bar to follow
-                        update_table_element(
-                            self.window, element, values, index, pk_position
-                        )
+                        update_table_element(self.window, element, values, index)
 
     def requery_all(
         self,
@@ -4399,7 +4419,6 @@ def update_table_element(
     element: Type[sg.Table],
     values: List[TableRow],
     select_rows: List[int],
-    vscroll_position: float = None,
 ) -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
@@ -4412,19 +4431,19 @@ def update_table_element(
     :param element: The sg.Table element to be updated.
     :param values: A list of table rows to update the sg.Table with.
     :param select_rows: List of rows to select as if user did.
-    :param vscroll_position: From 0 to 1.0, the percentage from the top to move
-        scrollbar to.
 
     :returns: None
     """
     # Disable handling for "<<TreeviewSelect>>" event
-    element.Widget.unbind("<<TreeviewSelect>>")
+    element.widget.unbind("<<TreeviewSelect>>")
     # update element
     element.update(values=values, select_rows=select_rows)
-    # set vertical scroll bar to follow selected element
-    # call even for 0.0, so that a 'reset sort' repositions vscroll to top.
-    if vscroll_position is not None:
-        element.set_vscroll_position(vscroll_position)
+
+    # make sure row_iid is visible
+    if len(values):
+        row_iid = element.tree_ids[select_rows[0]]
+        element.widget.see(row_iid)
+
     window.refresh()  # Event handled and bypassed
     # Enable handling for "<<TreeviewSelect>>" event
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
