@@ -2393,7 +2393,7 @@ class DataSet:
         pk_column = self.pk_column
 
         if mark_unsaved:
-            virtual_row_pks = self.virtual_pks
+            virtual_row_pks = self.virtual_pks.copy()
             # add pk of current row if it has changes
             if self.current_row_has_backup and not self.get_current_row().equals(
                 self.get_original_current_row()
@@ -6722,7 +6722,7 @@ class _LiveUpdate:
         self.frm = frm_reference
         self.last_event_widget = None
         self.last_event_time = None
-        self.delay_seconds = 0.5
+        self.delay_seconds = 0.25
 
     def __call__(self, event):
         # keep track of time on same widget
@@ -6733,14 +6733,10 @@ class _LiveUpdate:
         # get widget type
         widget_type = event.widget.__class__.__name__
 
-        # if <<ComboboxSelected>> and a combobox...
-        if event.type == "35" and widget_type == "Combobox":
-            self.frm.window.TKroot.after(
-                int(self.delay_seconds * 500),
-                lambda: self.sync(event.widget, widget_type),
-            )
-
-        elif widget_type == "Checkbutton":
+        # if <<ComboboxSelected>> and a combobox, or a checkbutton
+        if (
+            event.type == "35" and widget_type == "Combobox"
+        ) or widget_type == "Checkbutton":
             self.sync(event.widget, widget_type)
 
         # use tk.after() for text, so waits for pause in typing to update selector.
