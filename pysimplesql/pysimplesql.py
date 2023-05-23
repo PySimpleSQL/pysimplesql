@@ -4633,11 +4633,11 @@ def _autocomplete_combo(widget, completion_list, delta=0):
         widget.position = len(widget.get())
 
     prefix = widget.get()
-    _hits = [element for element in completion_list if element.startswith(prefix)]
+    hits = [element for element in completion_list if element.startswith(prefix)]
     # Create a list of elements that start with the prefix
 
-    if _hits:
-        closest_match = min(_hits, key=len)
+    if hits:
+        closest_match = min(hits, key=len)
         if prefix != closest_match:
             # Insert the closest match at the beginning, move the cursor to the end
             widget.delete(0, tk.END)
@@ -4647,7 +4647,7 @@ def _autocomplete_combo(widget, completion_list, delta=0):
             # Highlight the remaining text after the closest match
             widget.select_range(widget.position, tk.END)
 
-        if len(_hits) == 1 and closest_match != prefix:
+        if len(hits) == 1 and closest_match != prefix:
             # If there is only one hit and it's not equal to the prefix, open dropdown
             widget.event_generate("<Down>")
             widget.event_generate("<<ComboboxSelected>>")
@@ -4656,7 +4656,7 @@ def _autocomplete_combo(widget, completion_list, delta=0):
         # If there are no hits, move the cursor to the current position
         widget.icursor(widget.position)
 
-    return _hits
+    return hits
 
 
 class Combo(sg.Combo):
