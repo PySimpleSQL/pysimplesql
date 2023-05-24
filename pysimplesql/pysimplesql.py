@@ -5174,13 +5174,15 @@ def _autocomplete_combo(widget, completion_list, delta=0):
         # Set the position to the length of the current input text
         widget.position = len(widget.get())
 
-    prefix = widget.get()
-    hits = [element for element in completion_list if element.startswith(prefix)]
-    # Create a list of elements that start with the prefix
+    prefix = widget.get().lower()
+    hits = [
+        element for element in completion_list if element.lower().startswith(prefix)
+    ]
+    # Create a list of elements that start with the lowercase prefix
 
     if hits:
         closest_match = min(hits, key=len)
-        if prefix != closest_match:
+        if prefix != closest_match.lower():
             # Insert the closest match at the beginning, move the cursor to the end
             widget.delete(0, tk.END)
             widget.insert(0, closest_match)
@@ -5189,8 +5191,8 @@ def _autocomplete_combo(widget, completion_list, delta=0):
             # Highlight the remaining text after the closest match
             widget.select_range(widget.position, tk.END)
 
-        if len(hits) == 1 and closest_match != prefix:
-            # If there is only one hit and it's not equal to the prefix, open dropdown
+        if len(hits) == 1 and closest_match.lower() != prefix:
+            # If there is only one hit and it's not equal to the lowercase prefix, open dropdown
             widget.event_generate("<Down>")
             widget.event_generate("<<ComboboxSelected>>")
 
