@@ -202,9 +202,11 @@ SORT_DESC = 2
 # TK/TTK Widget Types
 # ---------------------
 TK_ENTRY = "Entry"
+TK_TEXT = "Text"
 TK_COMBOBOX = "Combobox"
 TK_CHECKBUTTON = "Checkbutton"
 TK_DATEPICKER = "Datepicker"
+TK_COMBOBOX_SELECTED = "35"
 
 # --------------
 # Misc Constants
@@ -4468,248 +4470,6 @@ def checkbox_to_bool(value):
     ]
 
 
-class _PlaceholderText(abc.ABC):
-    """
-    An abstract class for PySimpleGUI text-entry elements that allows for the display of
-    a placeholder text when the input is empty.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.normal_color = None
-        self.normal_font = None
-        self.placeholder_text = ""
-        self.placeholder_color = None
-        self.placeholder_font = None
-        self.active_placeholder = True
-
-    def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
-        """
-        Adds a placeholder text to the element.
-
-        The placeholder text is displayed in the element when the element is empty and
-        unfocused. When the element is clicked or focused, the placeholder text
-        disappears and the element becomes blank. When the element loses focus and is
-        still empty, the placeholder text reappears.
-
-        This function is based on the recipe by Miguel Martinez Lopez, licensed under
-        MIT. It has been updated to work with PySimpleGUI elements.
-
-        :param placeholder: The text to display as placeholder when the input is empty.
-        :param color: The color of the placeholder text (default None).
-        :param font: The font of the placeholder text (default None).
-        """
-        normal_color = self.widget.cget("fg")
-        normal_font = self.widget.cget("font")
-
-        if font is None:
-            font = normal_font
-
-        self.normal_color = normal_color
-        self.normal_font = normal_font
-        self.placeholder_color = color
-        self.placeholder_font = font
-        self.placeholder_text = placeholder
-        self.active_placeholder = True
-
-        self._add_binds()
-
-    @abc.abstractmethod
-    def _add_binds(self):
-        pass
-
-    def update(self, *args, **kwargs):
-        """
-        Updates the input widget with a new value and displays the placeholder text if
-        the value is empty.
-
-        :param args: Optional arguments to pass to `sg.Element.update`.
-        :param kwargs: Optional keyword arguments to pass to `sg.Element.update`.
-        """
-        if "value" in kwargs and kwargs["value"] is not None:
-            # If the value is not None, use it as the new value
-            value = kwargs.pop("value", None)
-        elif len(args) > 0 and args[0] is not None:
-            # If the value is passed as an argument, use it as the new value
-            value = args[0]
-            # Remove the value argument from args
-            args = args[1:]
-        else:
-            # Otherwise, use the current value
-            value = self.get()
-
-        if self.active_placeholder and value != "":  # noqa PLC1901
-            # Replace the placeholder with the new value
-            super().update(value=value)
-            self.active_placeholder = False
-            self.Widget.config(fg=self.normal_color, font=self.normal_font)
-        elif value == "":  # noqa PLC1901
-            # If the value is empty, reinsert the placeholder
-            super().update(value=self.placeholder_text, *args, **kwargs)
-            self.active_placeholder = True
-            self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-        else:
-            super().update(*args, **kwargs)
-
-    def get(self) -> str:
-        """
-        Returns the current value of the input, or an empty string if the input displays
-        the placeholder text.
-
-        :return: The current value of the input.
-        """
-        if self.active_placeholder:
-            return ""
-        return super().get()
-
-
-class Input(_PlaceholderText, sg.Input):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _add_binds(self):
-        widget = self.widget
-
-        def on_focusin(event):
-            if self.active_placeholder:
-                widget.delete(0, "end")
-                widget.config(fg=self.normal_color, font=self.normal_font)
-
-                self.active_placeholder = False
-
-        def on_focusout(event):
-            if widget.get() == "":  # noqa PLC1901
-                widget.insert(0, self.placeholder_text)
-                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-
-                self.active_placeholder = True
-
-        if widget.get() == "" and self.active_placeholder:  # noqa PLC1901
-            widget.insert(0, self.placeholder_text)
-            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-
-        widget.bind("<FocusIn>", on_focusin, "+")
-        widget.bind("<FocusOut>", on_focusout, "+")
-
-
-class Multiline(_PlaceholderText, sg.Multiline):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _add_binds(self):
-        widget = self.widget
-
-        def on_focusin(event):
-            if self.active_placeholder:
-                widget.delete("1.0", "end")
-                widget.config(fg=self.normal_color, font=self.normal_font)
-
-                self.active_placeholder = False
-
-        def on_focusout(event):
-            if not widget.get("1.0", "end-1c").strip():
-                widget.insert("1.0", self.placeholder_text)
-                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-
-                self.active_placeholder = True
-
-        if (
-            not widget.get("1.0", "end-1c").strip() and self.active_placeholder
-        ):  # noqa PLC1901
-            widget.insert("1.0", self.placeholder_text)
-            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-
-        widget.bind("<FocusIn>", on_focusin, "+")
-        widget.bind("<FocusOut>", on_focusout, "+")
-
-
-def _autocomplete_combo(widget, completion_list, delta=0):
-    """Perform autocompletion on a Combobox widget based on the current input."""
-    if delta:
-        # Delete text from current position to end
-        widget.delete(widget.position, tk.END)
-    else:
-        # Set the position to the length of the current input text
-        widget.position = len(widget.get())
-
-    prefix = widget.get()
-    hits = [element for element in completion_list if element.startswith(prefix)]
-    # Create a list of elements that start with the prefix
-
-    if hits:
-        closest_match = min(hits, key=len)
-        if prefix != closest_match:
-            # Insert the closest match at the beginning, move the cursor to the end
-            widget.delete(0, tk.END)
-            widget.insert(0, closest_match)
-            widget.icursor(len(closest_match))
-
-            # Highlight the remaining text after the closest match
-            widget.select_range(widget.position, tk.END)
-
-        if len(hits) == 1 and closest_match != prefix:
-            # If there is only one hit and it's not equal to the prefix, open dropdown
-            widget.event_generate("<Down>")
-            widget.event_generate("<<ComboboxSelected>>")
-
-    else:
-        # If there are no hits, move the cursor to the current position
-        widget.icursor(widget.position)
-
-    return hits
-
-
-class Combo(sg.Combo):
-    """Customized Combo widget with autocompletion feature."""
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the Combo widget."""
-        self._completion_list = []
-        self._hits = []
-        self._hit_index = 0
-        self.position = 0
-        self.finalized = False
-
-        super().__init__(*args, **kwargs)
-
-    def update(self, *args, **kwargs):
-        """Update the Combo widget with new values."""
-        if "values" in kwargs and kwargs["values"] is not None:
-            self._completion_list = [str(row) for row in kwargs["values"]]
-            if not self.finalized:
-                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
-            self._hits = []
-            self._hit_index = 0
-            self.position = 0
-        super().update(*args, **kwargs)
-
-    def autocomplete(self, delta=0):
-        """Perform autocompletion based on the current input."""
-        self._hits = _autocomplete_combo(self.Widget, self._completion_list, delta)
-        self._hit_index = 0
-
-    def handle_keyrelease(self, event):
-        """Handle key release event for autocompletion and navigation."""
-        if event.keysym == "BackSpace":
-            self.Widget.delete(self.Widget.position, tk.END)
-            self.position = self.Widget.position
-        if event.keysym == "Left":
-            if self.position < self.Widget.index(tk.END):
-                self.Widget.delete(self.position, tk.END)
-            else:
-                self.position -= 1
-                self.Widget.delete(self.position, tk.END)
-        if event.keysym == "Right":
-            self.position = self.Widget.index(tk.END)
-        if event.keysym == "Return":
-            self.Widget.icursor(tk.END)
-            self.Widget.selection_clear()
-            return
-
-        if len(event.keysym) == 1:
-            self.autocomplete()
-
-
 class Popup:
 
     """
@@ -5224,6 +4984,917 @@ mysql_examples = {
     "password": "pysimplesql",
     "database": "pysimplesql_examples",
 }
+
+
+# -------------------------------------------------------------------------------------
+# WIDGETS
+# -------------------------------------------------------------------------------------
+class Widgets:
+
+    """
+    pysimplesql extends several PySimpleGUI elements with further functionality.
+    See `Input`, `Multiline` and `Combo`.
+
+    Note: This is a dummy class that exists purely to enhance documentation and has no
+    use to the end user.
+    """
+
+    pass
+
+
+class _PlaceholderText(abc.ABC):
+    """
+    An abstract class for PySimpleGUI text-entry elements that allows for the display of
+    a placeholder text when the input is empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.normal_color = None
+        self.normal_font = None
+        self.placeholder_text = ""
+        self.placeholder_color = None
+        self.placeholder_font = None
+        self.active_placeholder = True
+
+    def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
+        """
+        Adds a placeholder text to the element.
+
+        The placeholder text is displayed in the element when the element is empty and
+        unfocused. When the element is clicked or focused, the placeholder text
+        disappears and the element becomes blank. When the element loses focus and is
+        still empty, the placeholder text reappears.
+
+        This function is based on the recipe by Miguel Martinez Lopez, licensed under
+        MIT. It has been updated to work with PySimpleGUI elements.
+
+        :param placeholder: The text to display as placeholder when the input is empty.
+        :param color: The color of the placeholder text (default None).
+        :param font: The font of the placeholder text (default None).
+        """
+        normal_color = self.widget.cget("fg")
+        normal_font = self.widget.cget("font")
+
+        if font is None:
+            font = normal_font
+
+        self.normal_color = normal_color
+        self.normal_font = normal_font
+        self.placeholder_color = color
+        self.placeholder_font = font
+        self.placeholder_text = placeholder
+        self.active_placeholder = True
+
+        self._add_binds()
+
+    @abc.abstractmethod
+    def _add_binds(self):
+        pass
+
+    def update(self, *args, **kwargs):
+        """
+        Updates the input widget with a new value and displays the placeholder text if
+        the value is empty.
+
+        :param args: Optional arguments to pass to `sg.Element.update`.
+        :param kwargs: Optional keyword arguments to pass to `sg.Element.update`.
+        """
+        if "value" in kwargs and kwargs["value"] is not None:
+            # If the value is not None, use it as the new value
+            value = kwargs.pop("value", None)
+        elif len(args) > 0 and args[0] is not None:
+            # If the value is passed as an argument, use it as the new value
+            value = args[0]
+            # Remove the value argument from args
+            args = args[1:]
+        else:
+            # Otherwise, use the current value
+            value = self.get()
+
+        if self.active_placeholder and value != "":  # noqa PLC1901
+            # Replace the placeholder with the new value
+            super().update(value=value)
+            self.active_placeholder = False
+            self.Widget.config(fg=self.normal_color, font=self.normal_font)
+        elif value == "":  # noqa PLC1901
+            # If the value is empty, reinsert the placeholder
+            super().update(value=self.placeholder_text, *args, **kwargs)
+            self.active_placeholder = True
+            self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        else:
+            super().update(*args, **kwargs)
+
+    def get(self) -> str:
+        """
+        Returns the current value of the input, or an empty string if the input displays
+        the placeholder text.
+
+        :return: The current value of the input.
+        """
+        if self.active_placeholder:
+            return ""
+        return super().get()
+
+
+class Input(_PlaceholderText, sg.Input):
+    """
+    An Input that allows for the display of a placeholder text when empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                widget.delete(0, "end")
+                widget.config(fg=self.normal_color, font=self.normal_font)
+
+                self.active_placeholder = False
+
+        def on_focusout(event):
+            if widget.get() == "":  # noqa PLC1901
+                widget.insert(0, self.placeholder_text)
+                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+                self.active_placeholder = True
+
+        if widget.get() == "" and self.active_placeholder:  # noqa PLC1901
+            widget.insert(0, self.placeholder_text)
+            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+        widget.bind("<FocusIn>", on_focusin, "+")
+        widget.bind("<FocusOut>", on_focusout, "+")
+
+
+class Multiline(_PlaceholderText, sg.Multiline):
+    """
+    A Multiline that allows for the display of a placeholder text when empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                widget.delete("1.0", "end")
+                widget.config(fg=self.normal_color, font=self.normal_font)
+
+                self.active_placeholder = False
+
+        def on_focusout(event):
+            if not widget.get("1.0", "end-1c").strip():
+                widget.insert("1.0", self.placeholder_text)
+                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+                self.active_placeholder = True
+
+        if (
+            not widget.get("1.0", "end-1c").strip() and self.active_placeholder
+        ):  # noqa PLC1901
+            widget.insert("1.0", self.placeholder_text)
+            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+        widget.bind("<FocusIn>", on_focusin, "+")
+        widget.bind("<FocusOut>", on_focusout, "+")
+
+
+def _autocomplete_combo(widget, completion_list, delta=0):
+    """Perform autocompletion on a Combobox widget based on the current input."""
+    if delta:
+        # Delete text from current position to end
+        widget.delete(widget.position, tk.END)
+    else:
+        # Set the position to the length of the current input text
+        widget.position = len(widget.get())
+
+    prefix = widget.get()
+    hits = [element for element in completion_list if element.startswith(prefix)]
+    # Create a list of elements that start with the prefix
+
+    if hits:
+        closest_match = min(hits, key=len)
+        if prefix != closest_match:
+            # Insert the closest match at the beginning, move the cursor to the end
+            widget.delete(0, tk.END)
+            widget.insert(0, closest_match)
+            widget.icursor(len(closest_match))
+
+            # Highlight the remaining text after the closest match
+            widget.select_range(widget.position, tk.END)
+
+        if len(hits) == 1 and closest_match != prefix:
+            # If there is only one hit and it's not equal to the prefix, open dropdown
+            widget.event_generate("<Down>")
+            widget.event_generate("<<ComboboxSelected>>")
+
+    else:
+        # If there are no hits, move the cursor to the current position
+        widget.icursor(widget.position)
+
+    return hits
+
+
+class Combo(sg.Combo):
+    """Customized Combo widget with autocompletion feature.
+
+    Please note that due to how PySimpleSql initilizes widgets, you must call update()
+    once to activate autocompletion, eg `window['combo_key'].update(values=values)`
+    """
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = []
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        """Update the Combo widget with new values."""
+        if "values" in kwargs and kwargs["values"] is not None:
+            self._completion_list = [str(row) for row in kwargs["values"]]
+            if not self.finalized:
+                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
+            self._hits = []
+            self._hit_index = 0
+            self.position = 0
+        super().update(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self.Widget, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.Widget.delete(self.Widget.position, tk.END)
+            self.position = self.Widget.position
+        if event.keysym == "Left":
+            if self.position < self.Widget.index(tk.END):
+                self.Widget.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.Widget.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.Widget.index(tk.END)
+        if event.keysym == "Return":
+            self.Widget.icursor(tk.END)
+            self.Widget.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
+
+
+class _TtkCombo(ttk.Combobox):
+    """Customized Combo widget with autocompletion feature."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = [str(row) for row in kwargs["values"]]
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.delete(self.position, tk.END)
+            self.position = self.position
+        if event.keysym == "Left":
+            if self.position < self.index(tk.END):
+                self.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.index(tk.END)
+        if event.keysym == "Return":
+            self.icursor(tk.END)
+            self.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
+
+
+class _TtkCalendar(ttk.Frame):
+    """Internal Class."""
+
+    # Modified from Tkinter GUI Application Development Cookbook, MIT License.
+
+    def __init__(self, master, init_date, textvariable, **kwargs):
+        # TODO, set these in themepack?
+        fwday = kwargs.pop("firstweekday", calendar.MONDAY)
+        sel_bg = kwargs.pop("selectbackground", "#ecffc4")
+        sel_fg = kwargs.pop("selectforeground", "#05640e")
+
+        super().__init__(master, class_="ttkcalendar", **kwargs)
+
+        self.master = master
+        self.cal_date = init_date
+        self.textvariable = textvariable
+        self.cal = calendar.TextCalendar(fwday)
+        self.font = tkfont.Font(self)
+        self.header = self.create_header()
+        self.table = self.create_table()
+        self.canvas = self.create_canvas(sel_bg, sel_fg)
+        self.build_calendar()
+
+    def create_header(self):
+        left_arrow = {"children": [("Button.leftarrow", None)]}
+        right_arrow = {"children": [("Button.rightarrow", None)]}
+        style = ttk.Style(self)
+        style.layout("L.TButton", [("Button.focus", left_arrow)])
+        style.layout("R.TButton", [("Button.focus", right_arrow)])
+
+        hframe = ttk.Frame(self)
+        btn_left = ttk.Button(
+            hframe, style="L.TButton", command=lambda: self.move_month(-1)
+        )
+        btn_right = ttk.Button(
+            hframe, style="R.TButton", command=lambda: self.move_month(1)
+        )
+        label = ttk.Label(hframe, width=15, anchor="center")
+
+        hframe.pack(pady=5, anchor=tk.CENTER)
+        btn_left.grid(row=0, column=0)
+        label.grid(row=0, column=1, padx=12)
+        btn_right.grid(row=0, column=2)
+        return label
+
+    def create_table(self):
+        cols = self.cal.formatweekheader(3).split()
+        table = ttk.Treeview(self, show="", selectmode="none", height=7, columns=cols)
+        table.bind("<Map>", self.minsize, "+")
+        table.pack(expand=1, fill=tk.BOTH)
+        table.tag_configure("header", background="grey90")
+        table.insert("", tk.END, values=cols, tag="header")
+        for _ in range(6):
+            table.insert("", tk.END)
+
+        width = max(map(self.font.measure, cols))
+        for col in cols:
+            table.column(col, width=width, minwidth=width, anchor=tk.E)
+        return table
+
+    def create_canvas(self, bg, fg):
+        canvas = tk.Canvas(
+            self.table, background=bg, borderwidth=1, highlightthickness=0
+        )
+        canvas.text = canvas.create_text(0, 0, fill=fg, anchor=tk.W)
+        self.table.bind("<ButtonPress-1>", self.pressed_callback, "+")
+        return canvas
+
+    def build_calendar(self):
+        year, month = self.cal_date.year, self.cal_date.month
+        month_name = self.cal.formatmonthname(year, month, 0)
+        month_weeks = self.cal.monthdayscalendar(year, month)
+
+        self.header.config(text=month_name.title())
+        items = self.table.get_children()[1:]
+        for week, item in itertools.zip_longest(month_weeks, items):
+            fmt_week = [f"{day:02d}" if day else "" for day in (week or [])]
+            self.table.item(item, values=fmt_week)
+
+    def pressed_callback(self, event):
+        x, y, widget = event.x, event.y, event.widget
+        item = widget.identify_row(y)
+        column = widget.identify_column(x)
+        items = self.table.get_children()[1:]
+
+        if not column or item not in items:
+            # clicked te header or outside the columns
+            return
+
+        index = int(column[1]) - 1
+        values = widget.item(item)["values"]
+        text = values[index] if len(values) else None
+        bbox = widget.bbox(item, column)
+        if bbox and text:
+            self.cal_date = dt.date(self.cal_date.year, self.cal_date.month, int(text))
+            self.draw_selection(bbox)
+            self.textvariable.set(self.cal_date.strftime("%Y-%m-%d"))
+
+    def draw_selection(self, bbox):
+        canvas, text = self.canvas, "%02d" % self.cal_date.day
+        x, y, width, height = bbox
+        textw = self.font.measure(text)
+        canvas.configure(width=width, height=height)
+        canvas.coords(canvas.text, width - textw, height / 2 - 1)
+        canvas.itemconfigure(canvas.text, text=text)
+        canvas.place(x=x, y=y)
+
+    def set_date(self, dateobj):
+        self.cal_date = dateobj
+        self.canvas.place_forget()
+        self.build_calendar()
+
+    def select_date(self):
+        bbox = self.get_bbox_for_date(self.cal_date)
+        if bbox:
+            self.draw_selection(bbox)
+
+    def get_bbox_for_date(self, new_date):
+        items = self.table.get_children()[1:]
+        for item in items:
+            values = self.table.item(item)["values"]
+            for i, value in enumerate(values):
+                if isinstance(value, int) and value == new_date.day:
+                    column = "#{}".format(i + 1)
+                    self.table.update()
+                    return self.table.bbox(item, column)
+        return None
+
+    def move_month(self, offset):
+        self.canvas.place_forget()
+        month = self.cal_date.month - 1 + offset
+        year = self.cal_date.year + month // 12
+        month = month % 12 + 1
+        self.cal_date = dt.date(year, month, 1)
+        self.build_calendar()
+
+    def minsize(self, e):
+        width, height = self.master.geometry().split("x")
+        height = height[: height.index("+")]
+        self.master.minsize(width, height)
+
+
+class _DatePicker(ttk.Entry):
+    def __init__(self, master, frm_reference, init_date, **kwargs):
+        self.frm = frm_reference
+        textvariable = kwargs["textvariable"]
+        self.calendar = _TtkCalendar(self.frm.window.TKroot, init_date, textvariable)
+        self.calendar.place_forget()
+        self.button = ttk.Button(master, text="▼", width=2, command=self.show_calendar)
+        super().__init__(master, class_="Datepicker", **kwargs)
+
+        self.bind("<KeyRelease>", self.on_entry_key_release, "+")
+        self.calendar.bind("<Leave>", self.hide_calendar, "+")
+
+    def show_calendar(self, event=None):
+        self.configure(state="disabled")
+        self.calendar.place(in_=self, relx=0, rely=1)
+        self.calendar.focus_force()
+        self.calendar.select_date()
+
+    def hide_calendar(self, event=None):
+        self.configure(state="!disabled")
+        self.calendar.place_forget()
+        self.focus_force()
+
+    def on_entry_key_release(self, event=None):
+        # Check if the user has typed a valid date
+        try:
+            date_str = self.get()
+            date = dt.datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return
+
+        # Update the calendar to show the new date
+        self.calendar.set_date(date)
+
+
+class _CellEdit:
+
+    """Internal class used when sg.Table cells are double-clicked if edit enabled"""
+
+    def __init__(self, frm_reference: Form):
+        self.frm = frm_reference
+        self.active_edit = False
+
+    def __call__(self, event):
+        # if double click a treeview
+        if isinstance(event.widget, ttk.Treeview):
+            tk_widget = event.widget
+            # identify region
+            region = tk_widget.identify("region", event.x, event.y)
+            if region == "cell":
+                self.edit(event)
+
+    def edit(self, event):
+        treeview = event.widget
+
+        # only allow 1 edit at a time
+        if self.active_edit or self.frm._edit_protect:
+            return
+
+        # get row and column
+        row = int(treeview.identify_row(event.y))
+        col_identified = treeview.identify_column(event.x)
+        if col_identified:
+            col_idx = int(treeview.identify_column(event.x)[1:]) - 1
+
+        try:
+            data_key, element = self.get_datakey_and_sgtable(treeview, self.frm)
+        except TypeError:
+            return
+
+        if not element:
+            return
+
+        # get table_headings
+        table_heading = element.metadata["TableHeading"]
+
+        # get column name
+        columns = table_heading.columns()
+        column = columns[col_idx - 1]
+
+        # use table_element to distinguish
+        table_element = element.Widget
+        root = table_element.master
+
+        # get cell text, coordinates, width and height
+        text = table_element.item(row, "values")[col_idx]
+        x, y, width, height = table_element.bbox(row, col_idx)
+
+        # return early due to following conditions:
+        if col_idx == 0:
+            return
+
+        if column in table_heading.readonly_columns:
+            logger.debug(f"{column} is readonly")
+            return
+
+        if column == self.frm[data_key].pk_column:
+            logger.debug(f"{column} is pk_column")
+            return
+
+        if self.frm[data_key].column_info[column]["generated"]:
+            logger.debug(f"{column} is a generated column")
+            return
+
+        if not table_heading.edit_enable:
+            logger.debug("This Table element does not allow editing")
+            return
+
+        # else, we can continue:
+        self.active_edit = True
+
+        # see if we should use a combobox
+        combobox_values = self.frm[data_key].combobox_values(
+            column, insert_placeholder=False
+        )
+
+        if combobox_values:
+            widget_type = TK_COMBOBOX
+            width = (
+                width
+                if width >= themepack.combobox_min_width
+                else themepack.combobox_min_width
+            )
+
+        # or a checkbox
+        elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
+            widget_type = TK_CHECKBUTTON
+            width = (
+                width
+                if width >= themepack.checkbox_min_width
+                else themepack.checkbox_min_width
+            )
+
+        # or a date
+        elif self.frm[data_key].column_info[column]["domain"] in ["DATE"]:
+            text = self.frm[data_key].column_info[column].cast(text)
+            widget_type = TK_DATEPICKER
+            width = (
+                width
+                if width >= themepack.datepicker_min_width
+                else themepack.datepicker_min_width
+            )
+
+        # else, its a normal ttk.entry
+        else:
+            widget_type = TK_ENTRY
+            width = (
+                width if width >= themepack.text_min_width else themepack.text_min_width
+            )
+
+        # float a frame over the cell
+        frame = tk.Frame(root)
+        frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+
+        # setup the widgets
+        # ------------------
+
+        # checkbutton
+        # need to use tk.IntVar for checkbox
+        if widget_type == TK_CHECKBUTTON:
+            field_var = tk.BooleanVar()
+            field_var.set(checkbox_to_bool(text))
+            self.field = tk.Checkbutton(frame, variable=field_var)
+            expand = False
+        else:
+            # create tk.StringVar for combo/entry
+            field_var = tk.StringVar()
+            field_var.set(text)
+
+        # entry
+        if widget_type == TK_ENTRY:
+            self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+            expand = True
+
+        if widget_type == TK_DATEPICKER:
+            text = dt.date.today() if type(text) is str else text
+            self.field = _DatePicker(
+                frame, self.frm, init_date=text, textvariable=field_var
+            )
+            expand = True
+
+        # combobox
+        if widget_type == TK_COMBOBOX:
+            self.field = _TtkCombo(
+                frame, textvariable=field_var, justify="left", values=combobox_values
+            )
+            self.field.bind("<Configure>", self.combo_configure)
+            expand = True
+
+        # bind text to Return (for save), and Escape (for discard)
+        # event is discarded
+        accept_dict = {
+            "data_key": data_key,
+            "table_element": table_element,
+            "row": row,
+            "column": column,
+            "col_idx": col_idx,
+            "combobox_values": combobox_values,
+            "widget_type": widget_type,
+            "field_var": field_var,
+        }
+
+        self.field.bind(
+            "<Return>",
+            lambda event: self.accept(**accept_dict),
+        )
+        self.field.bind("<Escape>", lambda event: self.destroy())
+
+        if themepack.use_cell_buttons:
+            # buttons
+            self.accept_button = tk.Button(
+                frame,
+                text="\u2714",
+                foreground="green",
+                relief=tk.GROOVE,
+                command=lambda: self.accept(**accept_dict),
+            )
+            self.cancel_button = tk.Button(
+                frame,
+                text="\u274E",
+                foreground="red",
+                relief=tk.GROOVE,
+                command=lambda: self.destroy(),
+            )
+            # pack buttons
+            self.cancel_button.pack(side="right")
+            self.accept_button.pack(side="right")
+
+        if widget_type == TK_DATEPICKER:
+            self.field.button.pack(side="right")
+        # have entry use remaining space
+        self.field.pack(side="left", expand=expand, fill="both")
+
+        # select text and focus to begin with
+        if widget_type != TK_CHECKBUTTON:
+            self.field.select_range(0, tk.END)
+            self.field.focus_force()
+
+        if widget_type == TK_COMBOBOX:
+            self.field.bind("<KeyRelease>", self.field.handle_keyrelease, "+")
+
+        # bind single-clicks
+        self.destroy_bind = self.frm.window.TKroot.bind(
+            "<Button-1>",
+            lambda event: self.single_click_callback(event, accept_dict),
+            "+",
+        )
+
+    def accept(
+        self,
+        data_key,
+        table_element,
+        row,
+        column,
+        col_idx,
+        combobox_values: ElementRow,
+        widget_type,
+        field_var,
+    ):
+        # get current entry text
+        new_value = field_var.get()
+
+        # get current table row
+        values = list(table_element.item(row, "values"))
+
+        # if combo, set the value to the parent pk
+        if widget_type == TK_COMBOBOX:
+            new_value = combobox_values[self.field.current()].get_pk()
+
+        dataset = self.frm[data_key]
+
+        # see if there was a change
+        old_value = dataset.get_current_row().copy()[column]
+        cast_new_value = dataset.value_changed(
+            column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
+        )
+        if cast_new_value is not Boolean.FALSE:
+            # push row to dataset and update
+            dataset.set_current(column, cast_new_value, write_event=True)
+            # Update matching field
+            self.frm.update_fields(data_key, columns=[column])
+            # TODO: make sure we actually want to set new_value to cast
+            new_value = cast_new_value
+
+        # now we can update the GUI table
+        # -------------------------------
+
+        # if combo, set new_value to actual text (not pk)
+        if widget_type == TK_COMBOBOX:
+            new_value = combobox_values[self.field.current()]
+
+        # if boolean, set
+        if widget_type == TK_CHECKBUTTON and themepack.display_boolean_as_checkbox:
+            new_value = (
+                themepack.checkbox_true
+                if checkbox_to_bool(new_value)
+                else themepack.checkbox_false
+            )
+
+        # update value row with new text
+        values[col_idx] = new_value
+
+        # set marker
+        values[0] = (
+            themepack.marker_unsaved
+            if dataset.current_row_has_backup
+            and not dataset.get_current_row().equals(dataset.get_original_current_row())
+            else " "
+        )
+
+        # push changes to table element row
+        table_element.item(row, values=values)
+
+        self.destroy()
+
+    def destroy(self):
+        # unbind
+        self.frm.window.TKroot.unbind("<Button-1>", self.destroy_bind)
+
+        # destroy widets and window
+        self.field.destroy()
+        if themepack.use_cell_buttons:
+            self.accept_button.destroy()
+            self.cancel_button.destroy()
+        self.field.master.destroy()
+        # reset edit
+        self.active_edit = False
+
+    def single_click_callback(
+        self,
+        event,
+        accept_dict,
+    ):
+        # destroy if you click a heading while editing
+        if isinstance(event.widget, ttk.Treeview):
+            tk_widget = event.widget
+            # identify region
+            region = tk_widget.identify("region", event.x, event.y)
+            if region == "heading":
+                self.destroy()
+                return
+        # disregard if you click the field/buttons of celledit
+        widget_list = [self.field]
+        if themepack.use_cell_buttons:
+            widget_list.append(self.accept_button)
+            widget_list.append(self.cancel_button)
+
+        # for datepicker
+        with contextlib.suppress(AttributeError):
+            widget_list.append(self.field.button)
+        if "ttkcalendar" in str(event.widget):
+            return
+
+        if event.widget in widget_list:
+            return
+        self.accept(**accept_dict)
+
+    def get_datakey_and_sgtable(self, treeview, frm):
+        # loop through datasets, trying to identify sg.Table selector
+        for data_key in [
+            data_key for data_key in frm.datasets if len(frm[data_key].selector)
+        ]:
+            for e in frm[data_key].selector:
+                element = e["element"]
+                if element.widget == treeview and "TableHeading" in element.metadata:
+                    return data_key, element
+        return None
+
+    def combo_configure(self, event):
+        """Configures combobox drop-down to be at least as wide as longest value"""
+
+        combo = event.widget
+        style = ttk.Style()
+
+        # get longest value
+        long = max(combo.cget("values"), key=len)
+        # get font
+        font = tkfont.nametofont(str(combo.cget("font")))
+        # set initial width
+        width = font.measure(long.strip() + "0")
+        # make it width size if smaller
+        width = width if width > combo["width"] else combo["width"]
+        style.configure("SS.TCombobox", postoffset=(0, 0, width, 0))
+        combo.configure(style="SS.TCombobox")
+
+
+class _LiveUpdate:
+
+    """Internal class used to automatically sync selectors with field changes"""
+
+    def __init__(self, frm_reference: Form):
+        self.frm = frm_reference
+        self.last_event_widget = None
+        self.last_event_time = None
+        self.delay_seconds = 0.25
+
+    def __call__(self, event):
+        # keep track of time on same widget
+        if event.widget == self.last_event_widget:
+            self.last_event_time = time()
+        self.last_event_widget = event.widget
+
+        # get widget type
+        widget_type = event.widget.__class__.__name__
+
+        # if <<ComboboxSelected>> and a combobox, or a checkbutton
+        if (
+            event.type == TK_COMBOBOX_SELECTED and widget_type == TK_COMBOBOX
+        ) or widget_type == TK_CHECKBUTTON:
+            self.sync(event.widget, widget_type)
+
+        # use tk.after() for text, so waits for pause in typing to update selector.
+        elif widget_type in [TK_ENTRY, TK_TEXT]:
+            self.frm.window.TKroot.after(
+                int(self.delay_seconds * 1000),
+                lambda: self.delay(event.widget, widget_type),
+            )
+
+    def sync(self, widget, widget_type):
+        for e in self.frm.element_map:
+            if e["element"].widget == widget:
+                data_key = e["table"]
+                column = e["column"]
+                element = e["element"]
+                if widget_type == TK_COMBOBOX and isinstance(element.get(), ElementRow):
+                    new_value = element.get().get_pk()
+                else:
+                    new_value = element.get()
+
+                dataset = self.frm[data_key]
+
+                # get cast new value to correct type
+                for col in dataset.column_info:
+                    if col["name"] == column:
+                        new_value = col.cast(new_value)
+                        break
+
+                # see if there was a change
+                old_value = dataset.get_current_row()[column]
+                new_value = dataset.value_changed(
+                    column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
+                )
+                if new_value is not Boolean.FALSE:
+                    # push row to dataset and update
+                    dataset.set_current(column, new_value, write_event=True)
+
+                    # Update tableview if uses column:
+                    if dataset.column_likely_in_selector(column):
+                        self.frm.update_selectors(dataset.key)
+
+    def delay(self, widget, widget_type):
+        if self.last_event_time:
+            elapsed_sec = time() - self.last_event_time
+            if elapsed_sec >= self.delay_seconds:
+                self.sync(widget, widget_type)
+        else:
+            self.sync(widget, widget_type)
 
 
 # -------------------------------------------------------------------------------------
@@ -6144,647 +6815,6 @@ class _HeadingCallback:
             self.frm[self.data_key].sort_cycle(
                 column, self.data_key, update_elements=True
             )
-
-
-class _CellEdit:
-
-    """Internal class used when sg.Table cells are double-clicked if edit enabled"""
-
-    def __init__(self, frm_reference: Form):
-        self.frm = frm_reference
-        self.active_edit = False
-
-    def __call__(self, event):
-        # if double click a treeview
-        if isinstance(event.widget, ttk.Treeview):
-            tk_widget = event.widget
-            # identify region
-            region = tk_widget.identify("region", event.x, event.y)
-            if region == "cell":
-                self.edit(event)
-
-    def edit(self, event):
-        treeview = event.widget
-
-        # only allow 1 edit at a time
-        if self.active_edit or self.frm._edit_protect:
-            return
-
-        # get row and column
-        row = int(treeview.identify_row(event.y))
-        col_identified = treeview.identify_column(event.x)
-        if col_identified:
-            col_idx = int(treeview.identify_column(event.x)[1:]) - 1
-
-        try:
-            data_key, element = self.get_datakey_and_sgtable(treeview, self.frm)
-        except TypeError:
-            return
-
-        if not element:
-            return
-
-        # get table_headings
-        table_heading = element.metadata["TableHeading"]
-
-        # get column name
-        columns = table_heading.columns()
-        column = columns[col_idx - 1]
-
-        # use table_element to distinguish
-        table_element = element.Widget
-        root = table_element.master
-
-        # get cell text, coordinates, width and height
-        text = table_element.item(row, "values")[col_idx]
-        x, y, width, height = table_element.bbox(row, col_idx)
-
-        # return early due to following conditions:
-        if col_idx == 0:
-            return
-
-        if column in table_heading.readonly_columns:
-            logger.debug(f"{column} is readonly")
-            return
-
-        if column == self.frm[data_key].pk_column:
-            logger.debug(f"{column} is pk_column")
-            return
-
-        if self.frm[data_key].column_info[column]["generated"]:
-            logger.debug(f"{column} is a generated column")
-            return
-
-        if not table_heading.edit_enable:
-            logger.debug("This Table element does not allow editing")
-            return
-
-        # else, we can continue:
-        self.active_edit = True
-
-        # see if we should use a combobox
-        combobox_values = self.frm[data_key].combobox_values(
-            column, insert_placeholder=False
-        )
-
-        if combobox_values:
-            widget_type = TK_COMBOBOX
-            width = (
-                width
-                if width >= themepack.combobox_min_width
-                else themepack.combobox_min_width
-            )
-
-        # or a checkbox
-        elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
-            widget_type = TK_CHECKBUTTON
-            width = (
-                width
-                if width >= themepack.checkbox_min_width
-                else themepack.checkbox_min_width
-            )
-
-        # or a date
-        elif self.frm[data_key].column_info[column]["domain"] in ["DATE"]:
-            text = self.frm[data_key].column_info[column].cast(text)
-            widget_type = TK_DATEPICKER
-            width = (
-                width
-                if width >= themepack.datepicker_min_width
-                else themepack.datepicker_min_width
-            )
-
-        # else, its a normal ttk.entry
-        else:
-            widget_type = TK_ENTRY
-            width = (
-                width if width >= themepack.text_min_width else themepack.text_min_width
-            )
-
-        # float a frame over the cell
-        frame = tk.Frame(root)
-        frame.place(x=x, y=y, anchor="nw", width=width, height=height)
-
-        # setup the widgets
-        # ------------------
-
-        # checkbutton
-        # need to use tk.IntVar for checkbox
-        if widget_type == TK_CHECKBUTTON:
-            field_var = tk.BooleanVar()
-            field_var.set(checkbox_to_bool(text))
-            self.field = tk.Checkbutton(frame, variable=field_var)
-            expand = False
-        else:
-            # create tk.StringVar for combo/entry
-            field_var = tk.StringVar()
-            field_var.set(text)
-
-        # entry
-        if widget_type == TK_ENTRY:
-            self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
-            expand = True
-
-        if widget_type == TK_DATEPICKER:
-            text = dt.date.today() if type(text) is str else text
-            self.field = DatePicker(
-                frame, self.frm, init_date=text, textvariable=field_var
-            )
-            expand = True
-
-        # combobox
-        if widget_type == TK_COMBOBOX:
-            self.field = _CellEditCombo(
-                frame, textvariable=field_var, justify="left", values=combobox_values
-            )
-            self.field.bind("<Configure>", self.combo_configure)
-            expand = True
-
-        # bind text to Return (for save), and Escape (for discard)
-        # event is discarded
-        accept_dict = {
-            "data_key": data_key,
-            "table_element": table_element,
-            "row": row,
-            "column": column,
-            "col_idx": col_idx,
-            "combobox_values": combobox_values,
-            "widget_type": widget_type,
-            "field_var": field_var,
-        }
-
-        self.field.bind(
-            "<Return>",
-            lambda event: self.accept(**accept_dict),
-        )
-        self.field.bind("<Escape>", lambda event: self.destroy())
-
-        if themepack.use_cell_buttons:
-            # buttons
-            self.accept_button = tk.Button(
-                frame,
-                text="\u2714",
-                foreground="green",
-                relief=tk.GROOVE,
-                command=lambda: self.accept(**accept_dict),
-            )
-            self.cancel_button = tk.Button(
-                frame,
-                text="\u274E",
-                foreground="red",
-                relief=tk.GROOVE,
-                command=lambda: self.destroy(),
-            )
-            # pack buttons
-            self.cancel_button.pack(side="right")
-            self.accept_button.pack(side="right")
-
-        if widget_type == TK_DATEPICKER:
-            self.field.button.pack(side="right")
-        # have entry use remaining space
-        self.field.pack(side="left", expand=expand, fill="both")
-
-        # select text and focus to begin with
-        if widget_type != TK_CHECKBUTTON:
-            self.field.select_range(0, tk.END)
-            self.field.focus_force()
-
-        if widget_type == TK_COMBOBOX:
-            self.field.bind("<KeyRelease>", self.field.handle_keyrelease, "+")
-
-        # bind single-clicks
-        self.destroy_bind = self.frm.window.TKroot.bind(
-            "<Button-1>",
-            lambda event: self.single_click_callback(event, accept_dict),
-            "+",
-        )
-
-    def accept(
-        self,
-        data_key,
-        table_element,
-        row,
-        column,
-        col_idx,
-        combobox_values: ElementRow,
-        widget_type,
-        field_var,
-    ):
-        # get current entry text
-        new_value = field_var.get()
-
-        # get current table row
-        values = list(table_element.item(row, "values"))
-
-        # if combo, set the value to the parent pk
-        if widget_type == TK_COMBOBOX:
-            new_value = combobox_values[self.field.current()].get_pk()
-
-        dataset = self.frm[data_key]
-
-        # see if there was a change
-        old_value = dataset.get_current_row().copy()[column]
-        cast_new_value = dataset.value_changed(
-            column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
-        )
-        if cast_new_value is not Boolean.FALSE:
-            # push row to dataset and update
-            dataset.set_current(column, cast_new_value, write_event=True)
-            # Update matching field
-            self.frm.update_fields(data_key, columns=[column])
-            # TODO: make sure we actually want to set new_value to cast
-            new_value = cast_new_value
-
-        # now we can update the GUI table
-        # -------------------------------
-
-        # if combo, set new_value to actual text (not pk)
-        if widget_type == TK_COMBOBOX:
-            new_value = combobox_values[self.field.current()]
-
-        # if boolean, set
-        if widget_type == TK_CHECKBUTTON and themepack.display_boolean_as_checkbox:
-            new_value = (
-                themepack.checkbox_true
-                if checkbox_to_bool(new_value)
-                else themepack.checkbox_false
-            )
-
-        # update value row with new text
-        values[col_idx] = new_value
-
-        # set marker
-        values[0] = (
-            themepack.marker_unsaved
-            if dataset.current_row_has_backup
-            and not dataset.get_current_row().equals(dataset.get_original_current_row())
-            else " "
-        )
-
-        # push changes to table element row
-        table_element.item(row, values=values)
-
-        self.destroy()
-
-    def destroy(self):
-        # unbind
-        self.frm.window.TKroot.unbind("<Button-1>", self.destroy_bind)
-
-        # destroy widets and window
-        self.field.destroy()
-        if themepack.use_cell_buttons:
-            self.accept_button.destroy()
-            self.cancel_button.destroy()
-        self.field.master.destroy()
-        # reset edit
-        self.active_edit = False
-
-    def single_click_callback(
-        self,
-        event,
-        accept_dict,
-    ):
-        # destroy if you click a heading while editing
-        if isinstance(event.widget, ttk.Treeview):
-            tk_widget = event.widget
-            # identify region
-            region = tk_widget.identify("region", event.x, event.y)
-            if region == "heading":
-                self.destroy()
-                return
-        # disregard if you click the field/buttons of celledit
-        widget_list = [self.field]
-        if themepack.use_cell_buttons:
-            widget_list.append(self.accept_button)
-            widget_list.append(self.cancel_button)
-
-        # for datepicker
-        with contextlib.suppress(AttributeError):
-            widget_list.append(self.field.button)
-        if "ttkcalendar" in str(event.widget):
-            return
-
-        if event.widget in widget_list:
-            return
-        self.accept(**accept_dict)
-
-    def get_datakey_and_sgtable(self, treeview, frm):
-        # loop through datasets, trying to identify sg.Table selector
-        for data_key in [
-            data_key for data_key in frm.datasets if len(frm[data_key].selector)
-        ]:
-            for e in frm[data_key].selector:
-                element = e["element"]
-                if element.widget == treeview and "TableHeading" in element.metadata:
-                    return data_key, element
-        return None
-
-    def combo_configure(self, event):
-        """Configures combobox drop-down to be at least as wide as longest value"""
-
-        combo = event.widget
-        style = ttk.Style()
-
-        # get longest value
-        long = max(combo.cget("values"), key=len)
-        # get font
-        font = tkfont.nametofont(str(combo.cget("font")))
-        # set initial width
-        width = font.measure(long.strip() + "0")
-        # make it width size if smaller
-        width = width if width > combo["width"] else combo["width"]
-        style.configure("SS.TCombobox", postoffset=(0, 0, width, 0))
-        combo.configure(style="SS.TCombobox")
-
-
-class _CellEditCombo(ttk.Combobox):
-    """Customized Combo widget with autocompletion feature."""
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the Combo widget."""
-        self._completion_list = [str(row) for row in kwargs["values"]]
-        self._hits = []
-        self._hit_index = 0
-        self.position = 0
-        self.finalized = False
-
-        super().__init__(*args, **kwargs)
-
-    def autocomplete(self, delta=0):
-        """Perform autocompletion based on the current input."""
-        self._hits = _autocomplete_combo(self, self._completion_list, delta)
-        self._hit_index = 0
-
-    def handle_keyrelease(self, event):
-        """Handle key release event for autocompletion and navigation."""
-        if event.keysym == "BackSpace":
-            self.delete(self.position, tk.END)
-            self.position = self.position
-        if event.keysym == "Left":
-            if self.position < self.index(tk.END):
-                self.delete(self.position, tk.END)
-            else:
-                self.position -= 1
-                self.delete(self.position, tk.END)
-        if event.keysym == "Right":
-            self.position = self.index(tk.END)
-        if event.keysym == "Return":
-            self.icursor(tk.END)
-            self.selection_clear()
-            return
-
-        if len(event.keysym) == 1:
-            self.autocomplete()
-
-
-class TtkCalendar(ttk.Frame):
-    """Internal Class."""
-
-    # Modified from Tkinter GUI Application Development Cookbook, MIT License.
-
-    def __init__(self, master, init_date, textvariable, **kwargs):
-        # TODO, set these in themepack?
-        fwday = kwargs.pop("firstweekday", calendar.MONDAY)
-        sel_bg = kwargs.pop("selectbackground", "#ecffc4")
-        sel_fg = kwargs.pop("selectforeground", "#05640e")
-
-        super().__init__(master, class_="TtkCalendar", **kwargs)
-
-        self.master = master
-        self.cal_date = init_date
-        self.textvariable = textvariable
-        self.cal = calendar.TextCalendar(fwday)
-        self.font = tkfont.Font(self)
-        self.header = self.create_header()
-        self.table = self.create_table()
-        self.canvas = self.create_canvas(sel_bg, sel_fg)
-        self.build_calendar()
-
-    def create_header(self):
-        left_arrow = {"children": [("Button.leftarrow", None)]}
-        right_arrow = {"children": [("Button.rightarrow", None)]}
-        style = ttk.Style(self)
-        style.layout("L.TButton", [("Button.focus", left_arrow)])
-        style.layout("R.TButton", [("Button.focus", right_arrow)])
-
-        hframe = ttk.Frame(self)
-        btn_left = ttk.Button(
-            hframe, style="L.TButton", command=lambda: self.move_month(-1)
-        )
-        btn_right = ttk.Button(
-            hframe, style="R.TButton", command=lambda: self.move_month(1)
-        )
-        label = ttk.Label(hframe, width=15, anchor="center")
-
-        hframe.pack(pady=5, anchor=tk.CENTER)
-        btn_left.grid(row=0, column=0)
-        label.grid(row=0, column=1, padx=12)
-        btn_right.grid(row=0, column=2)
-        return label
-
-    def create_table(self):
-        cols = self.cal.formatweekheader(3).split()
-        table = ttk.Treeview(self, show="", selectmode="none", height=7, columns=cols)
-        table.bind("<Map>", self.minsize, "+")
-        table.pack(expand=1, fill=tk.BOTH)
-        table.tag_configure("header", background="grey90")
-        table.insert("", tk.END, values=cols, tag="header")
-        for _ in range(6):
-            table.insert("", tk.END)
-
-        width = max(map(self.font.measure, cols))
-        for col in cols:
-            table.column(col, width=width, minwidth=width, anchor=tk.E)
-        return table
-
-    def create_canvas(self, bg, fg):
-        canvas = tk.Canvas(
-            self.table, background=bg, borderwidth=1, highlightthickness=0
-        )
-        canvas.text = canvas.create_text(0, 0, fill=fg, anchor=tk.W)
-        self.table.bind("<ButtonPress-1>", self.pressed_callback, "+")
-        return canvas
-
-    def build_calendar(self):
-        year, month = self.cal_date.year, self.cal_date.month
-        month_name = self.cal.formatmonthname(year, month, 0)
-        month_weeks = self.cal.monthdayscalendar(year, month)
-
-        self.header.config(text=month_name.title())
-        items = self.table.get_children()[1:]
-        for week, item in itertools.zip_longest(month_weeks, items):
-            fmt_week = [f"{day:02d}" if day else "" for day in (week or [])]
-            self.table.item(item, values=fmt_week)
-
-    def pressed_callback(self, event):
-        x, y, widget = event.x, event.y, event.widget
-        item = widget.identify_row(y)
-        column = widget.identify_column(x)
-        items = self.table.get_children()[1:]
-
-        if not column or item not in items:
-            # clicked te header or outside the columns
-            return
-
-        index = int(column[1]) - 1
-        values = widget.item(item)["values"]
-        text = values[index] if len(values) else None
-        bbox = widget.bbox(item, column)
-        if bbox and text:
-            self.cal_date = dt.date(self.cal_date.year, self.cal_date.month, int(text))
-            self.draw_selection(bbox)
-            self.textvariable.set(self.cal_date.strftime("%Y-%m-%d"))
-
-    def draw_selection(self, bbox):
-        canvas, text = self.canvas, "%02d" % self.cal_date.day
-        x, y, width, height = bbox
-        textw = self.font.measure(text)
-        canvas.configure(width=width, height=height)
-        canvas.coords(canvas.text, width - textw, height / 2 - 1)
-        canvas.itemconfigure(canvas.text, text=text)
-        canvas.place(x=x, y=y)
-
-    def set_date(self, dateobj):
-        self.cal_date = dateobj
-        self.canvas.place_forget()
-        self.build_calendar()
-
-    def select_date(self):
-        bbox = self.get_bbox_for_date(self.cal_date)
-        if bbox:
-            self.draw_selection(bbox)
-
-    def get_bbox_for_date(self, new_date):
-        items = self.table.get_children()[1:]
-        for item in items:
-            values = self.table.item(item)["values"]
-            for i, value in enumerate(values):
-                if isinstance(value, int) and value == new_date.day:
-                    column = "#{}".format(i + 1)
-                    self.table.update()
-                    return self.table.bbox(item, column)
-        return None
-
-    def move_month(self, offset):
-        self.canvas.place_forget()
-        month = self.cal_date.month - 1 + offset
-        year = self.cal_date.year + month // 12
-        month = month % 12 + 1
-        self.cal_date = dt.date(year, month, 1)
-        self.build_calendar()
-
-    def minsize(self, e):
-        width, height = self.master.geometry().split("x")
-        height = height[: height.index("+")]
-        self.master.minsize(width, height)
-
-
-class DatePicker(ttk.Entry):
-    def __init__(self, master, frm_reference, init_date, **kwargs):
-        self.frm = frm_reference
-        textvariable = kwargs["textvariable"]
-        self.calendar = TtkCalendar(self.frm.window.TKroot, init_date, textvariable)
-        self.calendar.place_forget()
-        self.button = ttk.Button(master, text="▼", width=2, command=self.show_calendar)
-        super().__init__(master, **kwargs)
-
-        self.bind("<KeyRelease>", self.on_entry_key_release, "+")
-        self.calendar.bind("<Leave>", self.hide_calendar, "+")
-
-    def show_calendar(self, event=None):
-        self.configure(state="disabled")
-        self.calendar.place(in_=self, relx=0, rely=1)
-        self.calendar.focus_force()
-        self.calendar.select_date()
-
-    def hide_calendar(self, event=None):
-        self.configure(state="!disabled")
-        self.calendar.place_forget()
-        self.focus_force()
-
-    def on_entry_key_release(self, event=None):
-        # Check if the user has typed a valid date
-        try:
-            date_str = self.get()
-            date = dt.datetime.strptime(date_str, "%Y-%m-%d")
-        except ValueError:
-            return
-
-        # Update the calendar to show the new date
-        self.calendar.set_date(date)
-
-
-class _LiveUpdate:
-
-    """Internal class used to automatically sync selectors with field changes"""
-
-    def __init__(self, frm_reference: Form):
-        self.frm = frm_reference
-        self.last_event_widget = None
-        self.last_event_time = None
-        self.delay_seconds = 0.25
-
-    def __call__(self, event):
-        # keep track of time on same widget
-        if event.widget == self.last_event_widget:
-            self.last_event_time = time()
-        self.last_event_widget = event.widget
-
-        # get widget type
-        widget_type = event.widget.__class__.__name__
-
-        # if <<ComboboxSelected>> and a combobox, or a checkbutton
-        if (
-            event.type == "35" and widget_type == "Combobox"
-        ) or widget_type == "Checkbutton":
-            self.sync(event.widget, widget_type)
-
-        # use tk.after() for text, so waits for pause in typing to update selector.
-        elif widget_type in ["Entry", "Text"]:
-            self.frm.window.TKroot.after(
-                int(self.delay_seconds * 1000),
-                lambda: self.delay(event.widget, widget_type),
-            )
-
-    def sync(self, widget, widget_type):
-        for e in self.frm.element_map:
-            if e["element"].widget == widget:
-                data_key = e["table"]
-                column = e["column"]
-                element = e["element"]
-                if widget_type == TK_COMBOBOX and isinstance(element.get(), ElementRow):
-                    new_value = element.get().get_pk()
-                else:
-                    new_value = element.get()
-
-                dataset = self.frm[data_key]
-
-                # get cast new value to correct type
-                for col in dataset.column_info:
-                    if col["name"] == column:
-                        new_value = col.cast(new_value)
-                        break
-
-                # see if there was a change
-                old_value = dataset.get_current_row()[column]
-                new_value = dataset.value_changed(
-                    column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
-                )
-                if new_value is not Boolean.FALSE:
-                    # push row to dataset and update
-                    dataset.set_current(column, new_value, write_event=True)
-
-                    # Update tableview if uses column:
-                    if dataset.column_likely_in_selector(column):
-                        self.frm.update_selectors(dataset.key)
-
-    def delay(self, widget, widget_type):
-        if self.last_event_time:
-            elapsed_sec = time() - self.last_event_time
-            if elapsed_sec >= self.delay_seconds:
-                self.sync(widget, widget_type)
-        else:
-            self.sync(widget, widget_type)
 
 
 # ======================================================================================
