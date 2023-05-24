@@ -5109,13 +5109,20 @@ class Input(_PlaceholderText, sg.Input):
     """
 
     def __init__(self, *args, **kwargs):
+        self.binds = {}
         super().__init__(*args, **kwargs)
 
     def _add_binds(self):
         widget = self.widget
+        if self.binds:
+            # remove any existing binds
+            for event, funcid in self.binds.items():
+                self.widget.unbind(event, funcid)
+            self.binds = {}
 
         def on_key(event):
             if self.active_placeholder and widget.get() == self.placeholder_text:
+                # dont clear for non-text-producing keys
                 if event.keysym in self._non_keys and widget.index(tk.INSERT) in [0, 1]:
                     return
                 # Clear the placeholder when the user starts typing
@@ -5123,6 +5130,10 @@ class Input(_PlaceholderText, sg.Input):
                 widget.config(fg=self.normal_color, font=self.normal_font)
                 self.active_placeholder = False
 
+            # insert placeholder when:
+            # 1) widget is empty
+            # 2) user hits backspace and only 1 character left
+            # 3) or they have selected all their text and pressed backspace/delete
             elif (
                 (not self.active_placeholder and not widget.get())
                 or (event.keysym == "BackSpace" and len(widget.get()) == 1)
@@ -5157,12 +5168,11 @@ class Input(_PlaceholderText, sg.Input):
                 return "break"
             return None
 
-        widget.bind("<Key>", on_key, "+")
-        widget.bind("<FocusIn>", on_focusin, "+")
-        widget.bind("<FocusOut>", on_focusout, "+")
-        widget.bind("<<SelectAll>>", disable_placeholder_select, "+")
-        widget.bind("<Control-a>", disable_placeholder_select, "+")
-        widget.bind("<Control-/>", disable_placeholder_select, "+")
+        self.binds["<Key>"] = widget.bind("<Key>", on_key, "+")
+        self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
+        self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
+        for event in ["<<SelectAll>>", "<Control-a>", "<Control-/>"]:
+            self.binds[event] = widget.bind(event, disable_placeholder_select, "+")
 
         if not widget.get():
             enable_placeholder()
@@ -5174,10 +5184,15 @@ class Multiline(_PlaceholderText, sg.Multiline):
     """
 
     def __init__(self, *args, **kwargs):
+        self.binds = {}
         super().__init__(*args, **kwargs)
 
     def _add_binds(self):
         widget = self.widget
+        if self.binds:
+            for event, bind in self.binds.items():
+                self.widget.unbind(event, bind)
+            self.binds = {}
 
         def on_focusin(event):
             if self.active_placeholder:
@@ -5197,8 +5212,8 @@ class Multiline(_PlaceholderText, sg.Multiline):
             widget.insert("1.0", self.placeholder_text)
             widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
-        widget.bind("<FocusIn>", on_focusin, "+")
-        widget.bind("<FocusOut>", on_focusout, "+")
+        self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
+        self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
 
 
 def _autocomplete_combo(widget, completion_list, delta=0):
