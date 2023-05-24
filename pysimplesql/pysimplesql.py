@@ -5016,6 +5016,12 @@ class _PlaceholderText(abc.ABC):
         self.placeholder_color = None
         self.placeholder_font = None
         self.active_placeholder = True
+        # fmt: off
+        self._non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
+                    "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
+                    "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4","F5",
+                    "F6","F7","F8","F9","F10","F11","F12", "Delete"]
+        # fmt: on
 
     def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
         """
@@ -5072,12 +5078,12 @@ class _PlaceholderText(abc.ABC):
             # Otherwise, use the current value
             value = self.get()
 
-        if self.active_placeholder and value != "":  # noqa PLC1901
+        if self.active_placeholder and value:
             # Replace the placeholder with the new value
             super().update(value=value)
             self.active_placeholder = False
             self.Widget.config(fg=self.normal_color, font=self.normal_font)
-        elif value == "":  # noqa PLC1901
+        elif not value:
             # If the value is empty, reinsert the placeholder
             super().update(value=self.placeholder_text, *args, **kwargs)
             self.active_placeholder = True
@@ -5108,31 +5114,63 @@ class Input(_PlaceholderText, sg.Input):
     def _add_binds(self):
         widget = self.widget
 
-        def on_focusin(event):
-            if self.active_placeholder:
+        def on_key(event):
+            if self.active_placeholder and widget.get() == self.placeholder_text:
+                if event.keysym in self._non_keys and widget.index(tk.INSERT) in [0, 1]:
+                    return
+                # Clear the placeholder when the user starts typing
                 widget.delete(0, "end")
                 widget.config(fg=self.normal_color, font=self.normal_font)
-
                 self.active_placeholder = False
 
+            elif (
+                (not self.active_placeholder and not widget.get())
+                or (event.keysym == "BackSpace" and len(widget.get()) == 1)
+                or (
+                    event.keysym in ["BackSpace", "Delete"]
+                    and widget.select_present()
+                    and widget.selection_get() == widget.get()
+                )
+            ):
+                with contextlib.suppress(tk.TclError):
+                    enable_placeholder()
+                    widget.icursor(0)
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                # Move cursor to the beginning if the field has a placeholder
+                widget.icursor(0)
+
         def on_focusout(event):
-            if widget.get() == "":  # noqa PLC1901
-                widget.insert(0, self.placeholder_text)
-                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+            if not widget.get():
+                enable_placeholder()
 
-                self.active_placeholder = True
-
-        if widget.get() == "" and self.active_placeholder:  # noqa PLC1901
+        def enable_placeholder():
+            widget.delete(0, "end")
             widget.insert(0, self.placeholder_text)
             widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+            self.active_placeholder = True
 
+        def disable_placeholder_select(event):
+            # Disable selecting the placeholder
+            if self.active_placeholder:
+                return "break"
+            return None
+
+        widget.bind("<Key>", on_key, "+")
         widget.bind("<FocusIn>", on_focusin, "+")
         widget.bind("<FocusOut>", on_focusout, "+")
+        widget.bind("<<SelectAll>>", disable_placeholder_select, "+")
+        widget.bind("<Control-a>", disable_placeholder_select, "+")
+        widget.bind("<Control-/>", disable_placeholder_select, "+")
+
+        if not widget.get():
+            enable_placeholder()
 
 
 class Multiline(_PlaceholderText, sg.Multiline):
     """
-    A Multiline that allows for the display of a placeholder text when empty.
+    A Multiline that allows for the display of a placeholder text when focus-out empty.
     """
 
     def __init__(self, *args, **kwargs):
@@ -5155,9 +5193,7 @@ class Multiline(_PlaceholderText, sg.Multiline):
 
                 self.active_placeholder = True
 
-        if (
-            not widget.get("1.0", "end-1c").strip() and self.active_placeholder
-        ):  # noqa PLC1901
+        if not widget.get("1.0", "end-1c").strip() and self.active_placeholder:
             widget.insert("1.0", self.placeholder_text)
             widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
@@ -5192,7 +5228,8 @@ def _autocomplete_combo(widget, completion_list, delta=0):
             widget.select_range(widget.position, tk.END)
 
         if len(hits) == 1 and closest_match.lower() != prefix:
-            # If there is only one hit and it's not equal to the lowercase prefix, open dropdown
+            # If there is only one hit and it's not equal to the lowercase prefix,
+            # open dropdown
             widget.event_generate("<Down>")
             widget.event_generate("<<ComboboxSelected>>")
 
