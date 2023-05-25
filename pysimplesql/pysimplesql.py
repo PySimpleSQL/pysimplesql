@@ -4293,9 +4293,11 @@ class Form:
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
                             elif isinstance(element, sg.Table) and len(values[event]):
-                                index = values[event][0]
-                                pk = self.window[event].Values[index].pk
-
+                                if isinstance(element, LazyTable):
+                                    pk = int(values[event])
+                                else:
+                                    index = values[event][0]
+                                    pk = self.window[event].Values[index].pk
                                 # no need to update the selector!
                                 dataset.set_by_pk(pk, True, omit_elements=[element])
 
@@ -4442,7 +4444,7 @@ def update_table_element(
     element.update(values=values, select_rows=select_rows)
 
     # make sure row_iid is visible
-    if len(values):
+    if not isinstance(element, LazyTable) and len(values):
         row_iid = element.tree_ids[select_rows[0]]
         element.widget.see(row_iid)
 
@@ -5000,6 +5002,215 @@ class Widgets:
     """
 
     pass
+
+
+class LazyTable(sg.Table):
+
+    """
+    The LazyTable is a subclass of sg.Table for improved performance by loading rows
+    lazily during scroll events. Updating a sg.Table is generally fast, but with large
+    DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
+    overcomes this by only inserting only visible rows during an `update()` call.
+
+    To use it, provide values in the form of [TableRow(pk, values)], finalize the
+    sg.Window, and call update(). Please note that LazyTable does not support
+    alternating_row_color or row_colors.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.values = []  # full set of rows
+        self.data = []  # lazy slice of rows
+        self.Values = self.data
+
+        self.init_insert_qty = self.NumRows
+        """Number of rows to insert initially during an `update()`"""
+
+        self.scroll_insert_qty = 2
+        """Number of rows to insert during a scroll event"""
+
+        self._start_index = 0
+        self._end_index = 0
+        self._finalized = False
+        self._lock = threading.Lock()
+
+    def update(self, values=None, num_rows=None, visible=None, select_rows=None):
+        self.values = values
+        # Update current_index with the selected index
+        self.current_index = select_rows[0] if select_rows else 0
+
+        if not self._widget_was_created():
+            return
+
+        if not self._finalized:
+            self.widget.configure(yscrollcommand=self._handle_scroll)
+            self._finalized = True
+
+        if self._this_elements_window_closed():
+            return
+
+        for iid in self.tree_ids:
+            self.TKTreeview.item(iid, tags=())
+            if (
+                self.BackgroundColor is not None
+                and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+            ):
+                self.TKTreeview.tag_configure(iid, background=self.BackgroundColor)
+            else:
+                self.TKTreeview.tag_configure(
+                    iid, background="#FFFFFF", foreground="#000000"
+                )
+            if self.TextColor is not None and self.TextColor != sg.COLOR_SYSTEM_DEFAULT:
+                self.TKTreeview.tag_configure(iid, foreground=self.TextColor)
+            else:
+                self.TKTreeview.tag_configure(iid, foreground="#000000")
+
+        children = self.TKTreeview.get_children()
+        for i in children:
+            self.TKTreeview.detach(i)
+            self.TKTreeview.delete(i)
+
+        self.tree_ids = []
+        if select_rows is not None:
+            # Slice the list to show visible rows before and after the current index
+            self._start_index = max(0, self.current_index - self.init_insert_qty)
+            self._end_index = min(
+                len(values), self.current_index + self.init_insert_qty + 1
+            )
+            self.data = values[self._start_index : self._end_index]
+
+            # insert the rows
+            for row in self.data:
+                iid = self.TKTreeview.insert(
+                    "", "end", text=row, iid=row.pk, values=row
+                )
+                if (
+                    self.BackgroundColor is not None
+                    and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+                ):
+                    self.TKTreeview.tag_configure(iid, background=self.BackgroundColor)
+                else:
+                    self.TKTreeview.tag_configure(iid, background="#FFFFFF")
+                self.tree_ids.append(iid)
+
+        if visible is not None:
+            self._visible = visible
+        if visible is False:
+            self._pack_forget_save_settings(self.element_frame)
+        elif visible is True:
+            self._pack_restore_settings(self.element_frame)
+
+        if num_rows is not None:
+            self.TKTreeview.config(height=num_rows)
+
+        if select_rows is not None:
+            # Scroll to the selected row if it exists
+            # Offset select_rows index for the sliced values
+            offset_select_rows = [i - self._start_index for i in select_rows]
+            if offset_select_rows and offset_select_rows[0] < len(self.data):
+                self.widget.selection_set(self.tree_ids[offset_select_rows[0]])
+                # Get the row iid based on the offset_select_rows index
+                row_iid = self.tree_ids[offset_select_rows[0]]
+                self.widget.see(row_iid)
+
+    def _handle_scroll(self, x0, x1):
+        if float(x0) == 0.0:
+            with self._lock:
+                # Check if it's possible to insert more rows before this record
+                if self._start_index > 0:
+                    # Insert more rows before the current record
+
+                    # Number of additional rows to retrieve
+                    num_rows = min(self._start_index, self.scroll_insert_qty)
+                    # Index to start retrieving additional rows
+                    new_start_index = max(0, self._start_index - num_rows)
+
+                    new_rows = self.values[new_start_index : self._start_index]
+
+                    # Insert new rows into the Treeview in reverse order
+                    for row in reversed(new_rows):
+                        iid = self.TKTreeview.insert(
+                            "", "0", text=row, iid=row.pk, values=row
+                        )
+                        if (
+                            self.BackgroundColor is not None
+                            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+                        ):
+                            self.TKTreeview.tag_configure(
+                                iid, background=self.BackgroundColor
+                            )
+                        else:
+                            self.TKTreeview.tag_configure(iid, background="#FFFFFF")
+                        # Insert the new iid at the beginning of tree_ids
+                        self.tree_ids.insert(0, iid)
+                    self._start_index = new_start_index  # Update the current_index
+                    self.data[:0] = new_rows  # Prepend new_rows to self.data
+
+                    # to avoid an infinite scroll, move scroll a little before 0.0
+                    # by `see`ing 1 row down.
+                    with contextlib.suppress(IndexError):
+                        row_iid = self.tree_ids[self.NumRows + 1]
+                        self.widget.see(row_iid)
+                    return
+
+        self.vsb.set(x0, x1)
+
+        if float(x1) > 0.9:
+            with self._lock:
+                num_rows = len(
+                    self.values
+                )  # Assuming values is the complete list of data
+                if self._end_index < num_rows:
+                    start_index = max(
+                        0, self._end_index
+                    )  # Index to start retrieving additional rows
+                    end_index = min(
+                        self._end_index + self.scroll_insert_qty, num_rows
+                    )  # Number of additional rows to retrieve
+                    new_rows = self.values[start_index:end_index]
+
+                    # Insert new rows into the Treeview
+                    for row in new_rows:
+                        iid = self.widget.insert(
+                            "", "end", text=row, iid=row.pk, values=row
+                        )
+                        self.tree_ids.append(iid)  # Append the new iid to tree_ids
+
+                    self._end_index = end_index
+                    self.data.extend(new_rows)  # Extend self.data with new_rows
+
+    @property
+    def SelectedRows(self):
+        """
+        Returns the selected row(s) in the LazyTable.
+
+        :returns:
+            - If the LazyTable has data:
+                - Retrieves the index of the selected row by matching the primary key
+                  (pk) value with the first selected item in the TKTreeview.
+                - Returns the corresponding row from the data list based on the index.
+            - If the LazyTable has no data:
+                - Returns None.
+
+        :note:
+            This property assumes that the LazyTable is using a primary key (pk) value
+            to uniquely identify rows in the data list.
+        """
+        if self.data:
+            index = [
+                [v.pk for v in self.data].index(
+                    [int(x) for x in self.TKTreeview.selection()][0]
+                )
+            ][0]
+            return self.data[index]
+        return None
+
+    def __setattr__(self, name, value):
+        if name == "SelectedRows":
+            # Custom handling for 'SelectedRows' attribute assignment
+            # Example: Prevent assignment of non-list values
+            return
+        super().__setattr__(name, value)
 
 
 class _PlaceholderText(abc.ABC):
@@ -6631,7 +6842,7 @@ def selector(
             auto_size_text=False,
             metadata=meta,
         )
-    elif element == sg.Table:
+    elif element in [sg.Table, LazyTable]:
         # Check if the headings arg is a Table heading...
         if isinstance(kwargs["headings"], TableHeadings):
             # Overwrite the kwargs from the TableHeading info
