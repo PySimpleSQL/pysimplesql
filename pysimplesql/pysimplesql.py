@@ -1450,7 +1450,11 @@ class DataSet:
                 # grab the first result
                 pk = result.iloc[0][self.pk_column]
                 if pk == self[self.pk_column]:
-                    return None
+                    if update_elements:
+                        self.frm.update_elements(self.key)
+                    if requery_dependents:
+                        self.requery_dependents()
+                    return SEARCH_RETURNED
                 self.set_by_pk(
                     pk=pk,
                     update_elements=update_elements,
@@ -5010,11 +5014,11 @@ class LazyTable(sg.Table):
     The LazyTable is a subclass of sg.Table for improved performance by loading rows
     lazily during scroll events. Updating a sg.Table is generally fast, but with large
     DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
-    overcomes this by only inserting only visible rows during an `update()` call.
+    overcomes this by only inserting a slice of rows during an `update()`.
 
     To use it, provide values in the form of [TableRow(pk, values)], finalize the
-    sg.Window, and call update(). Please note that LazyTable does not support
-    alternating_row_color or row_colors.
+    sg.Window, and call update(). Please note that LazyTable does not support the
+    `sg.Table` `row_colors` argument.
     """
 
     def __init__(self, *args, **kwargs):
@@ -5023,18 +5027,24 @@ class LazyTable(sg.Table):
         self.data = []  # lazy slice of rows
         self.Values = self.data
 
-        self.init_insert_qty = self.NumRows
-        """Number of rows to insert initially during an `update()`"""
-
-        self.scroll_insert_qty = 2
-        """Number of rows to insert during a scroll event"""
+        self.insert_qty = max(self.NumRows, 50)
+        """Number of rows to insert during an `update(values=)` and scroll events"""
 
         self._start_index = 0
         self._end_index = 0
+        self._start_alt_color = False
+        self._end_alt_color = False
         self._finalized = False
         self._lock = threading.Lock()
 
-    def update(self, values=None, num_rows=None, visible=None, select_rows=None):
+    def update(
+        self,
+        values=None,
+        num_rows=None,
+        visible=None,
+        select_rows=None,
+        alternating_row_color=None,
+    ):
         self.values = values
         # Update current_index with the selected index
         self.current_index = select_rows[0] if select_rows else 0
@@ -5049,6 +5059,11 @@ class LazyTable(sg.Table):
         if self._this_elements_window_closed():
             return
 
+        if alternating_row_color is not None:
+            self.AlternatingRowColor = alternating_row_color
+            self._start_alt_color = True
+
+        # delete all current
         for iid in self.tree_ids:
             self.TKTreeview.item(iid, tags=())
             if (
@@ -5069,21 +5084,25 @@ class LazyTable(sg.Table):
         for i in children:
             self.TKTreeview.detach(i)
             self.TKTreeview.delete(i)
-
         self.tree_ids = []
+
+        # get values to insert
         if select_rows is not None:
             # Slice the list to show visible rows before and after the current index
-            self._start_index = max(0, self.current_index - self.init_insert_qty)
-            self._end_index = min(
-                len(values), self.current_index + self.init_insert_qty + 1
-            )
+            self._start_index = max(0, self.current_index - self.insert_qty)
+            self._end_index = min(len(values), self.current_index + self.insert_qty + 1)
             self.data = values[self._start_index : self._end_index]
+        else:
+            self.data = values
 
+        # insert values
+        if values is not None:
             # insert the rows
             for row in self.data:
                 iid = self.TKTreeview.insert(
-                    "", "end", text=row, iid=row.pk, values=row
+                    "", "end", text=row, iid=row.pk, values=row, tag=row.pk
                 )
+                # set background
                 if (
                     self.BackgroundColor is not None
                     and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
@@ -5091,93 +5110,122 @@ class LazyTable(sg.Table):
                     self.TKTreeview.tag_configure(iid, background=self.BackgroundColor)
                 else:
                     self.TKTreeview.tag_configure(iid, background="#FFFFFF")
+                # override with alt
+                if self.AlternatingRowColor is not None:
+                    if not self._end_alt_color:
+                        self.TKTreeview.tag_configure(
+                            row.pk, background=self.AlternatingRowColor
+                        )
+                    self._end_alt_color = not self._end_alt_color
+                # add to tree_ids
                 self.tree_ids.append(iid)
 
+        # handle visible
         if visible is not None:
             self._visible = visible
-        if visible is False:
-            self._pack_forget_save_settings(self.element_frame)
-        elif visible is True:
-            self._pack_restore_settings(self.element_frame)
+            if visible:
+                self._pack_restore_settings(self.element_frame)
+            else:
+                self._pack_forget_save_settings(self.element_frame)
 
+        # handle number of rows
         if num_rows is not None:
             self.TKTreeview.config(height=num_rows)
 
+        # finally, select rows and make first visible
         if select_rows is not None:
-            # Scroll to the selected row if it exists
             # Offset select_rows index for the sliced values
             offset_select_rows = [i - self._start_index for i in select_rows]
             if offset_select_rows and offset_select_rows[0] < len(self.data):
+                # select the row
                 self.widget.selection_set(self.tree_ids[offset_select_rows[0]])
                 # Get the row iid based on the offset_select_rows index
                 row_iid = self.tree_ids[offset_select_rows[0]]
+                # and make sure its visible
                 self.widget.see(row_iid)
 
     def _handle_scroll(self, x0, x1):
         if float(x0) == 0.0:
-            with self._lock:
-                # Check if it's possible to insert more rows before this record
-                if self._start_index > 0:
-                    # Insert more rows before the current record
-
-                    # Number of additional rows to retrieve
-                    num_rows = min(self._start_index, self.scroll_insert_qty)
-                    # Index to start retrieving additional rows
-                    new_start_index = max(0, self._start_index - num_rows)
-
-                    new_rows = self.values[new_start_index : self._start_index]
-
-                    # Insert new rows into the Treeview in reverse order
-                    for row in reversed(new_rows):
-                        iid = self.TKTreeview.insert(
-                            "", "0", text=row, iid=row.pk, values=row
-                        )
-                        if (
-                            self.BackgroundColor is not None
-                            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
-                        ):
-                            self.TKTreeview.tag_configure(
-                                iid, background=self.BackgroundColor
-                            )
-                        else:
-                            self.TKTreeview.tag_configure(iid, background="#FFFFFF")
-                        # Insert the new iid at the beginning of tree_ids
-                        self.tree_ids.insert(0, iid)
-                    self._start_index = new_start_index  # Update the current_index
-                    self.data[:0] = new_rows  # Prepend new_rows to self.data
-
-                    # to avoid an infinite scroll, move scroll a little before 0.0
-                    # by `see`ing 1 row down.
-                    with contextlib.suppress(IndexError):
-                        row_iid = self.tree_ids[self.NumRows + 1]
-                        self.widget.see(row_iid)
-                    return
-
+            self._handle_start_scroll()
+        if float(x1) == 1.0:
+            self._handle_end_scroll()
+        # else, set the scroll
         self.vsb.set(x0, x1)
 
-        if float(x1) > 0.9:
-            with self._lock:
-                num_rows = len(
-                    self.values
-                )  # Assuming values is the complete list of data
-                if self._end_index < num_rows:
-                    start_index = max(
-                        0, self._end_index
-                    )  # Index to start retrieving additional rows
-                    end_index = min(
-                        self._end_index + self.scroll_insert_qty, num_rows
-                    )  # Number of additional rows to retrieve
-                    new_rows = self.values[start_index:end_index]
+    def _handle_start_scroll(self):
+        with self._lock:
+            if self._start_index > 0:
+                # determine slice
+                num_rows = min(self._start_index, self.insert_qty)
+                new_start_index = max(0, self._start_index - num_rows)
+                new_rows = self.values[new_start_index : self._start_index]
 
-                    # Insert new rows into the Treeview
-                    for row in new_rows:
-                        iid = self.widget.insert(
-                            "", "end", text=row, iid=row.pk, values=row
-                        )
-                        self.tree_ids.append(iid)  # Append the new iid to tree_ids
+                # insert
+                for row in reversed(new_rows):
+                    iid = self.TKTreeview.insert(
+                        "", "0", text=row, iid=row.pk, values=row, tag=row.pk
+                    )
+                    self._start_alt_color = self._set_background(
+                        iid, self._start_alt_color
+                    )
+                    self.tree_ids.insert(0, iid)
 
-                    self._end_index = end_index
-                    self.data.extend(new_rows)  # Extend self.data with new_rows
+                # set new start
+                self._start_index = new_start_index
+
+                # Insert new_rows to beginning
+                # don't use data.insert(0, new_rows), it breaks TableRow
+                self.data[:0] = new_rows
+
+                # to avoid an infinite scroll, move scroll a little after 0.0
+                with contextlib.suppress(IndexError):
+                    row_iid = self.tree_ids[self.insert_qty + self.NumRows - 1]
+                    self.widget.see(row_iid)
+
+    def _handle_end_scroll(self):
+        with self._lock:
+            num_rows = len(self.values)
+            if self._end_index < num_rows:
+                # determine slice
+                start_index = max(0, self._end_index)
+                end_index = min(self._end_index + self.insert_qty, num_rows)
+                new_rows = self.values[start_index:end_index]
+
+                # insert
+                for row in new_rows:
+                    iid = self.widget.insert(
+                        "", "end", text=row, iid=row.pk, values=row, tag=row.pk
+                    )
+                    self._end_alt_color = self._set_background(iid, self._end_alt_color)
+                    self.tree_ids.append(iid)
+
+                # set new end
+                self._end_index = end_index
+
+                # Extend self.data with new_rows
+                self.data.extend(new_rows)
+
+                # to avoid an infinite scroll, move scroll a little before 1.0
+                with contextlib.suppress(IndexError):
+                    row_iid = self.tree_ids[len(self.data) - self.insert_qty]
+                    self.widget.see(row_iid)
+
+    def _set_background(self, iid, toggle_color):
+        # first set background
+        if (
+            self.BackgroundColor is not None
+            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+        ):
+            self.TKTreeview.tag_configure(iid, background=self.BackgroundColor)
+        else:
+            self.TKTreeview.tag_configure(iid, background="#FFFFFF")
+
+        # then override with alt color if set
+        if self.AlternatingRowColor is not None:
+            if not toggle_color:
+                self.TKTreeview.tag_configure(iid, background=self.AlternatingRowColor)
+            toggle_color = not toggle_color
+        return toggle_color
 
     @property
     def SelectedRows(self):
