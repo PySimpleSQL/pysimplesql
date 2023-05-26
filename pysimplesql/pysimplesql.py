@@ -5027,7 +5027,7 @@ class LazyTable(sg.Table):
         self.data = []  # lazy slice of rows
         self.Values = self.data
 
-        self.insert_qty = max(self.NumRows, 50)
+        self.insert_qty = max(self.NumRows, 25)
         """Number of rows to insert during an `update(values=)` and scroll events"""
 
         self._start_index = 0
@@ -5147,8 +5147,10 @@ class LazyTable(sg.Table):
     def _handle_scroll(self, x0, x1):
         if float(x0) == 0.0:
             self._handle_start_scroll()
+            return
         if float(x1) == 1.0:
             self._handle_end_scroll()
+            return
         # else, set the scroll
         self.vsb.set(x0, x1)
 
