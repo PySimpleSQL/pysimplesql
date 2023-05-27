@@ -5027,7 +5027,7 @@ class LazyTable(sg.Table):
         self.data = []  # lazy slice of rows
         self.Values = self.data
 
-        self.insert_qty = max(self.NumRows, 25)
+        self.insert_qty = max(self.NumRows, 100)
         """Number of rows to insert during an `update(values=)` and scroll events"""
 
         self._start_index = 0
@@ -5047,43 +5047,30 @@ class LazyTable(sg.Table):
         select_rows=None,
         alternating_row_color=None,
     ):
+        # check if we shouldn't be doing this update
+        # PySimpleGUI version support (PyPi version doesn't support quick_check)
+        if sg.__version__.split(".")[0] == "5":
+            quick_check = "quick_check=True"
+        elif sg.__version__.split(".")[0] == "4":
+            if sg.__version__.split(".")[1] == "61":
+                quick_check = "quick_check=True"
+        else:
+            quick_check = ""
+
+        if not self._widget_was_created() or (
+            self.ParentForm is not None and self.ParentForm.is_closed(quick_check)
+        ):
+            return
+
+        # update total list
         self.values = values
         # Update current_index with the selected index
         self.current_index = select_rows[0] if select_rows else 0
-
-        # determine bg
-        self._bg = (
-            self.BackgroundColor
-            if self.BackgroundColor is not None
-            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
-            else "#FFFFFF"
-        )
-
-        # determine fg
-        self._fg = (
-            self.TextColor
-            if self.TextColor is not None and self.TextColor != sg.COLOR_SYSTEM_DEFAULT
-            else "#000000"
-        )
-
-        if not self._widget_was_created():
-            return
 
         # needed, since PySimpleGUI doesn't create tk widgets during class init
         if not self._finalized:
             self.widget.configure(yscrollcommand=self._handle_scroll)
             self._finalized = True
-
-        if self._this_elements_window_closed():
-            return
-
-        if alternating_row_color is not None:
-            self.AlternatingRowColor = alternating_row_color
-            self._start_alt_color = True
-
-        # remove tags # TODO: this may not be necessary
-        for iid in self.tree_ids:
-            self.TKTreeview.item(iid, tags=())
 
         # delete all current
         children = self.widget.get_children()
@@ -5091,6 +5078,26 @@ class LazyTable(sg.Table):
             self.widget.detach(i)
             self.widget.delete(i)
         self.tree_ids = []
+
+        # background color
+        self._bg = (
+            self.BackgroundColor
+            if self.BackgroundColor is not None
+            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+            else "#FFFFFF"
+        )
+
+        # text color
+        self._fg = (
+            self.TextColor
+            if self.TextColor is not None and self.TextColor != sg.COLOR_SYSTEM_DEFAULT
+            else "#000000"
+        )
+
+        # alternating color
+        if alternating_row_color is not None:
+            self.AlternatingRowColor = alternating_row_color
+            self._start_alt_color = True
 
         # get values to insert
         if select_rows is not None:
