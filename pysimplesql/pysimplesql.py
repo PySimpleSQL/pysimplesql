@@ -5247,8 +5247,7 @@ class LazyTable(sg.Table):
 
     def __setattr__(self, name, value):
         if name == "SelectedRows":
-            # Custom handling for 'SelectedRows' attribute assignment
-            # Example: Prevent assignment of non-list values
+            # Handle PySimpleGui attempts to set our SelectedRows property
             return
         super().__setattr__(name, value)
 
