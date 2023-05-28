@@ -20,11 +20,21 @@ Write data-driven desktop apps fast! Lightweight Python library supports SQLite,
 ## Features
 
 - [**Test**](https://)
+- Design user interfaces with automatic relationship handling
+
+## Requirements
+
+Dependencies here, along with link to sqldriver specific page
 
 ## Installation
 
+- **Unix/macOS**: `python3 -m pip install pysimplesql`
+- **Windows**: `py -m pip install pysimplesql`
+
 ## Quick usage
 
-
+```
+Ultra simple example here
+```
 
 See the [Usage](https://pysimplesql.github.io/pysimplesql/) section of the docs for more examples!
