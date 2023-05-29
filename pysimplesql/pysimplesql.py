@@ -6805,7 +6805,7 @@ def actions(
             ]
         else:
             layout += [
-                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                Input("", key=keygen.get(f"{key}search_input"), size=search_size),
                 sg.B(
                     themepack.search,
                     key=keygen.get(f"{key}search_button"),
