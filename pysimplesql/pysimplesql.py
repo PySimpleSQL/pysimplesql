@@ -1414,7 +1414,10 @@ class DataSet:
         if self.row_count:
             logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
 
-        rows = self.rows.copy()
+        # reorder rows to be idx + 1, and wrap around back to the beginning
+        rows = self.rows.copy().reset_index()
+        idx = self.current_index + 1 % len(rows)
+        rows = pd.concat([rows.loc[idx:], rows.loc[:idx]])
 
         # fill in descriptions for cols in search_order
         rels = Relationship.get_relationships(self.table)
