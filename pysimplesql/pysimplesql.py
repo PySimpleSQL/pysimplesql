@@ -5421,7 +5421,7 @@ class Input(_PlaceholderText, sg.Input):
         self.binds["<Key>"] = widget.bind("<Key>", on_key, "+")
         self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
         self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
-        for event in ["<<SelectAll>>", "<Control-a>", "<Control-/>"]:
+        for event in ["<<SelectAll>>", "<Control-a>", "<Control-slash>"]:
             self.binds[event] = widget.bind(event, disable_placeholder_select, "+")
 
         if not widget.get():
