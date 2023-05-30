@@ -1601,7 +1601,7 @@ class DataSet:
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
         if self.row_count:
-            if self.get_current_row()[column]:
+            if self.get_current_row()[column] is not None:
                 return self.get_current_row()[column]
             return default
         return default
