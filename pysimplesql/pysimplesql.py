@@ -3256,6 +3256,14 @@ class Form:
                     self.map_element(
                         element, self[table], col, where_column, where_value
                     )
+                    if isinstance(element, (_EnhancedInput, _EnhancedMultiline)) and (
+                        col in self[table].column_info.names()
+                        and self[table].column_info[col].notnull
+                    ):
+                        element.add_placeholder(
+                            placeholder=lang.notnull_placeholder,
+                            color=themepack.placeholder_color,
+                        )
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -4807,6 +4815,778 @@ mysql_examples = {
 }
 
 
+class LazyTable(sg.Table):
+
+    """
+    The LazyTable is a subclass of sg.Table for improved performance by loading rows
+    lazily during scroll events. Updating a sg.Table is generally fast, but with large
+    DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
+    overcomes this by only inserting a slice of rows during an `update()`.
+
+    To use, simply replace `sg.Table` with `ss.LazyTable` as the `element` argument in a
+    selector() function call in your layout.
+
+    Expects values in the form of [TableRow(pk, values)], and only becomes active after
+    a update(values=, selected_rows=[int]) call. Please note that LazyTable does not
+    support the `sg.Table` `row_colors` argument.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.values = []  # full set of rows
+        self.data = []  # lazy slice of rows
+        self.Values = self.data
+
+        self.insert_qty = max(self.NumRows, 100)
+        """Number of rows to insert during an `update(values=)` and scroll events"""
+
+        self._start_index = 0
+        self._end_index = 0
+        self._start_alt_color = False
+        self._end_alt_color = False
+        self._finalized = False
+        self._lock = threading.Lock()
+        self._bg = None
+        self._fg = None
+
+    def update(
+        self,
+        values=None,
+        num_rows=None,
+        visible=None,
+        select_rows=None,
+        alternating_row_color=None,
+    ):
+        # check if we shouldn't be doing this update
+        # PySimpleGUI version support (PyPi version doesn't support quick_check)
+        if sg.__version__.split(".")[0] == "5":
+            quick_check = "quick_check=True"
+        elif sg.__version__.split(".")[0] == "4":
+            if sg.__version__.split(".")[1] == "61":
+                quick_check = "quick_check=True"
+        else:
+            quick_check = ""
+
+        if not self._widget_was_created() or (
+            self.ParentForm is not None and self.ParentForm.is_closed(quick_check)
+        ):
+            return
+
+        # update total list
+        self.values = values
+        # Update current_index with the selected index
+        self.current_index = select_rows[0] if select_rows else 0
+
+        # needed, since PySimpleGUI doesn't create tk widgets during class init
+        if not self._finalized:
+            self.widget.configure(yscrollcommand=self._handle_scroll)
+            self._finalized = True
+
+        # delete all current
+        children = self.widget.get_children()
+        for i in children:
+            self.widget.detach(i)
+            self.widget.delete(i)
+        self.tree_ids = []
+
+        # background color
+        self._bg = (
+            self.BackgroundColor
+            if self.BackgroundColor is not None
+            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+            else "#FFFFFF"
+        )
+
+        # text color
+        self._fg = (
+            self.TextColor
+            if self.TextColor is not None and self.TextColor != sg.COLOR_SYSTEM_DEFAULT
+            else "#000000"
+        )
+
+        # alternating color
+        if alternating_row_color is not None:
+            self.AlternatingRowColor = alternating_row_color
+            self._start_alt_color = True
+
+        # get values to insert
+        if select_rows is not None:
+            # Slice the list to show visible rows before and after the current index
+            self._start_index = max(0, self.current_index - self.insert_qty)
+            self._end_index = min(len(values), self.current_index + self.insert_qty + 1)
+            self.data = values[self._start_index : self._end_index]
+        else:
+            self.data = values
+
+        # insert values
+        if values is not None:
+            # insert the rows
+            for row in self.data:
+                iid = self.widget.insert(
+                    "", "end", text=row, iid=row.pk, values=row, tag=row.pk
+                )
+                self._end_alt_color = self._set_colors(iid, self._end_alt_color)
+                self.tree_ids.append(iid)
+
+        # handle visible
+        if visible is not None:
+            self._visible = visible
+            if visible:
+                self._pack_restore_settings(self.element_frame)
+            else:
+                self._pack_forget_save_settings(self.element_frame)
+
+        # handle number of rows
+        if num_rows is not None:
+            self.widget.config(height=num_rows)
+
+        # finally, select rows and make first visible
+        if select_rows is not None:
+            # Offset select_rows index for the sliced values
+            offset_select_rows = [i - self._start_index for i in select_rows]
+            if offset_select_rows and offset_select_rows[0] < len(self.data):
+                # select the row
+                self.widget.selection_set(self.tree_ids[offset_select_rows[0]])
+                # Get the row iid based on the offset_select_rows index
+                row_iid = self.tree_ids[offset_select_rows[0]]
+                # and make sure its visible
+                self.widget.see(row_iid)
+
+    def _handle_scroll(self, x0, x1):
+        if float(x0) == 0.0 and self._start_index > 0:
+            with self._lock:
+                self._handle_start_scroll()
+            return
+        if float(x1) == 1.0 and self._end_index < len(self.values):
+            with self._lock:
+                self._handle_end_scroll()
+            return
+        # else, set the scroll
+        self.vsb.set(x0, x1)
+
+    def _handle_start_scroll(self):
+        # determine slice
+        num_rows = min(self._start_index, self.insert_qty)
+        new_start_index = max(0, self._start_index - num_rows)
+        new_rows = self.values[new_start_index : self._start_index]
+
+        # insert
+        for row in reversed(new_rows):
+            iid = self.widget.insert(
+                "", "0", text=row, iid=row.pk, values=row, tag=row.pk
+            )
+            self._start_alt_color = self._set_colors(iid, self._start_alt_color)
+            self.tree_ids.insert(0, iid)
+
+        # set new start
+        self._start_index = new_start_index
+
+        # Insert new_rows to beginning
+        # don't use data.insert(0, new_rows), it breaks TableRow
+        self.data[:0] = new_rows
+
+        # to avoid an infinite scroll, move scroll a little after 0.0
+        with contextlib.suppress(IndexError):
+            row_iid = self.tree_ids[self.insert_qty + self.NumRows - 1]
+            self.widget.see(row_iid)
+
+    def _handle_end_scroll(self):
+        num_rows = len(self.values)
+        # determine slice
+        start_index = max(0, self._end_index)
+        end_index = min(self._end_index + self.insert_qty, num_rows)
+        new_rows = self.values[start_index:end_index]
+
+        # insert
+        for row in new_rows:
+            iid = self.widget.insert(
+                "", "end", text=row, iid=row.pk, values=row, tag=row.pk
+            )
+            self._end_alt_color = self._set_colors(iid, self._end_alt_color)
+            self.tree_ids.append(iid)
+
+        # set new end
+        self._end_index = end_index
+
+        # Extend self.data with new_rows
+        self.data.extend(new_rows)
+
+        # to avoid an infinite scroll, move scroll a little before 1.0
+        with contextlib.suppress(IndexError):
+            row_iid = self.tree_ids[len(self.data) - self.insert_qty]
+            self.widget.see(row_iid)
+
+    def _set_colors(self, iid, toggle_color):
+        if self.AlternatingRowColor is not None:
+            if not toggle_color:
+                self.widget.tag_configure(
+                    iid, background=self.AlternatingRowColor, foreground=self._fg
+                )
+            else:
+                self.widget.tag_configure(iid, background=self._bg, foreground=self._fg)
+            toggle_color = not toggle_color
+        else:
+            self.widget.tag_configure(iid, background=self._bg, foreground=self._fg)
+        return toggle_color
+
+    @property
+    def SelectedRows(self):
+        """
+        Returns the selected row(s) in the LazyTable.
+
+        :returns:
+            - If the LazyTable has data:
+                - Retrieves the index of the selected row by matching the primary key
+                  (pk) value with the first selected item in the widget.
+                - Returns the corresponding row from the data list based on the index.
+            - If the LazyTable has no data:
+                - Returns None.
+
+        :note:
+            This property assumes that the LazyTable is using a primary key (pk) value
+            to uniquely identify rows in the data list.
+        """
+        if self.data:
+            index = [
+                [v.pk for v in self.data].index(
+                    [int(x) for x in self.widget.selection()][0]
+                )
+            ][0]
+            return self.data[index]
+        return None
+
+    def __setattr__(self, name, value):
+        if name == "SelectedRows":
+            # Handle PySimpleGui attempts to set our SelectedRows property
+            return
+        super().__setattr__(name, value)
+
+
+class _PlaceholderText(abc.ABC):
+    """
+    An abstract class for PySimpleGUI text-entry elements that allows for the display of
+    a placeholder text when the input is empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.normal_color = None
+        self.normal_font = None
+        self.placeholder_text = ""
+        self.placeholder_color = None
+        self.placeholder_font = None
+        self.active_placeholder = True
+        # fmt: off
+        self._non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
+                    "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
+                    "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4","F5",
+                    "F6","F7","F8","F9","F10","F11","F12", "Delete"]
+        # fmt: on
+
+    def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
+        """
+        Adds a placeholder text to the element.
+
+        The placeholder text is displayed in the element when the element is empty and
+        unfocused. When the element is clicked or focused, the placeholder text
+        disappears and the element becomes blank. When the element loses focus and is
+        still empty, the placeholder text reappears.
+
+        This function is based on the recipe by Miguel Martinez Lopez, licensed under
+        MIT. It has been updated to work with PySimpleGUI elements.
+
+        :param placeholder: The text to display as placeholder when the input is empty.
+        :param color: The color of the placeholder text (default None).
+        :param font: The font of the placeholder text (default None).
+        """
+        normal_color = self.widget.cget("fg")
+        normal_font = self.widget.cget("font")
+
+        if font is None:
+            font = normal_font
+
+        self.normal_color = normal_color
+        self.normal_font = normal_font
+        self.placeholder_color = color
+        self.placeholder_font = font
+        self.placeholder_text = placeholder
+        self.active_placeholder = True
+
+        self._add_binds()
+
+    @abc.abstractmethod
+    def _add_binds(self):
+        pass
+
+    def update(self, *args, **kwargs):
+        """
+        Updates the input widget with a new value and displays the placeholder text if
+        the value is empty.
+
+        :param args: Optional arguments to pass to `sg.Element.update`.
+        :param kwargs: Optional keyword arguments to pass to `sg.Element.update`.
+        """
+        if "value" in kwargs and kwargs["value"] is not None:
+            # If the value is not None, use it as the new value
+            value = kwargs.pop("value", None)
+        elif len(args) > 0 and args[0] is not None:
+            # If the value is passed as an argument, use it as the new value
+            value = args[0]
+            # Remove the value argument from args
+            args = args[1:]
+        else:
+            # Otherwise, use the current value
+            value = self.get()
+
+        if self.active_placeholder and value:
+            # Replace the placeholder with the new value
+            super().update(value=value)
+            self.active_placeholder = False
+            self.Widget.config(fg=self.normal_color, font=self.normal_font)
+        elif not value:
+            # If the value is empty, reinsert the placeholder
+            super().update(value=self.placeholder_text, *args, **kwargs)
+            self.active_placeholder = True
+            self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        else:
+            super().update(*args, **kwargs)
+
+    def get(self) -> str:
+        """
+        Returns the current value of the input, or an empty string if the input displays
+        the placeholder text.
+
+        :return: The current value of the input.
+        """
+        if self.active_placeholder:
+            return ""
+        return super().get()
+
+
+class _EnhancedInput(_PlaceholderText, sg.Input):
+    """
+    An Input that allows for the display of a placeholder text when empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.binds = {}
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+        if self.binds:
+            # remove any existing binds
+            for event, funcid in self.binds.items():
+                self.widget.unbind(event, funcid)
+            self.binds = {}
+
+        def on_key(event):
+            if self.active_placeholder and widget.get() == self.placeholder_text:
+                # dont clear for non-text-producing keys
+                if event.keysym in self._non_keys and widget.index(tk.INSERT) in [0, 1]:
+                    return
+                # Clear the placeholder when the user starts typing
+                widget.delete(0, "end")
+                widget.config(fg=self.normal_color, font=self.normal_font)
+                self.active_placeholder = False
+
+            # insert placeholder when:
+            # 1) widget is empty
+            # 2) user hits backspace and only 1 character left
+            # 3) or they have selected all their text and pressed backspace/delete
+            elif (
+                (not self.active_placeholder and not widget.get())
+                or (event.keysym == "BackSpace" and len(widget.get()) == 1)
+                or (
+                    event.keysym in ["BackSpace", "Delete"]
+                    and widget.select_present()
+                    and widget.selection_get() == widget.get()
+                )
+            ):
+                with contextlib.suppress(tk.TclError):
+                    enable_placeholder()
+                    widget.icursor(0)
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                # Move cursor to the beginning if the field has a placeholder
+                widget.icursor(0)
+
+        def on_focusout(event):
+            if not widget.get():
+                enable_placeholder()
+
+        def enable_placeholder():
+            widget.delete(0, "end")
+            widget.insert(0, self.placeholder_text)
+            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+            self.active_placeholder = True
+
+        def disable_placeholder_select(event):
+            # Disable selecting the placeholder
+            if self.active_placeholder:
+                return "break"
+            return None
+
+        self.binds["<Key>"] = widget.bind("<Key>", on_key, "+")
+        self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
+        self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
+        for event in ["<<SelectAll>>", "<Control-a>", "<Control-slash>"]:
+            self.binds[event] = widget.bind(event, disable_placeholder_select, "+")
+
+        if not widget.get():
+            enable_placeholder()
+
+
+class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
+    """
+    A Multiline that allows for the display of a placeholder text when focus-out empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.binds = {}
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+        if self.binds:
+            for event, bind in self.binds.items():
+                self.widget.unbind(event, bind)
+            self.binds = {}
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                widget.delete("1.0", "end")
+                widget.config(fg=self.normal_color, font=self.normal_font)
+
+                self.active_placeholder = False
+
+        def on_focusout(event):
+            if not widget.get("1.0", "end-1c").strip():
+                widget.insert("1.0", self.placeholder_text)
+                widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+                self.active_placeholder = True
+
+        if not widget.get("1.0", "end-1c").strip() and self.active_placeholder:
+            widget.insert("1.0", self.placeholder_text)
+            widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+
+        self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
+        self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
+
+
+def _autocomplete_combo(widget, completion_list, delta=0):
+    """Perform autocompletion on a Combobox widget based on the current input."""
+    if delta:
+        # Delete text from current position to end
+        widget.delete(widget.position, tk.END)
+    else:
+        # Set the position to the length of the current input text
+        widget.position = len(widget.get())
+
+    prefix = widget.get().lower()
+    hits = [
+        element for element in completion_list if element.lower().startswith(prefix)
+    ]
+    # Create a list of elements that start with the lowercase prefix
+
+    if hits:
+        closest_match = min(hits, key=len)
+        if prefix != closest_match.lower():
+            # Insert the closest match at the beginning, move the cursor to the end
+            widget.delete(0, tk.END)
+            widget.insert(0, closest_match)
+            widget.icursor(len(closest_match))
+
+            # Highlight the remaining text after the closest match
+            widget.select_range(widget.position, tk.END)
+
+        if len(hits) == 1 and closest_match.lower() != prefix:
+            # If there is only one hit and it's not equal to the lowercase prefix,
+            # open dropdown
+            widget.event_generate("<Down>")
+            widget.event_generate("<<ComboboxSelected>>")
+
+    else:
+        # If there are no hits, move the cursor to the current position
+        widget.icursor(widget.position)
+
+    return hits
+
+
+class _AutocompleteCombo(sg.Combo):
+    """Customized Combo widget with autocompletion feature.
+
+    Please note that due to how PySimpleSql initilizes widgets, you must call update()
+    once to activate autocompletion, eg `window['combo_key'].update(values=values)`
+    """
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = []
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        """Update the Combo widget with new values."""
+        if "values" in kwargs and kwargs["values"] is not None:
+            self._completion_list = [str(row) for row in kwargs["values"]]
+            if not self.finalized:
+                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
+            self._hits = []
+            self._hit_index = 0
+            self.position = 0
+        super().update(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self.Widget, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.Widget.delete(self.Widget.position, tk.END)
+            self.position = self.Widget.position
+        if event.keysym == "Left":
+            if self.position < self.Widget.index(tk.END):
+                self.Widget.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.Widget.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.Widget.index(tk.END)
+        if event.keysym == "Return":
+            self.Widget.icursor(tk.END)
+            self.Widget.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
+
+
+class _TtkCombo(ttk.Combobox):
+    """Customized Combo widget with autocompletion feature."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = [str(row) for row in kwargs["values"]]
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.delete(self.position, tk.END)
+            self.position = self.position
+        if event.keysym == "Left":
+            if self.position < self.index(tk.END):
+                self.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.index(tk.END)
+        if event.keysym == "Return":
+            self.icursor(tk.END)
+            self.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
+
+
+class _TtkCalendar(ttk.Frame):
+    """Internal Class."""
+
+    # Modified from Tkinter GUI Application Development Cookbook, MIT License.
+
+    def __init__(self, master, init_date, textvariable, **kwargs):
+        # TODO, set these in themepack?
+        fwday = kwargs.pop("firstweekday", calendar.MONDAY)
+        sel_bg = kwargs.pop("selectbackground", "#ecffc4")
+        sel_fg = kwargs.pop("selectforeground", "#05640e")
+
+        super().__init__(master, class_="ttkcalendar", **kwargs)
+
+        self.master = master
+        self.cal_date = init_date
+        self.textvariable = textvariable
+        self.cal = calendar.TextCalendar(fwday)
+        self.font = tkfont.Font(self)
+        self.header = self.create_header()
+        self.table = self.create_table()
+        self.canvas = self.create_canvas(sel_bg, sel_fg)
+        self.build_calendar()
+
+    def create_header(self):
+        left_arrow = {"children": [("Button.leftarrow", None)]}
+        right_arrow = {"children": [("Button.rightarrow", None)]}
+        style = ttk.Style(self)
+        style.layout("L.TButton", [("Button.focus", left_arrow)])
+        style.layout("R.TButton", [("Button.focus", right_arrow)])
+
+        hframe = ttk.Frame(self)
+        btn_left = ttk.Button(
+            hframe, style="L.TButton", command=lambda: self.move_month(-1)
+        )
+        btn_right = ttk.Button(
+            hframe, style="R.TButton", command=lambda: self.move_month(1)
+        )
+        label = ttk.Label(hframe, width=15, anchor="center")
+
+        hframe.pack(pady=5, anchor=tk.CENTER)
+        btn_left.grid(row=0, column=0)
+        label.grid(row=0, column=1, padx=12)
+        btn_right.grid(row=0, column=2)
+        return label
+
+    def create_table(self):
+        cols = self.cal.formatweekheader(3).split()
+        table = ttk.Treeview(self, show="", selectmode="none", height=7, columns=cols)
+        table.bind("<Map>", self.minsize, "+")
+        table.pack(expand=1, fill=tk.BOTH)
+        table.tag_configure("header", background="grey90")
+        table.insert("", tk.END, values=cols, tag="header")
+        for _ in range(6):
+            table.insert("", tk.END)
+
+        width = max(map(self.font.measure, cols))
+        for col in cols:
+            table.column(col, width=width, minwidth=width, anchor=tk.E)
+        return table
+
+    def create_canvas(self, bg, fg):
+        canvas = tk.Canvas(
+            self.table, background=bg, borderwidth=1, highlightthickness=0
+        )
+        canvas.text = canvas.create_text(0, 0, fill=fg, anchor=tk.W)
+        self.table.bind("<ButtonPress-1>", self.pressed_callback, "+")
+        return canvas
+
+    def build_calendar(self):
+        year, month = self.cal_date.year, self.cal_date.month
+        month_name = self.cal.formatmonthname(year, month, 0)
+        month_weeks = self.cal.monthdayscalendar(year, month)
+
+        self.header.config(text=month_name.title())
+        items = self.table.get_children()[1:]
+        for week, item in itertools.zip_longest(month_weeks, items):
+            fmt_week = [f"{day:02d}" if day else "" for day in (week or [])]
+            self.table.item(item, values=fmt_week)
+
+    def pressed_callback(self, event):
+        x, y, widget = event.x, event.y, event.widget
+        item = widget.identify_row(y)
+        column = widget.identify_column(x)
+        items = self.table.get_children()[1:]
+
+        if not column or item not in items:
+            # clicked te header or outside the columns
+            return
+
+        index = int(column[1]) - 1
+        values = widget.item(item)["values"]
+        text = values[index] if len(values) else None
+        bbox = widget.bbox(item, column)
+        if bbox and text:
+            self.cal_date = dt.date(self.cal_date.year, self.cal_date.month, int(text))
+            self.draw_selection(bbox)
+            self.textvariable.set(self.cal_date.strftime("%Y-%m-%d"))
+
+    def draw_selection(self, bbox):
+        canvas, text = self.canvas, "%02d" % self.cal_date.day
+        x, y, width, height = bbox
+        textw = self.font.measure(text)
+        canvas.configure(width=width, height=height)
+        canvas.coords(canvas.text, width - textw, height / 2 - 1)
+        canvas.itemconfigure(canvas.text, text=text)
+        canvas.place(x=x, y=y)
+
+    def set_date(self, dateobj):
+        self.cal_date = dateobj
+        self.canvas.place_forget()
+        self.build_calendar()
+
+    def select_date(self):
+        bbox = self.get_bbox_for_date(self.cal_date)
+        if bbox:
+            self.draw_selection(bbox)
+
+    def get_bbox_for_date(self, new_date):
+        items = self.table.get_children()[1:]
+        for item in items:
+            values = self.table.item(item)["values"]
+            for i, value in enumerate(values):
+                if isinstance(value, int) and value == new_date.day:
+                    column = "#{}".format(i + 1)
+                    self.table.update()
+                    return self.table.bbox(item, column)
+        return None
+
+    def move_month(self, offset):
+        self.canvas.place_forget()
+        month = self.cal_date.month - 1 + offset
+        year = self.cal_date.year + month // 12
+        month = month % 12 + 1
+        self.cal_date = dt.date(year, month, 1)
+        self.build_calendar()
+
+    def minsize(self, e):
+        width, height = self.master.geometry().split("x")
+        height = height[: height.index("+")]
+        self.master.minsize(width, height)
+
+
+class _DatePicker(ttk.Entry):
+    def __init__(self, master, frm_reference, init_date, **kwargs):
+        self.frm = frm_reference
+        textvariable = kwargs["textvariable"]
+        self.calendar = _TtkCalendar(self.frm.window.TKroot, init_date, textvariable)
+        self.calendar.place_forget()
+        self.button = ttk.Button(master, text="▼", width=2, command=self.show_calendar)
+        super().__init__(master, class_="Datepicker", **kwargs)
+
+        self.bind("<KeyRelease>", self.on_entry_key_release, "+")
+        self.calendar.bind("<Leave>", self.hide_calendar, "+")
+
+    def show_calendar(self, event=None):
+        self.configure(state="disabled")
+        self.calendar.place(in_=self, relx=0, rely=1)
+        self.calendar.focus_force()
+        self.calendar.select_date()
+
+    def hide_calendar(self, event=None):
+        self.configure(state="!disabled")
+        self.calendar.place_forget()
+        self.focus_force()
+
+    def on_entry_key_release(self, event=None):
+        # Check if the user has typed a valid date
+        try:
+            date_str = self.get()
+            date = dt.datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return
+
+        # Update the calendar to show the new date
+        self.calendar.set_date(date)
+
+
 # -------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
 # -------------------------------------------------------------------------------------
@@ -4836,7 +5616,7 @@ class Convenience:
 
 def field(
     field: str,
-    element: Type[sg.Element] = sg.I,
+    element: Type[sg.Element] = _EnhancedInput,
     size: Tuple[int, int] = None,
     label: str = "",
     no_label: bool = False,
@@ -4877,6 +5657,9 @@ def field(
         Column, but can be treated as a single Element.
     """
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
+    element = _EnhancedInput if element == sg.Input else element
+    element = _EnhancedMultiline if element == sg.Multiline else element
+    element = _AutocompleteCombo if element == sg.Combo else element
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -4907,7 +5690,7 @@ def field(
     else:
         first_param = ""
 
-    if element.__name__ == "Multiline":
+    if element == _EnhancedMultiline:
         layout_element = element(
             first_param,
             key=key,
@@ -4969,7 +5752,7 @@ def field(
         else:
             layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
-    if element == sg.Combo and quick_editor:
+    if element == _AutocompleteCombo and quick_editor:
         meta = {
             "type": TYPE_EVENT,
             "event_type": EVENT_QUICK_EDIT,
@@ -5402,7 +6185,9 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                _EnhancedInput(
+                    "", key=keygen.get(f"{key}search_input"), size=search_size
+                ),
                 sg.B(
                     "",
                     key=keygen.get(f"{key}search_button"),
@@ -5417,7 +6202,9 @@ def actions(
             ]
         else:
             layout += [
-                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                _EnhancedInput(
+                    "", key=keygen.get(f"{key}search_input"), size=search_size
+                ),
                 sg.B(
                     themepack.search,
                     key=keygen.get(f"{key}search_button"),
@@ -5459,6 +6246,7 @@ def selector(
     :param kwargs: Any additional arguments supplied will be passed on to the
         PySimpleGUI element.
     """
+    element = _AutocompleteCombo if element == sg.Combo else element
 
     key = f"{table}:selector" if key is None else key
     key = keygen.get(key)
@@ -5482,18 +6270,17 @@ def selector(
             key=key,
             metadata=meta,
         )
-    elif element == sg.Combo:
+    elif element == _AutocompleteCombo:
         w = themepack.default_element_size[0]
         layout = element(
             values=(),
             size=size or (w, 10),
-            readonly=True,
             enable_events=True,
             key=key,
             auto_size_text=False,
             metadata=meta,
         )
-    elif element == sg.Table:
+    elif element in [sg.Table, LazyTable]:
         # Check if the headings arg is a Table heading...
         if kwargs["headings"].__class__.__name__ == "TableHeadings":
             # Overwrite the kwargs from the TableHeading info
