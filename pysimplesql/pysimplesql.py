@@ -4417,7 +4417,16 @@ def checkbox_to_bool(value):
     :param value: Value to convert into True or False
     :returns: bool
     """
-    return str(value).lower() in ["y", "yes", "t", "true", "1"]
+    return str(value).lower() in [
+        "y",
+        "yes",
+        "t",
+        "true",
+        "1",
+        "on",
+        "enabled",
+        themepack.checkbox_true,
+    ]
 
 
 class Popup:
