@@ -1845,6 +1845,13 @@ class DataSet:
         if self.transform is not None:
             self.transform(self, changed_row_dict, TFORM_ENCODE)
 
+        # delete generated rows
+        changed_row_dict = {
+            col: value
+            for col, value in changed_row_dict.items()
+            if self.column_info[col] and not self.column_info[col]["generated"]
+        }
+
         # Save or Insert the record as needed
         if keyed_queries is not None:
             # Now execute all the saved queries from earlier
@@ -6436,6 +6443,7 @@ class Column:
         default: None,
         pk: bool,
         virtual: bool = False,
+        generated: bool = False,
     ):
         self._column = {
             "name": name,
@@ -6444,6 +6452,7 @@ class Column:
             "default": default,
             "pk": pk,
             "virtual": virtual,
+            "generated": generated,
         }
 
     def __str__(self):
@@ -7568,7 +7577,7 @@ class Sqlite(SQLDriver):
 
     def column_info(self, table):
         # Return a list of column names
-        q = f"PRAGMA table_info({self.quote_table(table)})"
+        q = f"PRAGMA table_xinfo({self.quote_table(table)})"
         rows = self.execute(q, silent=True)
         names = []
         col_info = ColumnInfo(self, table)
@@ -7580,9 +7589,15 @@ class Sqlite(SQLDriver):
             notnull = row["notnull"]
             default = row["dflt_value"]
             pk = row["pk"]
+            generated = row["hidden"]
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
