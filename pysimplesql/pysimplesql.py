@@ -6493,7 +6493,14 @@ class Column:
         # Integer type casting
         elif domain in ["INT", "INTEGER", "BOOLEAN"]:
             try:
-                value = int(value)
+                if isinstance(value, int):
+                    pass
+                elif isinstance(value, ElementRow):
+                    value = int(value)
+                elif type(value) is str:
+                    value = float(value)
+                    if value == int(value):
+                        value = int(value)
             except (ValueError, TypeError):
                 value = str(value)
 
@@ -6507,8 +6514,10 @@ class Column:
         # Date casting
         elif domain == "DATE":
             try:
-                value = datetime.strptime(value, "%Y-%m-%d").date()
-            # TODO: ValueError for sqlserver returns date(): 2023-04-27 15:31:13.170000
+                if not isinstance(value, dt.date):
+                    value = dt.datetime.strptime(value, "%Y-%m-%d").date()
+            # TODO: ValueError for sqlserver returns:
+            # date(): 2023-04-27 15:31:13.170000
             except (TypeError, ValueError) as e:
                 logger.debug(
                     f"Unable to cast {value} to a datetime.date object. "
@@ -6523,7 +6532,7 @@ class Column:
             parsed = False
             for timestamp_format in timestamp_formats:
                 try:
-                    value = datetime.strptime(value, timestamp_format)
+                    value = dt.datetime.strptime(value, timestamp_format)
                     # value = dt.datetime()
                     parsed = True
                     break
@@ -6537,12 +6546,10 @@ class Column:
                 value = str(value)
 
         # other date/time casting
-        elif domain in [
-            "TIME",
-            "DATETIME",
-        ]:  # TODO: i'm sure there is a lot of work to do here
+        # TODO: i'm sure there is a lot of work to do here
+        elif domain in ["TIME", "DATETIME"]:
             try:
-                value = datetime.date(value)
+                value = dt.date(value)
             except TypeError:
                 print(
                     "Unable to case datetime/time/timestamp. Casting to string instead."
@@ -6604,10 +6611,10 @@ class ColumnInfo(List):
             "FLOAT": 0.0,
             "DECIMAL": 0.0,
             "BOOLEAN": 0,
-            "TIME": lambda x: datetime.now().strftime("%H:%M:%S"),
-            "DATE": lambda x: date.today().strftime("%Y-%m-%d"),
-            "TIMESTAMP": lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "DATETIME": lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "TIME": lambda x: dt.datetime.now().strftime("%H:%M:%S"),
+            "DATE": lambda x: dt.date.today().strftime("%Y-%m-%d"),
+            "TIMESTAMP": lambda x: dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "DATETIME": lambda x: dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         super().__init__()
 
@@ -6720,7 +6727,8 @@ class ColumnInfo(List):
                         else:
                             default = null_default
                     # string-like, not description_column
-                    default = ""
+                    else:
+                        default = ""
             else:
                 # Load the default that was fetched from the database
                 # during ColumnInfo creation
@@ -6786,10 +6794,11 @@ class ColumnInfo(List):
     def _contains_key_value_pair(self, key, value):  # used by __contains__
         return any(key in d and d[key] == value for d in self)
 
+    # TODO: check if something looks like a statement for complex defaults?  Regex?
     @staticmethod
     def _looks_like_function(
         s: str,
-    ):  # TODO: check if something looks like a statement for complex defaults?  Regex?
+    ):
         # check if the string is empty
         if not s:
             return False
@@ -7014,7 +7023,7 @@ class SQLDriver:
     # based on specifics of the database
     # ---------------------------------------------------------------------
     # This is a generic way to estimate the next primary key to be generated.
-    # Note that this is not always a reliable way, as manual inserts which assign a
+    # This is not always a reliable way, as manual inserts which assign a
     # primary key value don't always update the sequencer for the given database.  This
     # is just a default way to "get things working", but the best bet is to override
     # this in the derived class and get the value right from the sequencer.
@@ -7178,9 +7187,7 @@ class SQLDriver:
             f' {dataset.order_clause if order_clause else ""}'
         )
 
-    def delete_record(
-        self, dataset: DataSet, cascade=True
-    ):  # TODO: get ON DELETE CASCADE from db
+    def delete_record(self, dataset: DataSet, cascade=True):
         # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
@@ -8604,16 +8611,16 @@ class MSAccess(SQLDriver):
                             timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
                         else:
                             timestamp_format = "%Y-%m-%dT%H:%M:%S"
-                        dt_value = datetime.strptime(timestamp_str, timestamp_format)
+                        dt_value = dt.datetime.strptime(timestamp_str, timestamp_format)
                         value = dt_value.strftime("%Y-%m-%d")
                     elif isinstance(value, jpype.JPackage("java").sql.Date):
                         date_str = value.toString()
                         date_format = "%Y-%m-%d"
-                        value = datetime.strptime(date_str, date_format).date()
+                        value = dt.datetime.strptime(date_str, date_format).date()
                     elif isinstance(value, jpype.JPackage("java").sql.Time):
                         time_str = value.toString()
                         time_format = "%H:%M:%S"
-                        value = datetime.strptime(time_str, time_format).time()
+                        value = dt.datetime.strptime(time_str, time_format).time()
                     elif value is not None:
                         value = value
                     # TODO: More conversions?
