@@ -7167,9 +7167,12 @@ class ThemePack:
         # fmt: on
         # Markers
         # ----------------------------------------
-        "marker_unsaved": "\u2731",
-        "marker_required": "\u2731",
+        "unsaved_column_header": "💾",
+        "unsaved_column_width": 3,
+        "marker_unsaved": "✱",
+        "marker_required": "✱",
         "marker_required_color": "red2",
+        "placeholder_color": "grey",
         # Sorting icons
         # ----------------------------------------
         "marker_sort_asc": "\u25BC",
@@ -7183,7 +7186,7 @@ class ThemePack:
         # Label Size
         # Sets the default label (text) size when `field()` is used.
         # A label is static text that is displayed near the element to describe it.
-        "default_label_size": (20, 1),  # (width, height)
+        "default_label_size": (15, 1),  # (width, height)
         # Element Size
         # Sets the default element size when `field()` is used.
         # The size= parameter of `field()` will override this.
@@ -7198,6 +7201,11 @@ class ThemePack:
         "text_min_width": 80,
         "combobox_min_width": 80,
         "checkbox_min_width": 75,
+        "datepicker_min_width": 80,
+        # Display boolean columns as checkboxes in sg.Tables
+        "display_boolean_as_checkbox": True,
+        "checkbox_true": "☑",
+        "checkbox_false": "☐",
     }
     """
     Default Themepack.
