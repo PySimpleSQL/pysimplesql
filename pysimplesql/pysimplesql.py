@@ -2222,6 +2222,7 @@ class DataSet:
                 keep_on_top=True,
                 modal=True,
                 ttk_theme=themepack.ttk_theme,
+                icon=themepack.icon,
             ).read(close=True)
             if answer[0] == "parent":
                 children = False
@@ -2571,6 +2572,7 @@ class DataSet:
             modal=True,
             finalize=True,
             ttk_theme=themepack.ttk_theme,  # Must, otherwise will redraw window
+            icon=themepack.icon,
         )
         quick_frm = Form(self.frm.driver, bind_window=quick_win)
 
@@ -4429,6 +4431,7 @@ class Popup:
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
             enable_close_attempted_event=True,
+            icon=themepack.icon,
         )
 
         while True:
@@ -4470,6 +4473,7 @@ class Popup:
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
             enable_close_attempted_event=True,
+            icon=themepack.icon,
         )
 
         while True:
@@ -4513,6 +4517,7 @@ class Popup:
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
                 enable_close_attempted_event=True,
+                icon=themepack.icon,
             )
             self.window.TKroot.after(int(auto_close_seconds * 1000), self._auto_close)
 
@@ -4592,6 +4597,7 @@ class ProgressBar:
             keep_on_top=True,
             finalize=True,
             ttk_theme=themepack.ttk_theme,
+            icon=themepack.icon,
         )
 
 
@@ -4708,6 +4714,7 @@ class ProgressAnimate:
                 keep_on_top=True,
                 finalize=True,
                 ttk_theme=themepack.ttk_theme,
+                icon=themepack.icon,
             )
 
         current_count = 0
