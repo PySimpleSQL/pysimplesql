@@ -2825,7 +2825,9 @@ class DataSet:
         :param idx: The index where the row should be inserted (default to last index)
         :returns: None
         """
-        row_series = pd.Series(row)
+        row_series = pd.Series(row, dtype=object)
+        # Infer better data types for the Series
+        # row_series = row_series.infer_objects()
         if self.rows.empty:
             self.rows = Result.set(
                 pd.concat([self.rows, row_series.to_frame().T], ignore_index=True)
