@@ -994,6 +994,7 @@ class DataSet:
             if col["name"] == column_name:
                 new_value = col.cast(new_value)
                 element_val = new_value
+                table_val = col.cast(table_val)
                 break
 
         if is_checkbox:
