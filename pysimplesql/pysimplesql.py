@@ -921,6 +921,10 @@ class DataSet:
                 if column is not None and mapped.column != column:
                     continue
 
+                # if sg.Text
+                if isinstance(mapped.element, sg.Text):
+                    continue
+
                 # don't check if there aren't any rows. Fixes checkbox = '' when no
                 # rows.
                 if not len(self.frm[mapped.table].rows.index):
@@ -944,7 +948,7 @@ class DataSet:
                     mapped.column,
                     table_val,
                     element_val,
-                    bool(type(mapped.element) is sg.PySimpleGUI.Checkbox),
+                    bool(isinstance(mapped.element, sg.Checkbox)),
                 )
                 if new_value is not Boolean.FALSE:
                     dirty = True
@@ -971,7 +975,7 @@ class DataSet:
     # TODO: How to type-hint this return?
     def value_changed(
         self, column_name: str, old_value, new_value, is_checkbox: bool
-    ) -> Union[Any, bool]:
+    ) -> Union[Any, Boolean]:
         """
         Verifies if a new value is different from an old value and returns the cast
         value ready to be inserted into a database.
@@ -1007,9 +1011,9 @@ class DataSet:
             table_val = ""
 
         # Strip trailing whitespace from strings
-        if type(table_val) is str:
+        if isinstance(table_val, str):
             table_val = table_val.rstrip()
-        if type(element_val) is str:
+        if isinstance(element_val, str):
             element_val = element_val.rstrip()
 
         # Make the comparison
@@ -1037,7 +1041,6 @@ class DataSet:
             `PROMPT_DISCARDED`, or `PROMPT_NONE`.
         """
         # Return False if there is nothing to check or _prompt_save is False
-        # TODO: children too?
         if self.current_index is None or not self.row_count or not self._prompt_save:
             return PROMPT_SAVE_NONE
 
@@ -1632,12 +1635,7 @@ class DataSet:
         :param where_value: (optional)
         :returns: None
         """
-        if type(element) not in [
-            sg.PySimpleGUI.Listbox,
-            sg.PySimpleGUI.Slider,
-            sg.Combo,
-            sg.Table,
-        ]:
+        if not isinstance(element, (sg.Listbox, sg.Slider, sg.Combo, sg.Table)):
             raise RuntimeError(
                 f"add_selector() error: {element} is not a supported element."
             )
@@ -1666,10 +1664,6 @@ class DataSet:
             the insert.
         :returns: None
         """
-        # todo: you don't add a record if there isn't a parent!!!
-        # todo: this is currently filtered out by enabling of the element, but it should
-        #  be filtered here too!
-        # todo: bring back the values parameter?
         # prompt_save
         if (
             not skip_prompt_save
@@ -1761,7 +1755,7 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data,
+        # While saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
@@ -1772,8 +1766,24 @@ class DataSet:
 
         # Propagate GUI data back to the stored current_row
         for mapped in [m for m in self.frm.element_map if m.dataset == self]:
+            # skip if sg.Text
+            if isinstance(mapped.element, sg.Text):
+                continue
+
             # convert the data into the correct type using the domain in ColumnInfo
-            element_val = self.column_info[mapped.column].cast(mapped.element.get())
+            if isinstance(mapped.element, sg.Combo):
+                # try to get ElementRow pk
+                try:
+                    element_val = self.column_info[mapped.column].cast(
+                        mapped.element.get().get_pk_ignore_placeholder()
+                    )
+                # of if plain-ole combobox:
+                except AttributeError:
+                    element_val = self.column_info[mapped.column].cast(
+                        mapped.element.get()
+                    )
+            else:
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
             # Looked for keyed elements first
             if mapped.where_column is not None:
@@ -1899,7 +1909,7 @@ class DataSet:
                 if result.attrs["lastrowid"] is not None
                 else self.get_current_pk()
             )
-            current_row[self.pk_column] = pk
+            self.set_current(self.pk_column, pk, write_event=False)
 
             # then update the current row data
             self.rows.iloc[self.current_index] = current_row
@@ -3204,7 +3214,7 @@ class Form:
             element = win[key]
 
             # Skip this element if there is no metadata present
-            if type(element.metadata) is not dict:
+            if not isinstance(element.metadata, dict):
                 continue
 
             # Process the filter to ensure this element should be mapped to this Form
@@ -3286,7 +3296,10 @@ class Form:
                     )
 
                     # Enable sorting if TableHeading  is present
-                    if type(element) is sg.Table and "TableHeading" in element.metadata:
+                    if (
+                        isinstance(element, sg.Table)
+                        and "TableHeading" in element.metadata
+                    ):
                         table_heading: TableHeadings = element.metadata["TableHeading"]
                         # We need a whole chain of things to happen
                         # when a heading is clicked on:
@@ -3379,7 +3392,7 @@ class Form:
             # key = str(key)  # sometimes end up with an integer element 0?TODO:Research
             element = win[key]
             # Skip this element if there is no metadata present
-            if type(element.metadata) is not dict:
+            if not isinstance(element.metadata, dict):
                 logger.debug(f"Skipping mapping of {key}")
                 continue
             if element.metadata["Form"] != self:
@@ -3806,7 +3819,7 @@ class Form:
             if mapped.element in omit_elements:
                 continue
 
-            if combo_values_only and type(mapped.element) is not sg.PySimpleGUI.Combo:
+            if combo_values_only and not isinstance(mapped.element, sg.Combo):
                 continue
 
             if len(columns) and mapped.column not in columns:
@@ -3847,12 +3860,11 @@ class Form:
                 updated_val = mapped.dataset.get_keyed_value(
                     mapped.column, mapped.where_column, mapped.where_value
                 )
-                if type(mapped.element) in [
-                    sg.PySimpleGUI.CBox
-                ]:  # TODO, may need to add more??
+                # TODO, may need to add more??
+                if isinstance(mapped.element, sg.Checkbox):
                     updated_val = checkbox_to_bool(updated_val)
 
-            elif type(mapped.element) is sg.PySimpleGUI.Combo:
+            elif isinstance(mapped.element, sg.Combo):
                 # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
                 # TODO: move this to only compute if something else changes?
@@ -3887,33 +3899,39 @@ class Form:
                 # and update element
                 mapped.element.update(values=combo_vals)
 
-            elif type(mapped.element) is sg.PySimpleGUI.Table:
+            elif isinstance(mapped.element, sg.Text):
+                rels = Relationship.get_relationships(mapped.dataset.table)
+                found = False
+                # try to get description of linked if foreign-key
+                for rel in rels:
+                    if mapped.column == rel.fk_column:
+                        updated_val = mapped.dataset.frm[
+                            rel.parent_table
+                        ].get_description_for_pk(mapped.dataset[mapped.column])
+                        found = True
+                        break
+                if not found:
+                    updated_val = mapped.dataset[mapped.column]
+                mapped.element.update("")
+
+            elif isinstance(mapped.element, sg.Table):
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
                 values = mapped.dataset.table_values()
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
 
-                if len(values):
+                if len(values):  # noqa SIM108
                     # set index to pk
                     index = [[v[0] for v in values].index(pk)]
-                    # calculate pk percentage position
-                    pk_position = index[0] / len(values)
                 else:  # if empty
                     index = []
-                    pk_position = 0
 
                 # Update table, and set vertical scroll bar to follow selected element
-                update_table_element(
-                    self.window, mapped.element, values, index, pk_position
-                )
+                update_table_element(self.window, mapped.element, values, index)
                 continue
 
-            elif type(mapped.element) in [
-                sg.PySimpleGUI.InputText,
-                sg.PySimpleGUI.Multiline,
-                sg.PySimpleGUI.Text,
-            ]:
+            elif isinstance(mapped.element, (sg.Input, sg.Multiline)):
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
 
@@ -3922,10 +3940,10 @@ class Form:
 
                 updated_val = mapped.dataset[mapped.column]
 
-            elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
+            elif isinstance(mapped.element, sg.Checkbox):
                 updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
 
-            elif type(mapped.element) is sg.PySimpleGUI.Image:
+            elif isinstance(mapped.element, sg.Image):
                 val = mapped.dataset[mapped.column]
 
                 try:
@@ -3983,17 +4001,13 @@ class Form:
                     if element.key in self.callbacks:
                         self.callbacks[element.key]()
 
-                    if (
-                        type(element) == sg.PySimpleGUI.Listbox
-                        or type(element) == sg.PySimpleGUI.Combo
-                    ):
+                    if isinstance(element, (sg.Listbox, sg.Combo)):
                         logger.debug("update_elements: List/Combo selector found...")
                         lst = []
                         for _, r in dataset.rows.iterrows():
                             if e["where_column"] is not None:
-                                if str(r[e["where_column"]]) == str(
-                                    e["where_value"]
-                                ):  # TODO: Kind of a hackish way to check for equality.
+                                # TODO: Kind of a hackish way to check for equality.
+                                if str(r[e["where_column"]]) == str(e["where_value"]):
                                     lst.append(
                                         ElementRow(r[pk_column], r[description_column])
                                     )
@@ -4004,11 +4018,14 @@ class Form:
                                     ElementRow(r[pk_column], r[description_column])
                                 )
 
-                        element.update(values=lst, set_to_index=dataset.current_index)
+                        element.update(
+                            values=lst,
+                            set_to_index=dataset.current_index,
+                        )
 
                         # set vertical scroll bar to follow selected element
                         # (for listboxes only)
-                        if type(element) == sg.PySimpleGUI.Listbox:
+                        if isinstance(element, sg.Listbox):
                             try:
                                 element.set_vscroll_position(
                                     dataset.current_index / len(lst)
@@ -4016,12 +4033,12 @@ class Form:
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
 
-                    elif type(element) == sg.PySimpleGUI.Slider:
+                    elif isinstance(element, sg.Slider):
                         # Re-range the element depending on the number of records
                         l = dataset.row_count  # noqa: E741
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
-                    elif type(element) is sg.PySimpleGUI.Table:
+                    elif isinstance(element, sg.Table):
                         logger.debug("update_elements: Table selector found...")
                         # Populate entries
                         try:
@@ -4119,23 +4136,23 @@ class Form:
                         element: sg.Element = e["element"]
                         if element.key == event and len(dataset.rows) > 0:
                             changed = False  # assume that a change will not take place
-                            if type(element) == sg.PySimpleGUI.Listbox:
+                            if isinstance(element, sg.Listbox):
                                 row = values[element.Key][0]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) == sg.PySimpleGUI.Slider:
+                            elif isinstance(element, sg.Slider):
                                 dataset.set_by_index(int(values[event]) - 1)
                                 changed = True
-                            elif type(element) == sg.PySimpleGUI.Combo:
+                            elif isinstance(element, sg.Combo):
                                 row = values[event]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) is sg.PySimpleGUI.Table and len(
-                                values[event]
-                            ):
-                                index = values[event][0]
-                                pk = self.window[event].Values[index].pk
-
+                            elif isinstance(element, sg.Table) and len(values[event]):
+                                if isinstance(element, LazyTable):
+                                    pk = int(values[event])
+                                else:
+                                    index = values[event][0]
+                                    pk = self.window[event].Values[index].pk
                                 # no need to update the selector!
                                 dataset.set_by_pk(pk, True, omit_elements=[element])
 
@@ -4160,12 +4177,7 @@ class Form:
             if mapped.table != table:
                 continue
             element = mapped.element
-            if type(element) in [
-                sg.PySimpleGUI.InputText,
-                sg.PySimpleGUI.MLine,
-                sg.PySimpleGUI.Combo,
-                sg.PySimpleGUI.Checkbox,
-            ]:
+            if isinstance(element, (sg.Input, sg.Multiline, sg.Combo, sg.Checkbox)):
                 # if element.Key in self.window.key_dict.keys():
                 logger.debug(
                     f"Updating element {element.Key} to disabled: "
@@ -4278,8 +4290,6 @@ def update_table_element(
     :param element: The sg.Table element to be updated.
     :param values: A list of table rows to update the sg.Table with.
     :param select_rows: List of rows to select as if user did.
-    :param vscroll_position: From 0 to 1.0, the percentage from the top to move
-        scrollbar to.
 
     :returns: None
     """
@@ -5718,7 +5728,7 @@ def field(
             },
             **kwargs,
         )
-    layout_label = sg.T(
+    layout_label = sg.Text(
         label if label else label_text,
         size=themepack.default_label_size,
         key=f"{key}:label",
@@ -5785,7 +5795,6 @@ def field(
                 )
             )
     # return layout
-    # TODO: Does this actually need wrapped in a sg.Col???
     return sg.Col(layout=layout, pad=(0, 0))
 
 
@@ -6282,7 +6291,7 @@ def selector(
         )
     elif element in [sg.Table, LazyTable]:
         # Check if the headings arg is a Table heading...
-        if kwargs["headings"].__class__.__name__ == "TableHeadings":
+        if isinstance(kwargs["headings"], TableHeadings):
             # Overwrite the kwargs from the TableHeading info
             kwargs["visible_column_map"] = kwargs["headings"].visible_map()
             kwargs["col_widths"] = kwargs["headings"].width_map()
@@ -6499,7 +6508,7 @@ class _CellEdit:
 
     def __call__(self, event):
         # if double click a treeview
-        if event.widget.__class__.__name__ == "Treeview":
+        if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
             # identify region
             region = tk_widget.identify("region", event.x, event.y)
@@ -6788,7 +6797,7 @@ class _CellEdit:
         accept_dict,
     ):
         # destroy if you click a heading while editing
-        if event.widget.__class__.__name__ == "Treeview":
+        if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
             # identify region
             region = tk_widget.identify("region", event.x, event.y)
