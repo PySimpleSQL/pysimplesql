@@ -2444,7 +2444,9 @@ class DataSet:
 
                     # revert any unsaved changes for the single row
                     rows.loc[condition, col] = parent_current_row[description_column]
-                    continue
+
+                    # we only want transform col once
+                    break
 
         # transform bool
         if themepack.display_boolean_as_checkbox:
@@ -2647,7 +2649,12 @@ class DataSet:
             ttk_theme=themepack.ttk_theme,  # Must, otherwise will redraw window
             icon=themepack.icon,
         )
-        quick_frm = Form(self.frm.driver, bind_window=quick_win, live_update=True)
+        quick_frm = Form(
+            self.frm.driver,
+            bind_window=quick_win,
+            live_update=True,
+            auto_add_relationships=False,
+        )
 
         # Select the current entry to start with
         if pk_update_funct is not None:
@@ -2919,6 +2926,7 @@ class Form:
         duplicate_children: bool = True,
         description_column_names: List[str] = None,
         live_update: bool = False,
+        auto_add_relationships: bool = True,
     ) -> None:
         """
         Initialize a new `Form` instance.
@@ -2955,6 +2963,9 @@ class Form:
             a field will be immediately pushed to associated selectors. In addition,
             editing the description column will trigger the update of comboboxes.
             If False, changes will be pushed only after a save action.
+        :param auto_add_relationships: (optional) Controls the invocation of
+            auto_add_relationships. Default is True. Set it to False when creating a new
+            `Form` with pre-existing `Relationship` instances.
         :returns: None
         """
         win_pb = ProgressBar(lang.startup_form)
@@ -3000,7 +3011,8 @@ class Form:
         win_pb.update(lang.startup_datasets, 25)
         self.auto_add_datasets(prefix_data_keys)
         win_pb.update(lang.startup_relationships, 50)
-        self.auto_add_relationships()
+        if auto_add_relationships:
+            self.auto_add_relationships()
         self.requery_all(
             select_first=select_first, update_elements=False, requery_dependents=True
         )
