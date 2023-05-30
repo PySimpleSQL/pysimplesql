@@ -182,9 +182,10 @@ SEARCH_ENDED: int = 8  # We have reached the end of the search
 # ----------------------------
 # DELETE RETURNS BITMASKS
 # ----------------------------
-DELETE_FAILED: int = 1  # No result was found
-DELETE_RETURNED: int = 2  # A result was found
-DELETE_ABORTED: int = 4  # The search was aborted, likely during a callback
+# TODO Which ones of these are we actually using?
+DELETE_FAILED: int = 1  # Delete failed
+DELETE_RETURNED: int = 2  # Delete returned
+DELETE_ABORTED: int = 4  # The delete was aborted, likely during a callback
 DELETE_RECURSION_LIMIT_ERROR: int = 8  # We hit max nested levels
 
 # Mysql sets this as 15 when using foreign key CASCADE DELETE
@@ -201,8 +202,16 @@ SORT_DESC = 2
 # TK/TTK Widget Types
 # ---------------------
 TK_ENTRY = "Entry"
+TK_TEXT = "Text"
 TK_COMBOBOX = "Combobox"
 TK_CHECKBUTTON = "Checkbutton"
+TK_DATEPICKER = "Datepicker"
+TK_COMBOBOX_SELECTED = "35"
+
+# --------------
+# Misc Constants
+# --------------
+PK_PLACEHOLDER = "Null"
 
 
 class Boolean(enum.Flag):
@@ -266,6 +275,11 @@ class ElementRow:
     def get_val(self):
         # Return the value portion of the row
         return self.val
+
+    def get_pk_ignore_placeholder(self):
+        if self.pk == PK_PLACEHOLDER:
+            return None
+        return self.pk
 
     def get_instance(self):
         # Return this instance of the row
@@ -6687,6 +6701,13 @@ class ColumnInfo(List):
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
 
+                # return PK_PLACEHOLDER if this is a fk_relationship.
+                # trick used in Combo for the pk to display placeholder
+                rels = Relationship.get_relationships(dataset.table)
+                rel = next((r for r in rels if r.fk_column == c.name), None)
+                if rel:
+                    null_default = PK_PLACEHOLDER
+
                 # skip primary keys
                 if not c.pk:
                     # put default in description_column
@@ -7124,7 +7145,7 @@ class SQLDriver:
 
                 # Children without cascade-filtering parent aren't displayed
                 if not parent_pk:
-                    parent_pk = "NULL"
+                    parent_pk = PK_PLACEHOLDER
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
                 if where:
