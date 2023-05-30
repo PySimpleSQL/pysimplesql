@@ -1679,7 +1679,8 @@ class DataSet:
             # For child reparenting
             self.current_index = self.current_index
 
-            return self.rows.iloc[self.current_index]
+            # make sure to return as python type
+            return self.rows.astype("O").iloc[self.current_index]
         return None
 
     def add_selector(
