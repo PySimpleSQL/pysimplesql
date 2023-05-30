@@ -3415,7 +3415,7 @@ class Form:
                     self.map_element(
                         element, self[table], col, where_column, where_value
                     )
-                    if isinstance(element, (Input, Multiline)) and (
+                    if isinstance(element, (_EnhancedInput, _EnhancedMultiline)) and (
                         col in self[table].column_info.names()
                         and self[table].column_info[col].notnull
                     ):
@@ -4994,23 +4994,6 @@ mysql_examples = {
     "database": "pysimplesql_examples",
 }
 
-
-# -------------------------------------------------------------------------------------
-# WIDGETS
-# -------------------------------------------------------------------------------------
-class Widgets:
-
-    """
-    pysimplesql extends several PySimpleGUI elements with further functionality.
-    See `Input`, `Multiline` and `Combo`.
-
-    Note: This is a dummy class that exists purely to enhance documentation and has no
-    use to the end user.
-    """
-
-    pass
-
-
 class LazyTable(sg.Table):
 
     """
@@ -5019,9 +5002,12 @@ class LazyTable(sg.Table):
     DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
     overcomes this by only inserting a slice of rows during an `update()`.
 
-    To use it, provide values in the form of [TableRow(pk, values)], finalize the
-    sg.Window, and call update(). Please note that LazyTable does not support the
-    `sg.Table` `row_colors` argument.
+    To use, simply replace `sg.Table` with `ss.LazyTable` as the `element` argument in a
+    selector() function call in your layout.
+    
+    Expects values in the form of [TableRow(pk, values)], and only becomes active after
+    a update(values=, selected_rows=[int]) call. Please note that LazyTable does not
+    support the `sg.Table` `row_colors` argument.
     """
 
     def __init__(self, *args, **kwargs):
@@ -5356,7 +5342,7 @@ class _PlaceholderText(abc.ABC):
         return super().get()
 
 
-class Input(_PlaceholderText, sg.Input):
+class _EnhancedInput(_PlaceholderText, sg.Input):
     """
     An Input that allows for the display of a placeholder text when empty.
     """
@@ -5431,7 +5417,7 @@ class Input(_PlaceholderText, sg.Input):
             enable_placeholder()
 
 
-class Multiline(_PlaceholderText, sg.Multiline):
+class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
     """
     A Multiline that allows for the display of a placeholder text when focus-out empty.
     """
@@ -5508,7 +5494,7 @@ def _autocomplete_combo(widget, completion_list, delta=0):
     return hits
 
 
-class Combo(sg.Combo):
+class _AutocompleteCombo(sg.Combo):
     """Customized Combo widget with autocompletion feature.
 
     Please note that due to how PySimpleSql initilizes widgets, you must call update()
@@ -6233,7 +6219,7 @@ class Convenience:
 
 def field(
     field: str,
-    element: Type[sg.Element] = Input,
+    element: Type[sg.Element] = _EnhancedInput,
     size: Tuple[int, int] = None,
     label: str = "",
     no_label: bool = False,
@@ -6274,9 +6260,9 @@ def field(
         Column, but can be treated as a single Element.
     """
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
-    element = Input if element == sg.Input else element
-    element = Multiline if element == sg.Multiline else element
-    element = Combo if element == sg.Combo else element
+    element = _EnhancedInput if element == sg.Input else element
+    element = _EnhancedMultiline if element == sg.Multiline else element
+    element = _AutocompleteCombo if element == sg.Combo else element
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -6307,7 +6293,7 @@ def field(
     else:
         first_param = ""
 
-    if element == Multiline:
+    if element == _EnhancedMultiline:
         layout_element = element(
             first_param,
             key=key,
@@ -6335,7 +6321,7 @@ def field(
             },
             **kwargs,
         )
-    layout_label = sg.T(
+    layout_label = sg.Text(
         label if label else label_text,
         size=themepack.default_label_size,
         key=f"{key}:label",
@@ -6361,7 +6347,7 @@ def field(
     else:
         layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
-    if element == Combo and quick_editor:
+    if element == _AutocompleteCombo and quick_editor:
         meta = {
             "type": TYPE_EVENT,
             "event_type": EVENT_QUICK_EDIT,
@@ -6793,7 +6779,7 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                _EnhancedInput("", key=keygen.get(f"{key}search_input"), size=search_size),
                 sg.B(
                     "",
                     key=keygen.get(f"{key}search_button"),
@@ -6808,7 +6794,7 @@ def actions(
             ]
         else:
             layout += [
-                Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                _EnhancedInput("", key=keygen.get(f"{key}search_input"), size=search_size),
                 sg.B(
                     themepack.search,
                     key=keygen.get(f"{key}search_button"),
@@ -6874,7 +6860,7 @@ def selector(
             key=key,
             metadata=meta,
         )
-    elif element == Combo:
+    elif element == _AutocompleteCombo:
         w = themepack.default_element_size[0]
         layout = element(
             values=(),
