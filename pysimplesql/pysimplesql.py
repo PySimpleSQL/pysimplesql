@@ -3032,6 +3032,8 @@ class Form:
         """
         # First delete the dataset associated
         DataSet.purge_form(self, reset_keygen)
+        if self.popup.popup_info:
+            self.popup.popup_info.close()
         self.driver.close()
 
     def bind(self, win: sg.Window) -> None:
@@ -4014,9 +4016,7 @@ class Form:
             elif isinstance(mapped.element, sg.Combo):
                 # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
-                # TODO: move this to only compute if something else changes?
                 # Find the relationship to determine which table to get data from
-                # TODO this should be get_relationships_for_data?
                 combo_vals = mapped.dataset.combobox_values(mapped.column)
                 if not combo_vals:
                     logger.info(
@@ -4593,6 +4593,8 @@ class Popup:
         if display_message:
             msg_lines = msg.splitlines()
             layout = [[sg.Text(line, font="bold")] for line in msg_lines]
+            if self.popup_info:
+                return
             self.popup_info = sg.Window(
                 title=title,
                 layout=layout,
@@ -4611,7 +4613,9 @@ class Popup:
         """
         Use in a tk.after to automatically close the popup_info.
         """
-        self.popup_info.close()
+        if self.popup_info:
+            self.popup_info.close()
+            self.popup_info = None
 
 
 class ProgressBar:
