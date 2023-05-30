@@ -2328,7 +2328,7 @@ class DataSet:
 
         :returns: True if a backup row is present that matches, and False otherwise.
         """
-        if self.rows is None:
+        if self.rows is None or self.rows.empty:
             return False
         if (
             isinstance(self.rows.attrs["row_backup"], pd.Series)
