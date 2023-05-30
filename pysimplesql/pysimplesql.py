@@ -369,7 +369,7 @@ class Relationship:
         for r in cls.instances:
             if r.child_table == table and r.on_update_cascade:
                 try:
-                    return frm[r.parent_table].row_is_virtual()
+                    return frm[r.parent_table].pk_is_virtual()
                 except AttributeError:
                     return False
         return None
@@ -904,7 +904,7 @@ class DataSet:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             return True
 
         if self.current_row_has_backup and not self.get_current_row().equals(
@@ -1807,11 +1807,12 @@ class DataSet:
                 current_row[mapped.column] = element_val
 
         # create diff of columns if not virtual
-        new_dict = dict(current_row.items())
-        if self.row_is_virtual():
+        new_dict = current_row.fillna("").to_dict()
+
+        if self.pk_is_virtual():
             changed_row_dict = new_dict
         else:
-            old_dict = dict(self.get_original_current_row().items())
+            old_dict = self.get_original_current_row().fillna("").to_dict()
             changed_row_dict = {
                 key: new_dict[key]
                 for key in new_dict
@@ -1865,7 +1866,7 @@ class DataSet:
                     return SAVE_FAIL  # Do not show the message in this case
 
         else:
-            if self.row_is_virtual():
+            if self.pk_is_virtual():
                 result = self.driver.insert_record(
                     self.table, self.get_current_pk(), self.pk_column, changed_row_dict
                 )
@@ -1897,13 +1898,13 @@ class DataSet:
 
             # If child changes parent, move index back and requery/requery_dependents
             if (
-                cascade_fk_changed and not self.row_is_virtual()
+                cascade_fk_changed and not self.pk_is_virtual()
             ):  # Virtual rows already requery, and have no dependents.
                 self.frm[self.table].requery(select_first=False)  # keep spot in table
                 self.frm[self.table].requery_dependents()
 
             # Lets refresh our data
-            if self.row_is_virtual():
+            if self.pk_is_virtual():
                 # Requery so that the new row honors the order clause
                 self.requery(select_first=False, update_elements=False)
                 if update_elements:
@@ -2027,7 +2028,7 @@ class DataSet:
         if answer == "no":
             return True
 
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             self.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
@@ -2081,7 +2082,7 @@ class DataSet:
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not self.row_count or self.row_is_virtual():
+        if not self.row_count or self.pk_is_virtual():
             return None
 
         # callback
@@ -2201,28 +2202,20 @@ class DataSet:
     def virtual_pks(self):
         return self.rows.attrs["virtual"]
 
-    def row_is_virtual(self, index: int = None) -> bool:
+    def pk_is_virtual(self, pk: int = None) -> bool:
         """
-        Check whether the row at `index` is virtual
+        Check whether pk is virtual
 
-        :param index: The index to check. If none is passed, then the current index will
-            be used.
+        :param pk: The pk to check. If None, the pk of the current row will be checked.
         :returns: True or False based on whether the row is virtual
         """
         if not self.row_count:
             return False
 
-        if index is None:
-            index = self.current_index
+        if pk is None:
+            pk = self.get_current_row()[self.pk_column]
 
-        try:
-            pk = self.rows.loc[self.rows.index[index]][self.pk_column]
-        except IndexError:
-            return False
-
-        if self.rows is not None and self.row_count:
-            return bool(pk in self.virtual_pks)
-        return False
+        return bool(pk in self.virtual_pks)
 
     @property
     def row_count(self) -> int:
@@ -3720,7 +3713,7 @@ class Form:
                     disable = bool(
                         not row_count
                         or self._edit_protect
-                        or self[data_key].row_is_virtual()
+                        or self[data_key].pk_is_virtual()
                     )
                     win[m["event"]].update(disabled=disable)
 
