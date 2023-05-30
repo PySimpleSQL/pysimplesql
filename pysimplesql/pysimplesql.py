@@ -2538,12 +2538,15 @@ class DataSet:
         keygen.reset()
         data_key = self.key
         layout = []
-        headings = self.column_info.names()
-        visible = [1] * len(headings)
-        visible[0] = 0
-        col_width = int(55 / (len(headings) - 1))
-        for i in range(0, len(headings)):
-            headings[i] = headings[i].ljust(col_width, " ")
+        headings = TableHeadings(sort_enable=True, edit_enable=True, save_enable=True)
+
+        for col in self.column_info.names():
+            # set widths
+            width = int(55 / (len(self.column_info.names()) - 1))
+            if col == self.pk_column:
+                # make pk column either max length of contained pks, or len of name
+                width = max(self.rows[col].astype(str).map(len).max(), len(col) + 1)
+            headings.add_column(col, col.capitalize(), width=width)
 
         layout.append(
             [
@@ -2552,18 +2555,43 @@ class DataSet:
                     sg.Table,
                     key=f"{data_key}:quick_editor",
                     num_rows=10,
+                    row_height=25,
                     headings=headings,
-                    visible_column_map=visible,
                 )
             ]
         )
+        y_pad = 10
         layout.append([actions(data_key, edit_protect=False)])
-        layout.append([sg.Text("")])
-        layout.append([sg.HorizontalSeparator()])
+        layout.append([sg.Sizer(h_pixels=0, v_pixels=y_pad)])
+
+        fields_layout = [[sg.Sizer(h_pixels=0, v_pixels=y_pad)]]
+
+        rels = Relationship.get_relationships(self.table)
         for col in self.column_info.names():
+            found = False
             column = f"{data_key}.{col}"
+            # make sure isn't pk
             if col != self.pk_column:
-                layout.append([field(column)])
+                # display checkboxes
+                if self.column_info[col]["domain"] in ["BOOLEAN"]:
+                    fields_layout.append([field(column, sg.Checkbox)])
+                    found = True
+                    break
+                # or display sg.combos
+                for rel in rels:
+                    if col == rel.fk_column:
+                        fields_layout.append(
+                            [field(column, sg.Combo, quick_editor=False)]
+                        )
+                        found = True
+                        break
+                # otherwise, just display a regular input
+                if not found:
+                    fields_layout.append([field(column)])
+
+        fields_layout.append([sg.Sizer(h_pixels=0, v_pixels=y_pad)])
+        layout.append([sg.Frame("Fields", fields_layout, expand_x=True)])
+        layout.append([sg.Sizer(h_pixels=0, v_pixels=10)])
 
         quick_win = sg.Window(
             lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
@@ -2574,7 +2602,7 @@ class DataSet:
             ttk_theme=themepack.ttk_theme,  # Must, otherwise will redraw window
             icon=themepack.icon,
         )
-        quick_frm = Form(self.frm.driver, bind_window=quick_win)
+        quick_frm = Form(self.frm.driver, bind_window=quick_win, live_update=True)
 
         # Select the current entry to start with
         if pk_update_funct is not None:
@@ -2594,6 +2622,8 @@ class DataSet:
                 break
 
             logger.debug(f"This event ({event}) is not yet handled.")
+        if quick_frm.popup.popup_info:
+            quick_frm.popup.popup_info.close()
         quick_win.close()
         self.requery()
         self.frm.update_elements()
