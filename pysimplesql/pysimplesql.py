@@ -1361,6 +1361,7 @@ class DataSet:
         update_elements: bool = True,
         requery_dependents: bool = True,
         skip_prompt_save: bool = False,
+        display_message: bool = None,
     ) -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
         Move to the next record in the `DataSet` that contains `search_string`.
@@ -1379,6 +1380,8 @@ class DataSet:
             records.
         :param requery_dependents: (optional) Requery dependents after switching records
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
+        :param display_message: Displays a message "Search Failed: ...", otherwise is
+            silent on fail.
         :returns: One of the following search values: `SEARCH_FAILED`,
             `SEARCH_RETURNED`, `SEARCH_ABORTED`.
         """
@@ -1408,45 +1411,82 @@ class DataSet:
         ):
             return None
 
-        # First lets make a search order.. TODO: remove this hard coded garbage
         if self.row_count:
             logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
-        for field in self.search_order:
-            # Perform a search for str, from the current position to the end and back by
-            # creating a list of all indexes
-            for i in list(range(self.current_index + 1, self.row_count)) + list(
-                range(0, self.current_index)
-            ):
-                if (
-                    field in list(self.rows.columns)
-                    and search_string.lower() in str(self.rows.iloc[i][field]).lower()
-                ):
-                    old_index = self.current_index
-                    if i == old_index:
-                        return None
-                    self.current_index = i
+
+        # reorder rows to be idx + 1, and wrap around back to the beginning
+        rows = self.rows.copy().reset_index()
+        idx = self.current_index + 1 % len(rows)
+        rows = pd.concat([rows.loc[idx:], rows.loc[:idx]])
+
+        # fill in descriptions for cols in search_order
+        rels = Relationship.get_relationships(self.table)
+        for col in self.search_order:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
+
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
+
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
+
+                    # revert any unsaved changes
+                    rows.loc[condition, col] = parent_current_row[description_column]
+                    continue
+
+        for column in self.search_order:
+            # search through processed rows, looking for search_string
+            result = rows[
+                rows[column].astype(str).str.contains(str(search_string), case=False)
+            ]
+            if not result.empty:
+                old_index = self.current_index
+                # grab the first result
+                pk = result.iloc[0][self.pk_column]
+                if pk == self[self.pk_column]:
                     if update_elements:
                         self.frm.update_elements(self.key)
                     if requery_dependents:
                         self.requery_dependents()
-
-                    # callback
-                    if "after_search" in self.callbacks and not self.callbacks[
-                        "after_search"
-                    ](self.frm, self.frm.window):
-                        self.current_index = old_index
-                        self.frm.update_elements(self.key)
-                        self.requery_dependents()
-                        return SEARCH_ABORTED
-
-                    # callback
-                    if "record_changed" in self.callbacks:
-                        self.callbacks["record_changed"](self.frm, self.frm.window)
-
                     return SEARCH_RETURNED
+                self.set_by_pk(
+                    pk=pk,
+                    update_elements=update_elements,
+                    requery_dependents=requery_dependents,
+                    skip_prompt_save=True,
+                )
+
+                # callback
+                if "after_search" in self.callbacks and not self.callbacks[
+                    "after_search"
+                ](self.frm, self.frm.window):
+                    self.current_index = old_index
+                    self.frm.update_elements(self.key)
+                    self.requery_dependents()
+                    return SEARCH_ABORTED
+
+                # callback
+                if "record_changed" in self.callbacks:
+                    self.callbacks["record_changed"](self.frm, self.frm.window)
+
+                return SEARCH_RETURNED
+        self.frm.popup.ok(
+            lang.dataset_search_failed_title,
+            lang.dataset_search_failed.format_map(
+                LangFormat(search_string=search_string)
+            ),
+        )
         return SEARCH_FAILED
         # If we have made it here, then it was not found!
-        # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
     def set_by_index(
