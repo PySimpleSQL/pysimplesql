@@ -4451,7 +4451,7 @@ def update_table_element(
     element.update(values=values, select_rows=select_rows)
 
     # make sure row_iid is visible
-    if not isinstance(element, LazyTable) and len(values) and selected_rows:
+    if not isinstance(element, LazyTable) and len(values) and select_rows:
         row_iid = element.tree_ids[select_rows[0]]
         element.widget.see(row_iid)
 
