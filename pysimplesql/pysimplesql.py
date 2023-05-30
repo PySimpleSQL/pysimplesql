@@ -3978,29 +3978,30 @@ class Form:
             if len(columns) and mapped.column not in columns:
                 continue
 
-            if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
-                # Show the Required Record marker if the column has notnull set and
-                # this is a virtual row
-                marker_key = mapped.element.key + ":marker"
-                try:
-                    if mapped.dataset.row_is_virtual():
-                        # get the column name from the key
-                        col = mapped.column
-                        # get notnull from the column info
-                        if (
-                            col in mapped.dataset.column_info.names()
-                            and mapped.dataset.column_info[col].notnull
-                        ):
-                            self.window[marker_key].update(
-                                visible=True,
-                                text_color=themepack.marker_required_color,
-                            )
-                    else:
-                        self.window[marker_key].update(visible=False)
-                        if self.window is not None:
-                            self.window[marker_key].update(visible=False)
-                except AttributeError:
+            # Update Markers
+            # --------------------------------------------------------------------------
+            # Show the Required Record marker if the column has notnull set and
+            # this is a virtual row
+            marker_key = mapped.element.key + ":marker"
+            try:
+                if mapped.dataset.pk_is_virtual():
+                    # get the column name from the key
+                    col = mapped.column
+                    # get notnull from the column info
+                    if (
+                        col in mapped.dataset.column_info.names()
+                        and mapped.dataset.column_info[col].notnull
+                    ):
+                        self.window[marker_key].update(
+                            visible=True,
+                            text_color=themepack.marker_required_color,
+                        )
+                else:
                     self.window[marker_key].update(visible=False)
+                    if self.window is not None:
+                        self.window[marker_key].update(visible=False)
+            except AttributeError:
+                self.window[marker_key].update(visible=False)
 
             updated_val = None
             # If there is a callback for this element, use it
@@ -5916,20 +5917,12 @@ def field(
         ],
         pad=(0, 0),
     )
-    if element.__name__ == "Text":  # don't show markers for sg.Text
-        if no_label:
-            layout = [[layout_element]]
-        elif label_above:
-            layout = [[layout_label], [layout_element]]
-        else:
-            layout = [[layout_label, layout_element]]
+    if no_label:
+        layout = [[layout_marker, layout_element]]
+    elif label_above:
+        layout = [[layout_label], [layout_marker, layout_element]]
     else:
-        if no_label:
-            layout = [[layout_marker, layout_element]]
-        elif label_above:
-            layout = [[layout_label], [layout_marker, layout_element]]
-        else:
-            layout = [[layout_label, layout_marker, layout_element]]
+        layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
     if element == _AutocompleteCombo and quick_editor:
         meta = {
