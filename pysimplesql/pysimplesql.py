@@ -2398,45 +2398,85 @@ class DataSet:
 
         columns = all_columns if columns is None else columns
 
+        rows = self.rows.copy()
         pk_column = self.pk_column
 
-        virtual_row_pks = self.virtual_pks
-        unsaved_pk_idx = None
-        if self.current_row_has_backup and not self.get_current_row().equals(
-            self.get_original_current_row()
-        ):
-            unsaved_pk_idx = self.rows.loc[
-                self.rows[pk_column] == self.get_current_row()[pk_column]
-            ].index[0]
+        if mark_unsaved:
+            virtual_row_pks = self.virtual_pks.copy()
+            # add pk of current row if it has changes
+            if self.current_row_has_backup and not self.get_current_row().equals(
+                self.get_original_current_row()
+            ):
+                virtual_row_pks.append(
+                    self.rows.loc[
+                        self.rows[pk_column] == self.get_current_row()[pk_column],
+                        pk_column,
+                    ].values[0]
+                )
 
+            # Create a new column 'marker' with the desired values
+            rows["marker"] = " "
+            mask = rows[pk_column].isin(virtual_row_pks)
+            rows.loc[mask, "marker"] = themepack.marker_unsaved
+        else:
+            rows["marker"] = " "
+
+        # get fk descriptions
         rels = Relationship.get_relationships(self.table)
+        for col in columns:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
 
-        def process_row(row):
-            lst = []
-            pk = row[pk_column]
-            if mark_unsaved and (pk in virtual_row_pks or unsaved_pk_idx == row.name):
-                lst.append(themepack.marker_unsaved)
-            else:
-                lst.append(" ")
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
 
-            # only loop through passed-in columns
-            for col in columns:
-                is_fk_column = any(rel.fk_column == col for rel in rels)
-                if is_fk_column:
-                    for rel in rels:
-                        if col == rel.fk_column:
-                            lst.append(
-                                self.frm[rel.parent_table].get_description_for_pk(
-                                    row[col]
-                                )
-                            )
-                            break
-                else:
-                    lst.append(row[col])
+                    # map descriptions to fk column
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
 
-            return TableRow(pk, lst)
+                    # revert any unsaved changes for the single row
+                    rows.loc[condition, col] = parent_current_row[description_column]
+                    continue
 
-        return self.rows.apply(process_row, axis=1)
+        # transform bool
+        if themepack.display_boolean_as_checkbox:
+            bool_columns = [
+                column
+                for column in columns
+                if self.column_info[column]
+                and self.column_info[column]["domain"] in ["BOOLEAN"]
+            ]
+            for col in bool_columns:
+                rows[col] = np.where(
+                    rows[col], themepack.checkbox_true, themepack.checkbox_false
+                )
+
+        # set the pk to the index to use below
+        rows["pk_idx"] = rows[pk_column].copy()
+        rows.set_index("pk_idx", inplace=True)
+
+        # insert the marker
+        columns.insert(0, "marker")
+
+        # resort rows with requested columns
+        rows = rows[columns]
+
+        # fastest way yet to generate list of TableRows
+        return [
+            TableRow(pk, values.tolist())
+            for pk, values in zip(
+                rows.index,
+                np.vstack((rows.fillna("").astype("O").values.T, rows.index)).T,
+            )
+        ]
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
