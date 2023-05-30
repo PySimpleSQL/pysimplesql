@@ -2502,7 +2502,9 @@ class DataSet:
             for e in self.selector
         )
 
-    def combobox_values(self, column_name) -> List[ElementRow] or None:
+    def combobox_values(
+        self, column_name, insert_placeholder: bool = True
+    ) -> List[ElementRow] or None:
         """
         Returns the values to use in a sg.Combobox as a list of ElementRow objects.
 
@@ -2518,20 +2520,23 @@ class DataSet:
         if rel is None:
             return None
 
-        target_table = self.frm[rel.parent_table]
-        pk_column = target_table.pk_column
-        description = target_table.description_column
+        rows = self.frm[rel.parent_table].rows.copy()
+        pk_column = self.frm[rel.parent_table].pk_column
+        description = self.frm[rel.parent_table].description_column
 
-        backup = None
-        if target_table.current_row_has_backup:
-            backup = target_table.get_original_current_row()
+        # revert to original row (so unsaved changes don't show up in dropdowns)
+        parent_current_row = self.frm[rel.parent_table].get_original_current_row()
+        rows.iloc[self.frm[rel.parent_table].current_index] = parent_current_row
 
-        def process_row(row):
-            if backup is not None and backup[pk_column] == row[pk_column]:
-                return ElementRow(backup[pk_column].tolist(), backup[description])
-            return ElementRow(row[pk_column], row[description])
+        # fastest way yet to generate this list of ElementRow
+        combobox_values = [
+            ElementRow(*values)
+            for values in np.column_stack((rows[pk_column], rows[description]))
+        ]
 
-        return target_table.rows.apply(process_row, axis=1).tolist()
+        if insert_placeholder:
+            combobox_values.insert(0, ElementRow("Null", lang.combo_placeholder))
+        return combobox_values
 
     def get_related_table_for_column(self, column: str) -> str:
         """
