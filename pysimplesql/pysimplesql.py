@@ -1568,7 +1568,14 @@ class DataSet:
 
         # Get the numerical index of where the primary key is located.
         # If the pk value can't be found, set to the last index
-        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        try:
+            idx = [
+                i for i, value in enumerate(self.rows[self.pk_column]) if value == pk
+            ]
+        except IndexError:
+            idx = None
+            logger.debug("Error finding pk!")
+
         idx = idx[0] if idx else self.row_count
 
         self.set_by_index(
