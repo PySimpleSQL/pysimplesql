@@ -7295,6 +7295,11 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         # Text, Varchar, Char, Null Default, used exclusively for description_column
         "description_column_str_null_default": "New Record",
+        # Placeholder automatically added to Input/Multiline
+        # that represent Not-Null fields.
+        "notnull_placeholder": "*Required",
+        "search_placeholder": "🔍 Search...",
+        "combo_placeholder": "Please select one:",
         # Prepended to parent description_column
         "duplicate_prepend": "Copy of ",
         # ------------------------------------------------------------------------------
@@ -7350,6 +7355,9 @@ class LanguagePack:
         "dataset_save_keyed_fail": "Query failed: {exception}.",
         "dataset_save_fail_title": "Problem Saving",
         "dataset_save_fail": "Query failed: {exception}.",
+        # DataSet search
+        "dataset_search_failed_title": "Search Failed",
+        "dataset_search_failed": "Failed to find:\n{search_string}",
         # ------------------------------------------------------------------------------
         # Delete
         # ------------------------------------------------------------------------------
@@ -7380,7 +7388,7 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         "quick_edit_title": "Quick Edit - {data_key}",
         # ------------------------------------------------------------------------------
-        # Error when importing module for driver
+        # For Error when importing module for driver
         # ------------------------------------------------------------------------------
         "import_module_failed_title": "Problem importing module",
         "import_module_failed": "Unable to import module neccessary for {name}\nException: {exception}\n\nTry `pip install {requires}`",  # fmt: skip # noqa: E501
