@@ -4032,19 +4032,14 @@ class Form:
                         if len(values):
                             # set to index by pk
                             index = [[v.pk for v in values].index(pk)]
-                            # calculate pk percentage position
-                            pk_position = index[0] / len(values)
                             found = True
                         else:  # if empty
                             index = []
-                            pk_position = 0
 
                         logger.debug(f"Selector:: index:{index} found:{found}")
 
                         # Update table, and set vertical scroll bar to follow
-                        update_table_element(
-                            self.window, element, values, index, pk_position
-                        )
+                        update_table_element(self.window, element, values, index)
 
     def requery_all(
         self,
@@ -4263,7 +4258,6 @@ def update_table_element(
     element: Type[sg.Table],
     values: List[TableRow],
     select_rows: List[int],
-    vscroll_position: float = None,
 ) -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
@@ -4282,13 +4276,15 @@ def update_table_element(
     :returns: None
     """
     # Disable handling for "<<TreeviewSelect>>" event
-    element.Widget.unbind("<<TreeviewSelect>>")
+    element.widget.unbind("<<TreeviewSelect>>")
     # update element
     element.update(values=values, select_rows=select_rows)
-    # set vertical scroll bar to follow selected element
-    # call even for 0.0, so that a 'reset sort' repositions vscroll to top.
-    if vscroll_position is not None:
-        element.set_vscroll_position(vscroll_position)
+
+    # make sure row_iid is visible
+    if not isinstance(element, LazyTable) and len(values) and selected_rows:
+        row_iid = element.tree_ids[select_rows[0]]
+        element.widget.see(row_iid)
+
     window.refresh()  # Event handled and bypassed
     # Enable handling for "<<TreeviewSelect>>" event
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
