@@ -6934,7 +6934,7 @@ class _CellEdit:
         )
         if cast_new_value is not Boolean.FALSE:
             # push row to dataset and update
-            dataset.set_current(column, cast_new_value)
+            dataset.set_current(column, cast_new_value, write_event=True)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
             # TODO: make sure we actually want to set new_value to cast
