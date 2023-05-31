@@ -2457,8 +2457,10 @@ class DataSet:
                 and self.column_info[column]["domain"] in ["BOOLEAN"]
             ]
             for col in bool_columns:
-                rows[col] = np.where(
-                    rows[col], themepack.checkbox_true, themepack.checkbox_false
+                rows[col] = (
+                    themepack.checkbox_true
+                    if checkbox_to_bool(rows[col])
+                    else themepack.checkbox_false
                 )
 
         # set the pk to the index to use below
