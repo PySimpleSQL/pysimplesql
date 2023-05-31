@@ -5511,8 +5511,12 @@ class _SearchInput(_EnhancedInput):
 
         def on_key_release(event):
             # update selectors after each key-release
-            self.search_string.set(self.get())
-            self.dataset.frm.update_selectors(self.dataset.key)
+            non_keys = self._non_keys.copy()
+            non_keys.remove("BackSpace")
+            non_keys.remove("Delete")
+            if event.keysym not in non_keys:
+                self.search_string.set(self.get())
+                self.dataset.frm.update_selectors(self.dataset.key)
 
         self.binds["<KeyRelease>"] = self.widget.bind(
             "<KeyRelease>", on_key_release, "+"
@@ -5534,7 +5538,6 @@ class _SearchInput(_EnhancedInput):
             self.widget.insert(0, self.placeholder_text)
             self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
             self.active_placeholder = True
-            return
 
 
 def _autocomplete_combo(widget, completion_list, delta=0):
