@@ -672,9 +672,6 @@ class DataSet:
     @current_index.setter
     # Keeps the current_index in bounds
     def current_index(self, val: int):
-        # reset search string
-        self.search_string = ""
-
         if val > self.row_count - 1:
             self._current_index = self.row_count - 1
         elif val < 0:
@@ -1179,6 +1176,9 @@ class DataSet:
         self.rows.loc[:, :] = self.rows.applymap(
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
+
+        # reset search string
+        self.search_string = ""
 
         if select_first:
             self.first(
@@ -1786,6 +1786,9 @@ class DataSet:
         # Insert the new values using DataSet.insert_row(),
         # marking the new row as virtual
         self.insert_row(new_values)
+        
+        # reset search string
+        self.search_string = ""
 
         # and move to the new record
         # do this in insert_record, because possibly current_index is already 0
@@ -1946,6 +1949,9 @@ class DataSet:
             for col, value in changed_row_dict.items()
             if self.column_info[col] and not self.column_info[col]["generated"]
         }
+        
+        # reset search string
+        self.search_string = ""
 
         # Save or Insert the record as needed
         if keyed_queries is not None:
