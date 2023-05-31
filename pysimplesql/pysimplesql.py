@@ -5270,7 +5270,7 @@ class LazyTable(sg.Table):
             This property assumes that the LazyTable is using a primary key (pk) value
             to uniquely identify rows in the data list.
         """
-        if self.data:
+        if self.data and self.widget.selection():
             index = [
                 [v.pk for v in self.data].index(
                     [int(x) for x in self.widget.selection()][0]
