@@ -615,6 +615,7 @@ class DataSet:
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
+        self._search_string: tk.StringVar = tk.StringVar()
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
@@ -655,6 +656,14 @@ class DataSet:
         """
         self.set_current(column, value)
 
+    @property
+    def search_string(self):
+        return self._search_string.get()
+
+    @search_string.setter
+    def search_string(self, val: str):
+        self._search_string.set(val)
+
     # Make current_index a property so that bounds can be respected
     @property
     def current_index(self):
@@ -663,6 +672,9 @@ class DataSet:
     @current_index.setter
     # Keeps the current_index in bounds
     def current_index(self, val: int):
+        # reset search string
+        self.search_string = ""
+
         if val > self.row_count - 1:
             self._current_index = self.row_count - 1
         elif val < 0:
@@ -1572,7 +1584,7 @@ class DataSet:
             idx = [
                 i for i, value in enumerate(self.rows[self.pk_column]) if value == pk
             ]
-        except IndexError:
+        except (IndexError, KeyError):
             idx = None
             logger.debug("Error finding pk!")
 
@@ -1677,10 +1689,14 @@ class DataSet:
         if not self.rows.empty:
             # force the current_index to be in bounds!
             # For child reparenting
-            self.current_index = self.current_index
+            idx = (
+                self.current_index
+                if self.current_index < len(self.rows)
+                else len(self.rows)
+            )
 
             # make sure to return as python type
-            return self.rows.astype("O").iloc[self.current_index]
+            return self.rows.astype("O").iloc[idx]
         return None
 
     def add_selector(
@@ -2447,6 +2463,16 @@ class DataSet:
 
                     # we only want transform col once
                     break
+
+        if self.search_string not in ["", None]:
+            # Generate the mask dynamically
+            masks = [
+                rows[col].astype(str).str.contains(self.search_string, case=False)
+                for col in self.search_order
+            ]
+            mask_pd = pd.concat(masks, axis=1).any(axis=1)
+            # Apply the mask to filter the DataFrame
+            rows = rows[mask_pd]
 
         # transform bool
         if themepack.display_boolean_as_checkbox:
@@ -3608,6 +3634,7 @@ class Form:
                         placeholder=lang.search_placeholder,
                         color=themepack.placeholder_color,
                     )
+                    self.window[search_box].bind_dataset(self[data_key])
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table = table
@@ -4222,8 +4249,11 @@ class Form:
                         found = False
                         if len(values):
                             # set to index by pk
-                            index = [[v.pk for v in values].index(pk)]
-                            found = True
+                            try:
+                                index = [[v.pk for v in values].index(pk)]
+                                found = True
+                            except ValueError:
+                                index = []
                         else:  # if empty
                             index = []
 
@@ -5470,6 +5500,43 @@ class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
         self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
 
 
+class _SearchInput(_EnhancedInput):
+    def __init__(self, *args, **kwargs):
+        self.dataset = None
+        self.search_string = None  # Track the StringVar
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        super()._add_binds()  # Call the parent method to maintain existing binds
+
+        def on_key_release(event):
+            # update selectors after each key-release
+            self.search_string.set(self.get())
+            self.dataset.frm.update_selectors(self.dataset.key)
+
+        self.binds["<KeyRelease>"] = self.widget.bind(
+            "<KeyRelease>", on_key_release, "+"
+        )
+
+    def bind_dataset(self, dataset):
+        self.dataset = dataset
+        self.search_string = dataset._search_string
+        self.search_string.trace_add("write", self._on_search_string_change)
+
+    def _on_search_string_change(self, *args):
+        if (
+            not self.active_placeholder
+            and self.get() != self.search_string.get()
+            and self.search_string.get() == ""  # noqa PLC1901
+        ):
+            # reinsert placeholder if DataSet.search_string == ""
+            self.widget.delete(0, "end")
+            self.widget.insert(0, self.placeholder_text)
+            self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+            self.active_placeholder = True
+            return
+
+
 def _autocomplete_combo(widget, completion_list, delta=0):
     """Perform autocompletion on a Combobox widget based on the current input."""
     if delta:
@@ -6370,7 +6437,7 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                _EnhancedInput(
+                _SearchInput(
                     "", key=keygen.get(f"{key}search_input"), size=search_size
                 ),
                 sg.B(
@@ -6387,7 +6454,7 @@ def actions(
             ]
         else:
             layout += [
-                _EnhancedInput(
+                _SearchInput(
                     "", key=keygen.get(f"{key}search_input"), size=search_size
                 ),
                 sg.B(
