@@ -225,6 +225,8 @@ order_heading = ss.TableHeadings(
     edit_enable=True,
     # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
     save_enable=True,
+    # Filter rows as you type in the search input
+    apply_search_filter=True,
 )
 
 # Add columns
@@ -323,7 +325,7 @@ frm["Orders"].set_order_clause("ORDER BY OrderDate ASC")
 # Requery the data since we made changes to the sort order
 frm["Orders"].requery()
 # Set the column order for search operations.
-frm["Orders"].set_search_order(["CustomerID"])
+frm["Orders"].set_search_order(["CustomerID","OrderID"])
 
 # ---------
 # MAIN LOOP
