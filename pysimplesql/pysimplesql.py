@@ -1783,9 +1783,6 @@ class DataSet:
         # marking the new row as virtual
         self.insert_row(new_values)
 
-        # reset search string
-        self.search_string = ""
-
         # and move to the new record
         # do this in insert_record, because possibly current_index is already 0
         # and set_by_index will return early before update/requery if so.
@@ -2471,10 +2468,11 @@ class DataSet:
                     # we only want transform col once
                     break
 
+        # filter rows to only contain search, or virtual/unsaved row
         if apply_search_filter and self.search_string not in ["", None]:
-            # Generate the mask dynamically
             masks = [
                 rows[col].astype(str).str.contains(self.search_string, case=False)
+                | rows[pk_column].isin(virtual_row_pks)
                 for col in self.search_order
             ]
             mask_pd = pd.concat(masks, axis=1).any(axis=1)
