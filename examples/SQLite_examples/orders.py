@@ -325,7 +325,7 @@ frm["Orders"].set_order_clause("ORDER BY OrderDate ASC")
 # Requery the data since we made changes to the sort order
 frm["Orders"].requery()
 # Set the column order for search operations.
-frm["Orders"].set_search_order(["CustomerID","OrderID"])
+frm["Orders"].set_search_order(["CustomerID", "OrderID"])
 
 # ---------
 # MAIN LOOP
