@@ -615,6 +615,7 @@ class DataSet:
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
+        self._search_string: tk.StringVar = tk.StringVar()
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
@@ -654,6 +655,14 @@ class DataSet:
         :returns: None
         """
         self.set_current(column, value)
+
+    @property
+    def search_string(self):
+        return self._search_string.get()
+
+    @search_string.setter
+    def search_string(self, val: str):
+        self._search_string.set(val)
 
     # Make current_index a property so that bounds can be respected
     @property
@@ -1168,6 +1177,9 @@ class DataSet:
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
 
+        # reset search string
+        self.search_string = ""
+
         if select_first:
             self.first(
                 update_elements=update_elements,
@@ -1572,7 +1584,7 @@ class DataSet:
             idx = [
                 i for i, value in enumerate(self.rows[self.pk_column]) if value == pk
             ]
-        except IndexError:
+        except (IndexError, KeyError):
             idx = None
             logger.debug("Error finding pk!")
 
@@ -1771,6 +1783,9 @@ class DataSet:
         # marking the new row as virtual
         self.insert_row(new_values)
 
+        # reset search string
+        self.search_string = ""
+
         # and move to the new record
         # do this in insert_record, because possibly current_index is already 0
         # and set_by_index will return early before update/requery if so.
@@ -1930,6 +1945,9 @@ class DataSet:
             for col, value in changed_row_dict.items()
             if self.column_info[col] and not self.column_info[col]["generated"]
         }
+
+        # reset search string
+        self.search_string = ""
 
         # Save or Insert the record as needed
         if keyed_queries is not None:
@@ -2376,7 +2394,10 @@ class DataSet:
             self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
     def table_values(
-        self, columns: List[str] = None, mark_unsaved: bool = False
+        self,
+        columns: List[str] = None,
+        mark_unsaved: bool = False,
+        apply_search_filter: bool = False,
     ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
@@ -2385,6 +2406,8 @@ class DataSet:
             Defaults to getting them from the `DataSet.rows` DataFrame.
         :param mark_unsaved: Place a marker next to virtual records, or records with
             unsaved changes.
+        :param apply_search_filter: Filter rows to only those columns in
+            `DataSet.search_order` that contain `Dataself.search_string`.
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
@@ -2447,6 +2470,16 @@ class DataSet:
 
                     # we only want transform col once
                     break
+
+        if apply_search_filter and self.search_string not in ["", None]:
+            # Generate the mask dynamically
+            masks = [
+                rows[col].astype(str).str.contains(self.search_string, case=False)
+                for col in self.search_order
+            ]
+            mask_pd = pd.concat(masks, axis=1).any(axis=1)
+            # Apply the mask to filter the DataFrame
+            rows = rows[mask_pd]
 
         # transform bool
         if themepack.display_boolean_as_checkbox:
@@ -3608,6 +3641,7 @@ class Form:
                         placeholder=lang.search_placeholder,
                         color=themepack.placeholder_color,
                     )
+                    self.window[search_box].bind_dataset(self[data_key])
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table = table
@@ -4130,7 +4164,10 @@ class Form:
                 mapped.element.update(updated_val)
 
     def update_selectors(
-        self, target_data_key: str = None, omit_elements: List[str] = None
+        self,
+        target_data_key: str = None,
+        omit_elements: List[str] = None,
+        search_filter_only: bool = False,
     ) -> None:
         """
         Updated the selector elements to reflect their `rows` DataFrame.
@@ -4207,12 +4244,24 @@ class Form:
                     elif isinstance(element, sg.Table):
                         logger.debug("update_elements: Table selector found...")
                         # Populate entries
+                        apply_search_filter = False
                         try:
                             columns = element.metadata["TableHeading"].columns()
+                            apply_search_filter = element.metadata[
+                                "TableHeading"
+                            ].apply_search_filter
                         except KeyError:
                             columns = None  # default to all columns
 
-                        values = dataset.table_values(columns, mark_unsaved=True)
+                        # skip Tables that don't request search_filter
+                        if search_filter_only and not apply_search_filter:
+                            continue
+
+                        values = dataset.table_values(
+                            columns,
+                            mark_unsaved=True,
+                            apply_search_filter=apply_search_filter,
+                        )
 
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
@@ -4222,8 +4271,11 @@ class Form:
                         found = False
                         if len(values):
                             # set to index by pk
-                            index = [[v.pk for v in values].index(pk)]
-                            found = True
+                            try:
+                                index = [[v.pk for v in values].index(pk)]
+                                found = True
+                            except ValueError:
+                                index = []
                         else:  # if empty
                             index = []
 
@@ -5471,6 +5523,45 @@ class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
             self.active_placeholder = False
 
 
+class _SearchInput(_EnhancedInput):
+    def __init__(self, *args, **kwargs):
+        self.dataset = None
+        self.search_string = None  # Track the StringVar
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        super()._add_binds()  # Call the parent method to maintain existing binds
+
+        def on_key_release(event):
+            # update selectors after each key-release
+            non_keys = self._non_keys.copy()
+            non_keys.remove("BackSpace")
+            non_keys.remove("Delete")
+            if event.keysym not in non_keys:
+                self.search_string.set(self.get())
+                self.dataset.frm.update_selectors(
+                    self.dataset.key, search_filter_only=True
+                )
+
+        self.binds["<KeyRelease>"] = self.widget.bind(
+            "<KeyRelease>", on_key_release, "+"
+        )
+
+    def bind_dataset(self, dataset):
+        self.dataset = dataset
+        self.search_string = dataset._search_string
+        self.search_string.trace_add("write", self._on_search_string_change)
+
+    def _on_search_string_change(self, *args):
+        if (
+            not self.active_placeholder
+            and self.get() != self.search_string.get()
+            and self.search_string.get() == ""  # noqa PLC1901
+        ):
+            # reinsert placeholder if DataSet.search_string == ""
+            self.toggle_placeholder(True)
+
+
 def _autocomplete_combo(widget, completion_list, delta=0):
     """Perform autocompletion on a Combobox widget based on the current input."""
     if delta:
@@ -6371,7 +6462,7 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                _EnhancedInput(
+                _SearchInput(
                     "", key=keygen.get(f"{key}search_input"), size=search_size
                 ),
                 sg.B(
@@ -6388,7 +6479,7 @@ def actions(
             ]
         else:
             layout += [
-                _EnhancedInput(
+                _SearchInput(
                     "", key=keygen.get(f"{key}search_input"), size=search_size
                 ),
                 sg.B(
@@ -6535,6 +6626,7 @@ class TableHeadings(list):
         sort_enable: bool = True,
         edit_enable: bool = False,
         save_enable: bool = False,
+        apply_search_filter: bool = False,
     ) -> None:
         """
         Create a new TableHeadings object.
@@ -6543,11 +6635,14 @@ class TableHeadings(list):
         :param edit_enable: Enables cell editing if True. Accepted edits update both
             `sg.Table` and associated `field` element.
         :param save_enable: Enables saving record by double-clicking unsaved marker col.
+        :param apply_search_filter: Filter rows to only those columns in
+            `DataSet.search_order` that contain `Dataself.search_string`.
         :returns: None
         """
         self.sort_enable = sort_enable
         self.edit_enable = edit_enable
         self.save_enable = save_enable
+        self.apply_search_filter = apply_search_filter
         self._width_map = []
         self._visible_map = []
         self.readonly_columns = []
