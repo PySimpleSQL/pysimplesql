@@ -7534,7 +7534,7 @@ class LanguagePack:
         "duplicate_child_title": "Confirm Duplication",
         "duplicate_child": "This record has child records:\n(in {children})\nWhich records would you like to duplicate?",  # fmt: skip # noqa: E501
         "duplicate_child_button_dupparent": "Only duplicate this record.",
-        "duplicate_child_button_dupboth": "Duplicate this record and its children.",
+        "duplicate_child_button_dupboth": "++ Duplicate this record and its children.",
         # Popup when record is single
         "duplicate_single_title": "Confirm Duplication",
         "duplicate_single": "Are you sure you want to duplicate this record?",

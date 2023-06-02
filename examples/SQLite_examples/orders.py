@@ -351,7 +351,11 @@ while True:
         dataset = frm["OrderDetails"]
         current_row = dataset.get_current_row()
         # after a product and quantity is entered, save and requery
-        if dataset.row_count and current_row["ProductID"] and current_row["Quantity"]:
+        if (
+            dataset.row_count
+            and current_row["ProductID"] not in [None, ss.PK_PLACEHOLDER]
+            and current_row["Quantity"]
+        ):
             pk_is_virtual = dataset.pk_is_virtual()
             dataset.save_record(display_message=False)
             frm["Orders"].requery(select_first=False)
