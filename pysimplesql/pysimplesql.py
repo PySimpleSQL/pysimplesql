@@ -1909,6 +1909,16 @@ class DataSet:
                 for key in new_dict
                 if old_dict.get(key) != new_dict[key]
             }
+
+        # Remove the pk column, any virtual or generated columns
+        changed_row_dict = {
+            col: value
+            for col, value in changed_row_dict.items()
+            if col != self.pk_column
+            and col not in self.column_info.get_virtual_names()
+            and not self.column_info[col].generated
+        }
+
         if not bool(changed_row_dict) and not keyed_queries:
             # if user is not using liveupdate, they can change something using celledit
             # but then change it back in field element (which overrides the celledit)
@@ -1935,13 +1945,6 @@ class DataSet:
 
         if self.transform is not None:
             self.transform(self, changed_row_dict, TFORM_ENCODE)
-
-        # delete generated rows
-        changed_row_dict = {
-            col: value
-            for col, value in changed_row_dict.items()
-            if self.column_info[col] and not self.column_info[col].generated
-        }
 
         # reset search string
         self.search_string = ""
@@ -7991,7 +7994,7 @@ class ColumnInfo(List):
         :returns: A List of column names that are virtual, or [] if none are present in
             this collections
         """
-        return [c for c in self if not c.virtual]
+        return [c.name for c in self if c.virtual]
 
     def _contains_key_value_pair(self, key, value):  # used by __contains__
         return any(key in d and d[key] == value for d in self)
@@ -8607,12 +8610,8 @@ class SQLDriver:
         pk = dataset.get_current_pk()
         pk_column = dataset.pk_column
 
-        # Remove the pk column and any virtual columns
-        changed_row = {
-            self.quote_column(k): v
-            for k, v in changed_row.items()
-            if k != pk_column and k not in dataset.column_info.get_virtual_names()
-        }
+        # quote columns
+        changed_row = {self.quote_column(k): v for k, v in changed_row.items()}
 
         # Set empty fields to None
         for k, v in changed_row.items():
