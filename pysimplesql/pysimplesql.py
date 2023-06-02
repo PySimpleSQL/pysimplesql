@@ -5407,7 +5407,11 @@ class _PlaceholderText(abc.ABC):
         return super().get()
 
     @abc.abstractmethod
-    def toggle_placeholder(self, enable):
+    def insert_placeholder(self):
+        pass
+
+    @abc.abstractmethod
+    def delete_placeholder(self):
         pass
 
 
@@ -5434,13 +5438,13 @@ class _EnhancedInput(_PlaceholderText, sg.Input):
                 if event.keysym in self._non_keys:
                     return "break"
                 # Clear the placeholder when the user starts typing
-                self.toggle_placeholder(False)
+                self.delete_placeholder()
             return None
 
         def on_key_release(event):
             if widget.get() == "":  # noqa PLC1901
                 with contextlib.suppress(tk.TclError):
-                    self.toggle_placeholder(True)
+                    self.insert_placeholder()
                     widget.icursor(0)
 
         def on_focusin(event):
@@ -5450,7 +5454,7 @@ class _EnhancedInput(_PlaceholderText, sg.Input):
 
         def on_focusout(event):
             if not widget.get():
-                self.toggle_placeholder(True)
+                self.insert_placeholder()
 
         def disable_placeholder_select(event):
             # Disable selecting the placeholder
@@ -5466,18 +5470,18 @@ class _EnhancedInput(_PlaceholderText, sg.Input):
             self.binds[event] = widget.bind(event, disable_placeholder_select, "+")
 
         if not widget.get():
-            self.toggle_placeholder(True)
+            self.insert_placeholder()
 
-    def toggle_placeholder(self, enable):
-        if enable:
-            self.widget.delete(0, "end")
-            self.widget.insert(0, self.placeholder_text)
-            self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-            self.active_placeholder = True
-        else:
-            self.widget.delete(0, "end")
-            self.widget.config(fg=self.normal_color, font=self.normal_font)
-            self.active_placeholder = False
+    def insert_placeholder(self):
+        self.widget.delete(0, "end")
+        self.widget.insert(0, self.placeholder_text)
+        self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        self.active_placeholder = True
+
+    def delete_placeholder(self):
+        self.widget.delete(0, "end")
+        self.widget.config(fg=self.normal_color, font=self.normal_font)
+        self.active_placeholder = False
 
 
 class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
@@ -5498,27 +5502,27 @@ class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
 
         def on_focusin(event):
             if self.active_placeholder:
-                self.toggle_placeholder(False)
+                self.delete_placeholder()
 
         def on_focusout(event):
             if not widget.get("1.0", "end-1c").strip():
-                self.toggle_placeholder(True)
+                self.insert_placeholder()
 
         if not widget.get("1.0", "end-1c").strip() and self.active_placeholder:
-            self.toggle_placeholder(True)
+            self.insert_placeholder()
 
         self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
         self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
 
-    def toggle_placeholder(self, enable):
-        if enable:
-            self.widget.insert("1.0", self.placeholder_text)
-            self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-            self.active_placeholder = True
-        else:
-            self.widget.delete("1.0", "end")
-            self.widget.config(fg=self.normal_color, font=self.normal_font)
-            self.active_placeholder = False
+    def insert_placeholder(self):
+        self.widget.insert("1.0", self.placeholder_text)
+        self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        self.active_placeholder = True
+
+    def delete_placeholder(self):
+        self.widget.delete("1.0", "end")
+        self.widget.config(fg=self.normal_color, font=self.normal_font)
+        self.active_placeholder = False
 
 
 class _SearchInput(_EnhancedInput):
@@ -5526,16 +5530,19 @@ class _SearchInput(_EnhancedInput):
         self.dataset = None
         self.search_string = None  # Track the StringVar
         super().__init__(*args, **kwargs)
+        self.search_non_keys = self._non_keys.copy()
+        self.search_non_keys.remove("BackSpace")
+        self.search_non_keys.remove("Delete")
 
     def _add_binds(self):
         super()._add_binds()  # Call the parent method to maintain existing binds
 
         def on_key_release(event):
             # update selectors after each key-release
-            non_keys = self._non_keys.copy()
-            non_keys.remove("BackSpace")
-            non_keys.remove("Delete")
-            if event.keysym not in non_keys:
+            if (
+                event.keysym not in self.search_non_keys
+                and self.search_string.get() != self.get()
+            ):
                 self.search_string.set(self.get())
                 self.dataset.frm.update_selectors(
                     self.dataset.key, search_filter_only=True
@@ -5557,7 +5564,7 @@ class _SearchInput(_EnhancedInput):
             and self.search_string.get() == ""  # noqa PLC1901
         ):
             # reinsert placeholder if DataSet.search_string == ""
-            self.toggle_placeholder(True)
+            self.insert_placeholder()
 
 
 def _autocomplete_combo(widget, completion_list, delta=0):
