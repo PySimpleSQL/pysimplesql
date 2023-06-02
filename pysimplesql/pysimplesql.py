@@ -2195,7 +2195,7 @@ class DataSet:
             # don't update self/dependents if we are going to below anyway
             and self.prompt_save(update_elements=False) == SAVE_FAIL
         ):
-            return
+            return None
 
         # callback
         if "before_duplicate" in self.callbacks and not self.callbacks[
