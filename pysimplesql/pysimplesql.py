@@ -1004,7 +1004,7 @@ class DataSet:
 
         # get cast new value to correct type
         for col in self.column_info:
-            if col["name"] == column_name:
+            if col.name == column_name:
                 new_value = col.cast(new_value)
                 element_val = new_value
                 table_val = col.cast(table_val)
@@ -1940,7 +1940,7 @@ class DataSet:
         changed_row_dict = {
             col: value
             for col, value in changed_row_dict.items()
-            if self.column_info[col] and not self.column_info[col]["generated"]
+            if self.column_info[col] and not self.column_info[col].generated
         }
 
         # reset search string
@@ -2485,7 +2485,7 @@ class DataSet:
                 column
                 for column in columns
                 if self.column_info[column]
-                and self.column_info[column]["domain"] in ["BOOLEAN"]
+                and self.column_info[column].domain == "BOOLEAN"
             ]
             for col in bool_columns:
                 rows[col] = (
@@ -2653,7 +2653,7 @@ class DataSet:
             # make sure isn't pk
             if col != self.pk_column:
                 # display checkboxes
-                if self.column_info[col]["domain"] in ["BOOLEAN"]:
+                if self.column_info[col].domain == "BOOLEAN":
                     fields_layout.append([field(column, sg.Checkbox)])
                     found = True
                     break
@@ -2777,7 +2777,7 @@ class DataSet:
 
         # handling datetime
         # TODO: user-defined format
-        if self.column_info[column] and self.column_info[column]["domain"] in [
+        if self.column_info[column] and self.column_info[column].domain in [
             "DATE",
             "DATETIME",
             "TIME",
@@ -6885,7 +6885,7 @@ class _CellEdit:
             logger.debug(f"{column} is pk_column")
             return
 
-        if self.frm[data_key].column_info[column]["generated"]:
+        if self.frm[data_key].column_info[column].generated:
             logger.debug(f"{column} is a generated column")
             return
 
@@ -6910,7 +6910,7 @@ class _CellEdit:
             )
 
         # or a checkbox
-        elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
+        elif self.frm[data_key].column_info[column].domain in ["BOOLEAN"]:
             widget_type = TK_CHECKBUTTON
             width = (
                 width
@@ -6919,7 +6919,7 @@ class _CellEdit:
             )
 
         # or a date
-        elif self.frm[data_key].column_info[column]["domain"] in ["DATE"]:
+        elif self.frm[data_key].column_info[column].domain in ["DATE"]:
             text = self.frm[data_key].column_info[column].cast(text)
             widget_type = TK_DATEPICKER
             width = (
@@ -7218,7 +7218,7 @@ class _LiveUpdate:
 
                 # get cast new value to correct type
                 for col in dataset.column_info:
-                    if col["name"] == column:
+                    if col.name == column:
                         new_value = col.cast(new_value)
                         break
 
@@ -8479,9 +8479,9 @@ class SQLDriver:
         # Get variables
         table = self.quote_table(dataset.table)
         columns = [
-            self.quote_column(column["name"])
+            self.quote_column(column.name)
             for column in dataset.column_info
-            if column["name"] != dataset.pk_column
+            if column.name != dataset.pk_column and not column.generated
         ]
         columns = ", ".join(columns)
         pk_column = dataset.pk_column
@@ -8498,17 +8498,24 @@ class SQLDriver:
         # now wrap pk_column
         pk_column = self.quote_column(dataset.pk_column)
 
-        # Set description
-        description_column = self.quote_column(dataset.description_column)
-        description = f"{lang.duplicate_prepend}{dataset.get_description_for_pk(pk)}"
-        query = (
-            f"UPDATE {table} "
-            f"SET {description_column} = {self.placeholder} "
-            f"WHERE {pk_column} = {new_pk};"
-        )
-        res = self.execute(query, [description])
-        if res.attrs["exception"]:
-            return res
+        # Set description if TEXT
+        if dataset.column_info[dataset.description_column].domain in [
+            "TEXT",
+            "VARCHAR",
+            "CHAR",
+        ]:
+            description_column = self.quote_column(dataset.description_column)
+            description = (
+                f"{lang.duplicate_prepend}{dataset.get_description_for_pk(pk)}"
+            )
+            query = (
+                f"UPDATE {table} "
+                f"SET {description_column} = {self.placeholder} "
+                f"WHERE {pk_column} = {new_pk};"
+            )
+            res = self.execute(query, [description])
+            if res.attrs["exception"]:
+                return res
 
         # create list of which children we have duplicated
         child_duplicated = []
@@ -8526,9 +8533,10 @@ class SQLDriver:
 
                         # all columns except pk_column
                         columns = [
-                            self.quote_column(column["name"])
+                            self.quote_column(column.name)
                             for column in dataset.frm[r.child_table].column_info
-                            if column["name"] != dataset.frm[r.child_table].pk_column
+                            if column.name != dataset.frm[r.child_table].pk_column
+                            and not column.generated
                         ]
 
                         # replace fk_column value with pk of new parent
