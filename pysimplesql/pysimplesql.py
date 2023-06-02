@@ -7304,8 +7304,8 @@ class ThemePack:
         "placeholder_color": "grey",
         # Sorting icons
         # ----------------------------------------
-        "marker_sort_asc": "\u25BC",
-        "marker_sort_desc": "\u25B2",
+        "marker_sort_asc": "▼",
+        "marker_sort_desc": "▲",
         # Info Popup defaults
         # ----------------------------------------
         "popup_info_auto_close_seconds": 1,

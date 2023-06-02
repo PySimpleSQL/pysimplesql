@@ -17,6 +17,8 @@ logging.basicConfig(level=logging.INFO)
 # -----------------------------
 custom = {
     "ttk_theme": "xpnative",
+    "marker_sort_asc": " ⬇",
+    "marker_sort_desc": " ⬆",
 }
 custom = custom | ss.tp_crystal_remix
 ss.themepack(custom)
@@ -137,32 +139,32 @@ BEGIN
 END;
 
 INSERT INTO Customers (Name, Email) VALUES
-    ('Alice Rodriguez', 'alice.rodriguez@example.com'),
-    ('Bryan Patel', 'bryan.patel@example.com'),
-    ('Cassandra Kim', 'cassandra.kim@example.com'),
-    ('David Nguyen', 'david.nguyen@example.com'),
-    ('Ella Singh', 'ella.singh@example.com'),
-    ('Franklin Gomez', 'franklin.gomez@example.com'),
-    ('Gabriela Ortiz', 'gabriela.ortiz@example.com'),
-    ('Henry Chen', 'henry.chen@example.com'),
-    ('Isabella Kumar', 'isabella.kumar@example.com'),
-    ('Jonathan Lee', 'jonathan.lee@example.com'),
-    ('Katherine Wright', 'katherine.wright@example.com'),
-    ('Liam Davis', 'liam.davis@example.com'),
-    ('Mia Ali', 'mia.ali@example.com'),
-    ('Nathan Kim', 'nathan.kim@example.com'),
-    ('Oliver Brown', 'oliver.brown@example.com'),
-    ('Penelope Martinez', 'penelope.martinez@example.com'),
-    ('Quentin Carter', 'quentin.carter@example.com'),
-    ('Rosa Hernandez', 'rosa.hernandez@example.com'),
-    ('Samantha Jones', 'samantha.jones@example.com'),
-    ('Thomas Smith', 'thomas.smith@example.com'),
-    ('Uma Garcia', 'uma.garcia@example.com'),
-    ('Valentina Lopez', 'valentina.lopez@example.com'),
-    ('William Park', 'william.park@example.com'),
-    ('Xander Williams', 'xander.williams@example.com'),
-    ('Yara Hassan', 'yara.hassan@example.com'),
-    ('Zoe Perez', 'zoe.perez@example.com');
+    ('Alice Rodriguez', 'rodriguez.alice@example.com'),
+    ('Bryan Patel', 'patel.bryan@example.com'),
+    ('Cassandra Kim', 'kim.cassandra@example.com'),
+    ('David Nguyen', 'nguyen.david@example.com'),
+    ('Ella Singh', 'singh.ella@example.com'),
+    ('Franklin Gomez', 'gomez.franklin@example.com'),
+    ('Gabriela Ortiz', 'ortiz.gabriela@example.com'),
+    ('Henry Chen', 'chen.henry@example.com'),
+    ('Isabella Kumar', 'kumar.isabella@example.com'),
+    ('Jonathan Lee', 'lee.jonathan@example.com'),
+    ('Katherine Wright', 'wright.katherine@example.com'),
+    ('Liam Davis', 'davis.liam@example.com'),
+    ('Mia Ali', 'ali.mia@example.com'),
+    ('Nathan Kim', 'kim.nathan@example.com'),
+    ('Oliver Brown', 'brown.oliver@example.com'),
+    ('Penelope Martinez', 'martinez.penelope@example.com'),
+    ('Quentin Carter', 'carter.quentin@example.com'),
+    ('Rosa Hernandez', 'hernandez.rosa@example.com'),
+    ('Samantha Jones', 'jones.samantha@example.com'),
+    ('Thomas Smith', 'smith.thomas@example.com'),
+    ('Uma Garcia', 'garcia.uma@example.com'),
+    ('Valentina Lopez', 'lopez.valentina@example.com'),
+    ('William Park', 'park.william@example.com'),
+    ('Xander Williams', 'williams.xander@example.com'),
+    ('Yara Hassan', 'hassan.yara@example.com'),
+    ('Zoe Perez', 'perez.zoe@example.com');
 
 INSERT INTO Products (Name, Price, Inventory) VALUES
     ('Thingamabob', 5.00, 200),
