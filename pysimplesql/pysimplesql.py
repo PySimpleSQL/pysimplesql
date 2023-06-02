@@ -615,7 +615,7 @@ class DataSet:
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
-        self._search_string: tk.StringVar = tk.StringVar()
+        self._search_string: tk.StringVar = None
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
@@ -658,11 +658,14 @@ class DataSet:
 
     @property
     def search_string(self):
-        return self._search_string.get()
+        if self._search_string is not None:
+            return self._search_string.get()
+        return None
 
     @search_string.setter
     def search_string(self, val: str):
-        self._search_string.set(val)
+        if self._search_string is not None:
+            self._search_string.set(val)
 
     # Make current_index a property so that bounds can be respected
     @property
@@ -5583,6 +5586,8 @@ class _SearchInput(_EnhancedInput):
     def bind_dataset(self, dataset):
         self.dataset = dataset
         self.search_string = dataset._search_string
+        if self.search_string is None:
+            self.search_string = dataset._search_string = tk.StringVar()
         self.search_string.trace_add("write", self._on_search_string_change)
 
     def _on_search_string_change(self, *args):
