@@ -772,9 +772,9 @@ class DataSet:
             record_changed called after a record has changed (previous,next, etc.)
 
         :param callback: The name of the callback, from the list above
-        :param fctn: The function to call.  Note, the function must take in two
-            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, and
-            return True or False
+        :param fctn: The function to call. Note, the function must take at least two
+            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, with an
+            optional `DataSet.key`, and return True or False
         :returns: None
         """
         logger.info(f"Callback {callback} being set on table {self.table}")
@@ -790,6 +790,7 @@ class DataSet:
             "before_search",
             "after_search",
             "record_changed",
+            "current_row_updated",
         ]
         if callback in supported:
             # handle our convenience aliases
@@ -1269,7 +1270,7 @@ class DataSet:
             self.requery_dependents(update_elements=update_elements)
         # callback
         if "record_changed" in self.callbacks:
-            self.callbacks["record_changed"](self.frm, self.frm.window)
+            self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def last(
         self,
@@ -1308,7 +1309,7 @@ class DataSet:
             self.requery_dependents()
         # callback
         if "record_changed" in self.callbacks:
-            self.callbacks["record_changed"](self.frm, self.frm.window)
+            self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def next(
         self,
@@ -1347,7 +1348,7 @@ class DataSet:
                 self.requery_dependents()
             # callback
             if "record_changed" in self.callbacks:
-                self.callbacks["record_changed"](self.frm, self.frm.window)
+                self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def previous(
         self,
@@ -1386,7 +1387,7 @@ class DataSet:
                 self.requery_dependents()
             # callback
             if "record_changed" in self.callbacks:
-                self.callbacks["record_changed"](self.frm, self.frm.window)
+                self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def search(
         self,
@@ -1431,7 +1432,7 @@ class DataSet:
         )
         # callback
         if "before_search" in self.callbacks and not self.callbacks["before_search"](
-            self.frm, self.frm.window
+            self.frm, self.frm.window, self.key
         ):
             return SEARCH_ABORTED
 
@@ -1501,7 +1502,7 @@ class DataSet:
                 # callback
                 if "after_search" in self.callbacks and not self.callbacks[
                     "after_search"
-                ](self.frm, self.frm.window):
+                ](self.frm, self.frm.window, self.key):
                     self.current_index = old_index
                     self.frm.update_elements(self.key)
                     self.requery_dependents()
@@ -1509,7 +1510,9 @@ class DataSet:
 
                 # callback
                 if "record_changed" in self.callbacks:
-                    self.callbacks["record_changed"](self.frm, self.frm.window)
+                    self.callbacks["record_changed"](
+                        self.frm, self.frm.window, self.key
+                    )
 
                 return SEARCH_RETURNED
         self.frm.popup.ok(
@@ -1668,12 +1671,9 @@ class DataSet:
                     "value": value,
                 },
             )
-
-    # 			  # TODO: I'd like to talk about extending callbacks to include
-    #             # data_key (if callback is for a specific data_key)
-    #             if "current_row_updated" in dataset.callbacks:
-    #                 dataset.callbacks["current_row_updated"](
-    #                     self.frm, self.frm.window, self.key)
+        # call callback
+        if "current_row_updated" in self.callbacks:
+            self.callbacks["current_row_updated"](self.frm, self.frm.window, self.key)
 
     def get_keyed_value(
         self, value_column: str, key_column: str, key_value: Union[str, int]
@@ -1838,7 +1838,9 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
-        if "before_save" in self.callbacks and self.callbacks["before_save"]() is False:
+        if "before_save" in self.callbacks and not self.callbacks["before_save"](
+            self.frm, self.frm.window, self.key
+        ):
             logger.debug("We are not saving!")
             if update_elements:
                 self.frm.update_elements(self.key)
@@ -2044,7 +2046,7 @@ class DataSet:
 
         # callback
         if "after_save" in self.callbacks and not self.callbacks["after_save"](
-            self.frm, self.frm.window
+            self.frm, self.frm.window, self.key
         ):
             self.driver.rollback()
             return SAVE_FAIL + SHOW_MESSAGE
@@ -2136,7 +2138,7 @@ class DataSet:
 
         # callback
         if "before_delete" in self.callbacks and not self.callbacks["before_delete"](
-            self.frm, self.frm.window
+            self.frm, self.frm.window, self.key
         ):
             return None
 
@@ -2181,7 +2183,7 @@ class DataSet:
 
         # callback
         if "after_delete" in self.callbacks:
-            if not self.callbacks["after_delete"](self.frm, self.frm.window):
+            if not self.callbacks["after_delete"](self.frm, self.frm.window, self.key):
                 self.driver.rollback()
             else:
                 self.driver.commit()
@@ -2224,7 +2226,7 @@ class DataSet:
         # callback
         if "before_duplicate" in self.callbacks and not self.callbacks[
             "before_duplicate"
-        ](self.frm, self.frm.window):
+        ](self.frm, self.frm.window, self.key):
             return None
 
         if children is None:
@@ -2301,7 +2303,9 @@ class DataSet:
 
         # callback
         if "after_duplicate" in self.callbacks:
-            if not self.callbacks["after_duplicate"](self.frm, self.frm.window):
+            if not self.callbacks["after_duplicate"](
+                self.frm, self.frm.window, self.key
+            ):
                 self.driver.rollback()
             else:
                 self.driver.commit()
