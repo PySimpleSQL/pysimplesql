@@ -2774,14 +2774,28 @@ class DataSet:
                 self.rows[tmp_column] = self.rows[rel.fk_column].map(mapping)
                 column = tmp_column
                 break
+
+        # handling datetime
+        # TODO: user-defined format
+        if self.column_info[column] and self.column_info[column]["domain"] in [
+            "DATE",
+            "DATETIME",
+            "TIME",
+            "TIMESTAMP",
+        ]:
+            tmp_column = f"temp_{column}"
+            self.rows[tmp_column] = pd.to_datetime(self.rows[column])
+            column = tmp_column
+
+        # sort
         try:
             self.rows.sort_values(
                 column,
                 ascending=not reverse,
                 inplace=True,
             )
-        except KeyError:
-            logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
+        except (KeyError, TypeError) as e:
+            logger.debug(f"DataFrame could not sort by column {column}. {e}")
         finally:
             # Drop the temporary description column (if it exists)
             if tmp_column is not None:
