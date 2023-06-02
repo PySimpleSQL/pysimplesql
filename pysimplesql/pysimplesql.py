@@ -5345,12 +5345,13 @@ class _PlaceholderText(abc.ABC):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.placeholder_feature_enabled = False
         self.normal_color = None
         self.normal_font = None
         self.placeholder_text = ""
         self.placeholder_color = None
         self.placeholder_font = None
-        self.active_placeholder = True
+        self.active_placeholder = False
         # fmt: off
         self._non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
                     "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
@@ -5386,7 +5387,7 @@ class _PlaceholderText(abc.ABC):
         self.placeholder_font = font
         self.placeholder_text = placeholder
         self.active_placeholder = True
-
+        self.placeholder_feature_enabled = True
         self._add_binds()
 
     @abc.abstractmethod
@@ -5401,6 +5402,10 @@ class _PlaceholderText(abc.ABC):
         :param args: Optional arguments to pass to `sg.Element.update`.
         :param kwargs: Optional keyword arguments to pass to `sg.Element.update`.
         """
+        if not self.placeholder_feature_enabled:
+            super().update(*args, **kwargs)
+            return
+
         if "value" in kwargs and kwargs["value"] is not None:
             # If the value is not None, use it as the new value
             value = kwargs.pop("value", None)
