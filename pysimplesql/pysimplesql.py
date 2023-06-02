@@ -2170,7 +2170,9 @@ class DataSet:
         return None
 
     def duplicate_record(
-        self, children: bool = None
+        self,
+        children: bool = None,
+        skip_prompt_save: bool = False,
     ) -> Union[bool, None]:  # TODO check return type, returns True within
         """
         Duplicate the currently selected record.
@@ -2180,11 +2182,20 @@ class DataSet:
 
         :param children: Duplicate child records (as defined by `Relationship`s that
             were set up) before duplicating this record.
+        :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
         # Ensure that there is actually something to duplicate
         if not self.row_count or self.pk_is_virtual():
             return None
+
+        # prompt_save
+        if (
+            not skip_prompt_save
+            # don't update self/dependents if we are going to below anyway
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
+            return
 
         # callback
         if "before_duplicate" in self.callbacks and not self.callbacks[
