@@ -61,6 +61,7 @@ import contextlib
 import datetime as dt
 import enum
 import functools
+import inspect
 import itertools
 import logging
 import math
@@ -794,9 +795,26 @@ class DataSet:
             # handle our convenience aliases
             callback = "before_save" if callback == "before_update" else callback
             callback = "after_save" if callback == "after_update" else callback
-            self.callbacks[callback] = fctn
+            self.callbacks[callback] = lambda *args: self._invoke_callback(fctn, *args)
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
+
+    def _invoke_callback(callback, *args):
+        # Get the callback's signature
+        signature = inspect.signature(callback)
+
+        # Get the number of parameters in the signature
+        expected_args = len(signature.parameters)
+
+        if expected_args == 3 or (expected_args == 2 and len(args) == 2):
+            # Pass all arguments if callback supports same length.
+            # len(args) == 2, for backwards compatibility while converting code
+            return callback(*args)
+        if expected_args == 2 and len(args) == 3:
+            # for backwards compatibility, pass only first 2 args (frm & win)
+            return callback(*args[:-1])
+        # Handle the case if the callback expects a different number of parameters
+        raise ValueError("Unexpected number of parameters in the callback function")
 
     def set_transform(self, fn: callable) -> None:
         """
@@ -3705,7 +3723,7 @@ class Form:
             and not self.callbacks["edit_enable"](self, self.window)
         ):
             return
-        elif (
+        if (
             not self._edit_protect
             and "edit_disable" in self.callbacks
             and not self.callbacks["edit_disable"](self, self.window)
