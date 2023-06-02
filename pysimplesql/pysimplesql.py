@@ -3166,7 +3166,7 @@ class Form:
         enabled. This can be useful for asking for a password for example edit_disable
         Called after the editing mode is disabled.
 
-            {element_name} Called while updating MAPPED element.  This overrides the
+            {element_name} Called while updating MAPPED element. This overrides the
             default element update implementation. Note that the {element_name} callback
             function needs to return a value to pass to Win[element].update()
 
@@ -3705,8 +3705,10 @@ class Form:
             and not self.callbacks["edit_enable"](self, self.window)
         ):
             return
-        if "edit_disable" in self.callbacks and not self.callbacks["edit_disable"](
-            self, self.window
+        elif (
+            not self._edit_protect
+            and "edit_disable" in self.callbacks
+            and not self.callbacks["edit_disable"](self, self.window)
         ):
             return
 
