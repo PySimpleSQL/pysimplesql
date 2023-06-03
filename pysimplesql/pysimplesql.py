@@ -617,6 +617,7 @@ class DataSet:
         self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
         self._search_string: tk.StringVar = None
+        self._last_search: dict = {"search_string": None, "column": None, "pks": []}
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
@@ -1423,20 +1424,15 @@ class DataSet:
         # TODO this is a bit of an ugly hack, but it works
         if search_string in self.frm.window.key_dict:
             search_string = self.frm.window[search_string].get()
-        if not search_string:
+        if not search_string or not self.row_count:
             return SEARCH_ABORTED
 
         logger.debug(
             f'Searching for a record of table {self.table} "'
             f'with search string "{search_string}"'
         )
-        # callback
-        if "before_search" in self.callbacks and not self.callbacks["before_search"](
-            self.frm, self.frm.window, self.key
-        ):
-            return SEARCH_ABORTED
+        logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
 
-        # TODO: Should this be before the before_search callback?
         # prompt_save
         if (
             not skip_prompt_save
@@ -1445,8 +1441,25 @@ class DataSet:
         ):
             return None
 
-        if self.row_count:
-            logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
+        # callback
+        if "before_search" in self.callbacks and not self.callbacks["before_search"](
+            self.frm, self.frm.window, self.key
+        ):
+            return SEARCH_ABORTED
+
+        if search_string != self._last_search.get("search_string"):
+            # Reset _last_search if search_string is different
+            self._last_search = {
+                "search_string": search_string,
+                "column": None,
+                "pks": [],
+            }
+
+        # Reorder search_columns to start with the column in _last_search
+        search_columns = self.search_order.copy()
+        if self._last_search["column"] in search_columns:
+            idx = search_columns.index(self._last_search["column"])
+            search_columns = search_columns[idx:] + search_columns[:idx]
 
         # reorder rows to be idx + 1, and wrap around back to the beginning
         rows = self.rows.copy().reset_index()
@@ -1477,44 +1490,64 @@ class DataSet:
                     rows.loc[condition, col] = parent_current_row[description_column]
                     continue
 
-        for column in self.search_order:
+        pk = None
+        for column in search_columns:
+            # update _last_search column
+            self._last_search["column"] = column
+
             # search through processed rows, looking for search_string
             result = rows[
                 rows[column].astype(str).str.contains(str(search_string), case=False)
             ]
             if not result.empty:
+                # save index for later, if callback returns False
                 old_index = self.current_index
+
                 # grab the first result
                 pk = result.iloc[0][self.pk_column]
+
+                # search next column if the same pk is found again
+                if pk in self._last_search["pks"]:
+                    continue
+
+                # if pk is same as one we are on, we can just updated_elements
                 if pk == self[self.pk_column]:
                     if update_elements:
                         self.frm.update_elements(self.key)
                     if requery_dependents:
                         self.requery_dependents()
                     return SEARCH_RETURNED
-                self.set_by_pk(
-                    pk=pk,
-                    update_elements=update_elements,
-                    requery_dependents=requery_dependents,
-                    skip_prompt_save=True,
-                )
 
-                # callback
-                if "after_search" in self.callbacks and not self.callbacks[
-                    "after_search"
-                ](self.frm, self.frm.window, self.key):
-                    self.current_index = old_index
-                    self.frm.update_elements(self.key)
-                    self.requery_dependents()
-                    return SEARCH_ABORTED
+                # otherwise, this is a new pk
+                break
 
-                # callback
-                if "record_changed" in self.callbacks:
-                    self.callbacks["record_changed"](
-                        self.frm, self.frm.window, self.key
-                    )
+        if pk:
+            # Update _last_search with the pk
+            self._last_search["pks"].append(pk)
 
-                return SEARCH_RETURNED
+            # jump to the pk
+            self.set_by_pk(
+                pk=pk,
+                update_elements=update_elements,
+                requery_dependents=requery_dependents,
+                skip_prompt_save=True,
+            )
+
+            # callback
+            if "after_search" in self.callbacks and not self.callbacks["after_search"](
+                self.frm, self.frm.window, self.key
+            ):
+                self.current_index = old_index
+                self.frm.update_elements(self.key)
+                self.requery_dependents()
+                return SEARCH_ABORTED
+
+            # record changed callback
+            if "record_changed" in self.callbacks:
+                self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
+            return SEARCH_RETURNED
+
+        # didn't find anything
         self.frm.popup.ok(
             lang.dataset_search_failed_title,
             lang.dataset_search_failed.format_map(
@@ -1522,8 +1555,6 @@ class DataSet:
             ),
         )
         return SEARCH_FAILED
-        # If we have made it here, then it was not found!
-        # TODO: Play sound?
 
     def set_by_index(
         self,
