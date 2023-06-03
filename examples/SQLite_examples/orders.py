@@ -1,5 +1,6 @@
 import logging
 
+import platform
 import PySimpleGUI as sg
 import pysimplesql as ss
 
@@ -13,14 +14,25 @@ sg.set_options(font=("Arial", 11), dpi_awareness=True)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Use the `xpnative` ttk_theme, and the `crystal_remix` iconset
+# Set up the appropriate theme depending on the OS
+# -----------------------------
+if platform.system() == "Windows":
+    # Use the xpnative theme, and the `crystal_remix` iconset
+    os_ttktheme = "xpnative"
+    os_tp = ss.tp_crystal_remix
+else:
+    # Use the defaults for the OS
+    os_ttktheme = "default"
+    os_tp = ss.ThemePack.default
+
+# Generate the custom themepack
 # -----------------------------
 custom = {
-    "ttk_theme": "xpnative",
+    "ttk_theme": os_ttktheme,
     "marker_sort_asc": " ⬇",
     "marker_sort_desc": " ⬆",
 }
-custom = custom | ss.tp_crystal_remix
+custom = custom | os_tp
 ss.themepack(custom)
 
 # SQL Statement
@@ -297,7 +309,7 @@ win = sg.Window(
     finalize=True,
     # Below is Important! pysimplesql progressbars/popups/quick_editors use
     # ttk_theme and icon as defined in themepack.
-    ttk_theme="xpnative",
+    ttk_theme=os_ttktheme,
     icon=ss.themepack.icon,
 )
 
