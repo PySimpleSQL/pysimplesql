@@ -54,22 +54,27 @@ Naming conventions can fall under 4 categories:
 
 from __future__ import annotations  # docstrings
 
+import abc
 import asyncio
+import calendar
 import contextlib
+import datetime as dt
 import enum
 import functools
+import inspect
+import itertools
 import logging
 import math
 import os.path
 import queue
-import threading  # threaded popup
+import threading
 import tkinter as tk
 import tkinter.font as tkfont
-from datetime import date, datetime
-from time import sleep, time  # threaded popup
+from time import sleep, time
 from tkinter import ttk
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
 
+import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -178,9 +183,10 @@ SEARCH_ENDED: int = 8  # We have reached the end of the search
 # ----------------------------
 # DELETE RETURNS BITMASKS
 # ----------------------------
-DELETE_FAILED: int = 1  # No result was found
-DELETE_RETURNED: int = 2  # A result was found
-DELETE_ABORTED: int = 4  # The search was aborted, likely during a callback
+# TODO Which ones of these are we actually using?
+DELETE_FAILED: int = 1  # Delete failed
+DELETE_RETURNED: int = 2  # Delete returned
+DELETE_ABORTED: int = 4  # The delete was aborted, likely during a callback
 DELETE_RECURSION_LIMIT_ERROR: int = 8  # We hit max nested levels
 
 # Mysql sets this as 15 when using foreign key CASCADE DELETE
@@ -197,8 +203,16 @@ SORT_DESC = 2
 # TK/TTK Widget Types
 # ---------------------
 TK_ENTRY = "Entry"
+TK_TEXT = "Text"
 TK_COMBOBOX = "Combobox"
 TK_CHECKBUTTON = "Checkbutton"
+TK_DATEPICKER = "Datepicker"
+TK_COMBOBOX_SELECTED = "35"
+
+# --------------
+# Misc Constants
+# --------------
+PK_PLACEHOLDER = "Null"
 
 
 class Boolean(enum.Flag):
@@ -262,6 +276,11 @@ class ElementRow:
     def get_val(self):
         # Return the value portion of the row
         return self.val
+
+    def get_pk_ignore_placeholder(self):
+        if self.pk == PK_PLACEHOLDER:
+            return None
+        return self.pk
 
     def get_instance(self):
         # Return this instance of the row
@@ -351,7 +370,7 @@ class Relationship:
         for r in cls.instances:
             if r.child_table == table and r.on_update_cascade:
                 try:
-                    return frm[r.parent_table].row_is_virtual()
+                    return frm[r.parent_table].pk_is_virtual()
                 except AttributeError:
                     return False
         return None
@@ -597,6 +616,7 @@ class DataSet:
         self.column_info: ColumnInfo  # ColumnInfo collection
         self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
+        self._search_string: tk.StringVar = None
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
@@ -636,6 +656,17 @@ class DataSet:
         :returns: None
         """
         self.set_current(column, value)
+
+    @property
+    def search_string(self):
+        if self._search_string is not None:
+            return self._search_string.get()
+        return None
+
+    @search_string.setter
+    def search_string(self, val: str):
+        if self._search_string is not None:
+            self._search_string.set(val)
 
     # Make current_index a property so that bounds can be respected
     @property
@@ -741,9 +772,9 @@ class DataSet:
             record_changed called after a record has changed (previous,next, etc.)
 
         :param callback: The name of the callback, from the list above
-        :param fctn: The function to call.  Note, the function must take in two
-            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, and
-            return True or False
+        :param fctn: The function to call. Note, the function must take at least two
+            parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, with an
+            optional `DataSet.key`, and return True or False
         :returns: None
         """
         logger.info(f"Callback {callback} being set on table {self.table}")
@@ -759,14 +790,32 @@ class DataSet:
             "before_search",
             "after_search",
             "record_changed",
+            "current_row_updated",
         ]
         if callback in supported:
             # handle our convenience aliases
             callback = "before_save" if callback == "before_update" else callback
             callback = "after_save" if callback == "after_update" else callback
-            self.callbacks[callback] = fctn
+            self.callbacks[callback] = lambda *args: self._invoke_callback(fctn, *args)
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
+
+    def _invoke_callback(callback, *args):
+        # Get the callback's signature
+        signature = inspect.signature(callback)
+
+        # Get the number of parameters in the signature
+        expected_args = len(signature.parameters)
+
+        if expected_args == 3 or (expected_args == 2 and len(args) == 2):
+            # Pass all arguments if callback supports same length.
+            # len(args) == 2, for backwards compatibility while converting code
+            return callback(*args)
+        if expected_args == 2 and len(args) == 3:
+            # for backwards compatibility, pass only first 2 args (frm & win)
+            return callback(*args[:-1])
+        # Handle the case if the callback expects a different number of parameters
+        raise ValueError("Unexpected number of parameters in the callback function")
 
     def set_transform(self, fn: callable) -> None:
         """
@@ -886,7 +935,7 @@ class DataSet:
         logger.debug(f'Checking if records have changed in table "{self.table}"...')
 
         # Virtual rows wills always be considered dirty
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             return True
 
         if self.current_row_has_backup and not self.get_current_row().equals(
@@ -901,6 +950,10 @@ class DataSet:
             if mapped.table == self.table:
                 # if passed custom column name
                 if column is not None and mapped.column != column:
+                    continue
+
+                # if sg.Text
+                if isinstance(mapped.element, sg.Text):
                     continue
 
                 # don't check if there aren't any rows. Fixes checkbox = '' when no
@@ -926,7 +979,7 @@ class DataSet:
                     mapped.column,
                     table_val,
                     element_val,
-                    bool(type(mapped.element) is sg.PySimpleGUI.Checkbox),
+                    bool(isinstance(mapped.element, sg.Checkbox)),
                 )
                 if new_value is not Boolean.FALSE:
                     dirty = True
@@ -953,7 +1006,7 @@ class DataSet:
     # TODO: How to type-hint this return?
     def value_changed(
         self, column_name: str, old_value, new_value, is_checkbox: bool
-    ) -> Union[Any, bool]:
+    ) -> Union[Any, Boolean]:
         """
         Verifies if a new value is different from an old value and returns the cast
         value ready to be inserted into a database.
@@ -973,9 +1026,10 @@ class DataSet:
 
         # get cast new value to correct type
         for col in self.column_info:
-            if col["name"] == column_name:
+            if col.name == column_name:
                 new_value = col.cast(new_value)
                 element_val = new_value
+                table_val = col.cast(table_val)
                 break
 
         if is_checkbox:
@@ -988,9 +1042,9 @@ class DataSet:
             table_val = ""
 
         # Strip trailing whitespace from strings
-        if type(table_val) is str:
+        if isinstance(table_val, str):
             table_val = table_val.rstrip()
-        if type(element_val) is str:
+        if isinstance(element_val, str):
             element_val = element_val.rstrip()
 
         # Make the comparison
@@ -1018,7 +1072,6 @@ class DataSet:
             `PROMPT_DISCARDED`, or `PROMPT_NONE`.
         """
         # Return False if there is nothing to check or _prompt_save is False
-        # TODO: children too?
         if self.current_index is None or not self.row_count or not self._prompt_save:
             return PROMPT_SAVE_NONE
 
@@ -1146,6 +1199,9 @@ class DataSet:
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
 
+        # reset search string
+        self.search_string = ""
+
         if select_first:
             self.first(
                 update_elements=update_elements,
@@ -1214,7 +1270,7 @@ class DataSet:
             self.requery_dependents(update_elements=update_elements)
         # callback
         if "record_changed" in self.callbacks:
-            self.callbacks["record_changed"](self.frm, self.frm.window)
+            self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def last(
         self,
@@ -1253,7 +1309,7 @@ class DataSet:
             self.requery_dependents()
         # callback
         if "record_changed" in self.callbacks:
-            self.callbacks["record_changed"](self.frm, self.frm.window)
+            self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def next(
         self,
@@ -1292,7 +1348,7 @@ class DataSet:
                 self.requery_dependents()
             # callback
             if "record_changed" in self.callbacks:
-                self.callbacks["record_changed"](self.frm, self.frm.window)
+                self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def previous(
         self,
@@ -1331,7 +1387,7 @@ class DataSet:
                 self.requery_dependents()
             # callback
             if "record_changed" in self.callbacks:
-                self.callbacks["record_changed"](self.frm, self.frm.window)
+                self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
 
     def search(
         self,
@@ -1339,6 +1395,7 @@ class DataSet:
         update_elements: bool = True,
         requery_dependents: bool = True,
         skip_prompt_save: bool = False,
+        display_message: bool = None,
     ) -> Union[SEARCH_FAILED, SEARCH_RETURNED, SEARCH_ABORTED]:
         """
         Move to the next record in the `DataSet` that contains `search_string`.
@@ -1357,6 +1414,8 @@ class DataSet:
             records.
         :param requery_dependents: (optional) Requery dependents after switching records
         :param skip_prompt_save: (optional) True to skip prompting to save dirty records
+        :param display_message: Displays a message "Search Failed: ...", otherwise is
+            silent on fail.
         :returns: One of the following search values: `SEARCH_FAILED`,
             `SEARCH_RETURNED`, `SEARCH_ABORTED`.
         """
@@ -1373,7 +1432,7 @@ class DataSet:
         )
         # callback
         if "before_search" in self.callbacks and not self.callbacks["before_search"](
-            self.frm, self.frm.window
+            self.frm, self.frm.window, self.key
         ):
             return SEARCH_ABORTED
 
@@ -1386,45 +1445,84 @@ class DataSet:
         ):
             return None
 
-        # First lets make a search order.. TODO: remove this hard coded garbage
         if self.row_count:
             logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
-        for field in self.search_order:
-            # Perform a search for str, from the current position to the end and back by
-            # creating a list of all indexes
-            for i in list(range(self.current_index + 1, self.row_count)) + list(
-                range(0, self.current_index)
-            ):
-                if (
-                    field in list(self.rows.columns)
-                    and search_string.lower() in str(self.rows.iloc[i][field]).lower()
-                ):
-                    old_index = self.current_index
-                    if i == old_index:
-                        return None
-                    self.current_index = i
+
+        # reorder rows to be idx + 1, and wrap around back to the beginning
+        rows = self.rows.copy().reset_index()
+        idx = self.current_index + 1 % len(rows)
+        rows = pd.concat([rows.loc[idx:], rows.loc[:idx]])
+
+        # fill in descriptions for cols in search_order
+        rels = Relationship.get_relationships(self.table)
+        for col in self.search_order:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
+
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
+
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
+
+                    # revert any unsaved changes
+                    rows.loc[condition, col] = parent_current_row[description_column]
+                    continue
+
+        for column in self.search_order:
+            # search through processed rows, looking for search_string
+            result = rows[
+                rows[column].astype(str).str.contains(str(search_string), case=False)
+            ]
+            if not result.empty:
+                old_index = self.current_index
+                # grab the first result
+                pk = result.iloc[0][self.pk_column]
+                if pk == self[self.pk_column]:
                     if update_elements:
                         self.frm.update_elements(self.key)
                     if requery_dependents:
                         self.requery_dependents()
-
-                    # callback
-                    if "after_search" in self.callbacks and not self.callbacks[
-                        "after_search"
-                    ](self.frm, self.frm.window):
-                        self.current_index = old_index
-                        self.frm.update_elements(self.key)
-                        self.requery_dependents()
-                        return SEARCH_ABORTED
-
-                    # callback
-                    if "record_changed" in self.callbacks:
-                        self.callbacks["record_changed"](self.frm, self.frm.window)
-
                     return SEARCH_RETURNED
+                self.set_by_pk(
+                    pk=pk,
+                    update_elements=update_elements,
+                    requery_dependents=requery_dependents,
+                    skip_prompt_save=True,
+                )
+
+                # callback
+                if "after_search" in self.callbacks and not self.callbacks[
+                    "after_search"
+                ](self.frm, self.frm.window, self.key):
+                    self.current_index = old_index
+                    self.frm.update_elements(self.key)
+                    self.requery_dependents()
+                    return SEARCH_ABORTED
+
+                # callback
+                if "record_changed" in self.callbacks:
+                    self.callbacks["record_changed"](
+                        self.frm, self.frm.window, self.key
+                    )
+
+                return SEARCH_RETURNED
+        self.frm.popup.ok(
+            lang.dataset_search_failed_title,
+            lang.dataset_search_failed.format_map(
+                LangFormat(search_string=search_string)
+            ),
+        )
         return SEARCH_FAILED
         # If we have made it here, then it was not found!
-        # sg.Popup('Search term "'+str+'" not found!')
         # TODO: Play sound?
 
     def set_by_index(
@@ -1506,7 +1604,14 @@ class DataSet:
 
         # Get the numerical index of where the primary key is located.
         # If the pk value can't be found, set to the last index
-        idx = [i for i, value in enumerate(self.rows[self.pk_column]) if value == pk]
+        try:
+            idx = [
+                i for i, value in enumerate(self.rows[self.pk_column]) if value == pk
+            ]
+        except (IndexError, KeyError):
+            idx = None
+            logger.debug("Error finding pk!")
+
         idx = idx[0] if idx else self.row_count
 
         self.set_by_index(
@@ -1532,12 +1637,14 @@ class DataSet:
         """
         logger.debug(f"Getting current record for {self.table}.{column}")
         if self.row_count:
-            if self.get_current_row()[column]:
+            if self.get_current_row()[column] is not None:
                 return self.get_current_row()[column]
             return default
         return default
 
-    def set_current(self, column: str, value: Union[str, int]) -> None:
+    def set_current(
+        self, column: str, value: Union[str, int], write_event: bool = False
+    ) -> None:
         """
         Set the value for the supplied column in the current row, making a backup if
         needed.
@@ -1547,11 +1654,26 @@ class DataSet:
 
         :param column: The column you want to set the value for
         :param value: A value to set the current record's column to
+        :param write_event: (optional) If True, writes an event to PySimpleGui
+            as `current_row_updated`.
         :returns: None
         """
         logger.debug(f"Setting current record for {self.key}.{column} = {value}")
         self.backup_current_row()
         self.rows.loc[self.rows.index[self.current_index], column] = value
+        if write_event:
+            self.frm.window.write_event_value(
+                "current_row_updated",
+                {
+                    "frm_reference": self.frm,
+                    "data_key": self.key,
+                    "column": column,
+                    "value": value,
+                },
+            )
+        # call callback
+        if "current_row_updated" in self.callbacks:
+            self.callbacks["current_row_updated"](self.frm, self.frm.window, self.key)
 
     def get_keyed_value(
         self, value_column: str, key_column: str, key_value: Union[str, int]
@@ -1590,7 +1712,8 @@ class DataSet:
             # For child reparenting
             self.current_index = self.current_index
 
-            return self.rows.iloc[self.current_index]
+            # make sure to return as python type
+            return self.rows.astype("O").iloc[self.current_index]
         return None
 
     def add_selector(
@@ -1613,12 +1736,7 @@ class DataSet:
         :param where_value: (optional)
         :returns: None
         """
-        if type(element) not in [
-            sg.PySimpleGUI.Listbox,
-            sg.PySimpleGUI.Slider,
-            sg.Combo,
-            sg.Table,
-        ]:
+        if not isinstance(element, (sg.Listbox, sg.Slider, sg.Combo, sg.Table)):
             raise RuntimeError(
                 f"add_selector() error: {element} is not a supported element."
             )
@@ -1647,10 +1765,6 @@ class DataSet:
             the insert.
         :returns: None
         """
-        # todo: you don't add a record if there isn't a parent!!!
-        # todo: this is currently filtered out by enabling of the element, but it should
-        #  be filtered here too!
-        # todo: bring back the values parameter?
         # prompt_save
         if (
             not skip_prompt_save
@@ -1724,7 +1838,9 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # callback
-        if "before_save" in self.callbacks and self.callbacks["before_save"]() is False:
+        if "before_save" in self.callbacks and not self.callbacks["before_save"](
+            self.frm, self.frm.window, self.key
+        ):
             logger.debug("We are not saving!")
             if update_elements:
                 self.frm.update_elements(self.key)
@@ -1742,7 +1858,7 @@ class DataSet:
             return SAVE_NONE + SHOW_MESSAGE
 
         # Work with a copy of the original row and transform it if needed
-        # Note that while saving, we are working with just the current row of data,
+        # While saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
         current_row = self.get_current_row().copy()
 
@@ -1753,8 +1869,24 @@ class DataSet:
 
         # Propagate GUI data back to the stored current_row
         for mapped in [m for m in self.frm.element_map if m.dataset == self]:
+            # skip if sg.Text
+            if isinstance(mapped.element, sg.Text):
+                continue
+
             # convert the data into the correct type using the domain in ColumnInfo
-            element_val = self.column_info[mapped.column].cast(mapped.element.get())
+            if isinstance(mapped.element, sg.Combo):
+                # try to get ElementRow pk
+                try:
+                    element_val = self.column_info[mapped.column].cast(
+                        mapped.element.get().get_pk_ignore_placeholder()
+                    )
+                # of if plain-ole combobox:
+                except AttributeError:
+                    element_val = self.column_info[mapped.column].cast(
+                        mapped.element.get()
+                    )
+            else:
+                element_val = self.column_info[mapped.column].cast(mapped.element.get())
 
             # Looked for keyed elements first
             if mapped.where_column is not None:
@@ -1789,16 +1921,27 @@ class DataSet:
                 current_row[mapped.column] = element_val
 
         # create diff of columns if not virtual
-        new_dict = dict(current_row.items())
-        if self.row_is_virtual():
+        new_dict = current_row.fillna("").to_dict()
+
+        if self.pk_is_virtual():
             changed_row_dict = new_dict
         else:
-            old_dict = dict(self.get_original_current_row().items())
+            old_dict = self.get_original_current_row().fillna("").to_dict()
             changed_row_dict = {
                 key: new_dict[key]
                 for key in new_dict
                 if old_dict.get(key) != new_dict[key]
             }
+
+        # Remove the pk column, any virtual or generated columns
+        changed_row_dict = {
+            col: value
+            for col, value in changed_row_dict.items()
+            if col != self.pk_column
+            and col not in self.column_info.get_virtual_names()
+            and not self.column_info[col].generated
+        }
+
         if not bool(changed_row_dict) and not keyed_queries:
             # if user is not using liveupdate, they can change something using celledit
             # but then change it back in field element (which overrides the celledit)
@@ -1826,6 +1969,9 @@ class DataSet:
         if self.transform is not None:
             self.transform(self, changed_row_dict, TFORM_ENCODE)
 
+        # reset search string
+        self.search_string = ""
+
         # Save or Insert the record as needed
         if keyed_queries is not None:
             # Now execute all the saved queries from earlier
@@ -1847,7 +1993,7 @@ class DataSet:
                     return SAVE_FAIL  # Do not show the message in this case
 
         else:
-            if self.row_is_virtual():
+            if self.pk_is_virtual():
                 result = self.driver.insert_record(
                     self.table, self.get_current_pk(), self.pk_column, changed_row_dict
                 )
@@ -1872,20 +2018,20 @@ class DataSet:
                 if result.attrs["lastrowid"] is not None
                 else self.get_current_pk()
             )
-            current_row[self.pk_column] = pk
+            self.set_current(self.pk_column, pk, write_event=False)
 
             # then update the current row data
             self.rows.iloc[self.current_index] = current_row
 
             # If child changes parent, move index back and requery/requery_dependents
             if (
-                cascade_fk_changed and not self.row_is_virtual()
+                cascade_fk_changed and not self.pk_is_virtual()
             ):  # Virtual rows already requery, and have no dependents.
                 self.frm[self.table].requery(select_first=False)  # keep spot in table
                 self.frm[self.table].requery_dependents()
 
             # Lets refresh our data
-            if self.row_is_virtual():
+            if self.pk_is_virtual():
                 # Requery so that the new row honors the order clause
                 self.requery(select_first=False, update_elements=False)
                 if update_elements:
@@ -1900,7 +2046,7 @@ class DataSet:
 
         # callback
         if "after_save" in self.callbacks and not self.callbacks["after_save"](
-            self.frm, self.frm.window
+            self.frm, self.frm.window, self.key
         ):
             self.driver.rollback()
             return SAVE_FAIL + SHOW_MESSAGE
@@ -1992,7 +2138,7 @@ class DataSet:
 
         # callback
         if "before_delete" in self.callbacks and not self.callbacks["before_delete"](
-            self.frm, self.frm.window
+            self.frm, self.frm.window, self.key
         ):
             return None
 
@@ -2009,7 +2155,7 @@ class DataSet:
         if answer == "no":
             return True
 
-        if self.row_is_virtual():
+        if self.pk_is_virtual():
             self.purge_virtual()
             self.frm.update_elements(self.key)
             # only need to reset the Insert button
@@ -2037,7 +2183,7 @@ class DataSet:
 
         # callback
         if "after_delete" in self.callbacks:
-            if not self.callbacks["after_delete"](self.frm, self.frm.window):
+            if not self.callbacks["after_delete"](self.frm, self.frm.window, self.key):
                 self.driver.rollback()
             else:
                 self.driver.commit()
@@ -2050,7 +2196,9 @@ class DataSet:
         return None
 
     def duplicate_record(
-        self, children: bool = None
+        self,
+        children: bool = None,
+        skip_prompt_save: bool = False,
     ) -> Union[bool, None]:  # TODO check return type, returns True within
         """
         Duplicate the currently selected record.
@@ -2060,16 +2208,25 @@ class DataSet:
 
         :param children: Duplicate child records (as defined by `Relationship`s that
             were set up) before duplicating this record.
+        :param skip_prompt_save: (optional) True to skip prompting to save dirty records
         :returns: None
         """
         # Ensure that there is actually something to duplicate
-        if not self.row_count or self.row_is_virtual():
+        if not self.row_count or self.pk_is_virtual():
+            return None
+
+        # prompt_save
+        if (
+            not skip_prompt_save
+            # don't update self/dependents if we are going to below anyway
+            and self.prompt_save(update_elements=False) == SAVE_FAIL
+        ):
             return None
 
         # callback
         if "before_duplicate" in self.callbacks and not self.callbacks[
             "before_duplicate"
-        ](self.frm, self.frm.window):
+        ](self.frm, self.frm.window, self.key):
             return None
 
         if children is None:
@@ -2117,6 +2274,7 @@ class DataSet:
                 keep_on_top=True,
                 modal=True,
                 ttk_theme=themepack.ttk_theme,
+                icon=themepack.icon,
             ).read(close=True)
             if answer[0] == "parent":
                 children = False
@@ -2145,7 +2303,9 @@ class DataSet:
 
         # callback
         if "after_duplicate" in self.callbacks:
-            if not self.callbacks["after_duplicate"](self.frm, self.frm.window):
+            if not self.callbacks["after_duplicate"](
+                self.frm, self.frm.window, self.key
+            ):
                 self.driver.rollback()
             else:
                 self.driver.commit()
@@ -2183,28 +2343,20 @@ class DataSet:
     def virtual_pks(self):
         return self.rows.attrs["virtual"]
 
-    def row_is_virtual(self, index: int = None) -> bool:
+    def pk_is_virtual(self, pk: int = None) -> bool:
         """
-        Check whether the row at `index` is virtual
+        Check whether pk is virtual
 
-        :param index: The index to check. If none is passed, then the current index will
-            be used.
+        :param pk: The pk to check. If None, the pk of the current row will be checked.
         :returns: True or False based on whether the row is virtual
         """
         if not self.row_count:
             return False
 
-        if index is None:
-            index = self.current_index
+        if pk is None:
+            pk = self.get_current_row()[self.pk_column]
 
-        try:
-            pk = self.rows.loc[self.rows.index[index]][self.pk_column]
-        except IndexError:
-            return False
-
-        if self.rows is not None and self.row_count:
-            return bool(pk in self.virtual_pks)
-        return False
+        return bool(pk in self.virtual_pks)
 
     @property
     def row_count(self) -> int:
@@ -2230,7 +2382,7 @@ class DataSet:
 
         :returns: True if a backup row is present that matches, and False otherwise.
         """
-        if self.rows is None:
+        if self.rows is None or self.rows.empty:
             return False
         if (
             isinstance(self.rows.attrs["row_backup"], pd.Series)
@@ -2278,7 +2430,10 @@ class DataSet:
             self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
     def table_values(
-        self, columns: List[str] = None, mark_unsaved: bool = False
+        self,
+        columns: List[str] = None,
+        mark_unsaved: bool = False,
+        apply_search_filter: bool = False,
     ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
@@ -2287,6 +2442,8 @@ class DataSet:
             Defaults to getting them from the `DataSet.rows` DataFrame.
         :param mark_unsaved: Place a marker next to virtual records, or records with
             unsaved changes.
+        :param apply_search_filter: Filter rows to only those columns in
+            `DataSet.search_order` that contain `Dataself.search_string`.
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
@@ -2300,45 +2457,100 @@ class DataSet:
 
         columns = all_columns if columns is None else columns
 
+        rows = self.rows.copy()
         pk_column = self.pk_column
 
-        virtual_row_pks = self.virtual_pks
-        unsaved_pk_idx = None
-        if self.current_row_has_backup and not self.get_current_row().equals(
-            self.get_original_current_row()
-        ):
-            unsaved_pk_idx = self.rows.loc[
-                self.rows[pk_column] == self.get_current_row()[pk_column]
-            ].index[0]
+        if mark_unsaved:
+            virtual_row_pks = self.virtual_pks.copy()
+            # add pk of current row if it has changes
+            if self.current_row_has_backup and not self.get_current_row().equals(
+                self.get_original_current_row()
+            ):
+                virtual_row_pks.append(
+                    self.rows.loc[
+                        self.rows[pk_column] == self.get_current_row()[pk_column],
+                        pk_column,
+                    ].values[0]
+                )
 
+            # Create a new column 'marker' with the desired values
+            rows["marker"] = " "
+            mask = rows[pk_column].isin(virtual_row_pks)
+            rows.loc[mask, "marker"] = themepack.marker_unsaved
+        else:
+            rows["marker"] = " "
+
+        # get fk descriptions
         rels = Relationship.get_relationships(self.table)
+        for col in columns:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
 
-        def process_row(row):
-            lst = []
-            pk = row[pk_column]
-            if mark_unsaved and (pk in virtual_row_pks or unsaved_pk_idx == row.name):
-                lst.append(themepack.marker_unsaved)
-            else:
-                lst.append(" ")
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
 
-            # only loop through passed-in columns
-            for col in columns:
-                is_fk_column = any(rel.fk_column == col for rel in rels)
-                if is_fk_column:
-                    for rel in rels:
-                        if col == rel.fk_column:
-                            lst.append(
-                                self.frm[rel.parent_table].get_description_for_pk(
-                                    row[col]
-                                )
-                            )
-                            break
-                else:
-                    lst.append(row[col])
+                    # map descriptions to fk column
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
 
-            return TableRow(pk, lst)
+                    # revert any unsaved changes for the single row
+                    rows.loc[condition, col] = parent_current_row[description_column]
 
-        return self.rows.apply(process_row, axis=1)
+                    # we only want transform col once
+                    break
+
+        # filter rows to only contain search, or virtual/unsaved row
+        if apply_search_filter and self.search_string not in ["", None]:
+            masks = [
+                rows[col].astype(str).str.contains(self.search_string, case=False)
+                | rows[pk_column].isin(virtual_row_pks)
+                for col in self.search_order
+            ]
+            mask_pd = pd.concat(masks, axis=1).any(axis=1)
+            # Apply the mask to filter the DataFrame
+            rows = rows[mask_pd]
+
+        # transform bool
+        if themepack.display_boolean_as_checkbox:
+            bool_columns = [
+                column
+                for column in columns
+                if self.column_info[column]
+                and self.column_info[column].domain == "BOOLEAN"
+            ]
+            for col in bool_columns:
+                rows[col] = (
+                    themepack.checkbox_true
+                    if checkbox_to_bool(rows[col])
+                    else themepack.checkbox_false
+                )
+
+        # set the pk to the index to use below
+        rows["pk_idx"] = rows[pk_column].copy()
+        rows.set_index("pk_idx", inplace=True)
+
+        # insert the marker
+        columns.insert(0, "marker")
+
+        # resort rows with requested columns
+        rows = rows[columns]
+
+        # fastest way yet to generate list of TableRows
+        return [
+            TableRow(pk, values.tolist())
+            for pk, values in zip(
+                rows.index,
+                np.vstack((rows.fillna("").astype("O").values.T, rows.index)).T,
+            )
+        ]
 
     def column_likely_in_selector(self, column: str) -> bool:
         """
@@ -2364,7 +2576,9 @@ class DataSet:
             for e in self.selector
         )
 
-    def combobox_values(self, column_name) -> List[ElementRow] or None:
+    def combobox_values(
+        self, column_name, insert_placeholder: bool = True
+    ) -> List[ElementRow] or None:
         """
         Returns the values to use in a sg.Combobox as a list of ElementRow objects.
 
@@ -2380,20 +2594,23 @@ class DataSet:
         if rel is None:
             return None
 
-        target_table = self.frm[rel.parent_table]
-        pk_column = target_table.pk_column
-        description = target_table.description_column
+        rows = self.frm[rel.parent_table].rows.copy()
+        pk_column = self.frm[rel.parent_table].pk_column
+        description = self.frm[rel.parent_table].description_column
 
-        backup = None
-        if target_table.current_row_has_backup:
-            backup = target_table.get_original_current_row()
+        # revert to original row (so unsaved changes don't show up in dropdowns)
+        parent_current_row = self.frm[rel.parent_table].get_original_current_row()
+        rows.iloc[self.frm[rel.parent_table].current_index] = parent_current_row
 
-        def process_row(row):
-            if backup is not None and backup[pk_column] == row[pk_column]:
-                return ElementRow(backup[pk_column].tolist(), backup[description])
-            return ElementRow(row[pk_column], row[description])
+        # fastest way yet to generate this list of ElementRow
+        combobox_values = [
+            ElementRow(*values)
+            for values in np.column_stack((rows[pk_column], rows[description]))
+        ]
 
-        return target_table.rows.apply(process_row, axis=1).tolist()
+        if insert_placeholder:
+            combobox_values.insert(0, ElementRow("Null", lang.combo_placeholder))
+        return combobox_values
 
     def get_related_table_for_column(self, column: str) -> str:
         """
@@ -2440,12 +2657,15 @@ class DataSet:
         keygen.reset()
         data_key = self.key
         layout = []
-        headings = self.column_info.names()
-        visible = [1] * len(headings)
-        visible[0] = 0
-        col_width = int(55 / (len(headings) - 1))
-        for i in range(0, len(headings)):
-            headings[i] = headings[i].ljust(col_width, " ")
+        headings = TableHeadings(sort_enable=True, edit_enable=True, save_enable=True)
+
+        for col in self.column_info.names():
+            # set widths
+            width = int(55 / (len(self.column_info.names()) - 1))
+            if col == self.pk_column:
+                # make pk column either max length of contained pks, or len of name
+                width = max(self.rows[col].astype(str).map(len).max(), len(col) + 1)
+            headings.add_column(col, col.capitalize(), width=width)
 
         layout.append(
             [
@@ -2454,18 +2674,43 @@ class DataSet:
                     sg.Table,
                     key=f"{data_key}:quick_editor",
                     num_rows=10,
+                    row_height=25,
                     headings=headings,
-                    visible_column_map=visible,
                 )
             ]
         )
+        y_pad = 10
         layout.append([actions(data_key, edit_protect=False)])
-        layout.append([sg.Text("")])
-        layout.append([sg.HorizontalSeparator()])
+        layout.append([sg.Sizer(h_pixels=0, v_pixels=y_pad)])
+
+        fields_layout = [[sg.Sizer(h_pixels=0, v_pixels=y_pad)]]
+
+        rels = Relationship.get_relationships(self.table)
         for col in self.column_info.names():
+            found = False
             column = f"{data_key}.{col}"
+            # make sure isn't pk
             if col != self.pk_column:
-                layout.append([field(column)])
+                # display checkboxes
+                if self.column_info[col].domain == "BOOLEAN":
+                    fields_layout.append([field(column, sg.Checkbox)])
+                    found = True
+                    break
+                # or display sg.combos
+                for rel in rels:
+                    if col == rel.fk_column:
+                        fields_layout.append(
+                            [field(column, sg.Combo, quick_editor=False)]
+                        )
+                        found = True
+                        break
+                # otherwise, just display a regular input
+                if not found:
+                    fields_layout.append([field(column)])
+
+        fields_layout.append([sg.Sizer(h_pixels=0, v_pixels=y_pad)])
+        layout.append([sg.Frame("Fields", fields_layout, expand_x=True)])
+        layout.append([sg.Sizer(h_pixels=0, v_pixels=10)])
 
         quick_win = sg.Window(
             lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
@@ -2474,8 +2719,14 @@ class DataSet:
             modal=True,
             finalize=True,
             ttk_theme=themepack.ttk_theme,  # Must, otherwise will redraw window
+            icon=themepack.icon,
         )
-        quick_frm = Form(self.frm.driver, bind_window=quick_win)
+        quick_frm = Form(
+            self.frm.driver,
+            bind_window=quick_win,
+            live_update=True,
+            auto_add_relationships=False,
+        )
 
         # Select the current entry to start with
         if pk_update_funct is not None:
@@ -2495,6 +2746,8 @@ class DataSet:
                 break
 
             logger.debug(f"This event ({event}) is not yet handled.")
+        if quick_frm.popup.popup_info:
+            quick_frm.popup.popup_info.close()
         quick_win.close()
         self.requery()
         self.frm.update_elements()
@@ -2560,14 +2813,28 @@ class DataSet:
                 self.rows[tmp_column] = self.rows[rel.fk_column].map(mapping)
                 column = tmp_column
                 break
+
+        # handling datetime
+        # TODO: user-defined format
+        if self.column_info[column] and self.column_info[column].domain in [
+            "DATE",
+            "DATETIME",
+            "TIME",
+            "TIMESTAMP",
+        ]:
+            tmp_column = f"temp_{column}"
+            self.rows[tmp_column] = pd.to_datetime(self.rows[column])
+            column = tmp_column
+
+        # sort
         try:
             self.rows.sort_values(
                 column,
                 ascending=not reverse,
                 inplace=True,
             )
-        except KeyError:
-            logger.debug(f"DataFrame could not sort by column {column}. KeyError.")
+        except (KeyError, TypeError) as e:
+            logger.debug(f"DataFrame could not sort by column {column}. {e}")
         finally:
             # Drop the temporary description column (if it exists)
             if tmp_column is not None:
@@ -2696,7 +2963,9 @@ class DataSet:
         :param idx: The index where the row should be inserted (default to last index)
         :returns: None
         """
-        row_series = pd.Series(row)
+        row_series = pd.Series(row, dtype=object)
+        # Infer better data types for the Series
+        # row_series = row_series.infer_objects()
         if self.rows.empty:
             self.rows = Result.set(
                 pd.concat([self.rows, row_series.to_frame().T], ignore_index=True)
@@ -2743,6 +3012,7 @@ class Form:
         duplicate_children: bool = True,
         description_column_names: List[str] = None,
         live_update: bool = False,
+        auto_add_relationships: bool = True,
     ) -> None:
         """
         Initialize a new `Form` instance.
@@ -2779,6 +3049,9 @@ class Form:
             a field will be immediately pushed to associated selectors. In addition,
             editing the description column will trigger the update of comboboxes.
             If False, changes will be pushed only after a save action.
+        :param auto_add_relationships: (optional) Controls the invocation of
+            auto_add_relationships. Default is True. Set it to False when creating a new
+            `Form` with pre-existing `Relationship` instances.
         :returns: None
         """
         win_pb = ProgressBar(lang.startup_form)
@@ -2824,7 +3097,8 @@ class Form:
         win_pb.update(lang.startup_datasets, 25)
         self.auto_add_datasets(prefix_data_keys)
         win_pb.update(lang.startup_relationships, 50)
-        self.auto_add_relationships()
+        if auto_add_relationships:
+            self.auto_add_relationships()
         self.requery_all(
             select_first=select_first, update_elements=False, requery_dependents=True
         )
@@ -2856,6 +3130,8 @@ class Form:
         """
         # First delete the dataset associated
         DataSet.purge_form(self, reset_keygen)
+        if self.popup.popup_info:
+            self.popup.popup_info.close()
         self.driver.close()
 
     def bind(self, win: sg.Window) -> None:
@@ -2878,7 +3154,7 @@ class Form:
         self.update_elements()
         # Creating cell edit instance, even if we arn't going to use it.
         self._celledit = _CellEdit(self)
-        self.window.TKroot.bind("<Double-Button-1>", self._celledit)
+        self.window.TKroot.bind("<Double-Button-1>", self._celledit, "+")
         self._liveupdate = _LiveUpdate(self)
         if self.live_update:
             self.set_live_update(enable=True)
@@ -2912,7 +3188,7 @@ class Form:
         enabled. This can be useful for asking for a password for example edit_disable
         Called after the editing mode is disabled.
 
-            {element_name} Called while updating MAPPED element.  This overrides the
+            {element_name} Called while updating MAPPED element. This overrides the
             default element update implementation. Note that the {element_name} callback
             function needs to return a value to pass to Win[element].update()
 
@@ -3185,7 +3461,7 @@ class Form:
             element = win[key]
 
             # Skip this element if there is no metadata present
-            if type(element.metadata) is not dict:
+            if not isinstance(element.metadata, dict):
                 continue
 
             # Process the filter to ensure this element should be mapped to this Form
@@ -3237,6 +3513,14 @@ class Form:
                     self.map_element(
                         element, self[table], col, where_column, where_value
                     )
+                    if isinstance(element, (_EnhancedInput, _EnhancedMultiline)) and (
+                        col in self[table].column_info.names()
+                        and self[table].column_info[col].notnull
+                    ):
+                        element.add_placeholder(
+                            placeholder=lang.notnull_placeholder,
+                            color=themepack.placeholder_color,
+                        )
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -3259,7 +3543,10 @@ class Form:
                     )
 
                     # Enable sorting if TableHeading  is present
-                    if type(element) is sg.Table and "TableHeading" in element.metadata:
+                    if (
+                        isinstance(element, sg.Table)
+                        and "TableHeading" in element.metadata
+                    ):
                         table_heading: TableHeadings = element.metadata["TableHeading"]
                         # We need a whole chain of things to happen
                         # when a heading is clicked on:
@@ -3267,9 +3554,9 @@ class Form:
                         # 2 Run TableHeading.update_headings() with the:
                         #   Table element, sort_column, sort_reverse
                         # 3 Run update_elements() to see the changes
-                        table_heading.enable_sorting(
+                        table_heading.enable_heading_function(
                             element,
-                            _SortCallbackWrapper(self, data_key),
+                            _HeadingCallback(self, data_key),
                         )
 
                 else:
@@ -3352,7 +3639,7 @@ class Form:
             # key = str(key)  # sometimes end up with an integer element 0?TODO:Research
             element = win[key]
             # Skip this element if there is no metadata present
-            if type(element.metadata) is not dict:
+            if not isinstance(element.metadata, dict):
                 logger.debug(f"Skipping mapping of {key}")
                 continue
             if element.metadata["Form"] != self:
@@ -3401,6 +3688,11 @@ class Form:
                     search_box = f"{search_element}:search_input"
                     if data_key:
                         funct = functools.partial(self[data_key].search, search_box)
+                    self.window[search_box].add_placeholder(
+                        placeholder=lang.search_placeholder,
+                        color=themepack.placeholder_color,
+                    )
+                    self.window[search_box].bind_dataset(self[data_key])
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table = table
@@ -3435,8 +3727,10 @@ class Form:
             and not self.callbacks["edit_enable"](self, self.window)
         ):
             return
-        if "edit_disable" in self.callbacks and not self.callbacks["edit_disable"](
-            self, self.window
+        if (
+            not self._edit_protect
+            and "edit_disable" in self.callbacks
+            and not self.callbacks["edit_disable"](self, self.window)
         ):
             return
 
@@ -3702,7 +3996,7 @@ class Form:
                     disable = bool(
                         not row_count
                         or self._edit_protect
-                        or self[data_key].row_is_virtual()
+                        or self[data_key].pk_is_virtual()
                     )
                     win[m["event"]].update(disabled=disable)
 
@@ -3779,35 +4073,36 @@ class Form:
             if mapped.element in omit_elements:
                 continue
 
-            if combo_values_only and type(mapped.element) is not sg.PySimpleGUI.Combo:
+            if combo_values_only and not isinstance(mapped.element, sg.Combo):
                 continue
 
             if len(columns) and mapped.column not in columns:
                 continue
 
-            if type(mapped.element) is not sg.Text:  # don't show markers for sg.Text
-                # Show the Required Record marker if the column has notnull set and
-                # this is a virtual row
-                marker_key = mapped.element.key + ":marker"
-                try:
-                    if mapped.dataset.row_is_virtual():
-                        # get the column name from the key
-                        col = mapped.column
-                        # get notnull from the column info
-                        if (
-                            col in mapped.dataset.column_info.names()
-                            and mapped.dataset.column_info[col].notnull
-                        ):
-                            self.window[marker_key].update(
-                                visible=True,
-                                text_color=themepack.marker_required_color,
-                            )
-                    else:
-                        self.window[marker_key].update(visible=False)
-                        if self.window is not None:
-                            self.window[marker_key].update(visible=False)
-                except AttributeError:
+            # Update Markers
+            # --------------------------------------------------------------------------
+            # Show the Required Record marker if the column has notnull set and
+            # this is a virtual row
+            marker_key = mapped.element.key + ":marker"
+            try:
+                if mapped.dataset.pk_is_virtual():
+                    # get the column name from the key
+                    col = mapped.column
+                    # get notnull from the column info
+                    if (
+                        col in mapped.dataset.column_info.names()
+                        and mapped.dataset.column_info[col].notnull
+                    ):
+                        self.window[marker_key].update(
+                            visible=True,
+                            text_color=themepack.marker_required_color,
+                        )
+                else:
                     self.window[marker_key].update(visible=False)
+                    if self.window is not None:
+                        self.window[marker_key].update(visible=False)
+            except AttributeError:
+                self.window[marker_key].update(visible=False)
 
             updated_val = None
             # If there is a callback for this element, use it
@@ -3820,17 +4115,14 @@ class Form:
                 updated_val = mapped.dataset.get_keyed_value(
                     mapped.column, mapped.where_column, mapped.where_value
                 )
-                if type(mapped.element) in [
-                    sg.PySimpleGUI.CBox
-                ]:  # TODO, may need to add more??
+                # TODO, may need to add more??
+                if isinstance(mapped.element, sg.Checkbox):
                     updated_val = checkbox_to_bool(updated_val)
 
-            elif type(mapped.element) is sg.PySimpleGUI.Combo:
+            elif isinstance(mapped.element, sg.Combo):
                 # Update elements with foreign dataset first
                 # This will basically only be things like comboboxes
-                # TODO: move this to only compute if something else changes?
                 # Find the relationship to determine which table to get data from
-                # TODO this should be get_relationships_for_data?
                 combo_vals = mapped.dataset.combobox_values(mapped.column)
                 if not combo_vals:
                     logger.info(
@@ -3860,33 +4152,39 @@ class Form:
                 # and update element
                 mapped.element.update(values=combo_vals)
 
-            elif type(mapped.element) is sg.PySimpleGUI.Table:
+            elif isinstance(mapped.element, sg.Text):
+                rels = Relationship.get_relationships(mapped.dataset.table)
+                found = False
+                # try to get description of linked if foreign-key
+                for rel in rels:
+                    if mapped.column == rel.fk_column:
+                        updated_val = mapped.dataset.frm[
+                            rel.parent_table
+                        ].get_description_for_pk(mapped.dataset[mapped.column])
+                        found = True
+                        break
+                if not found:
+                    updated_val = mapped.dataset[mapped.column]
+                mapped.element.update("")
+
+            elif isinstance(mapped.element, sg.Table):
                 # Tables use an array of arrays for values.  Note that the headings
                 # can't be changed.
                 values = mapped.dataset.table_values()
                 # Select the current one
                 pk = mapped.dataset.get_current_pk()
 
-                if len(values):
+                if len(values):  # noqa SIM108
                     # set index to pk
                     index = [[v[0] for v in values].index(pk)]
-                    # calculate pk percentage position
-                    pk_position = index[0] / len(values)
                 else:  # if empty
                     index = []
-                    pk_position = 0
 
                 # Update table, and set vertical scroll bar to follow selected element
-                update_table_element(
-                    self.window, mapped.element, values, index, pk_position
-                )
+                update_table_element(self.window, mapped.element, values, index)
                 continue
 
-            elif type(mapped.element) in [
-                sg.PySimpleGUI.InputText,
-                sg.PySimpleGUI.Multiline,
-                sg.PySimpleGUI.Text,
-            ]:
+            elif isinstance(mapped.element, (sg.Input, sg.Multiline)):
                 # Update the element in the GUI
                 # For text objects, lets clear it first...
 
@@ -3895,10 +4193,10 @@ class Form:
 
                 updated_val = mapped.dataset[mapped.column]
 
-            elif type(mapped.element) is sg.PySimpleGUI.Checkbox:
+            elif isinstance(mapped.element, sg.Checkbox):
                 updated_val = checkbox_to_bool(mapped.dataset[mapped.column])
 
-            elif type(mapped.element) is sg.PySimpleGUI.Image:
+            elif isinstance(mapped.element, sg.Image):
                 val = mapped.dataset[mapped.column]
 
                 try:
@@ -3919,7 +4217,10 @@ class Form:
                 mapped.element.update(updated_val)
 
     def update_selectors(
-        self, target_data_key: str = None, omit_elements: List[str] = None
+        self,
+        target_data_key: str = None,
+        omit_elements: List[str] = None,
+        search_filter_only: bool = False,
     ) -> None:
         """
         Updated the selector elements to reflect their `rows` DataFrame.
@@ -3956,17 +4257,13 @@ class Form:
                     if element.key in self.callbacks:
                         self.callbacks[element.key]()
 
-                    if (
-                        type(element) == sg.PySimpleGUI.Listbox
-                        or type(element) == sg.PySimpleGUI.Combo
-                    ):
+                    if isinstance(element, (sg.Listbox, sg.Combo)):
                         logger.debug("update_elements: List/Combo selector found...")
                         lst = []
                         for _, r in dataset.rows.iterrows():
                             if e["where_column"] is not None:
-                                if str(r[e["where_column"]]) == str(
-                                    e["where_value"]
-                                ):  # TODO: Kind of a hackish way to check for equality.
+                                # TODO: Kind of a hackish way to check for equality.
+                                if str(r[e["where_column"]]) == str(e["where_value"]):
                                     lst.append(
                                         ElementRow(r[pk_column], r[description_column])
                                     )
@@ -3977,11 +4274,14 @@ class Form:
                                     ElementRow(r[pk_column], r[description_column])
                                 )
 
-                        element.update(values=lst, set_to_index=dataset.current_index)
+                        element.update(
+                            values=lst,
+                            set_to_index=dataset.current_index,
+                        )
 
                         # set vertical scroll bar to follow selected element
                         # (for listboxes only)
-                        if type(element) == sg.PySimpleGUI.Listbox:
+                        if isinstance(element, sg.Listbox):
                             try:
                                 element.set_vscroll_position(
                                     dataset.current_index / len(lst)
@@ -3989,20 +4289,32 @@ class Form:
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
 
-                    elif type(element) == sg.PySimpleGUI.Slider:
+                    elif isinstance(element, sg.Slider):
                         # Re-range the element depending on the number of records
                         l = dataset.row_count  # noqa: E741
                         element.update(value=dataset._current_index + 1, range=(1, l))
 
-                    elif type(element) is sg.PySimpleGUI.Table:
+                    elif isinstance(element, sg.Table):
                         logger.debug("update_elements: Table selector found...")
                         # Populate entries
+                        apply_search_filter = False
                         try:
                             columns = element.metadata["TableHeading"].columns()
+                            apply_search_filter = element.metadata[
+                                "TableHeading"
+                            ].apply_search_filter
                         except KeyError:
                             columns = None  # default to all columns
 
-                        values = dataset.table_values(columns, mark_unsaved=True)
+                        # skip Tables that don't request search_filter
+                        if search_filter_only and not apply_search_filter:
+                            continue
+
+                        values = dataset.table_values(
+                            columns,
+                            mark_unsaved=True,
+                            apply_search_filter=apply_search_filter,
+                        )
 
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
@@ -4012,20 +4324,18 @@ class Form:
                         found = False
                         if len(values):
                             # set to index by pk
-                            index = [[v.pk for v in values].index(pk)]
-                            # calculate pk percentage position
-                            pk_position = index[0] / len(values)
-                            found = True
+                            try:
+                                index = [[v.pk for v in values].index(pk)]
+                                found = True
+                            except ValueError:
+                                index = []
                         else:  # if empty
                             index = []
-                            pk_position = 0
 
                         logger.debug(f"Selector:: index:{index} found:{found}")
 
                         # Update table, and set vertical scroll bar to follow
-                        update_table_element(
-                            self.window, element, values, index, pk_position
-                        )
+                        update_table_element(self.window, element, values, index)
 
     def requery_all(
         self,
@@ -4097,23 +4407,23 @@ class Form:
                         element: sg.Element = e["element"]
                         if element.key == event and len(dataset.rows) > 0:
                             changed = False  # assume that a change will not take place
-                            if type(element) == sg.PySimpleGUI.Listbox:
+                            if isinstance(element, sg.Listbox):
                                 row = values[element.Key][0]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) == sg.PySimpleGUI.Slider:
+                            elif isinstance(element, sg.Slider):
                                 dataset.set_by_index(int(values[event]) - 1)
                                 changed = True
-                            elif type(element) == sg.PySimpleGUI.Combo:
+                            elif isinstance(element, sg.Combo):
                                 row = values[event]
                                 dataset.set_by_pk(row.get_pk())
                                 changed = True
-                            elif type(element) is sg.PySimpleGUI.Table and len(
-                                values[event]
-                            ):
-                                index = values[event][0]
-                                pk = self.window[event].Values[index].pk
-
+                            elif isinstance(element, sg.Table) and len(values[event]):
+                                if isinstance(element, LazyTable):
+                                    pk = int(values[event])
+                                else:
+                                    index = values[event][0]
+                                    pk = self.window[event].Values[index].pk
                                 # no need to update the selector!
                                 dataset.set_by_pk(pk, True, omit_elements=[element])
 
@@ -4138,12 +4448,7 @@ class Form:
             if mapped.table != table:
                 continue
             element = mapped.element
-            if type(element) in [
-                sg.PySimpleGUI.InputText,
-                sg.PySimpleGUI.MLine,
-                sg.PySimpleGUI.Combo,
-                sg.PySimpleGUI.Checkbox,
-            ]:
+            if isinstance(element, (sg.Input, sg.Multiline, sg.Combo, sg.Checkbox)):
                 # if element.Key in self.window.key_dict.keys():
                 logger.debug(
                     f"Updating element {element.Key} to disabled: "
@@ -4244,7 +4549,6 @@ def update_table_element(
     element: Type[sg.Table],
     values: List[TableRow],
     select_rows: List[int],
-    vscroll_position: float = None,
 ) -> None:
     """
     Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
@@ -4257,19 +4561,19 @@ def update_table_element(
     :param element: The sg.Table element to be updated.
     :param values: A list of table rows to update the sg.Table with.
     :param select_rows: List of rows to select as if user did.
-    :param vscroll_position: From 0 to 1.0, the percentage from the top to move
-        scrollbar to.
 
     :returns: None
     """
     # Disable handling for "<<TreeviewSelect>>" event
-    element.Widget.unbind("<<TreeviewSelect>>")
+    element.widget.unbind("<<TreeviewSelect>>")
     # update element
     element.update(values=values, select_rows=select_rows)
-    # set vertical scroll bar to follow selected element
-    # call even for 0.0, so that a 'reset sort' repositions vscroll to top.
-    if vscroll_position is not None:
-        element.set_vscroll_position(vscroll_position)
+
+    # make sure row_iid is visible
+    if not isinstance(element, LazyTable) and len(values) and select_rows:
+        row_iid = element.tree_ids[select_rows[0]]
+        element.widget.see(row_iid)
+
     window.refresh()  # Event handled and bypassed
     # Enable handling for "<<TreeviewSelect>>" event
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
@@ -4282,7 +4586,16 @@ def checkbox_to_bool(value):
     :param value: Value to convert into True or False
     :returns: bool
     """
-    return str(value).lower() in ["y", "yes", "t", "true", "1"]
+    return str(value).lower() in [
+        "y",
+        "yes",
+        "t",
+        "true",
+        "1",
+        "on",
+        "enabled",
+        themepack.checkbox_true,
+    ]
 
 
 class Popup:
@@ -4328,6 +4641,7 @@ class Popup:
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
             enable_close_attempted_event=True,
+            icon=themepack.icon,
         )
 
         while True:
@@ -4369,6 +4683,7 @@ class Popup:
             ttk_theme=themepack.ttk_theme,
             element_justification="center",
             enable_close_attempted_event=True,
+            icon=themepack.icon,
         )
 
         while True:
@@ -4402,6 +4717,8 @@ class Popup:
         if display_message:
             msg_lines = msg.splitlines()
             layout = [[sg.Text(line, font="bold")] for line in msg_lines]
+            if self.popup_info:
+                return
             self.popup_info = sg.Window(
                 title=title,
                 layout=layout,
@@ -4412,6 +4729,7 @@ class Popup:
                 element_justification="center",
                 ttk_theme=themepack.ttk_theme,
                 enable_close_attempted_event=True,
+                icon=themepack.icon,
             )
             self.window.TKroot.after(int(auto_close_seconds * 1000), self._auto_close)
 
@@ -4419,7 +4737,9 @@ class Popup:
         """
         Use in a tk.after to automatically close the popup_info.
         """
-        self.popup_info.close()
+        if self.popup_info:
+            self.popup_info.close()
+            self.popup_info = None
 
 
 class ProgressBar:
@@ -4491,6 +4811,7 @@ class ProgressBar:
             keep_on_top=True,
             finalize=True,
             ttk_theme=themepack.ttk_theme,
+            icon=themepack.icon,
         )
 
 
@@ -4607,6 +4928,7 @@ class ProgressAnimate:
                 keep_on_top=True,
                 finalize=True,
                 ttk_theme=themepack.ttk_theme,
+                icon=themepack.icon,
             )
 
         current_count = 0
@@ -4685,19 +5007,6 @@ class ProgressAnimate:
         else:
             current_message = phrases[(self.phrase_index - 1)]
         return current_message
-
-
-class LangFormat(dict):
-
-    """
-    This is a convenience class used by LanguagePack format_map calls, allowing users to
-    not include expected variables.
-
-    Note: This is typically not used by the end user.
-    """
-
-    def __missing__(self, key):
-        return None
 
 
 class KeyGen:
@@ -4805,6 +5114,832 @@ mysql_examples = {
 }
 
 
+class LazyTable(sg.Table):
+
+    """
+    The LazyTable is a subclass of sg.Table for improved performance by loading rows
+    lazily during scroll events. Updating a sg.Table is generally fast, but with large
+    DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
+    overcomes this by only inserting a slice of rows during an `update()`.
+
+    To use, simply replace `sg.Table` with `ss.LazyTable` as the `element` argument in a
+    selector() function call in your layout.
+
+    Expects values in the form of [TableRow(pk, values)], and only becomes active after
+    a update(values=, selected_rows=[int]) call. Please note that LazyTable does not
+    support the `sg.Table` `row_colors` argument.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.values = []  # full set of rows
+        self.data = []  # lazy slice of rows
+        self.Values = self.data
+
+        self.insert_qty = max(self.NumRows, 100)
+        """Number of rows to insert during an `update(values=)` and scroll events"""
+
+        self._start_index = 0
+        self._end_index = 0
+        self._start_alt_color = False
+        self._end_alt_color = False
+        self._finalized = False
+        self._lock = threading.Lock()
+        self._bg = None
+        self._fg = None
+
+    def update(
+        self,
+        values=None,
+        num_rows=None,
+        visible=None,
+        select_rows=None,
+        alternating_row_color=None,
+    ):
+        # check if we shouldn't be doing this update
+        # PySimpleGUI version support (PyPi version doesn't support quick_check)
+        if sg.__version__.split(".")[0] == "5":
+            quick_check = "quick_check=True"
+        elif sg.__version__.split(".")[0] == "4":
+            if sg.__version__.split(".")[1] == "61":
+                quick_check = "quick_check=True"
+        else:
+            quick_check = ""
+
+        if not self._widget_was_created() or (
+            self.ParentForm is not None and self.ParentForm.is_closed(quick_check)
+        ):
+            return
+
+        # update total list
+        self.values = values
+        # Update current_index with the selected index
+        self.current_index = select_rows[0] if select_rows else 0
+
+        # needed, since PySimpleGUI doesn't create tk widgets during class init
+        if not self._finalized:
+            self.widget.configure(yscrollcommand=self._handle_scroll)
+            self._finalized = True
+
+        # delete all current
+        children = self.widget.get_children()
+        for i in children:
+            self.widget.detach(i)
+            self.widget.delete(i)
+        self.tree_ids = []
+
+        # background color
+        self._bg = (
+            self.BackgroundColor
+            if self.BackgroundColor is not None
+            and self.BackgroundColor != sg.COLOR_SYSTEM_DEFAULT
+            else "#FFFFFF"
+        )
+
+        # text color
+        self._fg = (
+            self.TextColor
+            if self.TextColor is not None and self.TextColor != sg.COLOR_SYSTEM_DEFAULT
+            else "#000000"
+        )
+
+        # alternating color
+        if alternating_row_color is not None:
+            self.AlternatingRowColor = alternating_row_color
+            self._start_alt_color = True
+
+        # get values to insert
+        if select_rows is not None:
+            # Slice the list to show visible rows before and after the current index
+            self._start_index = max(0, self.current_index - self.insert_qty)
+            self._end_index = min(len(values), self.current_index + self.insert_qty + 1)
+            self.data = values[self._start_index : self._end_index]
+        else:
+            self.data = values
+
+        # insert values
+        if values is not None:
+            # insert the rows
+            for row in self.data:
+                iid = self.widget.insert(
+                    "", "end", text=row, iid=row.pk, values=row, tag=row.pk
+                )
+                self._end_alt_color = self._set_colors(iid, self._end_alt_color)
+                self.tree_ids.append(iid)
+
+        # handle visible
+        if visible is not None:
+            self._visible = visible
+            if visible:
+                self._pack_restore_settings(self.element_frame)
+            else:
+                self._pack_forget_save_settings(self.element_frame)
+
+        # handle number of rows
+        if num_rows is not None:
+            self.widget.config(height=num_rows)
+
+        # finally, select rows and make first visible
+        if select_rows is not None:
+            # Offset select_rows index for the sliced values
+            offset_select_rows = [i - self._start_index for i in select_rows]
+            if offset_select_rows and offset_select_rows[0] < len(self.data):
+                # select the row
+                self.widget.selection_set(self.tree_ids[offset_select_rows[0]])
+                # Get the row iid based on the offset_select_rows index
+                row_iid = self.tree_ids[offset_select_rows[0]]
+                # and make sure its visible
+                self.widget.see(row_iid)
+
+    def _handle_scroll(self, x0, x1):
+        if float(x0) == 0.0 and self._start_index > 0:
+            with self._lock:
+                self._handle_start_scroll()
+            return
+        if float(x1) == 1.0 and self._end_index < len(self.values):
+            with self._lock:
+                self._handle_end_scroll()
+            return
+        # else, set the scroll
+        self.vsb.set(x0, x1)
+
+    def _handle_start_scroll(self):
+        # determine slice
+        num_rows = min(self._start_index, self.insert_qty)
+        new_start_index = max(0, self._start_index - num_rows)
+        new_rows = self.values[new_start_index : self._start_index]
+
+        # insert
+        for row in reversed(new_rows):
+            iid = self.widget.insert(
+                "", "0", text=row, iid=row.pk, values=row, tag=row.pk
+            )
+            self._start_alt_color = self._set_colors(iid, self._start_alt_color)
+            self.tree_ids.insert(0, iid)
+
+        # set new start
+        self._start_index = new_start_index
+
+        # Insert new_rows to beginning
+        # don't use data.insert(0, new_rows), it breaks TableRow
+        self.data[:0] = new_rows
+
+        # to avoid an infinite scroll, move scroll a little after 0.0
+        with contextlib.suppress(IndexError):
+            row_iid = self.tree_ids[self.insert_qty + self.NumRows - 1]
+            self.widget.see(row_iid)
+
+    def _handle_end_scroll(self):
+        num_rows = len(self.values)
+        # determine slice
+        start_index = max(0, self._end_index)
+        end_index = min(self._end_index + self.insert_qty, num_rows)
+        new_rows = self.values[start_index:end_index]
+
+        # insert
+        for row in new_rows:
+            iid = self.widget.insert(
+                "", "end", text=row, iid=row.pk, values=row, tag=row.pk
+            )
+            self._end_alt_color = self._set_colors(iid, self._end_alt_color)
+            self.tree_ids.append(iid)
+
+        # set new end
+        self._end_index = end_index
+
+        # Extend self.data with new_rows
+        self.data.extend(new_rows)
+
+        # to avoid an infinite scroll, move scroll a little before 1.0
+        with contextlib.suppress(IndexError):
+            row_iid = self.tree_ids[len(self.data) - self.insert_qty]
+            self.widget.see(row_iid)
+
+    def _set_colors(self, iid, toggle_color):
+        if self.AlternatingRowColor is not None:
+            if not toggle_color:
+                self.widget.tag_configure(
+                    iid, background=self.AlternatingRowColor, foreground=self._fg
+                )
+            else:
+                self.widget.tag_configure(iid, background=self._bg, foreground=self._fg)
+            toggle_color = not toggle_color
+        else:
+            self.widget.tag_configure(iid, background=self._bg, foreground=self._fg)
+        return toggle_color
+
+    @property
+    def SelectedRows(self):
+        """
+        Returns the selected row(s) in the LazyTable.
+
+        :returns:
+            - If the LazyTable has data:
+                - Retrieves the index of the selected row by matching the primary key
+                  (pk) value with the first selected item in the widget.
+                - Returns the corresponding row from the data list based on the index.
+            - If the LazyTable has no data:
+                - Returns None.
+
+        :note:
+            This property assumes that the LazyTable is using a primary key (pk) value
+            to uniquely identify rows in the data list.
+        """
+        if self.data and self.widget.selection():
+            index = [
+                [v.pk for v in self.data].index(
+                    [int(x) for x in self.widget.selection()][0]
+                )
+            ][0]
+            return self.data[index]
+        return None
+
+    def __setattr__(self, name, value):
+        if name == "SelectedRows":
+            # Handle PySimpleGui attempts to set our SelectedRows property
+            return
+        super().__setattr__(name, value)
+
+
+class _PlaceholderText(abc.ABC):
+    """
+    An abstract class for PySimpleGUI text-entry elements that allows for the display of
+    a placeholder text when the input is empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.placeholder_feature_enabled = False
+        self.normal_color = None
+        self.normal_font = None
+        self.placeholder_text = ""
+        self.placeholder_color = None
+        self.placeholder_font = None
+        self.active_placeholder = False
+        # fmt: off
+        self._non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
+                    "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
+                    "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4","F5",
+                    "F6","F7","F8","F9","F10","F11","F12", "Delete"]
+        # fmt: on
+
+    def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
+        """
+        Adds a placeholder text to the element.
+
+        The placeholder text is displayed in the element when the element is empty and
+        unfocused. When the element is clicked or focused, the placeholder text
+        disappears and the element becomes blank. When the element loses focus and is
+        still empty, the placeholder text reappears.
+
+        This function is based on the recipe by Miguel Martinez Lopez, licensed under
+        MIT. It has been updated to work with PySimpleGUI elements.
+
+        :param placeholder: The text to display as placeholder when the input is empty.
+        :param color: The color of the placeholder text (default None).
+        :param font: The font of the placeholder text (default None).
+        """
+        normal_color = self.widget.cget("fg")
+        normal_font = self.widget.cget("font")
+
+        if font is None:
+            font = normal_font
+
+        self.normal_color = normal_color
+        self.normal_font = normal_font
+        self.placeholder_color = color
+        self.placeholder_font = font
+        self.placeholder_text = placeholder
+        self.active_placeholder = True
+        self.placeholder_feature_enabled = True
+        self._add_binds()
+
+    @abc.abstractmethod
+    def _add_binds(self):
+        pass
+
+    def update(self, *args, **kwargs):
+        """
+        Updates the input widget with a new value and displays the placeholder text if
+        the value is empty.
+
+        :param args: Optional arguments to pass to `sg.Element.update`.
+        :param kwargs: Optional keyword arguments to pass to `sg.Element.update`.
+        """
+        if not self.placeholder_feature_enabled:
+            super().update(*args, **kwargs)
+            return
+
+        if "value" in kwargs and kwargs["value"] is not None:
+            # If the value is not None, use it as the new value
+            value = kwargs.pop("value", None)
+        elif len(args) > 0 and args[0] is not None:
+            # If the value is passed as an argument, use it as the new value
+            value = args[0]
+            # Remove the value argument from args
+            args = args[1:]
+        else:
+            # Otherwise, use the current value
+            value = self.get()
+
+        if self.active_placeholder and value:
+            # Replace the placeholder with the new value
+            super().update(value=value)
+            self.active_placeholder = False
+            self.Widget.config(fg=self.normal_color, font=self.normal_font)
+        elif not value:
+            # If the value is empty, reinsert the placeholder
+            super().update(value=self.placeholder_text, *args, **kwargs)
+            self.active_placeholder = True
+            self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        else:
+            super().update(*args, **kwargs)
+
+    def get(self) -> str:
+        """
+        Returns the current value of the input, or an empty string if the input displays
+        the placeholder text.
+
+        :return: The current value of the input.
+        """
+        if self.active_placeholder:
+            return ""
+        return super().get()
+
+    @abc.abstractmethod
+    def insert_placeholder(self):
+        pass
+
+    @abc.abstractmethod
+    def delete_placeholder(self):
+        pass
+
+
+class _EnhancedInput(_PlaceholderText, sg.Input):
+    """
+    An Input that allows for the display of a placeholder text when empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.binds = {}
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+        if self.binds:
+            # remove any existing binds
+            for event, funcid in self.binds.items():
+                self.widget.unbind(event, funcid)
+            self.binds = {}
+
+        def on_key(event):
+            if self.active_placeholder and widget.get() == self.placeholder_text:
+                # dont clear for non-text-producing keys
+                if event.keysym in self._non_keys:
+                    return "break"
+                # Clear the placeholder when the user starts typing
+                self.delete_placeholder()
+            return None
+
+        def on_key_release(event):
+            if widget.get() == "":  # noqa PLC1901
+                with contextlib.suppress(tk.TclError):
+                    self.insert_placeholder()
+                    widget.icursor(0)
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                # Move cursor to the beginning if the field has a placeholder
+                widget.icursor(0)
+
+        def on_focusout(event):
+            if not widget.get():
+                self.insert_placeholder()
+
+        def disable_placeholder_select(event):
+            # Disable selecting the placeholder
+            if self.active_placeholder:
+                return "break"
+            return None
+
+        self.binds["<KeyPress>"] = widget.bind("<KeyPress>", on_key, "+")
+        self.binds["<KeyRelease>"] = widget.bind("<KeyRelease>", on_key_release, "+")
+        self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
+        self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
+        for event in ["<<SelectAll>>", "<Control-a>", "<Control-slash>"]:
+            self.binds[event] = widget.bind(event, disable_placeholder_select, "+")
+
+        if not widget.get():
+            self.insert_placeholder()
+
+    def insert_placeholder(self):
+        self.widget.delete(0, "end")
+        self.widget.insert(0, self.placeholder_text)
+        self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        self.active_placeholder = True
+
+    def delete_placeholder(self):
+        self.widget.delete(0, "end")
+        self.widget.config(fg=self.normal_color, font=self.normal_font)
+        self.active_placeholder = False
+
+
+class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
+    """
+    A Multiline that allows for the display of a placeholder text when focus-out empty.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.binds = {}
+        super().__init__(*args, **kwargs)
+
+    def _add_binds(self):
+        widget = self.widget
+        if self.binds:
+            for event, bind in self.binds.items():
+                self.widget.unbind(event, bind)
+            self.binds = {}
+
+        def on_focusin(event):
+            if self.active_placeholder:
+                self.delete_placeholder()
+
+        def on_focusout(event):
+            if not widget.get("1.0", "end-1c").strip():
+                self.insert_placeholder()
+
+        if not widget.get("1.0", "end-1c").strip() and self.active_placeholder:
+            self.insert_placeholder()
+
+        self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
+        self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
+
+    def insert_placeholder(self):
+        self.widget.insert("1.0", self.placeholder_text)
+        self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
+        self.active_placeholder = True
+
+    def delete_placeholder(self):
+        self.widget.delete("1.0", "end")
+        self.widget.config(fg=self.normal_color, font=self.normal_font)
+        self.active_placeholder = False
+
+
+class _SearchInput(_EnhancedInput):
+    def __init__(self, *args, **kwargs):
+        self.dataset = None
+        self.search_string = None  # Track the StringVar
+        super().__init__(*args, **kwargs)
+        self.search_non_keys = self._non_keys.copy()
+        self.search_non_keys.remove("BackSpace")
+        self.search_non_keys.remove("Delete")
+
+    def _add_binds(self):
+        super()._add_binds()  # Call the parent method to maintain existing binds
+
+        def on_key_release(event):
+            # update selectors after each key-release
+            if (
+                event.keysym not in self.search_non_keys
+                and self.search_string.get() != self.get()
+            ):
+                self.search_string.set(self.get())
+                self.dataset.frm.update_selectors(
+                    self.dataset.key, search_filter_only=True
+                )
+
+        self.binds["<KeyRelease>"] = self.widget.bind(
+            "<KeyRelease>", on_key_release, "+"
+        )
+
+    def bind_dataset(self, dataset):
+        self.dataset = dataset
+        self.search_string = dataset._search_string
+        if self.search_string is None:
+            self.search_string = dataset._search_string = tk.StringVar()
+        self.search_string.trace_add("write", self._on_search_string_change)
+
+    def _on_search_string_change(self, *args):
+        if (
+            not self.active_placeholder
+            and self.get() != self.search_string.get()
+            and self.search_string.get() == ""  # noqa PLC1901
+        ):
+            # reinsert placeholder if DataSet.search_string == ""
+            self.insert_placeholder()
+
+
+def _autocomplete_combo(widget, completion_list, delta=0):
+    """Perform autocompletion on a Combobox widget based on the current input."""
+    if delta:
+        # Delete text from current position to end
+        widget.delete(widget.position, tk.END)
+    else:
+        # Set the position to the length of the current input text
+        widget.position = len(widget.get())
+
+    prefix = widget.get().lower()
+    hits = [
+        element for element in completion_list if element.lower().startswith(prefix)
+    ]
+    # Create a list of elements that start with the lowercase prefix
+
+    if hits:
+        closest_match = min(hits, key=len)
+        if prefix != closest_match.lower():
+            # Insert the closest match at the beginning, move the cursor to the end
+            widget.delete(0, tk.END)
+            widget.insert(0, closest_match)
+            widget.icursor(len(closest_match))
+
+            # Highlight the remaining text after the closest match
+            widget.select_range(widget.position, tk.END)
+
+        if len(hits) == 1 and closest_match.lower() != prefix:
+            # If there is only one hit and it's not equal to the lowercase prefix,
+            # open dropdown
+            widget.event_generate("<Down>")
+            widget.event_generate("<<ComboboxSelected>>")
+
+    else:
+        # If there are no hits, move the cursor to the current position
+        widget.icursor(widget.position)
+
+    return hits
+
+
+class _AutocompleteCombo(sg.Combo):
+    """Customized Combo widget with autocompletion feature.
+
+    Please note that due to how PySimpleSql initilizes widgets, you must call update()
+    once to activate autocompletion, eg `window['combo_key'].update(values=values)`
+    """
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = []
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        """Update the Combo widget with new values."""
+        if "values" in kwargs and kwargs["values"] is not None:
+            self._completion_list = [str(row) for row in kwargs["values"]]
+            if not self.finalized:
+                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
+            self._hits = []
+            self._hit_index = 0
+            self.position = 0
+        super().update(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self.Widget, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.Widget.delete(self.Widget.position, tk.END)
+            self.position = self.Widget.position
+        if event.keysym == "Left":
+            if self.position < self.Widget.index(tk.END):
+                self.Widget.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.Widget.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.Widget.index(tk.END)
+        if event.keysym == "Return":
+            self.Widget.icursor(tk.END)
+            self.Widget.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
+
+
+class _TtkCombo(ttk.Combobox):
+    """Customized Combo widget with autocompletion feature."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the Combo widget."""
+        self._completion_list = [str(row) for row in kwargs["values"]]
+        self._hits = []
+        self._hit_index = 0
+        self.position = 0
+        self.finalized = False
+
+        super().__init__(*args, **kwargs)
+
+    def autocomplete(self, delta=0):
+        """Perform autocompletion based on the current input."""
+        self._hits = _autocomplete_combo(self, self._completion_list, delta)
+        self._hit_index = 0
+
+    def handle_keyrelease(self, event):
+        """Handle key release event for autocompletion and navigation."""
+        if event.keysym == "BackSpace":
+            self.delete(self.position, tk.END)
+            self.position = self.position
+        if event.keysym == "Left":
+            if self.position < self.index(tk.END):
+                self.delete(self.position, tk.END)
+            else:
+                self.position -= 1
+                self.delete(self.position, tk.END)
+        if event.keysym == "Right":
+            self.position = self.index(tk.END)
+        if event.keysym == "Return":
+            self.icursor(tk.END)
+            self.selection_clear()
+            return
+
+        if len(event.keysym) == 1:
+            self.autocomplete()
+
+
+class _TtkCalendar(ttk.Frame):
+    """Internal Class."""
+
+    # Modified from Tkinter GUI Application Development Cookbook, MIT License.
+
+    def __init__(self, master, init_date, textvariable, **kwargs):
+        # TODO, set these in themepack?
+        fwday = kwargs.pop("firstweekday", calendar.MONDAY)
+        sel_bg = kwargs.pop("selectbackground", "#ecffc4")
+        sel_fg = kwargs.pop("selectforeground", "#05640e")
+
+        super().__init__(master, class_="ttkcalendar", **kwargs)
+
+        self.master = master
+        self.cal_date = init_date
+        self.textvariable = textvariable
+        self.cal = calendar.TextCalendar(fwday)
+        self.font = tkfont.Font(self)
+        self.header = self.create_header()
+        self.table = self.create_table()
+        self.canvas = self.create_canvas(sel_bg, sel_fg)
+        self.build_calendar()
+
+    def create_header(self):
+        left_arrow = {"children": [("Button.leftarrow", None)]}
+        right_arrow = {"children": [("Button.rightarrow", None)]}
+        style = ttk.Style(self)
+        style.layout("L.TButton", [("Button.focus", left_arrow)])
+        style.layout("R.TButton", [("Button.focus", right_arrow)])
+
+        hframe = ttk.Frame(self)
+        btn_left = ttk.Button(
+            hframe, style="L.TButton", command=lambda: self.move_month(-1)
+        )
+        btn_right = ttk.Button(
+            hframe, style="R.TButton", command=lambda: self.move_month(1)
+        )
+        label = ttk.Label(hframe, width=15, anchor="center")
+
+        hframe.pack(pady=5, anchor=tk.CENTER)
+        btn_left.grid(row=0, column=0)
+        label.grid(row=0, column=1, padx=12)
+        btn_right.grid(row=0, column=2)
+        return label
+
+    def create_table(self):
+        cols = self.cal.formatweekheader(3).split()
+        table = ttk.Treeview(self, show="", selectmode="none", height=7, columns=cols)
+        table.bind("<Map>", self.minsize, "+")
+        table.pack(expand=1, fill=tk.BOTH)
+        table.tag_configure("header", background="grey90")
+        table.insert("", tk.END, values=cols, tag="header")
+        for _ in range(6):
+            table.insert("", tk.END)
+
+        width = max(map(self.font.measure, cols))
+        for col in cols:
+            table.column(col, width=width, minwidth=width, anchor=tk.E)
+        return table
+
+    def create_canvas(self, bg, fg):
+        canvas = tk.Canvas(
+            self.table, background=bg, borderwidth=1, highlightthickness=0
+        )
+        canvas.text = canvas.create_text(0, 0, fill=fg, anchor=tk.W)
+        self.table.bind("<ButtonPress-1>", self.pressed_callback, "+")
+        return canvas
+
+    def build_calendar(self):
+        year, month = self.cal_date.year, self.cal_date.month
+        month_name = self.cal.formatmonthname(year, month, 0)
+        month_weeks = self.cal.monthdayscalendar(year, month)
+
+        self.header.config(text=month_name.title())
+        items = self.table.get_children()[1:]
+        for week, item in itertools.zip_longest(month_weeks, items):
+            fmt_week = [f"{day:02d}" if day else "" for day in (week or [])]
+            self.table.item(item, values=fmt_week)
+
+    def pressed_callback(self, event):
+        x, y, widget = event.x, event.y, event.widget
+        item = widget.identify_row(y)
+        column = widget.identify_column(x)
+        items = self.table.get_children()[1:]
+
+        if not column or item not in items:
+            # clicked te header or outside the columns
+            return
+
+        index = int(column[1]) - 1
+        values = widget.item(item)["values"]
+        text = values[index] if len(values) else None
+        bbox = widget.bbox(item, column)
+        if bbox and text:
+            self.cal_date = dt.date(self.cal_date.year, self.cal_date.month, int(text))
+            self.draw_selection(bbox)
+            self.textvariable.set(self.cal_date.strftime("%Y-%m-%d"))
+
+    def draw_selection(self, bbox):
+        canvas, text = self.canvas, "%02d" % self.cal_date.day
+        x, y, width, height = bbox
+        textw = self.font.measure(text)
+        canvas.configure(width=width, height=height)
+        canvas.coords(canvas.text, width - textw, height / 2 - 1)
+        canvas.itemconfigure(canvas.text, text=text)
+        canvas.place(x=x, y=y)
+
+    def set_date(self, dateobj):
+        self.cal_date = dateobj
+        self.canvas.place_forget()
+        self.build_calendar()
+
+    def select_date(self):
+        bbox = self.get_bbox_for_date(self.cal_date)
+        if bbox:
+            self.draw_selection(bbox)
+
+    def get_bbox_for_date(self, new_date):
+        items = self.table.get_children()[1:]
+        for item in items:
+            values = self.table.item(item)["values"]
+            for i, value in enumerate(values):
+                if isinstance(value, int) and value == new_date.day:
+                    column = "#{}".format(i + 1)
+                    self.table.update()
+                    return self.table.bbox(item, column)
+        return None
+
+    def move_month(self, offset):
+        self.canvas.place_forget()
+        month = self.cal_date.month - 1 + offset
+        year = self.cal_date.year + month // 12
+        month = month % 12 + 1
+        self.cal_date = dt.date(year, month, 1)
+        self.build_calendar()
+
+    def minsize(self, e):
+        width, height = self.master.geometry().split("x")
+        height = height[: height.index("+")]
+        self.master.minsize(width, height)
+
+
+class _DatePicker(ttk.Entry):
+    def __init__(self, master, frm_reference, init_date, **kwargs):
+        self.frm = frm_reference
+        textvariable = kwargs["textvariable"]
+        self.calendar = _TtkCalendar(self.frm.window.TKroot, init_date, textvariable)
+        self.calendar.place_forget()
+        self.button = ttk.Button(master, text="▼", width=2, command=self.show_calendar)
+        super().__init__(master, class_="Datepicker", **kwargs)
+
+        self.bind("<KeyRelease>", self.on_entry_key_release, "+")
+        self.calendar.bind("<Leave>", self.hide_calendar, "+")
+
+    def show_calendar(self, event=None):
+        self.configure(state="disabled")
+        self.calendar.place(in_=self, relx=0, rely=1)
+        self.calendar.focus_force()
+        self.calendar.select_date()
+
+    def hide_calendar(self, event=None):
+        self.configure(state="!disabled")
+        self.calendar.place_forget()
+        self.focus_force()
+
+    def on_entry_key_release(self, event=None):
+        # Check if the user has typed a valid date
+        try:
+            date_str = self.get()
+            date = dt.datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return
+
+        # Update the calendar to show the new date
+        self.calendar.set_date(date)
+
+
 # -------------------------------------------------------------------------------------
 # CONVENIENCE FUNCTIONS
 # -------------------------------------------------------------------------------------
@@ -4834,7 +5969,7 @@ class Convenience:
 
 def field(
     field: str,
-    element: Type[sg.Element] = sg.I,
+    element: Type[sg.Element] = _EnhancedInput,
     size: Tuple[int, int] = None,
     label: str = "",
     no_label: bool = False,
@@ -4875,6 +6010,9 @@ def field(
         Column, but can be treated as a single Element.
     """
     # TODO: See what the metadata does after initial setup is complete - needed anymore?
+    element = _EnhancedInput if element == sg.Input else element
+    element = _EnhancedMultiline if element == sg.Multiline else element
+    element = _AutocompleteCombo if element == sg.Combo else element
 
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
@@ -4905,7 +6043,7 @@ def field(
     else:
         first_param = ""
 
-    if element.__name__ == "Multiline":
+    if element == _EnhancedMultiline:
         layout_element = element(
             first_param,
             key=key,
@@ -4933,7 +6071,7 @@ def field(
             },
             **kwargs,
         )
-    layout_label = sg.T(
+    layout_label = sg.Text(
         label if label else label_text,
         size=themepack.default_label_size,
         key=f"{key}:label",
@@ -4952,22 +6090,14 @@ def field(
         ],
         pad=(0, 0),
     )
-    if element.__name__ == "Text":  # don't show markers for sg.Text
-        if no_label:
-            layout = [[layout_element]]
-        elif label_above:
-            layout = [[layout_label], [layout_element]]
-        else:
-            layout = [[layout_label, layout_element]]
+    if no_label:
+        layout = [[layout_marker, layout_element]]
+    elif label_above:
+        layout = [[layout_label], [layout_marker, layout_element]]
     else:
-        if no_label:
-            layout = [[layout_marker, layout_element]]
-        elif label_above:
-            layout = [[layout_label], [layout_marker, layout_element]]
-        else:
-            layout = [[layout_label, layout_marker, layout_element]]
+        layout = [[layout_label, layout_marker, layout_element]]
     # Add the quick editor button where appropriate
-    if element == sg.Combo and quick_editor:
+    if element == _AutocompleteCombo and quick_editor:
         meta = {
             "type": TYPE_EVENT,
             "event_type": EVENT_QUICK_EDIT,
@@ -5000,7 +6130,6 @@ def field(
                 )
             )
     # return layout
-    # TODO: Does this actually need wrapped in a sg.Col???
     return sg.Col(layout=layout, pad=(0, 0))
 
 
@@ -5400,7 +6529,9 @@ def actions(
         }
         if type(themepack.search) is bytes:
             layout += [
-                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                _SearchInput(
+                    "", key=keygen.get(f"{key}search_input"), size=search_size
+                ),
                 sg.B(
                     "",
                     key=keygen.get(f"{key}search_button"),
@@ -5415,7 +6546,9 @@ def actions(
             ]
         else:
             layout += [
-                sg.Input("", key=keygen.get(f"{key}search_input"), size=search_size),
+                _SearchInput(
+                    "", key=keygen.get(f"{key}search_input"), size=search_size
+                ),
                 sg.B(
                     themepack.search,
                     key=keygen.get(f"{key}search_button"),
@@ -5457,6 +6590,7 @@ def selector(
     :param kwargs: Any additional arguments supplied will be passed on to the
         PySimpleGUI element.
     """
+    element = _AutocompleteCombo if element == sg.Combo else element
 
     key = f"{table}:selector" if key is None else key
     key = keygen.get(key)
@@ -5480,20 +6614,19 @@ def selector(
             key=key,
             metadata=meta,
         )
-    elif element == sg.Combo:
+    elif element == _AutocompleteCombo:
         w = themepack.default_element_size[0]
         layout = element(
             values=(),
             size=size or (w, 10),
-            readonly=True,
             enable_events=True,
             key=key,
             auto_size_text=False,
             metadata=meta,
         )
-    elif element == sg.Table:
+    elif element in [sg.Table, LazyTable]:
         # Check if the headings arg is a Table heading...
-        if kwargs["headings"].__class__.__name__ == "TableHeadings":
+        if isinstance(kwargs["headings"], TableHeadings):
             # Overwrite the kwargs from the TableHeading info
             kwargs["visible_column_map"] = kwargs["headings"].visible_map()
             kwargs["col_widths"] = kwargs["headings"].width_map()
@@ -5514,21 +6647,26 @@ def selector(
         kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
         kwargs["justification"] = "left"
 
-        # Create a narrow column for displaying a * character for virtual rows.
-        # This will have to be the 2nd column right after the pk
-        kwargs["headings"].insert(0, "")
-        kwargs["visible_column_map"].insert(0, 1)
-        if "col_widths" in kwargs:
-            kwargs["col_widths"].insert(0, 2)
-
         # Make an empty list of values
         vals = [[""] * len(kwargs["headings"])]
+
+        # Create a narrow column for displaying a * character for virtual rows.
+        # This will be the 1st column
+        kwargs["visible_column_map"].insert(0, 1)
+        if "col_widths" in kwargs:
+            kwargs["col_widths"].insert(0, themepack.unsaved_column_width)
 
         # Change the headings parameter to be a list so
         # the heading doesn't display dicts when it first loads
         # The TableHeadings instance is already stored in metadata
-        if kwargs["headings"].__class__.__name__ == "TableHeadings":
+        if isinstance(kwargs["headings"], TableHeadings):
+            if kwargs["headings"].save_enable:
+                kwargs["headings"].insert(0, themepack.unsaved_column_header)
+            else:
+                kwargs["headings"].insert(0, "")
             kwargs["headings"] = kwargs["headings"].heading_names()
+        else:
+            kwargs["headings"].insert(0, "")
 
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
     else:
@@ -5550,27 +6688,42 @@ class TableHeadings(list):
     # store our instances
     instances = []
 
-    def __init__(self, sort_enable: bool = True, edit_enable: bool = False) -> None:
+    def __init__(
+        self,
+        sort_enable: bool = True,
+        edit_enable: bool = False,
+        save_enable: bool = False,
+        apply_search_filter: bool = False,
+    ) -> None:
         """
         Create a new TableHeadings object.
 
         :param sort_enable: True to enable sorting by heading column
-        :param edit_enable: True to enable editing cells. If cell editing is enabled,
-            any accepted edits will immediately push to the associated field element.
-            In addition, editing the set description column will trigger the update of
-            all comboboxes.
+        :param edit_enable: Enables cell editing if True. Accepted edits update both
+            `sg.Table` and associated `field` element.
+        :param save_enable: Enables saving record by double-clicking unsaved marker col.
+        :param apply_search_filter: Filter rows to only those columns in
+            `DataSet.search_order` that contain `Dataself.search_string`.
         :returns: None
         """
         self.sort_enable = sort_enable
         self.edit_enable = edit_enable
+        self.save_enable = save_enable
+        self.apply_search_filter = apply_search_filter
         self._width_map = []
         self._visible_map = []
+        self.readonly_columns = []
 
         # Store this instance in the master list of instances
         TableHeadings.instances.append(self)
 
     def add_column(
-        self, column: str, heading_column: str, width: int, visible: bool = True
+        self,
+        column: str,
+        heading_column: str,
+        width: int,
+        visible: bool = True,
+        readonly: bool = False,
     ) -> None:
         """
         Add a new heading column to this TableHeading object.  Columns are added in the
@@ -5583,11 +6736,15 @@ class TableHeadings(list):
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
+        :param readonly: Indicates if the column is read-only when
+            `TableHeading.edit_enable` is True.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
         self._width_map.append(width)
         self._visible_map.append(visible)
+        if readonly:
+            self.readonly_columns.append(column)
 
     def heading_names(self) -> List[str]:
         """
@@ -5659,9 +6816,10 @@ class TableHeadings(list):
                 x["heading"] += asc if sort_order == SORT_ASC else desc
             element.Widget.heading(i, text=x["heading"], anchor="w")
 
-    def enable_sorting(self, element: sg.Table, fn: callable) -> None:
+    def enable_heading_function(self, element: sg.Table, fn: callable) -> None:
         """
-        Enable the sorting callbacks for each column index.
+        Enable the sorting callbacks for each column index, or saving by click the
+        unsaved changes column
         Note: Not typically used by the end user. Called from `Form.auto_map_elements()`
 
         :param element: The PySimpleGUI Table element associated with this TableHeading
@@ -5673,21 +6831,23 @@ class TableHeadings(list):
             for i in range(len(self)):
                 if self[i]["column"] is not None:
                     element.widget.heading(
-                        i, command=functools.partial(fn, self[i]["column"])
+                        i, command=functools.partial(fn, self[i]["column"], False)
                     )
-        self.update_headings(element)
+            self.update_headings(element)
+        if self.save_enable:
+            element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
     def insert(self, idx, heading_column: str, column: str = None, *args, **kwargs):
         super().insert(idx, {"heading": heading_column, "column": column})
 
 
-class _SortCallbackWrapper:
+class _HeadingCallback:
 
-    """Internal class used when sg.Table column headers are clicked."""
+    """Internal class used when sg.Table column headings are clicked."""
 
     def __init__(self, frm_reference: Form, data_key: str):
         """
-        Create a new _SortCallbackWrapper object.
+        Create a new _HeadingCallback object.
 
         :param frm_reference: `Form` object
         :param data_key: `DataSet` key
@@ -5696,8 +6856,16 @@ class _SortCallbackWrapper:
         self.frm: Form = frm_reference
         self.data_key = data_key
 
-    def __call__(self, column):
-        self.frm[self.data_key].sort_cycle(column, self.data_key, update_elements=True)
+    def __call__(self, column, save):
+        if save:
+            self.frm[self.data_key].save_record()
+            # force a timeout, without this
+            # info popup creation broke pysimplegui events, weird!
+            self.frm.window.read(timeout=1)
+        else:
+            self.frm[self.data_key].sort_cycle(
+                column, self.data_key, update_elements=True
+            )
 
 
 class _CellEdit:
@@ -5710,7 +6878,7 @@ class _CellEdit:
 
     def __call__(self, event):
         # if double click a treeview
-        if event.widget.__class__.__name__ == "Treeview":
+        if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
             # identify region
             region = tk_widget.identify("region", event.x, event.y)
@@ -5738,9 +6906,6 @@ class _CellEdit:
         if not element:
             return
 
-        # found a table we can edit, don't allow another double-click
-        self.active_edit = True
-
         # get table_headings
         table_heading = element.metadata["TableHeading"]
 
@@ -5748,128 +6913,173 @@ class _CellEdit:
         columns = table_heading.columns()
         column = columns[col_idx - 1]
 
-        # make sure it's not the marker column or pk_column
-        if col_idx > 0 and column != self.frm[data_key].pk_column:
-            # use table_element to distinguish
-            table_element = element.Widget
-            root = table_element.master
+        # use table_element to distinguish
+        table_element = element.Widget
+        root = table_element.master
 
-            # get cell text, coordinates, width and height
-            text = table_element.item(row, "values")[col_idx]
-            x, y, width, height = table_element.bbox(row, col_idx)
+        # get cell text, coordinates, width and height
+        text = table_element.item(row, "values")[col_idx]
+        x, y, width, height = table_element.bbox(row, col_idx)
 
-            # see if we should use a combobox
-            combobox_values = self.frm[data_key].combobox_values(column)
+        # return early due to following conditions:
+        if col_idx == 0:
+            return
 
-            if combobox_values:
-                widget_type = TK_COMBOBOX
-                width = (
-                    width
-                    if width >= themepack.combobox_min_width
-                    else themepack.combobox_min_width
-                )
+        if column in table_heading.readonly_columns:
+            logger.debug(f"{column} is readonly")
+            return
 
-            # or a checkbox
-            elif self.frm[data_key].column_info[column]["domain"] in ["BOOLEAN"]:
-                widget_type = TK_CHECKBUTTON
-                width = (
-                    width
-                    if width >= themepack.checkbox_min_width
-                    else themepack.checkbox_min_width
-                )
+        if column == self.frm[data_key].pk_column:
+            logger.debug(f"{column} is pk_column")
+            return
 
-            # else, its a normal ttk.entry
-            else:
-                widget_type = TK_ENTRY
-                width = (
-                    width
-                    if width >= themepack.text_min_width
-                    else themepack.text_min_width
-                )
+        if self.frm[data_key].column_info[column].generated:
+            logger.debug(f"{column} is a generated column")
+            return
 
-            # float a frame over the cell
-            frame = ttk.Frame(root)
-            frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+        if not table_heading.edit_enable:
+            logger.debug("This Table element does not allow editing")
+            return
 
-            # setup the widgets
-            # ------------------
+        # else, we can continue:
+        self.active_edit = True
 
-            # checkbutton
-            # need to use tk.IntVar for checkbox
-            if widget_type == TK_CHECKBUTTON:
-                field_var = tk.IntVar()
-                field_var.set(text)
-                self.field = ttk.Checkbutton(frame, variable=field_var)
-            else:
-                # create tk.StringVar for combo/entry
-                field_var = tk.StringVar()
-                field_var.set(text)
+        # see if we should use a combobox
+        combobox_values = self.frm[data_key].combobox_values(
+            column, insert_placeholder=False
+        )
 
-            # entry
-            if widget_type == TK_ENTRY:
-                self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
-
-            # combobox
-            if widget_type == TK_COMBOBOX:
-                self.field = ttk.Combobox(frame, textvariable=field_var, justify="left")
-                self.field["values"] = combobox_values
-                self.field.bind("<Configure>", self.combo_configure)
-
-            # bind text to Return (for save), and Escape (for discard)
-            # event is discarded
-            accept_dict = {
-                "data_key": data_key,
-                "table_element": table_element,
-                "row": row,
-                "column": column,
-                "col_idx": col_idx,
-                "combobox_values": combobox_values,
-                "widget_type": widget_type,
-                "field_var": field_var,
-            }
-
-            self.field.bind(
-                "<Return>",
-                lambda event: self.accept(**accept_dict),
+        if combobox_values:
+            widget_type = TK_COMBOBOX
+            width = (
+                width
+                if width >= themepack.combobox_min_width
+                else themepack.combobox_min_width
             )
-            self.field.bind("<Escape>", lambda event: self.destroy())
 
-            if themepack.use_cell_buttons:
-                # buttons
-                self.accept_button = tk.Button(
-                    frame,
-                    text="\u2714",
-                    foreground="green",
-                    relief=tk.GROOVE,
-                    command=lambda: self.accept(**accept_dict),
-                )
-                self.cancel_button = tk.Button(
-                    frame,
-                    text="\u274E",
-                    foreground="red",
-                    relief=tk.GROOVE,
-                    command=lambda: self.destroy(),
-                )
-                # pack buttons
-                self.cancel_button.pack(side="right")
-                self.accept_button.pack(side="right")
-
-            # have entry use remaining space
-            self.field.pack(side="left", expand=True, fill="both")
-
-            # select text and focus to begin with
-            if widget_type != TK_CHECKBUTTON:
-                self.field.select_range(0, tk.END)
-                self.field.focus_force()
-
-            # bind single-clicks
-            self.destroy_bind = self.frm.window.TKroot.bind(
-                "<Button-1>",
-                lambda event: self.single_click_callback(event, accept_dict),
+        # or a checkbox
+        elif self.frm[data_key].column_info[column].domain in ["BOOLEAN"]:
+            widget_type = TK_CHECKBUTTON
+            width = (
+                width
+                if width >= themepack.checkbox_min_width
+                else themepack.checkbox_min_width
             )
+
+        # or a date
+        elif self.frm[data_key].column_info[column].domain in ["DATE"]:
+            text = self.frm[data_key].column_info[column].cast(text)
+            widget_type = TK_DATEPICKER
+            width = (
+                width
+                if width >= themepack.datepicker_min_width
+                else themepack.datepicker_min_width
+            )
+
+        # else, its a normal ttk.entry
         else:
-            # didn't find a cell we can edit
-            self.active_edit = False
+            widget_type = TK_ENTRY
+            width = (
+                width if width >= themepack.text_min_width else themepack.text_min_width
+            )
+
+        # float a frame over the cell
+        frame = tk.Frame(root)
+        frame.place(x=x, y=y, anchor="nw", width=width, height=height)
+
+        # setup the widgets
+        # ------------------
+
+        # checkbutton
+        # need to use tk.IntVar for checkbox
+        if widget_type == TK_CHECKBUTTON:
+            field_var = tk.BooleanVar()
+            field_var.set(checkbox_to_bool(text))
+            self.field = tk.Checkbutton(frame, variable=field_var)
+            expand = False
+        else:
+            # create tk.StringVar for combo/entry
+            field_var = tk.StringVar()
+            field_var.set(text)
+
+        # entry
+        if widget_type == TK_ENTRY:
+            self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+            expand = True
+
+        if widget_type == TK_DATEPICKER:
+            text = dt.date.today() if type(text) is str else text
+            self.field = _DatePicker(
+                frame, self.frm, init_date=text, textvariable=field_var
+            )
+            expand = True
+
+        # combobox
+        if widget_type == TK_COMBOBOX:
+            self.field = _TtkCombo(
+                frame, textvariable=field_var, justify="left", values=combobox_values
+            )
+            self.field.bind("<Configure>", self.combo_configure)
+            expand = True
+
+        # bind text to Return (for save), and Escape (for discard)
+        # event is discarded
+        accept_dict = {
+            "data_key": data_key,
+            "table_element": table_element,
+            "row": row,
+            "column": column,
+            "col_idx": col_idx,
+            "combobox_values": combobox_values,
+            "widget_type": widget_type,
+            "field_var": field_var,
+        }
+
+        self.field.bind(
+            "<Return>",
+            lambda event: self.accept(**accept_dict),
+        )
+        self.field.bind("<Escape>", lambda event: self.destroy())
+
+        if themepack.use_cell_buttons:
+            # buttons
+            self.accept_button = tk.Button(
+                frame,
+                text="\u2714",
+                foreground="green",
+                relief=tk.GROOVE,
+                command=lambda: self.accept(**accept_dict),
+            )
+            self.cancel_button = tk.Button(
+                frame,
+                text="\u274E",
+                foreground="red",
+                relief=tk.GROOVE,
+                command=lambda: self.destroy(),
+            )
+            # pack buttons
+            self.cancel_button.pack(side="right")
+            self.accept_button.pack(side="right")
+
+        if widget_type == TK_DATEPICKER:
+            self.field.button.pack(side="right")
+        # have entry use remaining space
+        self.field.pack(side="left", expand=expand, fill="both")
+
+        # select text and focus to begin with
+        if widget_type != TK_CHECKBUTTON:
+            self.field.select_range(0, tk.END)
+            self.field.focus_force()
+
+        if widget_type == TK_COMBOBOX:
+            self.field.bind("<KeyRelease>", self.field.handle_keyrelease, "+")
+
+        # bind single-clicks
+        self.destroy_bind = self.frm.window.TKroot.bind(
+            "<Button-1>",
+            lambda event: self.single_click_callback(event, accept_dict),
+            "+",
+        )
 
     def accept(
         self,
@@ -5901,7 +7111,7 @@ class _CellEdit:
         )
         if cast_new_value is not Boolean.FALSE:
             # push row to dataset and update
-            dataset.set_current(column, cast_new_value)
+            dataset.set_current(column, cast_new_value, write_event=True)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
             # TODO: make sure we actually want to set new_value to cast
@@ -5913,6 +7123,14 @@ class _CellEdit:
         # if combo, set new_value to actual text (not pk)
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()]
+
+        # if boolean, set
+        if widget_type == TK_CHECKBUTTON and themepack.display_boolean_as_checkbox:
+            new_value = (
+                themepack.checkbox_true
+                if checkbox_to_bool(new_value)
+                else themepack.checkbox_false
+            )
 
         # update value row with new text
         values[col_idx] = new_value
@@ -5933,6 +7151,7 @@ class _CellEdit:
     def destroy(self):
         # unbind
         self.frm.window.TKroot.unbind("<Button-1>", self.destroy_bind)
+
         # destroy widets and window
         self.field.destroy()
         if themepack.use_cell_buttons:
@@ -5948,23 +7167,27 @@ class _CellEdit:
         accept_dict,
     ):
         # destroy if you click a heading while editing
-        if event.widget.__class__.__name__ == "Treeview":
+        if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
             # identify region
             region = tk_widget.identify("region", event.x, event.y)
             if region == "heading":
                 self.destroy()
                 return
-
         # disregard if you click the field/buttons of celledit
         widget_list = [self.field]
         if themepack.use_cell_buttons:
             widget_list.append(self.accept_button)
             widget_list.append(self.cancel_button)
-        if event and event.widget in widget_list:
+
+        # for datepicker
+        with contextlib.suppress(AttributeError):
+            widget_list.append(self.field.button)
+        if "ttkcalendar" in str(event.widget):
             return
 
-        # otherwise, accept
+        if event.widget in widget_list:
+            return
         self.accept(**accept_dict)
 
     def get_datakey_and_sgtable(self, treeview, frm):
@@ -5974,11 +7197,7 @@ class _CellEdit:
         ]:
             for e in frm[data_key].selector:
                 element = e["element"]
-                if (
-                    element.widget == treeview
-                    and "TableHeading" in element.metadata
-                    and element.metadata["TableHeading"].edit_enable
-                ):
+                if element.widget == treeview and "TableHeading" in element.metadata:
                     return data_key, element
         return None
 
@@ -6008,7 +7227,7 @@ class _LiveUpdate:
         self.frm = frm_reference
         self.last_event_widget = None
         self.last_event_time = None
-        self.delay_seconds = 0.5
+        self.delay_seconds = 0.25
 
     def __call__(self, event):
         # keep track of time on same widget
@@ -6019,12 +7238,14 @@ class _LiveUpdate:
         # get widget type
         widget_type = event.widget.__class__.__name__
 
-        # immediately sync combo/checkboxs
-        if widget_type in ["Combobox", "Checkbutton"]:
+        # if <<ComboboxSelected>> and a combobox, or a checkbutton
+        if (
+            event.type == TK_COMBOBOX_SELECTED and widget_type == TK_COMBOBOX
+        ) or widget_type == TK_CHECKBUTTON:
             self.sync(event.widget, widget_type)
 
         # use tk.after() for text, so waits for pause in typing to update selector.
-        if widget_type in ["Entry", "Text"]:
+        elif widget_type in [TK_ENTRY, TK_TEXT]:
             self.frm.window.TKroot.after(
                 int(self.delay_seconds * 1000),
                 lambda: self.delay(event.widget, widget_type),
@@ -6036,18 +7257,16 @@ class _LiveUpdate:
                 data_key = e["table"]
                 column = e["column"]
                 element = e["element"]
-                new_value = element.get()
+                if widget_type == TK_COMBOBOX and isinstance(element.get(), ElementRow):
+                    new_value = element.get().get_pk()
+                else:
+                    new_value = element.get()
 
                 dataset = self.frm[data_key]
 
-                # set the value to the parent pk
-                if widget_type == TK_COMBOBOX:
-                    combobox_values = dataset.combobox_values(column)
-                    new_value = combobox_values[widget.current()].get_pk()
-
                 # get cast new value to correct type
                 for col in dataset.column_info:
-                    if col["name"] == column:
+                    if col.name == column:
                         new_value = col.cast(new_value)
                         break
 
@@ -6058,7 +7277,7 @@ class _LiveUpdate:
                 )
                 if new_value is not Boolean.FALSE:
                     # push row to dataset and update
-                    dataset.set_current(column, new_value)
+                    dataset.set_current(column, new_value, write_event=True)
 
                     # Update tableview if uses column:
                     if dataset.column_likely_in_selector(column):
@@ -6125,13 +7344,16 @@ class ThemePack:
         # fmt: on
         # Markers
         # ----------------------------------------
-        "marker_unsaved": "\u2731",
-        "marker_required": "\u2731",
+        "unsaved_column_header": "💾",
+        "unsaved_column_width": 3,
+        "marker_unsaved": "✱",
+        "marker_required": "✱",
         "marker_required_color": "red2",
+        "placeholder_color": "grey",
         # Sorting icons
         # ----------------------------------------
-        "marker_sort_asc": "\u25BC",
-        "marker_sort_desc": "\u25B2",
+        "marker_sort_asc": "▼",
+        "marker_sort_desc": "▲",
         # Info Popup defaults
         # ----------------------------------------
         "popup_info_auto_close_seconds": 1,
@@ -6141,7 +7363,7 @@ class ThemePack:
         # Label Size
         # Sets the default label (text) size when `field()` is used.
         # A label is static text that is displayed near the element to describe it.
-        "default_label_size": (20, 1),  # (width, height)
+        "default_label_size": (15, 1),  # (width, height)
         # Element Size
         # Sets the default element size when `field()` is used.
         # The size= parameter of `field()` will override this.
@@ -6156,6 +7378,11 @@ class ThemePack:
         "text_min_width": 80,
         "combobox_min_width": 80,
         "checkbox_min_width": 75,
+        "datepicker_min_width": 80,
+        # Display boolean columns as checkboxes in sg.Tables
+        "display_boolean_as_checkbox": True,
+        "checkbox_true": "☑",
+        "checkbox_false": "☐",
     }
     """
     Default Themepack.
@@ -6250,6 +7477,11 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         # Text, Varchar, Char, Null Default, used exclusively for description_column
         "description_column_str_null_default": "New Record",
+        # Placeholder automatically added to Input/Multiline
+        # that represent Not-Null fields.
+        "notnull_placeholder": "*Required",
+        "search_placeholder": "🔍 Search...",
+        "combo_placeholder": "Please select one:",
         # Prepended to parent description_column
         "duplicate_prepend": "Copy of ",
         # ------------------------------------------------------------------------------
@@ -6305,6 +7537,9 @@ class LanguagePack:
         "dataset_save_keyed_fail": "Query failed: {exception}.",
         "dataset_save_fail_title": "Problem Saving",
         "dataset_save_fail": "Query failed: {exception}.",
+        # DataSet search
+        "dataset_search_failed_title": "Search Failed",
+        "dataset_search_failed": "Failed to find:\n{search_string}",
         # ------------------------------------------------------------------------------
         # Delete
         # ------------------------------------------------------------------------------
@@ -6323,7 +7558,7 @@ class LanguagePack:
         "duplicate_child_title": "Confirm Duplication",
         "duplicate_child": "This record has child records:\n(in {children})\nWhich records would you like to duplicate?",  # fmt: skip # noqa: E501
         "duplicate_child_button_dupparent": "Only duplicate this record.",
-        "duplicate_child_button_dupboth": "Duplicate this record and its children.",
+        "duplicate_child_button_dupboth": "++ Duplicate this record and its children.",
         # Popup when record is single
         "duplicate_single_title": "Confirm Duplication",
         "duplicate_single": "Are you sure you want to duplicate this record?",
@@ -6335,7 +7570,7 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         "quick_edit_title": "Quick Edit - {data_key}",
         # ------------------------------------------------------------------------------
-        # Error when importing module for driver
+        # For Error when importing module for driver
         # ------------------------------------------------------------------------------
         "import_module_failed_title": "Problem importing module",
         "import_module_failed": "Unable to import module neccessary for {name}\nException: {exception}\n\nTry `pip install {requires}`",  # fmt: skip # noqa: E501
@@ -6370,6 +7605,19 @@ class LanguagePack:
 
 # set a default languagepack
 lang = LanguagePack()
+
+
+class LangFormat(dict):
+
+    """
+    This is a convenience class used by LanguagePack format_map calls, allowing users to
+    not include expected variables.
+
+    Note: This is typically not used by the end user.
+    """
+
+    def __missing__(self, key):
+        return None
 
 
 # ======================================================================================
@@ -6425,6 +7673,7 @@ class Column:
         default: None,
         pk: bool,
         virtual: bool = False,
+        generated: bool = False,
     ):
         self._column = {
             "name": name,
@@ -6433,6 +7682,7 @@ class Column:
             "default": default,
             "pk": pk,
             "virtual": virtual,
+            "generated": generated,
         }
 
     def __str__(self):
@@ -6482,7 +7732,14 @@ class Column:
         # Integer type casting
         elif domain in ["INT", "INTEGER", "BOOLEAN"]:
             try:
-                value = int(value)
+                if isinstance(value, int):
+                    pass
+                elif isinstance(value, ElementRow):
+                    value = int(value)
+                elif type(value) is str:
+                    value = float(value)
+                    if value == int(value):
+                        value = int(value)
             except (ValueError, TypeError):
                 value = str(value)
 
@@ -6496,8 +7753,10 @@ class Column:
         # Date casting
         elif domain == "DATE":
             try:
-                value = datetime.strptime(value, "%Y-%m-%d").date()
-            # TODO: ValueError for sqlserver returns date(): 2023-04-27 15:31:13.170000
+                if not isinstance(value, dt.date):
+                    value = dt.datetime.strptime(value, "%Y-%m-%d").date()
+            # TODO: ValueError for sqlserver returns:
+            # date(): 2023-04-27 15:31:13.170000
             except (TypeError, ValueError) as e:
                 logger.debug(
                     f"Unable to cast {value} to a datetime.date object. "
@@ -6512,7 +7771,7 @@ class Column:
             parsed = False
             for timestamp_format in timestamp_formats:
                 try:
-                    value = datetime.strptime(value, timestamp_format)
+                    value = dt.datetime.strptime(value, timestamp_format)
                     # value = dt.datetime()
                     parsed = True
                     break
@@ -6526,12 +7785,10 @@ class Column:
                 value = str(value)
 
         # other date/time casting
-        elif domain in [
-            "TIME",
-            "DATETIME",
-        ]:  # TODO: i'm sure there is a lot of work to do here
+        # TODO: i'm sure there is a lot of work to do here
+        elif domain in ["TIME", "DATETIME"]:
             try:
-                value = datetime.date(value)
+                value = dt.date(value)
             except TypeError:
                 print(
                     "Unable to case datetime/time/timestamp. Casting to string instead."
@@ -6593,10 +7850,10 @@ class ColumnInfo(List):
             "FLOAT": 0.0,
             "DECIMAL": 0.0,
             "BOOLEAN": 0,
-            "TIME": lambda x: datetime.now().strftime("%H:%M:%S"),
-            "DATE": lambda x: date.today().strftime("%Y-%m-%d"),
-            "TIMESTAMP": lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "DATETIME": lambda x: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "TIME": lambda x: dt.datetime.now().strftime("%H:%M:%S"),
+            "DATE": lambda x: dt.date.today().strftime("%Y-%m-%d"),
+            "TIMESTAMP": lambda x: dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "DATETIME": lambda x: dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         super().__init__()
 
@@ -6683,6 +7940,13 @@ class ColumnInfo(List):
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
 
+                # return PK_PLACEHOLDER if this is a fk_relationship.
+                # trick used in Combo for the pk to display placeholder
+                rels = Relationship.get_relationships(dataset.table)
+                rel = next((r for r in rels if r.fk_column == c.name), None)
+                if rel:
+                    null_default = PK_PLACEHOLDER
+
                 # skip primary keys
                 if not c.pk:
                     # put default in description_column
@@ -6702,7 +7966,8 @@ class ColumnInfo(List):
                         else:
                             default = null_default
                     # string-like, not description_column
-                    default = ""
+                    else:
+                        default = ""
             else:
                 # Load the default that was fetched from the database
                 # during ColumnInfo creation
@@ -6763,15 +8028,16 @@ class ColumnInfo(List):
         :returns: A List of column names that are virtual, or [] if none are present in
             this collections
         """
-        return [c for c in self if not c.virtual]
+        return [c.name for c in self if c.virtual]
 
     def _contains_key_value_pair(self, key, value):  # used by __contains__
         return any(key in d and d[key] == value for d in self)
 
+    # TODO: check if something looks like a statement for complex defaults?  Regex?
     @staticmethod
     def _looks_like_function(
         s: str,
-    ):  # TODO: check if something looks like a statement for complex defaults?  Regex?
+    ):
         # check if the string is empty
         if not s:
             return False
@@ -6996,7 +8262,7 @@ class SQLDriver:
     # based on specifics of the database
     # ---------------------------------------------------------------------
     # This is a generic way to estimate the next primary key to be generated.
-    # Note that this is not always a reliable way, as manual inserts which assign a
+    # This is not always a reliable way, as manual inserts which assign a
     # primary key value don't always update the sequencer for the given database.  This
     # is just a default way to "get things working", but the best bet is to override
     # this in the derived class and get the value right from the sequencer.
@@ -7120,7 +8386,7 @@ class SQLDriver:
 
                 # Children without cascade-filtering parent aren't displayed
                 if not parent_pk:
-                    parent_pk = "NULL"
+                    parent_pk = PK_PLACEHOLDER
 
                 clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
                 if where:
@@ -7160,9 +8426,7 @@ class SQLDriver:
             f' {dataset.order_clause if order_clause else ""}'
         )
 
-    def delete_record(
-        self, dataset: DataSet, cascade=True
-    ):  # TODO: get ON DELETE CASCADE from db
+    def delete_record(self, dataset: DataSet, cascade=True):
         # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
@@ -7263,9 +8527,9 @@ class SQLDriver:
         # Get variables
         table = self.quote_table(dataset.table)
         columns = [
-            self.quote_column(column["name"])
+            self.quote_column(column.name)
             for column in dataset.column_info
-            if column["name"] != dataset.pk_column
+            if column.name != dataset.pk_column and not column.generated
         ]
         columns = ", ".join(columns)
         pk_column = dataset.pk_column
@@ -7282,17 +8546,24 @@ class SQLDriver:
         # now wrap pk_column
         pk_column = self.quote_column(dataset.pk_column)
 
-        # Set description
-        description_column = self.quote_column(dataset.description_column)
-        description = f"{lang.duplicate_prepend}{dataset.get_description_for_pk(pk)}"
-        query = (
-            f"UPDATE {table} "
-            f"SET {description_column} = {self.placeholder} "
-            f"WHERE {pk_column} = {new_pk};"
-        )
-        res = self.execute(query, [description])
-        if res.attrs["exception"]:
-            return res
+        # Set description if TEXT
+        if dataset.column_info[dataset.description_column].domain in [
+            "TEXT",
+            "VARCHAR",
+            "CHAR",
+        ]:
+            description_column = self.quote_column(dataset.description_column)
+            description = (
+                f"{lang.duplicate_prepend}{dataset.get_description_for_pk(pk)}"
+            )
+            query = (
+                f"UPDATE {table} "
+                f"SET {description_column} = {self.placeholder} "
+                f"WHERE {pk_column} = {new_pk};"
+            )
+            res = self.execute(query, [description])
+            if res.attrs["exception"]:
+                return res
 
         # create list of which children we have duplicated
         child_duplicated = []
@@ -7310,9 +8581,10 @@ class SQLDriver:
 
                         # all columns except pk_column
                         columns = [
-                            self.quote_column(column["name"])
+                            self.quote_column(column.name)
                             for column in dataset.frm[r.child_table].column_info
-                            if column["name"] != dataset.frm[r.child_table].pk_column
+                            if column.name != dataset.frm[r.child_table].pk_column
+                            and not column.generated
                         ]
 
                         # replace fk_column value with pk of new parent
@@ -7372,12 +8644,8 @@ class SQLDriver:
         pk = dataset.get_current_pk()
         pk_column = dataset.pk_column
 
-        # Remove the pk column and any virtual columns
-        changed_row = {
-            self.quote_column(k): v
-            for k, v in changed_row.items()
-            if k != pk_column and k not in dataset.column_info.get_virtual_names()
-        }
+        # quote columns
+        changed_row = {self.quote_column(k): v for k, v in changed_row.items()}
 
         # Set empty fields to None
         for k, v in changed_row.items():
@@ -7543,7 +8811,7 @@ class Sqlite(SQLDriver):
 
     def column_info(self, table):
         # Return a list of column names
-        q = f"PRAGMA table_info({self.quote_table(table)})"
+        q = f"PRAGMA table_xinfo({self.quote_table(table)})"
         rows = self.execute(q, silent=True)
         names = []
         col_info = ColumnInfo(self, table)
@@ -7555,9 +8823,15 @@ class Sqlite(SQLDriver):
             notnull = row["notnull"]
             default = row["dflt_value"]
             pk = row["pk"]
+            generated = row["hidden"]
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -8586,16 +9860,16 @@ class MSAccess(SQLDriver):
                             timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
                         else:
                             timestamp_format = "%Y-%m-%dT%H:%M:%S"
-                        dt_value = datetime.strptime(timestamp_str, timestamp_format)
+                        dt_value = dt.datetime.strptime(timestamp_str, timestamp_format)
                         value = dt_value.strftime("%Y-%m-%d")
                     elif isinstance(value, jpype.JPackage("java").sql.Date):
                         date_str = value.toString()
                         date_format = "%Y-%m-%d"
-                        value = datetime.strptime(date_str, date_format).date()
+                        value = dt.datetime.strptime(date_str, date_format).date()
                     elif isinstance(value, jpype.JPackage("java").sql.Time):
                         time_str = value.toString()
                         time_format = "%H:%M:%S"
-                        value = datetime.strptime(time_str, time_format).time()
+                        value = dt.datetime.strptime(time_str, time_format).time()
                     elif value is not None:
                         value = value
                     # TODO: More conversions?
