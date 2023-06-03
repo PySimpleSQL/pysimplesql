@@ -5098,21 +5098,6 @@ This is a global keygen instance for general purpose use.
 See `KeyGen` for more info
 """
 
-# Convenience dicts for example database connection
-postgres_examples = {
-    "host": "tommy2.heliohost.org",
-    "user": "pysimplesql_user",
-    "password": "pysimplesql",
-    "database": "pysimplesql_examples",
-}
-
-mysql_examples = {
-    "host": "tommy2.heliohost.org",
-    "user": "pysimplesql_user",
-    "password": "pysimplesql",
-    "database": "pysimplesql_examples",
-}
-
 
 class LazyTable(sg.Table):
 
