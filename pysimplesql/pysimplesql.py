@@ -105,12 +105,10 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------
 # Set up options for pandas DataFrame display
 # -------------------------------------------
-pd.set_option("display.max_rows", 15)  # Show a maximum of 10 rows
-pd.set_option("display.max_columns", 10)  # Show a maximum of 5 columns
-pd.set_option("display.width", 250)  # Set the display width to 1000 characters
-pd.set_option(
-    "display.max_colwidth", 25
-)  # Set the maximum column width to 20 characters
+pd.set_option("display.max_rows", 15)  # Show a maximum of 15 rows
+pd.set_option("display.max_columns", 10)  # Show a maximum of 10 columns
+pd.set_option("display.width", 250)  # Set the display width to 250 characters
+pd.set_option("display.max_colwidth", 25)  # Set the maximum col width to 25 characters
 pd.set_option("display.precision", 2)  # Set the number of decimal places to 2
 
 # ---------------------------
@@ -8842,13 +8840,16 @@ class Sqlite(SQLDriver):
         col_info = ColumnInfo(self, table)
 
         for _, row in rows.iterrows():
+            # TODO: should we exclude hidden columns?
+            # if row["hidden"] == 1:
+            #    continue
             name = row["name"]
             names.append(name)
             domain = row["type"]
             notnull = row["notnull"]
             default = row["dflt_value"]
             pk = row["pk"]
-            generated = row["hidden"]
+            generated = row["hidden"] in [2, 3]
             col_info.append(
                 Column(
                     name=name,
@@ -9197,9 +9198,15 @@ class Mysql(SQLDriver):
             notnull = row["Null"] == "NO"
             default = row["Default"]
             pk = row["Key"] == "PRI"
+            generated = row["Extra"] in ["VIRTUAL_GENERATED", "STORED_GENERATED"]
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -9448,9 +9455,15 @@ class Postgres(SQLDriver):
                 default = default[: default.index("::")]
 
             pk = name == pk_column
+            generated = row["is_generated"] == "ALWAYS"
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -9684,6 +9697,19 @@ class Sqlserver(SQLDriver):
         for _, pk_row in pk_rows.iterrows():
             pk_columns.append(pk_row["COLUMN_NAME"])
 
+        # get the generated columns:
+        gen_query = (
+            "SELECT name "
+            "FROM sys.columns "
+            "WHERE object_id = OBJECT_ID(?) "
+            "AND is_computed = 1;"
+        )
+        generated_columns = []
+        gen_rows = self.execute(gen_query, [table], silent=True)
+        for _, row in gen_rows.iterrows():
+            generated_columns.append(row[0])
+
+        # setup all the variables to be passed to col_info
         for _, row in rows.iterrows():
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
@@ -9699,9 +9725,15 @@ class Sqlserver(SQLDriver):
             else:
                 default = None
             pk = name in pk_columns
+            generated = name in generated_columns
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
