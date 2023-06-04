@@ -617,6 +617,7 @@ class DataSet:
         self.rows: Union[pd.DataFrame, None] = None
         self.search_order: List[str] = []
         self._search_string: tk.StringVar = None
+        self._last_search: dict = {"search_string": None, "column": None, "pks": []}
         self.selector: List[str] = []
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
@@ -1423,20 +1424,15 @@ class DataSet:
         # TODO this is a bit of an ugly hack, but it works
         if search_string in self.frm.window.key_dict:
             search_string = self.frm.window[search_string].get()
-        if not search_string:
+        if not search_string or not self.row_count:
             return SEARCH_ABORTED
 
         logger.debug(
             f'Searching for a record of table {self.table} "'
             f'with search string "{search_string}"'
         )
-        # callback
-        if "before_search" in self.callbacks and not self.callbacks["before_search"](
-            self.frm, self.frm.window, self.key
-        ):
-            return SEARCH_ABORTED
+        logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
 
-        # TODO: Should this be before the before_search callback?
         # prompt_save
         if (
             not skip_prompt_save
@@ -1445,8 +1441,25 @@ class DataSet:
         ):
             return None
 
-        if self.row_count:
-            logger.debug(f"DEBUG: {self.search_order} {self.rows.columns[0]}")
+        # callback
+        if "before_search" in self.callbacks and not self.callbacks["before_search"](
+            self.frm, self.frm.window, self.key
+        ):
+            return SEARCH_ABORTED
+
+        # Reset _last_search if search_string is different
+        if search_string != self._last_search.get("search_string"):
+            self._last_search = {
+                "search_string": search_string,
+                "column": None,
+                "pks": [],
+            }
+
+        # Reorder search_columns to start with the column in _last_search
+        search_columns = self.search_order.copy()
+        if self._last_search["column"] in search_columns:
+            idx = search_columns.index(self._last_search["column"])
+            search_columns = search_columns[idx:] + search_columns[:idx]
 
         # reorder rows to be idx + 1, and wrap around back to the beginning
         rows = self.rows.copy().reset_index()
@@ -1454,67 +1467,66 @@ class DataSet:
         rows = pd.concat([rows.loc[idx:], rows.loc[:idx]])
 
         # fill in descriptions for cols in search_order
-        rels = Relationship.get_relationships(self.table)
-        for col in self.search_order:
-            for rel in rels:
-                if col == rel.fk_column:
-                    parent_df = self.frm[rel.parent_table].rows
-                    parent_pk_column = self.frm[rel.parent_table].pk_column
+        rows = self.map_fk_descriptions(rows, self.search_order)
 
-                    # get this before map(), to revert below
-                    parent_current_row = self.frm[
-                        rel.parent_table
-                    ].get_original_current_row()
-                    condition = rows[col] == parent_current_row[parent_pk_column]
+        pk = None
+        for column in search_columns:
+            # update _last_search column
+            self._last_search["column"] = column
 
-                    description_column = self.frm[rel.parent_table].description_column
-                    mapping_dict = parent_df.set_index(parent_pk_column)[
-                        description_column
-                    ].to_dict()
-                    rows[col] = rows[col].map(mapping_dict)
-
-                    # revert any unsaved changes
-                    rows.loc[condition, col] = parent_current_row[description_column]
-                    continue
-
-        for column in self.search_order:
             # search through processed rows, looking for search_string
             result = rows[
                 rows[column].astype(str).str.contains(str(search_string), case=False)
             ]
             if not result.empty:
+                # save index for later, if callback returns False
                 old_index = self.current_index
+
                 # grab the first result
                 pk = result.iloc[0][self.pk_column]
+
+                # search next column if the same pk is found again
+                if pk in self._last_search["pks"]:
+                    continue
+
+                # if pk is same as one we are on, we can just updated_elements
                 if pk == self[self.pk_column]:
                     if update_elements:
                         self.frm.update_elements(self.key)
                     if requery_dependents:
                         self.requery_dependents()
                     return SEARCH_RETURNED
-                self.set_by_pk(
-                    pk=pk,
-                    update_elements=update_elements,
-                    requery_dependents=requery_dependents,
-                    skip_prompt_save=True,
-                )
 
-                # callback
-                if "after_search" in self.callbacks and not self.callbacks[
-                    "after_search"
-                ](self.frm, self.frm.window, self.key):
-                    self.current_index = old_index
-                    self.frm.update_elements(self.key)
-                    self.requery_dependents()
-                    return SEARCH_ABORTED
+                # otherwise, this is a new pk
+                break
 
-                # callback
-                if "record_changed" in self.callbacks:
-                    self.callbacks["record_changed"](
-                        self.frm, self.frm.window, self.key
-                    )
+        if pk:
+            # Update _last_search with the pk
+            self._last_search["pks"].append(pk)
 
-                return SEARCH_RETURNED
+            # jump to the pk
+            self.set_by_pk(
+                pk=pk,
+                update_elements=update_elements,
+                requery_dependents=requery_dependents,
+                skip_prompt_save=True,
+            )
+
+            # callback
+            if "after_search" in self.callbacks and not self.callbacks["after_search"](
+                self.frm, self.frm.window, self.key
+            ):
+                self.current_index = old_index
+                self.frm.update_elements(self.key)
+                self.requery_dependents()
+                return SEARCH_ABORTED
+
+            # record changed callback
+            if "record_changed" in self.callbacks:
+                self.callbacks["record_changed"](self.frm, self.frm.window, self.key)
+            return SEARCH_RETURNED
+
+        # didn't find anything
         self.frm.popup.ok(
             lang.dataset_search_failed_title,
             lang.dataset_search_failed.format_map(
@@ -1522,8 +1534,6 @@ class DataSet:
             ),
         )
         return SEARCH_FAILED
-        # If we have made it here, then it was not found!
-        # TODO: Play sound?
 
     def set_by_index(
         self,
@@ -2481,31 +2491,7 @@ class DataSet:
             rows["marker"] = " "
 
         # get fk descriptions
-        rels = Relationship.get_relationships(self.table)
-        for col in columns:
-            for rel in rels:
-                if col == rel.fk_column:
-                    parent_df = self.frm[rel.parent_table].rows
-                    parent_pk_column = self.frm[rel.parent_table].pk_column
-
-                    # get this before map(), to revert below
-                    parent_current_row = self.frm[
-                        rel.parent_table
-                    ].get_original_current_row()
-                    condition = rows[col] == parent_current_row[parent_pk_column]
-
-                    # map descriptions to fk column
-                    description_column = self.frm[rel.parent_table].description_column
-                    mapping_dict = parent_df.set_index(parent_pk_column)[
-                        description_column
-                    ].to_dict()
-                    rows[col] = rows[col].map(mapping_dict)
-
-                    # revert any unsaved changes for the single row
-                    rows.loc[condition, col] = parent_current_row[description_column]
-
-                    # we only want transform col once
-                    break
+        rows = self.map_fk_descriptions(rows, columns)
 
         # filter rows to only contain search, or virtual/unsaved row
         if apply_search_filter and self.search_string not in ["", None]:
@@ -2624,6 +2610,51 @@ class DataSet:
             if column == rel.fk_column:
                 return rel.parent_table
         return self.table  # None could be found, return our own table instead
+
+    def map_fk_descriptions(self, rows: pd.DataFrame, columns: list[str] = None):
+        """
+        Maps foreign key descriptions to the specified columns in the given DataFrame.
+        If passing in a DataSet rows, please pass in a copy: frm[data_key].rows.copy()
+
+        :param rows: The DataFrame containing the data to be processed.
+        :param columns: (Optional) The list of column names to map foreign key
+            descriptions to. If none are provided, all columns of the DataFrame will be
+            searched for foreign-key relationships.
+
+        :returns: The processed DataFrame with foreign key descriptions mapped to the
+            specified columns.
+
+        """
+        if columns is None:
+            columns = rows.columns
+
+        # get fk descriptions
+        rels = Relationship.get_relationships(self.table)
+        for col in columns:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
+
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
+
+                    # map descriptions to fk column
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
+
+                    # revert any unsaved changes for the single row
+                    rows.loc[condition, col] = parent_current_row[description_column]
+
+                    # we only want transform col once
+                    break
+        return rows
 
     def quick_editor(
         self,
@@ -2801,27 +2832,37 @@ class DataSet:
         # description column of the foreign table that the foreign key references
         tmp_column = None
         rels = Relationship.get_relationships(table)
+
+        transformed = False
         for rel in rels:
             if column == rel.fk_column:
-                # Create a mapping dictionary from the parent DataFrame
-                df_parent = self.frm[rel.parent_table].rows
-                desc_parent = self.frm[rel.parent_table].description_column
-                mapping = dict(zip(df_parent[rel.pk_column], df_parent[desc_parent]))
+                # Copy the specified column and apply mapping to obtain fk descriptions
+                column_copy = pd.DataFrame(self.rows[column].copy())
+                column_copy = self.map_fk_descriptions(column_copy, [column])[column]
 
-                # Create a temporary column in self.rows for the fk data
-                tmp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
-                self.rows[tmp_column] = self.rows[rel.fk_column].map(mapping)
-                column = tmp_column
+                # Assign the transformed column to the temporary column
+                temp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
+                self.rows[temp_column] = column_copy
+
+                # Use the temporary column as the new sorting column
+                column = temp_column
+
+                transformed = True
                 break
 
         # handling datetime
         # TODO: user-defined format
-        if self.column_info[column] and self.column_info[column].domain in [
-            "DATE",
-            "DATETIME",
-            "TIME",
-            "TIMESTAMP",
-        ]:
+        if (
+            not transformed
+            and self.column_info[column]
+            and self.column_info[column].domain
+            in [
+                "DATE",
+                "DATETIME",
+                "TIME",
+                "TIMESTAMP",
+            ]
+        ):
             tmp_column = f"temp_{column}"
             self.rows[tmp_column] = pd.to_datetime(self.rows[column])
             column = tmp_column
