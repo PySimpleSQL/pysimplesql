@@ -1447,8 +1447,8 @@ class DataSet:
         ):
             return SEARCH_ABORTED
 
+        # Reset _last_search if search_string is different
         if search_string != self._last_search.get("search_string"):
-            # Reset _last_search if search_string is different
             self._last_search = {
                 "search_string": search_string,
                 "column": None,
@@ -1467,28 +1467,7 @@ class DataSet:
         rows = pd.concat([rows.loc[idx:], rows.loc[:idx]])
 
         # fill in descriptions for cols in search_order
-        rels = Relationship.get_relationships(self.table)
-        for col in self.search_order:
-            for rel in rels:
-                if col == rel.fk_column:
-                    parent_df = self.frm[rel.parent_table].rows
-                    parent_pk_column = self.frm[rel.parent_table].pk_column
-
-                    # get this before map(), to revert below
-                    parent_current_row = self.frm[
-                        rel.parent_table
-                    ].get_original_current_row()
-                    condition = rows[col] == parent_current_row[parent_pk_column]
-
-                    description_column = self.frm[rel.parent_table].description_column
-                    mapping_dict = parent_df.set_index(parent_pk_column)[
-                        description_column
-                    ].to_dict()
-                    rows[col] = rows[col].map(mapping_dict)
-
-                    # revert any unsaved changes
-                    rows.loc[condition, col] = parent_current_row[description_column]
-                    continue
+        rows = self.map_fk_descriptions(rows, self.search_order)
 
         pk = None
         for column in search_columns:
@@ -2512,31 +2491,7 @@ class DataSet:
             rows["marker"] = " "
 
         # get fk descriptions
-        rels = Relationship.get_relationships(self.table)
-        for col in columns:
-            for rel in rels:
-                if col == rel.fk_column:
-                    parent_df = self.frm[rel.parent_table].rows
-                    parent_pk_column = self.frm[rel.parent_table].pk_column
-
-                    # get this before map(), to revert below
-                    parent_current_row = self.frm[
-                        rel.parent_table
-                    ].get_original_current_row()
-                    condition = rows[col] == parent_current_row[parent_pk_column]
-
-                    # map descriptions to fk column
-                    description_column = self.frm[rel.parent_table].description_column
-                    mapping_dict = parent_df.set_index(parent_pk_column)[
-                        description_column
-                    ].to_dict()
-                    rows[col] = rows[col].map(mapping_dict)
-
-                    # revert any unsaved changes for the single row
-                    rows.loc[condition, col] = parent_current_row[description_column]
-
-                    # we only want transform col once
-                    break
+        rows = self.map_fk_descriptions(rows, columns)
 
         # filter rows to only contain search, or virtual/unsaved row
         if apply_search_filter and self.search_string not in ["", None]:
@@ -2655,6 +2610,51 @@ class DataSet:
             if column == rel.fk_column:
                 return rel.parent_table
         return self.table  # None could be found, return our own table instead
+
+    def map_fk_descriptions(self, rows: pd.DataFrame, columns: list[str] = None):
+        """
+        Maps foreign key descriptions to the specified columns in the given DataFrame.
+        If passing in a DataSet rows, please pass in a copy: frm[data_key].rows.copy()
+
+        :param rows: The DataFrame containing the data to be processed.
+        :param columns: (Optional) The list of column names to map foreign key
+            descriptions to. If none are provided, all columns of the DataFrame will be
+            searched for foreign-key relationships.
+
+        :returns: The processed DataFrame with foreign key descriptions mapped to the
+            specified columns.
+
+        """
+        if columns is None:
+            columns = rows.columns
+
+        # get fk descriptions
+        rels = Relationship.get_relationships(self.table)
+        for col in columns:
+            for rel in rels:
+                if col == rel.fk_column:
+                    parent_df = self.frm[rel.parent_table].rows
+                    parent_pk_column = self.frm[rel.parent_table].pk_column
+
+                    # get this before map(), to revert below
+                    parent_current_row = self.frm[
+                        rel.parent_table
+                    ].get_original_current_row()
+                    condition = rows[col] == parent_current_row[parent_pk_column]
+
+                    # map descriptions to fk column
+                    description_column = self.frm[rel.parent_table].description_column
+                    mapping_dict = parent_df.set_index(parent_pk_column)[
+                        description_column
+                    ].to_dict()
+                    rows[col] = rows[col].map(mapping_dict)
+
+                    # revert any unsaved changes for the single row
+                    rows.loc[condition, col] = parent_current_row[description_column]
+
+                    # we only want transform col once
+                    break
+        return rows
 
     def quick_editor(
         self,
