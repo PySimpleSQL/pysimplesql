@@ -2832,27 +2832,37 @@ class DataSet:
         # description column of the foreign table that the foreign key references
         tmp_column = None
         rels = Relationship.get_relationships(table)
+
+        transformed = False
         for rel in rels:
             if column == rel.fk_column:
-                # Create a mapping dictionary from the parent DataFrame
-                df_parent = self.frm[rel.parent_table].rows
-                desc_parent = self.frm[rel.parent_table].description_column
-                mapping = dict(zip(df_parent[rel.pk_column], df_parent[desc_parent]))
+                # Copy the specified column and apply mapping to obtain fk descriptions
+                column_copy = pd.DataFrame(self.rows[column].copy())
+                column_copy = self.map_fk_descriptions(column_copy, [column])[column]
 
-                # Create a temporary column in self.rows for the fk data
-                tmp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
-                self.rows[tmp_column] = self.rows[rel.fk_column].map(mapping)
-                column = tmp_column
+                # Assign the transformed column to the temporary column
+                temp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
+                self.rows[temp_column] = column_copy
+
+                # Use the temporary column as the new sorting column
+                column = temp_column
+
+                transformed = True
                 break
 
         # handling datetime
         # TODO: user-defined format
-        if self.column_info[column] and self.column_info[column].domain in [
-            "DATE",
-            "DATETIME",
-            "TIME",
-            "TIMESTAMP",
-        ]:
+        if (
+            not transformed
+            and self.column_info[column]
+            and self.column_info[column].domain
+            in [
+                "DATE",
+                "DATETIME",
+                "TIME",
+                "TIMESTAMP",
+            ]
+        ):
             tmp_column = f"temp_{column}"
             self.rows[tmp_column] = pd.to_datetime(self.rows[column])
             column = tmp_column
