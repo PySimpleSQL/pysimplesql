@@ -5143,16 +5143,15 @@ class LazyTable(sg.Table):
     ):
         # check if we shouldn't be doing this update
         # PySimpleGUI version support (PyPi version doesn't support quick_check)
-        if sg.__version__.split(".")[0] == "5":
-            quick_check = "quick_check=True"
-        elif sg.__version__.split(".")[0] == "4":
-            if sg.__version__.split(".")[1] == "61":
-                quick_check = "quick_check=True"
+        if sg.__version__.split(".")[0] == "5" or (
+            sg.__version__.split(".")[0] == "4" and sg.__version__.split(".")[1] == "61"
+        ):
+            kwargs = {"quick_check": True}
         else:
-            quick_check = ""
+            kwargs = {}
 
         if not self._widget_was_created() or (
-            self.ParentForm is not None and self.ParentForm.is_closed(quick_check)
+            self.ParentForm is not None and self.ParentForm.is_closed(**kwargs)
         ):
             return
 
