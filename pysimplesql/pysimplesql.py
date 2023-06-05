@@ -9947,7 +9947,12 @@ class MSAccess(SQLDriver):
 
     def column_info(self, table):
         meta_data = self.con.getMetaData()
+
+        # get column info
         rs = meta_data.getColumns(None, None, table, None)
+
+        # get list of calculated columns
+        calculated_columns = self._get_calculated_columns(table)
 
         col_info = ColumnInfo(self, table)
         pk_columns = [self.pk_column(table)]
@@ -9958,10 +9963,16 @@ class MSAccess(SQLDriver):
             notnull = str(rs.getString("IS_NULLABLE")) == "NO"
             default = str(rs.getString("COLUMN_DEF"))
             pk = name in pk_columns
+            generated = name in calculated_columns
 
             col_info.append(
                 Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -10047,6 +10058,27 @@ class MSAccess(SQLDriver):
         cols = cols[:-2]
 
         return cols
+
+    def _get_calculated_columns(self, table):
+        calculated_columns = []
+
+        try:
+            access_db = jpype.JClass(
+                "com.healthmarketscience.jackcess.DatabaseBuilder"
+            ).open(jpype.JClass("java.io.File")(self.database_file))
+            table_obj = access_db.getTable(table)
+
+            for column in table_obj.getColumns():
+                expression = column.getProperties().get("Expression")
+
+                if expression is not None and expression.getValue() is not None:
+                    calculated_columns.append(column.getName())
+
+            access_db.close()
+        except Exception as e:  # noqa BLE001
+            print("Error accessing calculated columns:", e)
+
+        return calculated_columns
 
     def _insert_duplicate_record(
         self, table: str, columns: str, pk_column: str, pk: int
