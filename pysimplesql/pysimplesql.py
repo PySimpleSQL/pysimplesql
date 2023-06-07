@@ -8267,7 +8267,7 @@ class SQLDriver:
         """
         raise NotImplementedError
 
-    def execute_script(self, script: str, silent: bool = False):
+    def execute_script(self, script: str, encoding: str):
         raise NotImplementedError
 
     def get_tables(self):
@@ -8816,6 +8816,11 @@ class Sqlite(SQLDriver):
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
 
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            self.con.executescript(file.read())
+
     def close(self):
         # Only do cleanup if this is not an imported database
         if not self.imported_database:
@@ -8893,11 +8898,6 @@ class Sqlite(SQLDriver):
                 dic["to_column"] = row["to"]
                 relationships.append(dic)
         return relationships
-
-    def execute_script(self, script, encoding):
-        with open(script, "r", encoding=encoding) as file:
-            logger.info(f"Loading script {script} into database.")
-            self.con.executescript(file.read())
 
 
 # --------------------------------------------------------------------------------------
@@ -9081,7 +9081,14 @@ class Mysql(SQLDriver):
     """
 
     def __init__(
-        self, host, user, password, database, sql_script=None, sql_commands=None
+        self,
+        host,
+        user,
+        password,
+        database,
+        sql_script=None,
+        sql_script_encoding: str = "utf-8",
+        sql_commands=None,
     ):
         super().__init__(name="MySQL", requires=["mysql-connector-python"])
 
@@ -9099,12 +9106,14 @@ class Mysql(SQLDriver):
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
             logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(sql_commands, multi=True)
             self.con.commit()
+            cursor.close()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
+            self.execute_script(sql_script, sql_script_encoding)
 
         self.win_pb.close()
 
@@ -9169,6 +9178,14 @@ class Mysql(SQLDriver):
         return Result.set(
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
+
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            cursor = self.con.cursor()
+            cursor.execute(file.read(), multi=True)
+        self.con.commit()
+        cursor.close()
 
     def get_tables(self):
         query = (
@@ -9240,11 +9257,6 @@ class Mysql(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def execute_script(self, script):
-        with open(script, "r"):
-            logger.info(f"Loading script {script} into database.")
-            # TODO
-
     # Not required for SQLDriver
     def constraint(self, constraint_name):
         query = (
@@ -9296,6 +9308,7 @@ class Postgres(SQLDriver):
         password,
         database,
         sql_script=None,
+        sql_script_encoding: str = "utf-8",
         sql_commands=None,
         sync_sequences=False,
     ):
@@ -9350,12 +9363,14 @@ class Postgres(SQLDriver):
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
             logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(sql_commands)
             self.con.commit()
+            cursor.close()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
+            self.execute_script(sql_script, sql_script_encoding)
         self.win_pb.close()
 
     def import_required_modules(self):
@@ -9421,6 +9436,14 @@ class Postgres(SQLDriver):
         return Result.set(
             [dict(row) for row in rows], exception=exception, column_info=column_info
         )
+
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            cursor = self.con.cursor()
+            cursor.execute(file.read())
+        self.con.commit()
+        cursor.close()
 
     def get_tables(self):
         query = (
@@ -9550,9 +9573,6 @@ class Postgres(SQLDriver):
         result.attrs["lastid"] = pk
         return result
 
-    def execute_script(self, script):
-        pass
-
 
 # --------------------------------------------------------------------------------------
 # MS SQLSERVER DRIVER
@@ -9563,7 +9583,14 @@ class Sqlserver(SQLDriver):
     """
 
     def __init__(
-        self, host, user, password, database, sql_script=None, sql_commands=None
+        self,
+        host,
+        user,
+        password,
+        database,
+        sql_script=None,
+        sql_script_encoding: str = "utf-8",
+        sql_commands=None,
     ):
         super().__init__(
             name="Sqlserver", requires=["pyodbc"], table_quote="[]", placeholder="?"
@@ -9582,13 +9609,14 @@ class Sqlserver(SQLDriver):
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
             logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(sql_commands)
             self.con.commit()
+            cursor.close()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
-
+            self.execute_script(sql_script, sql_script_encoding)
         self.win_pb.close()
 
     def import_required_modules(self):
@@ -9659,6 +9687,14 @@ class Sqlserver(SQLDriver):
             exception,
             column_info,
         )
+
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            cursor = self.con.cursor()
+            cursor.execute(file.read())
+        self.con.commit()
+        cursor.close()
 
     def get_tables(self):
         query = (
