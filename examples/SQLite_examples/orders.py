@@ -37,8 +37,6 @@ ss.themepack(custom)
 
 # SQL Statement
 # ======================================================================================
-# While this example uses triggers to calculate prices and sub/totals, they are not
-# required for pysimplesql to operate. See simpler examples, like journal.
 
 sql = """
 CREATE TABLE IF NOT EXISTS Customers (
@@ -80,75 +78,6 @@ CREATE TABLE IF NOT EXISTS OrderDetails (
 
 -- Create a compound index on OrderID and ProductID columns in OrderDetails table
 CREATE INDEX idx_orderdetails_orderid_productid ON OrderDetails (OrderID, ProductID);
-
--- Trigger to set the price value for a new OrderDetail
-CREATE TRIGGER IF NOT EXISTS set_price
-AFTER INSERT ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE OrderDetails
-    SET Price = Products.Price
-    FROM Products
-    WHERE Products.ProductID = NEW.ProductID
-    AND OrderDetails.OrderDetailID = NEW.OrderDetailID;
-END;
-
--- Trigger to update the price value for an existing OrderDetail
-CREATE TRIGGER IF NOT EXISTS set_price_update
-AFTER UPDATE ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE OrderDetails
-    SET Price = Products.Price
-    FROM Products
-    WHERE Products.ProductID = NEW.ProductID
-    AND OrderDetails.OrderDetailID = NEW.OrderDetailID;
-END;
-
--- Trigger to set the total value for a new OrderDetail
-CREATE TRIGGER IF NOT EXISTS set_total
-AFTER INSERT ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE Orders
-    SET Total = (
-        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderID = NEW.OrderID
-    )
-    WHERE OrderID = NEW.OrderID;
-END;
-
--- Trigger to update the total value for an existing OrderDetail
-CREATE TRIGGER IF NOT EXISTS update_total
-AFTER UPDATE ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE Orders
-    SET Total = (
-        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderID = NEW.OrderID
-    )
-    WHERE OrderID = NEW.OrderID;
-END;
-
--- Trigger to update the total value for an existing OrderDetail
-CREATE TRIGGER IF NOT EXISTS delete_order_detail
-AFTER DELETE ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE Orders
-    SET Total = (
-        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderID = OLD.OrderID
-    )
-    WHERE OrderID = OLD.OrderID;
-END;
-
-CREATE TRIGGER IF NOT EXISTS update_product_price
-AFTER UPDATE ON Products
-FOR EACH ROW
-BEGIN
-    UPDATE OrderDetails
-    SET Price = NEW.Price
-    WHERE ProductID = NEW.ProductID;
-END;
 
 INSERT INTO Customers (Name, Email) VALUES
     ('Alice Rodriguez', 'rodriguez.alice@example.com'),
@@ -215,6 +144,18 @@ FROM Orders O
 JOIN (SELECT ProductID FROM Products ORDER BY RANDOM() LIMIT 25) P
 ON 1=1
 ORDER BY 1;
+
+-- Set Price in OrderDetails from Product Price
+UPDATE OrderDetails
+    SET Price = (
+        SELECT Products.Price FROM Products WHERE Products.ProductID = OrderDetails.ProductID
+    );
+
+-- Calculate Total for all Order Totals
+UPDATE Orders
+    SET Total = (
+        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderDetails.OrderID = Orders.OrderID
+    );
 """
 
 # -------------------------
@@ -341,6 +282,32 @@ frm["Orders"].requery()
 # Set the column order for search operations.
 frm["Orders"].set_search_order(["CustomerID", "OrderID"])
 
+
+# Application-side code to update Orders `Total`
+# when saving/deleting OrderDetails line item
+# ----------------------------------------------
+def update_orders(frm_reference, window, data_key):
+    if data_key == "OrderDetails":
+        order_id = frm["OrderDetails"]["OrderID"]
+        driver.execute(
+            f"UPDATE Orders "
+            f"SET Total = ("
+            f"    SELECT SUM(SubTotal)"
+            f"    FROM OrderDetails"
+            f"    WHERE OrderDetails.OrderID = {order_id}) "
+            f"WHERE Orders.OrderID = {order_id};"
+        )
+        frm["Orders"].requery(select_first=False)
+        frm.update_selectors("Orders")
+        frm["OrderDetails"].requery(select_first=False)
+        frm.update_selectors("OrdersDetails")
+    return True
+
+
+# set this to be called after a save or delete of OrderDetails
+frm["OrderDetails"].set_callback("after_save", update_orders)
+frm["OrderDetails"].set_callback("after_delete", update_orders)
+
 # ---------
 # MAIN LOOP
 # ---------
@@ -362,21 +329,23 @@ while True:
     ):
         dataset = frm["OrderDetails"]
         current_row = dataset.get_current_row()
-        # after a product and quantity is entered, save and requery
+        # after a product and quantity is entered, grab price & save
         if (
             dataset.row_count
             and current_row["ProductID"] not in [None, ss.PK_PLACEHOLDER]
             and current_row["Quantity"]
         ):
-            pk_is_virtual = dataset.pk_is_virtual()
+            # get ProductID
+            product_id = current_row["ProductID"]
+            # get Products rows df reference
+            product_df = frm["Products"].rows
+            # set current rows 'Price' to match Price as matching ProductID
+            dataset["Price"] = product_df.loc[
+                product_df["ProductID"] == product_id, "Price"
+            ].values[0]
+            # save the record
             dataset.save_record(display_message=False)
-            frm["Orders"].requery(select_first=False)
-            frm.update_selectors("Orders")
-            # will need to requery if updating, rather than inserting a new record
-            if not pk_is_virtual:
-                pk = current_row[dataset.pk_column]
-                dataset.requery(select_first=False)
-                dataset.set_by_pk(pk, skip_prompt_save=True)
+
     # ----------------------------------------------------
 
     # Display the quick_editor for products and customers
