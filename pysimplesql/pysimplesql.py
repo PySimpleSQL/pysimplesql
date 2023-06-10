@@ -740,7 +740,7 @@ class DataSet:
         self.search_order = order
 
     def set_callback(
-        self, callback: str, fctn: Callable[[Form, sg.Window], bool]
+        self, callback: str, fctn: Callable[[Form, sg.Window, DataSet.key], bool]
     ) -> None:
         """
         Set DataSet callbacks. A runtime error will be thrown if the callback is not
@@ -771,6 +771,7 @@ class DataSet:
             after_search  called after a search has been performed.  The record change
                 will undo if the callback returns False
             record_changed called after a record has changed (previous,next, etc.)
+            current_row_updated called after a table cell-edit, or live-update.
 
         :param callback: The name of the callback, from the list above
         :param fctn: The function to call. Note, the function must take at least two
@@ -801,7 +802,7 @@ class DataSet:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
-    def _invoke_callback(callback, *args):
+    def _invoke_callback(self, callback, *args):
         # Get the callback's signature
         signature = inspect.signature(callback)
 
