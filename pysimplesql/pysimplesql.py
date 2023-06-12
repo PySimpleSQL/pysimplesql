@@ -9773,6 +9773,23 @@ class Sqlserver(SQLDriver):
         res.attrs["lastrowid"] = res.iloc[0][pk_column].tolist()
         return res
 
+    def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
+        # Remove the pk column
+        row = {self.quote_column(k): v for k, v in row.items() if k != pk_column}
+
+        # quote appropriately
+        table = self.quote_table(table)
+
+        # Remove the primary key column to ensure autoincrement is used!
+        query = (
+            f"INSERT INTO {table} ({', '.join(key for key in row)}) "
+            f"OUTPUT inserted.{self.quote_column(pk_column)} "
+            f"VALUES "
+            f"({','.join(self.placeholder for _ in range(len(row)))}); "
+        )
+        values = [value for key, value in row.items()]
+        return self.execute(query, tuple(values))
+
 
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
