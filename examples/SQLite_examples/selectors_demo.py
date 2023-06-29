@@ -35,7 +35,7 @@ Try each selector on this frm and watch it all just work!
 """
 
 # PySimpleGUI™ layout code
-headings = ss.TableHeadings(sort_enable=True)
+headings = ss.TableHeadings()
 headings.add_column('name', 'Name', width=10)
 headings.add_column('example', 'Example', width=40)
 headings.add_column('primary_color', 'Primary Color?', width=15)

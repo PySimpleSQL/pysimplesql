@@ -32,7 +32,7 @@ VALUES (NULL,True,False,NULL,1,0,NULL,"True","False");
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Create a table heading object
-headings = ss.TableHeadings(sort_enable=True, edit_enable=True)
+headings = ss.TableHeadings(allow_cell_edits=True)
 
 # Add columns to the table heading
 headings.add_column('id', 'id', width=5)

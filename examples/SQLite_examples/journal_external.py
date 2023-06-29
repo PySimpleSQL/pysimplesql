@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)  # <=== set the logging level here (NOTS
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-headings = ss.TableHeadings(sort_enable=True)
+headings = ss.TableHeadings()
 headings.add_column("title", "Title", width=40)
 headings.add_column("entry_date", "Date", width=10)
 headings.add_column("mood_id", "Mood", width=20)

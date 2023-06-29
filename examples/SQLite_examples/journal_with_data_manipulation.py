@@ -37,7 +37,7 @@ INSERT INTO Journal (id,mood_id,title,entry)VALUES (2,4,"My 2nd entry!","I feel 
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
-headings = ss.TableHeadings(sort_enable=True)
+headings = ss.TableHeadings()
 headings.add_column('title', 'Title', width=40)
 headings.add_column('entry_date', 'Date', width=10)
 headings.add_column('mood_id', 'Mood', width=20)

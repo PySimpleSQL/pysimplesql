@@ -51,7 +51,7 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # Define the columns for the table selector using the TableHeading convenience class.
 headings = ss.TableHeadings(
     sort_enable=True, # Click a header to sort
-    edit_enable=True # Double-click a cell to make edits
+    allow_cell_edits=True # Double-click a cell to make edits
     )
 headings.add_column('title', 'Title', width=40)
 headings.add_column('entry_date', 'Date', width=10)
