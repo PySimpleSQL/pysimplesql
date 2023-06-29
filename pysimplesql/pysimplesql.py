@@ -5484,6 +5484,20 @@ class LazyTable(sg.Table):
         super().__setattr__(name, value)
 
 
+def _shake_animation(widget, dx=5, delay=50, ignore_themepack=False):
+    if ignore_themepack or themepack.shake_gui_widget_on_invalid_input:
+        original_options = widget.pack_info()
+        original_padx = original_options.pop("padx", 0)
+
+        for _ in range(themepack.shake_animation_loops):
+            widget.pack_configure(padx=original_padx + dx)
+            widget.update()
+            widget.after(delay)
+            widget.pack_configure(padx=original_padx)
+            widget.update()
+            widget.after(delay)
+
+
 class _PlaceholderText(abc.ABC):
     """
     An abstract class for PySimpleGUI text-entry elements that allows for the display of
