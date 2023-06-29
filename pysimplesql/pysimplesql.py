@@ -3217,13 +3217,13 @@ class Form:
         """
         logger.info("Binding Window to Form")
         self.window = win
-        self.popup = Popup(self.window)
+        self.popup = Popup(self)
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
         # Creating cell edit instance, even if we arn't going to use it.
         self._celledit = _CellEdit(self)
-        self.window.TKroot.bind("<Double-Button-1>", self._celledit, "+")
+        self.window.TKroot.bind("<Double-Button-1>", self._celledit)
         self._liveupdate = _LiveUpdate(self)
         if self.live_update:
             self.set_live_update(enable=True)
@@ -3504,6 +3504,18 @@ class Form:
             ElementMap(element, dataset, column, where_column, where_value)
         )
 
+    def add_info_element(self, element: Union[sg.StatusBar, sg.Text]) -> None:
+        """
+        Add an element to be updated with info messages. Must be either
+        :param element: A PySimpleGUI Element
+        :returns: None
+        """
+        if not isinstance(element, (sg.StatusBar, sg.Text)):
+            logger.debug(f"Can only add info {str(element)}")
+            return
+        logger.debug(f"Mapping element {element.key}")
+        self.popup.info_elements.append(element)
+
     def auto_map_elements(self, win: sg.Window, keys: List[str] = None) -> None:
         """
         Automatically map PySimpleGUI Elements to `DataSet` columns. A special naming
@@ -3534,7 +3546,12 @@ class Form:
                 continue
 
             # Process the filter to ensure this element should be mapped to this Form
-            if element.metadata["filter"] == self.filter:
+            if (
+                "filter" in element.metadata
+                and element.metadata["filter"] == self.filter
+            ):
+                element.metadata["Form"] = self
+            if self.filter is None and "filter" not in element.metadata:
                 element.metadata["Form"] = self
 
             # Skip this element if it's an event
@@ -3630,6 +3647,9 @@ class Form:
 
                 else:
                     logger.debug(f"Can not add selector {str(element)}")
+
+            elif element.metadata["type"] == TYPE_INFO:
+                self.add_info_element(element)
 
     def set_element_clauses(
         self, element: sg.Element, where_clause: str = None, order_clause: str = None
@@ -4675,15 +4695,17 @@ class Popup:
     Has popup functions for internal use. Stores last info popup as last_info
     """
 
-    def __init__(self, window=None):
+    def __init__(self, frm_reference: Form = None):
         """
         Create a new Popup instance
         :returns: None.
         """
-        self.last_info_msg: str = ""
+        self.frm = frm_reference
         self.popup_info = None
-        if window:
-            self.window = window
+        self.last_info_msg: str = ""
+        self.last_info_time = None
+        self.info_elements = []
+        self._timeout_id = None
 
     def ok(self, title, msg):
         """
@@ -4783,6 +4805,7 @@ class Popup:
         if auto_close_seconds is None:
             auto_close_seconds = themepack.popup_info_auto_close_seconds
         self.last_info_msg = msg
+        self.update_info_element()
         if display_message:
             msg_lines = msg.splitlines()
             layout = [[sg.Text(line, font="bold")] for line in msg_lines]
@@ -4800,7 +4823,9 @@ class Popup:
                 enable_close_attempted_event=True,
                 icon=themepack.icon,
             )
-            self.window.TKroot.after(int(auto_close_seconds * 1000), self._auto_close)
+            self.popup_info.TKroot.after(
+                int(auto_close_seconds * 1000), self._auto_close
+            )
 
     def _auto_close(self):
         """
@@ -4809,6 +4834,54 @@ class Popup:
         if self.popup_info:
             self.popup_info.close()
             self.popup_info = None
+
+    def update_info_element(
+        self,
+        message: str = None,
+        auto_erase_seconds: int = None,
+        timeout=False,
+        erase: bool = False,
+    ) -> None:
+        """
+        Update any mapped info elements:
+
+        :param message: Text message to update info elements with
+        :param auto_erase_seconds: The number of seconds before automatically
+           erasing the information element. If None, the default value from themepack
+           will be used.
+        :param timeout: A boolean flag indicating whether to erase the information
+            element. If True, and the elapsed time since the information element was
+            last updated exceeds the auto_erase_seconds, the element will be cleared.
+        :param erase: Default False. Erase info elements
+        """
+        if auto_erase_seconds is None:
+            auto_erase_seconds = themepack.info_element_auto_erase_seconds
+
+        # set the text-string to update
+        message = message or self.last_info_msg
+        if erase:
+            message = ""
+            if self._timeout_id:
+                self.frm.window.TKroot.after_cancel(self._timeout_id)
+
+        elif timeout and self.last_info_time:
+            elapsed_sec = time() - self.last_info_time
+            if elapsed_sec >= auto_erase_seconds:
+                message = ""
+
+        # update elements
+        for element in self.info_elements:
+            element.update(message)
+
+        # record time of update, and tk.after
+        if not erase and self.frm:
+            self.last_info_time = time()
+            if self._timeout_id:
+                self.frm.window.TKroot.after_cancel(self._timeout_id)
+            self._timeout_id = self.frm.window.TKroot.after(
+                int(auto_erase_seconds * 1000),
+                lambda: self.update_info_element(timeout=True),
+            )
 
 
 class ProgressBar:
