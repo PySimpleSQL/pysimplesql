@@ -7371,7 +7371,7 @@ class _LiveUpdate:
         self.frm = frm_reference
         self.last_event_widget = None
         self.last_event_time = None
-        self.delay_seconds = 0.25
+        self.delay_seconds = themepack.live_update_typing_delay_seconds
 
     def __call__(self, event):
         # keep track of time on same widget
@@ -7509,10 +7509,12 @@ class ThemePack:
         # ----------------------------------------
         "marker_sort_asc": "▼",
         "marker_sort_desc": "▲",
-        # Info Popup defaults
+        # GUI settings
         # ----------------------------------------
-        "popup_info_auto_close_seconds": 1,
+        "popup_info_auto_close_seconds": 1.5,
         "popup_info_alpha_channel": 0.85,
+        "info_element_auto_erase_seconds": 5,
+        "live_update_typing_delay_seconds": 0.75,
         # Default sizes for elements
         # ---------------------------
         # Label Size
@@ -7534,10 +7536,13 @@ class ThemePack:
         "combobox_min_width": 80,
         "checkbox_min_width": 75,
         "datepicker_min_width": 80,
-        # Display boolean columns as checkboxes in sg.Tables
-        "display_boolean_as_checkbox": True,
+        # Display python_type `bool` columns as checkboxes in sg.Tables
+        "display_bool_as_checkbox": True,
         "checkbox_true": "☑",
         "checkbox_false": "☐",
+        # Shake the gui widget on an invalid input
+        "shake_gui_widget_on_invalid_input": False,
+        "shake_animation_loops": 3,
     }
     """
     Default Themepack.
