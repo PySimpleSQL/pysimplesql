@@ -9180,7 +9180,6 @@ class Sqlite(SQLDriver):
         rows = self.execute(q, silent=True)
         names = []
         col_info = ColumnInfo(self, table)
-
         for _, row in rows.iterrows():
             domain, domain_args = self.parse_domain(row["type"])
             col_class = self.get_column_class(domain)
@@ -9523,7 +9522,6 @@ class Mysql(SQLDriver):
                     database=self.database,
                     # connect_timeout=3,
                 )
-                return con
             except mysql.connector.Error as e:
                 print(f"Failed to connect to database ({attempt + 1}/{retries})")
                 print(e)
