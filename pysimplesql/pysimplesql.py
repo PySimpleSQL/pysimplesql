@@ -2673,6 +2673,7 @@ class DataSet:
         pk_update_funct: callable = None,
         funct_param: any = None,
         skip_prompt_save: bool = False,
+        column_info_settings: dict = None,
     ) -> None:
         """
         The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.
@@ -2685,6 +2686,8 @@ class DataSet:
             select by default when the quick editor loads.
         :param funct_param: (optional) A parameter to pass to the `pk_update_funct`
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
+        :param column_info_settings: (Optional) Set Column attributes in
+            `DataSet.column_info`, in the form of {column_name {attribute : value}}.
         :returns: None
         """
         # prompt_save
@@ -2777,6 +2780,12 @@ class DataSet:
                 quick_frm[data_key].set_by_pk(pk_update_funct())
             else:
                 quick_frm[data_key].set_by_pk(pk_update_funct(funct_param))
+
+        if column_info_settings:
+            for col, kwargs in column_info_settings.items():
+                if quick_frm[data_key].column_info[col]:
+                    for attr, value in kwargs.items():
+                        quick_frm[data_key].column_info[col][attr] = value
 
         while True:
             event, values = quick_win.read()
