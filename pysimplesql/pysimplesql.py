@@ -105,12 +105,10 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------
 # Set up options for pandas DataFrame display
 # -------------------------------------------
-pd.set_option("display.max_rows", 15)  # Show a maximum of 10 rows
-pd.set_option("display.max_columns", 10)  # Show a maximum of 5 columns
-pd.set_option("display.width", 250)  # Set the display width to 1000 characters
-pd.set_option(
-    "display.max_colwidth", 25
-)  # Set the maximum column width to 20 characters
+pd.set_option("display.max_rows", 15)  # Show a maximum of 15 rows
+pd.set_option("display.max_columns", 10)  # Show a maximum of 10 columns
+pd.set_option("display.width", 250)  # Set the display width to 250 characters
+pd.set_option("display.max_colwidth", 25)  # Set the maximum col width to 25 characters
 pd.set_option("display.precision", 2)  # Set the number of decimal places to 2
 
 # ---------------------------
