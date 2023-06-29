@@ -120,6 +120,7 @@ pd.set_option("display.precision", 2)  # Set the number of decimal places to 2
 TYPE_RECORD: int = 1
 TYPE_SELECTOR: int = 2
 TYPE_EVENT: int = 3
+TYPE_INFO: int = 4
 
 # -----------------
 # Transform actions
