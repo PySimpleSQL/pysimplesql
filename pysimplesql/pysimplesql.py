@@ -2757,6 +2757,13 @@ class DataSet:
         fields_layout.append([sg.Sizer(h_pixels=0, v_pixels=y_pad)])
         layout.append([sg.Frame("Fields", fields_layout, expand_x=True)])
         layout.append([sg.Sizer(h_pixels=0, v_pixels=10)])
+        layout.append(
+            [
+                sg.StatusBar(
+                    " " * 100, key="info:quick_editor", metadata={"type": TYPE_INFO}
+                )
+            ],
+        )
 
         quick_win = sg.Window(
             lang.quick_edit_title.format_map(LangFormat(data_key=data_key)),
