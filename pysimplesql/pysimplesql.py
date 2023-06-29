@@ -7776,6 +7776,7 @@ class Abstractions:
 # The column abstraction hides the complexity of dealing with SQL columns, getting their
 # names, default values, data types, primary key status and notnull status
 # --------------------------------------------------------------------------------------
+@dataclass(order=True)
 class Column:
 
     """
@@ -7791,54 +7792,27 @@ class Column:
         :caption: Example code
     """
 
-    def __init__(
-        self,
-        name: str,
-        domain: str,
-        notnull: bool,
-        default: None,
-        pk: bool,
-        virtual: bool = False,
-        generated: bool = False,
-    ):
-        self._column = {
-            "name": name,
-            "domain": domain,
-            "notnull": notnull,
-            "default": default,
-            "pk": pk,
-            "virtual": virtual,
-            "generated": generated,
-        }
+    name: str
+    domain: str
+    notnull: bool
+    default: None
+    pk: bool
+    virtual: bool = False
+    generated: bool = False
+    python_type: Type[object] = Any
+    custom_cast_fn: callable = None
+    custom_validate_fn: callable = None
 
-    def __str__(self):
-        return f"Column: {self._column}"
-
-    def __repr__(self):
-        return f"Column: {self._column}"
-
-    def __getitem__(self, item):
-        return self._column[item]
+    def __getitem__(self, key):
+        return self.__dict__[key]
 
     def __setitem__(self, key, value):
-        self._column[key] = value
-
-    def __lt__(self, other, key):  # noqa PLE0302
-        return self._column[key] < other._column[key]
+        self.__dict__[key] = value
 
     def __contains__(self, item):
-        return item in self._column
+        return item in self.__dict__
 
-    def __getattr__(self, key):
-        return self._column[key]
-
-    def __setattr__(self, key, value):
-        if key == "_column":
-            super().__setattr__(key, value)
-        else:
-            self._column[key] = value
-
-    def cast(self, value: any) -> any:
+    def cast(self, value: Any) -> Any:
         """
         Cast a value to the appropriate data type as defined by the column info for the
         column. This can be useful for comparing values between the database and the
@@ -7847,80 +7821,297 @@ class Column:
         :param value: The value you would like to cast
         :returns: The value, cast to a type as defined by the domain
         """
-        # convert the data into the correct data type using the domain in ColumnInfo
-        domain = self.domain
-
-        # String type casting
-        if domain in ["TEXT", "VARCHAR", "CHAR"]:
-            # convert to str
-            value = str(value)
-
-        # Integer type casting
-        elif domain in ["INT", "INTEGER", "BOOLEAN"]:
+        if self.custom_cast_fn:
             try:
-                if isinstance(value, int):
-                    pass
-                elif isinstance(value, ElementRow):
-                    value = int(value)
-                elif type(value) is str:
-                    value = float(value)
-                    if value == int(value):
-                        value = int(value)
-            except (ValueError, TypeError):
-                value = str(value)
+                return self.custom_cast_fn(value)
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"Error running custom_cast_fn, {e}")
+        return str(value)
 
-        # float type casting
-        elif domain in ["REAL", "DOUBLE", "DECIMAL", "FLOAT"]:
+    def validate(self, value: Any) -> bool:
+        value = self.cast(value)
+
+        if self.notnull and value in EMPTY:
+            return ValidateResponse(ValidateRule.REQUIRED, value, self.notnull)
+
+        if value in EMPTY:
+            return ValidateResponse()
+
+        if self.custom_validate_fn:
             try:
-                value = float(value)
-            except ValueError:
-                value = str(value)
+                response = self.custom_validate_fn(value)
+                if response.exception:
+                    return response
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"Error running custom_validate_fn, {e}")
 
-        # Date casting
-        elif domain == "DATE":
-            try:
-                if not isinstance(value, dt.date):
-                    value = dt.datetime.strptime(value, "%Y-%m-%d").date()
-            # TODO: ValueError for sqlserver returns:
-            # date(): 2023-04-27 15:31:13.170000
-            except (TypeError, ValueError) as e:
-                logger.debug(
-                    f"Unable to cast {value} to a datetime.date object. "
-                    f"Casting to string instead. "
-                    f"{e=}"
-                )
-                value = str(value)
+        if self.python_type == Any:
+            return ValidateResponse()
 
-        elif domain == "TIMESTAMP":
-            timestamp_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"]
+        if not isinstance(value, self.python_type):
+            return ValidateResponse(
+                ValidateRule.PYTHON_TYPE, value, self.python_type.__name__
+            )
 
-            parsed = False
-            for timestamp_format in timestamp_formats:
+        return ValidateResponse()
+
+
+class MinMaxCol(Column):
+    """
+    Column subclass representing a value with minimum and maximum constraints.
+
+    This class extends the functionality of the base `Column` class to include optional
+    validation based on minimum and maximum values.
+
+    :param min_value: The minimum allowed value for the column (inclusive). Defaults
+        to None, indicating no minimum constraint.
+    :type min_value: Any valid value type compatible with the column's data type.
+    :param max_value: The maximum allowed value for the column (inclusive). Defaults
+        to None, indicating no maximum constraint.
+    :type max_value: Any valid value type compatible with the column's data type.
+    """
+
+    def __init__(self, min_value=None, max_value=None, **kwargs):
+        super().__init__(**kwargs)
+        self.min_value = min_value
+        self.max_value = max_value
+
+    def validate(self, value):
+        response = super().validate(value)
+        if response.exception:
+            return response
+
+        value = self.cast(value)
+
+        if self.min_value is not None and value < self.min_value:
+            return ValidateResponse(ValidateRule.MIN_VALUE, value, self.min_value)
+
+        if self.max_value is not None and value > self.max_value:
+            return ValidateResponse(ValidateRule.MAX_VALUE, value, self.max_value)
+
+        return ValidateResponse()
+
+
+class LengthCol(Column):
+    """
+    Column subclass for length-constrained columns.
+
+    This class represents a column with length constraints. It inherits from the base
+    `Column` class and adds attributes to store the maximum and minimum length values.
+    The `validate` method is overridden to include length validations.
+
+    :param max_length: Maximum length allowed for the column value.
+    :param min_length: Minimum length allowed for the column value.
+    """
+
+    def __init__(self, max_length: int = None, min_length: int = None, **kwargs):
+        super().__init__(**kwargs)
+        self.max_length = int(max_length) if max_length is not None else None
+        self.min_length = int(min_length) if min_length is not None else None
+
+    def validate(self, value):
+        response = super().validate(value)
+        if response.exception:
+            return response
+
+        if self.min_length is not None and len(str(value)) < self.min_length:
+            return ValidateResponse(ValidateRule.MIN_LENGTH, value, self.min_length)
+
+        if self.max_length is not None and len(str(value)) > self.max_length:
+            return ValidateResponse(ValidateRule.MAX_LENGTH, value, self.max_length)
+
+        return ValidateResponse()
+
+
+class BoolCol(Column):
+    def __init__(self, *args, **kwargs):
+        super().__init__(**kwargs)
+        self.python_type = bool
+
+    def cast(self, value):
+        return checkbox_to_bool(value)
+
+
+class DateCol(MinMaxCol):
+    def __init__(self, date_format: str = DATE_FORMAT, **kwargs):
+        super().__init__(**kwargs)
+        self.python_type = dt.date
+        self.date_format = date_format
+
+    def cast(self, value):
+        if isinstance(value, self.python_type):
+            return value
+        try:
+            return dt.datetime.strptime(value, self.date_format).date()
+        except (TypeError, ValueError) as e:
+            # Value contains seconds, remove them and try parsing again
+            if len(value.split(":")) > 2:
+                value_without_seconds = ":".join(value.split(":")[:2])
                 try:
-                    value = dt.datetime.strptime(value, timestamp_format)
-                    # value = dt.datetime()
-                    parsed = True
-                    break
+                    return dt.datetime.strptime(
+                        value_without_seconds, self.date_format
+                    ).date()
                 except ValueError:
                     pass
 
-            if not parsed:
-                logger.debug(
-                    "Unable to cast datetime/time/timestamp. Casting to string instead."
-                )
-                value = str(value)
+            # try to match partial date
+            if value.endswith("-"):
+                value = value.rstrip("-")
+            sections = re.split(r"(%[^%])", self.date_format)
+            partial_formats = [
+                "".join(sections[: i + 1])
+                for i in range(len(sections))
+                if sections[i].startswith("%")
+            ]
+            for format_str in partial_formats:
+                try:
+                    return dt.datetime.strptime(value, format_str).date()
+                except (TypeError, ValueError):
+                    pass
+            logger.debug(
+                f"Unable to cast {value} to a datetime.date object. "
+                f"Casting to string instead. "
+                f"{e=}"
+            )
+            # else, cast to str
+            return super().cast(value)
 
-        # other date/time casting
-        # TODO: i'm sure there is a lot of work to do here
-        elif domain in ["TIME", "DATETIME"]:
+
+class DateTimeCol(MinMaxCol):
+    def __init__(
+        self,
+        datetime_format_list: List[str] = [
+            DATETIME_FORMAT,
+            DATETIME_FORMAT_MICROSECOND,
+            TIMESTAMP_FORMAT,
+            TIMESTAMP_FORMAT_MICROSECOND,
+        ],
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.python_type = dt.datetime
+        self.datetime_format_list = datetime_format_list
+
+    def cast(self, value):
+        if isinstance(value, self.python_type):
+            return value
+        for datetime_format in self.datetime_format_list:
             try:
-                value = dt.date(value)
-            except TypeError:
-                print(
-                    "Unable to case datetime/time/timestamp. Casting to string instead."
-                )
-                value = str(value)
-        return value
+                return dt.datetime.strptime(value, datetime_format)
+            except ValueError:
+                pass
+        logger.debug(
+            "Unable to cast datetime/time/timestamp. Casting to string instead."
+        )
+        return super().cast(value)
+
+
+class DecimalCol(MinMaxCol):
+    def __init__(self, precision=10, scale=2, **kwargs):
+        super().__init__(**kwargs)
+        self.python_type = Decimal
+        self.precision = int(precision) if precision is not None else None
+        self.scale = int(scale) if scale is not None else None
+
+    def cast(self, value):
+        if value == "-":
+            return Decimal(0)
+        try:
+            decimal_value = Decimal(value)
+            return decimal_value.quantize(Decimal("0." + "0" * self.scale))
+        except (DecimalException, TypeError):
+            return super().cast(value)
+
+    def validate(self, value):
+        response = super().validate(value)
+        if response.exception:
+            return response
+
+        value = self.cast(value)
+        value_precision = len(value.as_tuple().digits)
+        if self.precision is not None and value_precision > self.precision:
+            return ValidateResponse(ValidateRule.PRECISION, value, self.precision)
+
+        return ValidateResponse()
+
+
+class FloatCol(LengthCol, MinMaxCol):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = float
+
+    def cast(self, value):
+        if value == "-":
+            return float(0)
+        try:
+            return float(value)
+        except ValueError:
+            return super().cast(value)
+
+
+class IntCol(LengthCol, MinMaxCol):
+    def __init__(
+        self,
+        *args,
+        truncate_decimals: bool = False,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.python_type = int
+        self.truncate_decimals = truncate_decimals
+
+    def cast(self, value, truncate_decimals: bool = None):
+        truncate_decimals = (
+            truncate_decimals
+            if truncate_decimals is not None
+            else self.truncate_decimals
+        )
+        value_backup = value
+        if value in ["-", "", None]:
+            return None
+        try:
+            if isinstance(value, int):
+                return value
+            if isinstance(value, ElementRow):
+                return int(value)
+            if type(value) is str:
+                value = float(value)
+            if type(value) is float:
+                int_value = int(value)
+                if value == int_value or self.truncate_decimals:
+                    return int_value
+                return str(value_backup)
+        except (ValueError, TypeError):
+            return super().cast(value_backup)
+
+
+class StrCol(LengthCol):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = str
+
+    def cast(self, value):
+        return super().cast(value)
+
+
+class TimeCol(Column):
+    def __init__(self, time_format: str = TIME_FORMAT, **kwargs):
+        super().__init__(**kwargs)
+        self.python_type = dt.time
+        self.time_format = time_format
+
+    def cast(self, value):
+        if isinstance(value, self.python_type):
+            return value
+        try:
+            return dt.datetime.strptime(value, self.time_format).time()
+        except (TypeError, ValueError) as e:
+            logger.debug(
+                f"Unable to cast {value} to a datetime.time object. "
+                f"Casting to string instead. "
+                f"{e=}"
+            )
+            return super().cast(value)
 
 
 class ColumnInfo(List):
