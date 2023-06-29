@@ -67,9 +67,12 @@ import logging
 import math
 import os.path
 import queue
+import re
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
+from dataclasses import dataclass
+from decimal import Decimal, DecimalException
 from time import sleep, time
 from tkinter import ttk
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
