@@ -2517,12 +2517,12 @@ class DataSet:
             rows = rows[mask_pd]
 
         # transform bool
-        if themepack.display_boolean_as_checkbox:
+        if themepack.display_bool_as_checkbox:
             bool_columns = [
                 column
                 for column in columns
                 if self.column_info[column]
-                and self.column_info[column].domain == "BOOLEAN"
+                and self.column_info[column].python_type == bool
             ]
             for col in bool_columns:
                 rows[col] = rows[col].apply(
@@ -2738,7 +2738,10 @@ class DataSet:
             # make sure isn't pk
             if col != self.pk_column:
                 # display checkboxes
-                if self.column_info[col].domain == "BOOLEAN":
+                if (
+                    self.column_info[column]
+                    and self.column_info[column].python_type == bool
+                ):
                     fields_layout.append([field(column, sg.Checkbox)])
                     found = True
                     break
@@ -2883,13 +2886,7 @@ class DataSet:
         if (
             not transformed
             and self.column_info[column]
-            and self.column_info[column].domain
-            in [
-                "DATE",
-                "DATETIME",
-                "TIME",
-                "TIMESTAMP",
-            ]
+            and self.column_info[column].python_type in (dt.date, dt.time, dt.datetime)
         ):
             tmp_column = f"temp_{column}"
             self.rows[tmp_column] = pd.to_datetime(self.rows[column])
@@ -7084,7 +7081,7 @@ class _CellEdit:
             )
 
         # or a checkbox
-        elif self.frm[data_key].column_info[column].domain in ["BOOLEAN"]:
+        elif self.frm[data_key].column_info[column].python_type == bool:
             widget_type = TK_CHECKBUTTON
             width = (
                 width
@@ -7093,7 +7090,7 @@ class _CellEdit:
             )
 
         # or a date
-        elif self.frm[data_key].column_info[column].domain in ["DATE"]:
+        elif self.frm[data_key].column_info[column].python_type == dt.date:
             text = self.frm[data_key].column_info[column].cast(text)
             widget_type = TK_DATEPICKER
             width = (
@@ -7251,7 +7248,7 @@ class _CellEdit:
             new_value = combobox_values[self.field.current()]
 
         # if boolean, set
-        if widget_type == TK_CHECKBUTTON and themepack.display_boolean_as_checkbox:
+        if widget_type == TK_CHECKBUTTON and themepack.display_bool_as_checkbox:
             new_value = (
                 themepack.checkbox_true
                 if checkbox_to_bool(new_value)
@@ -8132,45 +8129,34 @@ class ColumnInfo(List):
         :caption: Example code
     """
 
+    # List of required SQL types to check against when user sets custom values
+    _python_types = [
+        "str",
+        "int",
+        "float",
+        "Decimal",
+        "bool",
+        "time",
+        "date",
+        "datetime",
+    ]
+
     def __init__(self, driver: SQLDriver, table: str):
         self.driver = driver
         self.table = table
-
-        # List of required SQL types to check against when user sets custom values
-        self._domains = [
-            "TEXT",
-            "VARCHAR",
-            "CHAR",
-            "INTEGER",
-            "REAL",
-            "DOUBLE",
-            "FLOAT",
-            "DECIMAL",
-            "BOOLEAN",
-            "TIME",
-            "DATE",
-            "DATETIME",
-            "TIMESTAMP",
-        ]
 
         # Defaults to use for Null values returned from the database. These can be
         # overwritten by the user and support function calls as well by using
         # ColumnInfo.set_null_default() and ColumnInfo.set_null_defaults()
         self.null_defaults = {
-            "TEXT": lang.description_column_str_null_default,
-            "VARCHAR": lang.description_column_str_null_default,
-            "CHAR": lang.description_column_str_null_default,
-            "INT": 0,
-            "INTEGER": 0,
-            "REAL": 0.0,
-            "DOUBLE": 0.0,
-            "FLOAT": 0.0,
-            "DECIMAL": 0.0,
-            "BOOLEAN": 0,
-            "TIME": lambda x: dt.datetime.now().strftime("%H:%M:%S"),
-            "DATE": lambda x: dt.date.today().strftime("%Y-%m-%d"),
-            "TIMESTAMP": lambda x: dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "DATETIME": lambda x: dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "str": lang.description_column_str_null_default,
+            "int": 0,
+            "float": 0.0,
+            "Decimal": Decimal(0),
+            "bool": 0,
+            "time": lambda x: dt.datetime.now().strftime(TIME_FORMAT),
+            "date": lambda x: dt.date.today().strftime(DATE_FORMAT),
+            "datetime": lambda x: dt.datetime.now().strftime(DATETIME_FORMAT),
         }
         super().__init__()
 
@@ -8226,7 +8212,7 @@ class ColumnInfo(List):
         d = {}
         for c in self:
             default = c.default
-            domain = c.domain
+            python_type = c.python_type.__name__
 
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
@@ -8252,7 +8238,7 @@ class ColumnInfo(List):
             # The stored default is a literal value, lets try to use it:
             if default in [None, "None"]:
                 try:
-                    null_default = self.null_defaults[domain]
+                    null_default = self.null_defaults[python_type]
                 except KeyError:
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
@@ -8271,11 +8257,9 @@ class ColumnInfo(List):
                         default = null_default
 
                     # put defaults in other fields
-                    elif domain not in [
-                        "TEXT",
-                        "VARCHAR",
-                        "CHAR",
-                    ]:  # (don't put 'New Record' in other txt fields)
+
+                    #  don't put txt in other txt fields
+                    elif c.python_type != str:
                         # If our default is callable, call it.
                         if callable(null_default):
                             default = null_default()
@@ -8288,7 +8272,7 @@ class ColumnInfo(List):
             else:
                 # Load the default that was fetched from the database
                 # during ColumnInfo creation
-                if domain in ["TEXT", "VARCHAR", "CHAR"]:
+                if c.python_type == str:
                     # strip quotes from default strings as they seem to get passed with
                     # some database-stored defaults
                     # strip leading and trailing quotes
@@ -8302,38 +8286,40 @@ class ColumnInfo(List):
             dataset.transform(dataset, d, TFORM_DECODE)
         return d
 
-    def set_null_default(self, domain: str, value: object) -> None:
+    def set_null_default(self, python_type: str, value: object) -> None:
         """
-        Set a Null default for a single SQL type.
+        Set a Null default for a single python type.
 
-        :param domain: The SQL type to set the default for
-            ('INTEGER', 'TEXT', 'BOOLEAN', etc.)
+        :param python_type: This should be equal to what calling `.__name__` on the
+            Column `python_type` would equal: 'str', 'int', 'float', 'Decimal', 'bool',
+            'time', 'date', or 'datetime'.
         :param value: The new value to set the SQL type to. This can be a literal or
             even a callable
         :returns: None
         """
-        if domain not in self._domains:
+        if python_type not in self._python_types:
             RuntimeError(
-                f"Unsupported SQL Type: {domain}. Supported types are: {self._domains}"
+                f"Unsupported SQL Type: {python_type}. Supported types are: "
+                f"{self._python_types}"
             )
 
-        self.null_defaults[domain] = value
+        self.null_defaults[python_type] = value
 
     def set_null_defaults(self, null_defaults: dict) -> None:
         """
-        Set Null defaults for all SQL types.
+        Set Null defaults for all python types.
 
-        supported types:  'TEXT','VARCHAR', 'CHAR', 'INTEGER', 'REAL', 'DOUBLE',
-            'FLOAT', 'DECIMAL', 'BOOLEAN', 'TIME', 'DATE', 'DATETIME', 'TIMESTAMP'
-        :param null_defaults: A dict of SQL types and default values. This can be a
+        Supported types: 'str', 'int', 'float', 'Decimal', 'bool',
+            'time', 'date', or 'datetime'.
+        :param null_defaults: A dict of python types and default values. This can be a
             literal or even a callable
         :returns: None
         """
         # Check if the null_defaults dict has all the required keys:
-        if not all(key in null_defaults for key in self._domains):
+        if not all(key in null_defaults for key in self._python_types):
             RuntimeError(
                 f"The supplied null_defaults dictionary does not havle all required SQL"
-                f" types. Required: {self._domains}"
+                f" types. Required: {self._python_types}"
             )
 
         self.null_defaults = null_defaults
@@ -8864,11 +8850,7 @@ class SQLDriver:
         pk_column = self.quote_column(dataset.pk_column)
 
         # Set description if TEXT
-        if dataset.column_info[dataset.description_column].domain in [
-            "TEXT",
-            "VARCHAR",
-            "CHAR",
-        ]:
+        if dataset.column_info[dataset.description_column].python_type == str:
             description_column = self.quote_column(dataset.description_column)
             description = (
                 f"{lang.duplicate_prepend}{dataset.get_description_for_pk(pk)}"
