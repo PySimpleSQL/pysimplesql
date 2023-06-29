@@ -506,7 +506,8 @@ class Relationship:
         }
 
 
-class ElementMap(dict):
+@dataclass
+class ElementMap:
 
     """
     Map a PySimpleGUI element to a specific `DataSet` column.
@@ -516,42 +517,32 @@ class ElementMap(dict):
     the bind parameter of `Form` creation, or by executing `Form.auto_map_elements()` as
     long as the Table.column naming convention is used, This method can be used to
     manually map any element to any `DataSet` column regardless of naming convention.
+
+    :param element: A PySimpleGUI Element
+    :param dataset: A `DataSet` object
+    :param column: The name of the column to bind to the element
+    :param where_column: Used for key, value shorthand
+    :param where_value: Used for key, value shorthand
+    :returns: None
     """
 
-    def __init__(
-        self,
-        element: sg.Element,
-        dataset: DataSet,
-        column: str,
-        where_column: str = None,
-        where_value: str = None,
-    ) -> None:
-        """
-        Create a new ElementMap instance.
+    element: sg.Element
+    dataset: DataSet
+    column: str
+    where_column: str = None
+    where_value: str = None
 
-        :param element: A PySimpleGUI Element
-        :param dataset: A `DataSet` object
-        :param column: The name of the column to bind to the element
-        :param where_column: Used for key, value shorthand
-        :param where_value: Used for key, value shorthand
-        :returns: None
-        """
-        super().__init__()
-        self["element"] = element
-        self["dataset"] = dataset
-        self["table"] = dataset.table
-        self["column"] = column
-        self["where_column"] = where_column
-        self["where_value"] = where_value
+    def __post_init__(self):
+        self.table = self.dataset.table
 
-    def __getattr__(self, key: str):
-        try:
-            return self[key]
-        except KeyError:
-            raise KeyError(f"ElementMap has no key {key}.")
+    def __getitem__(self, key):
+        return self.__dict__[key]
 
-    def __setattr__(self, key, value):
-        self[key] = value
+    def __setitem__(self, key, value):
+        self.__dict__[key] = value
+
+    def __contains__(self, item):
+        return item in self.__dict__
 
 
 class DataSet:
