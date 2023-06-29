@@ -251,6 +251,24 @@ class Boolean(enum.Flag):
     FALSE = False
 
 
+class ValidateRule(str, enum.Enum):
+    REQUIRED = "required"
+    PYTHON_TYPE = "python_type"
+    PRECISION = "precision"
+    MIN_VALUE = "min_value"
+    MAX_VALUE = "max_value"
+    MIN_LENGTH = "min_length"
+    MAX_LENGTH = "max_length"
+    CUSTOM = "custom"
+
+
+@dataclass
+class ValidateResponse:
+    exception: Union[ValidateRule, None] = None
+    value: str = None
+    rule: str = None
+
+
 # -------
 # CLASSES
 # -------
@@ -7683,6 +7701,17 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         "import_module_failed_title": "Problem importing module",
         "import_module_failed": "Unable to import module neccessary for {name}\nException: {exception}\n\nTry `pip install {requires}`",  # fmt: skip # noqa: E501
+        # ------------------------------------------------------------------------------
+        # Invalid Input msgs
+        # ------------------------------------------------------------------------------
+        ValidateRule.REQUIRED: "Field is required",
+        ValidateRule.PYTHON_TYPE: "{value} could not be cast to correct type, {rule}",
+        ValidateRule.PRECISION: "{value} exceeds max precision length, {rule}",
+        ValidateRule.MIN_VALUE: "{value} less than minimum value, {rule}",
+        ValidateRule.MAX_VALUE: "{value} more than max value, {rule}",
+        ValidateRule.MIN_LENGTH: "{value} less than minimum length, {rule}",
+        ValidateRule.MAX_LENGTH: "{value} more than max length, {rule}",
+        ValidateRule.CUSTOM: "{value}{rule}",
     }
     """
     Default LanguagePack.
@@ -7694,6 +7723,15 @@ class LanguagePack:
     def __getattr__(self, key):
         # Try to get the key from the internal lp_dict first.
         # If it fails, then check the default dict.
+        try:
+            return self.lp_dict[key]
+        except KeyError:
+            try:
+                return type(self).default[key]
+            except KeyError:
+                raise AttributeError(f"LanguagePack object has no attribute '{key}'")
+
+    def __getitem__(self, key):
         try:
             return self.lp_dict[key]
         except KeyError:
