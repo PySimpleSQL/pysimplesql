@@ -7633,6 +7633,9 @@ class LanguagePack:
         "button_yes": " Yes ",
         "button_no": "  No  ",
         # ------------------------------------------------------------------------------
+        # General
+        # ------------------------------------------------------------------------------
+        # ------------------------------------------------------------------------------
         # Prepopulate record values/prepends
         # ------------------------------------------------------------------------------
         # Text, Varchar, Char, Null Default, used exclusively for description_column
@@ -7726,6 +7729,10 @@ class LanguagePack:
         "duplicate_failed_title": "Problem Duplicating",
         "duplicate_failed": "Query failed: {exception}.",
         # ------------------------------------------------------------------------------
+        # General OK poups
+        # ------------------------------------------------------------------------------
+        "error_title": "Error",
+        # ------------------------------------------------------------------------------
         # Quick Editor
         # ------------------------------------------------------------------------------
         "quick_edit_title": "Quick Edit - {data_key}",
@@ -7734,6 +7741,12 @@ class LanguagePack:
         # ------------------------------------------------------------------------------
         "import_module_failed_title": "Problem importing module",
         "import_module_failed": "Unable to import module neccessary for {name}\nException: {exception}\n\nTry `pip install {requires}`",  # fmt: skip # noqa: E501
+        # ------------------------------------------------------------------------------
+        # Overwrite file prompt
+        # ------------------------------------------------------------------------------
+        "overwrite_title": "Overwrite file?",
+        "overwrite": "File exists, type YES to overwrite",
+        "overwrite_prompt": "YES",
         # ------------------------------------------------------------------------------
         # Invalid Input msgs
         # ------------------------------------------------------------------------------
