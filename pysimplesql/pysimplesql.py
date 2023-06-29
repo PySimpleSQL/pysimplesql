@@ -8463,6 +8463,7 @@ class SQLDriver:
         to close the database.
         """
         # Be sure to call super().__init__() in derived class!
+        self.SQL_CONSTANTS = []
         self.con = None
         self.name = name
         self.requires = requires
@@ -8489,17 +8490,6 @@ class SQLDriver:
         self.quote_column_char = column_quote
         # override this in derived __init__() (defaults to single quotes)
         self.quote_value_char = value_quote
-
-    def import_failed(self, exception) -> None:
-        popup = Popup()
-        requires = ", ".join(self.requires)
-        popup.ok(
-            lang.import_module_failed_title,
-            lang.import_module_failed.format_map(
-                LangFormat(name=self.name, requires=requires, exception=exception)
-            ),
-        )
-        exit(0)
 
     def check_reserved_keywords(self, value: bool) -> None:
         """
@@ -8545,7 +8535,7 @@ class SQLDriver:
         """
         raise NotImplementedError
 
-    def execute_script(self, script: str, silent: bool = False):
+    def execute_script(self, script: str, encoding: str):
         raise NotImplementedError
 
     def get_tables(self):
@@ -8948,7 +8938,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in changed_row.items():
-            if v == "":  # noqa: PLC1901
+            if v == "":
                 changed_row[k] = None
 
         # quote appropriately
@@ -8988,6 +8978,39 @@ class SQLDriver:
         )
         values = [value for key, value in row.items()]
         return self.execute(query, tuple(values))
+
+    # ---------------------------------------------------------------------
+    # Probably won't need to implement the following functions
+    # ---------------------------------------------------------------------
+
+    def import_failed(self, exception) -> None:
+        popup = Popup()
+        requires = ", ".join(self.requires)
+        popup.ok(
+            lang.import_module_failed_title,
+            lang.import_module_failed.format_map(
+                LangFormat(name=self.name, requires=requires, exception=exception)
+            ),
+        )
+        exit(0)
+
+    def parse_domain(self, domain):
+        domain_parts = domain.split("(")
+        domain_name = domain_parts[0].strip().upper()
+
+        if len(domain_parts) > 1:
+            domain_args = domain_parts[1].rstrip(")").split(",")
+            domain_args = [arg.strip() for arg in domain_args]
+        else:
+            domain_args = []
+
+        return domain_name, domain_args
+
+    def get_column_class(self, domain):
+        if domain in self.COLUMN_CLASS_MAP:
+            return self.COLUMN_CLASS_MAP[domain]
+        logger.info(f"Mapping {domain} to generic Column class")
+        return Column
 
 
 # --------------------------------------------------------------------------------------
