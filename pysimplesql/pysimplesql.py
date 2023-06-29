@@ -8337,40 +8337,19 @@ class ColumnInfo(List):
         return any(key in d and d[key] == value for d in self)
 
     # TODO: check if something looks like a statement for complex defaults?  Regex?
-    @staticmethod
-    def _looks_like_function(
-        s: str,
-    ):
+    def _looks_like_function(self, s: str):
         # check if the string is empty
         if s in EMPTY:
             return False
 
-        # If the entire string is in all caps, it looks like a function
+        # If string is in the driver's list of sql_constants
         # (like in MySQL CURRENT_TIMESTAMP)
-        if s.isupper():
+        if s.upper() in self.driver.SQL_CONSTANTS:
             return True
 
-        # find the index of the first opening parenthesis
-        open_paren_index = s.find("(")
-
-        # if there is no opening parenthesis, the string is not a function
-        if open_paren_index == -1:
-            return False
-
-        # check if there is a name before the opening parenthesis
-        name = s[:open_paren_index].strip()
-        if not name.isidentifier():
-            return False
-
-        # find the index of the last closing parenthesis
-        close_paren_index = s.rfind(")")
-
-        # if there is no closing parenthesis, the string is not a function
-        if close_paren_index == -1 or close_paren_index <= open_paren_index:
-            return False
-
-        # if all checks pass, the string looks like a function
-        return True
+        # Check if the string starts with a valid function name followed by parentheses
+        pattern = r"^\w+\(.*\)$"
+        return bool(re.match(pattern, s))
 
     def _get_list(self, key: str) -> List:
         # returns a list of any key in the underlying Column instances. For example,
