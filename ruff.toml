@@ -53,6 +53,7 @@ select = [
 ignore = [
     "D211", #No blank lines allowed before class docstring
     "D212", #Multi-line docstring summary should start at the first line
+    "PLC1901", #We compare to "" alot, and for good reason.
     # Will do below later
     ]
 
