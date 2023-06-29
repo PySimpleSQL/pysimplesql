@@ -2703,7 +2703,9 @@ class DataSet:
         keygen.reset()
         data_key = self.key
         layout = []
-        headings = TableHeadings(sort_enable=True, edit_enable=True, save_enable=True)
+        headings = TableHeadings(
+            sort_enable=True, allow_cell_edits=True, add_save_heading_button=True
+        )
 
         for col in self.column_info.names():
             # set widths
@@ -3112,9 +3114,8 @@ class Form:
             given priority. If no match is found, the second column is used. Default
             list: ['description', 'name', 'title'].
         :param live_update: (optional) Default value is False. If True, changes made in
-            a field will be immediately pushed to associated selectors. In addition,
-            editing the description column will trigger the update of comboboxes.
-            If False, changes will be pushed only after a save action.
+            a field will be immediately pushed to associated selectors. If False,
+            changes will be pushed only after a save action.
         :param auto_add_relationships: (optional) Controls the invocation of
             auto_add_relationships. Default is True. Set it to False when creating a new
             `Form` with pre-existing `Relationship` instances.
@@ -6766,7 +6767,7 @@ def selector(
         # the heading doesn't display dicts when it first loads
         # The TableHeadings instance is already stored in metadata
         if isinstance(kwargs["headings"], TableHeadings):
-            if kwargs["headings"].save_enable:
+            if kwargs["headings"].add_save_heading_button:
                 kwargs["headings"].insert(0, themepack.unsaved_column_header)
             else:
                 kwargs["headings"].insert(0, "")
@@ -6797,24 +6798,26 @@ class TableHeadings(list):
     def __init__(
         self,
         sort_enable: bool = True,
-        edit_enable: bool = False,
-        save_enable: bool = False,
+        allow_cell_edits: bool = False,
+        add_save_heading_button: bool = False,
         apply_search_filter: bool = False,
     ) -> None:
         """
         Create a new TableHeadings object.
 
-        :param sort_enable: True to enable sorting by heading column
-        :param edit_enable: Enables cell editing if True. Accepted edits update both
-            `sg.Table` and associated `field` element.
-        :param save_enable: Enables saving record by double-clicking unsaved marker col.
+        :param sort_enable: True to enable sorting by heading column.
+        :param allow_cell_edits: Double-click to edit a cell value if True. Accepted
+            edits update both `sg.Table` and associated `field` element. Note: primary
+            key, generated, or `readonly` columns don't allow cell edits.
+        :param add_save_heading_button: Adds a save button to the left-most heading
+            column if True.
         :param apply_search_filter: Filter rows to only those columns in
             `DataSet.search_order` that contain `Dataself.search_string`.
         :returns: None
         """
         self.sort_enable = sort_enable
-        self.edit_enable = edit_enable
-        self.save_enable = save_enable
+        self.allow_cell_edits = allow_cell_edits
+        self.add_save_heading_button = add_save_heading_button
         self.apply_search_filter = apply_search_filter
         self._width_map = []
         self._visible_map = []
@@ -6843,7 +6846,7 @@ class TableHeadings(list):
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
         :param readonly: Indicates if the column is read-only when
-            `TableHeading.edit_enable` is True.
+            `TableHeading.allow_cell_edits` is True.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
@@ -6940,7 +6943,7 @@ class TableHeadings(list):
                         i, command=functools.partial(fn, self[i]["column"], False)
                     )
             self.update_headings(element)
-        if self.save_enable:
+        if self.add_save_heading_button:
             element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
     def insert(self, idx, heading_column: str, column: str = None, *args, **kwargs):
@@ -7043,7 +7046,7 @@ class _CellEdit:
             logger.debug(f"{column} is a generated column")
             return
 
-        if not table_heading.edit_enable:
+        if not table_heading.allow_cell_edits:
             logger.debug("This Table element does not allow editing")
             return
 
