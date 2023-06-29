@@ -318,6 +318,7 @@ class ElementRow:
         return self
 
 
+@dataclass
 class Relationship:
 
     """
@@ -326,11 +327,59 @@ class Relationship:
     See the following for more information: `Form.add_relationship` and
     `Form.auto_add_relationships`.
 
-    Note: This class is not typically used the end user,
+    :param join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
+    :param child_table: The table name of the child table
+    :param fk_column: The child table's foreign key column
+    :param parent_table: The table name of the parent table
+    :param pk_column: The parent table's primary key column
+    :param update_cascade: True if the child's fk_column ON UPDATE rule is 'CASCADE'
+    :param delete_cascade: True if the child's fk_column ON DELETE rule is 'CASCADE'
+    :param driver: A `SQLDriver` instance
+    :param frm: A Form instance
+    :returns: None
+
+    Note: This class is not typically used the end user
     """
 
     # store our own instances
     instances = []
+
+    join_type: str
+    child_table: str
+    fk_column: Union[str, int]
+    parent_table: str
+    pk_column: Union[str, int]
+    update_cascade: bool
+    delete_cascade: bool
+    driver: SQLDriver
+    frm: Form
+
+    def __post_init__(self):
+        Relationship.instances.append(self)
+
+    def __str__(self):
+        """Return a join clause when cast to a string."""
+        return self.driver.relationship_to_join_clause(self)
+
+    def __repr__(self):
+        """Return a more descriptive string for debugging."""
+        return (
+            f"Relationship ("
+            f"\n\tjoin={self.join_type},"
+            f"\n\tchild_table={self.child_table},"
+            f"\n\tfk_column={self.fk_column},"
+            f"\n\tparent_table={self.parent_table},"
+            f"\n\tpk_column={self.pk_column}"
+            f"\n)"
+        )
+
+    @property
+    def on_update_cascade(self):
+        return bool(self.update_cascade and self.frm.update_cascade)
+
+    @property
+    def on_delete_cascade(self):
+        return bool(self.delete_cascade and self.frm.delete_cascade)
 
     @classmethod
     def get_relationships(cls, table: str) -> List[Relationship]:
@@ -455,67 +504,6 @@ class Relationship:
             and frm_reference[dataset].table == r.child_table
             and not r.on_update_cascade
         }
-
-    def __init__(
-        self,
-        join_type: str,
-        child_table: str,
-        fk_column: Union[str, int],
-        parent_table: str,
-        pk_column: Union[str, int],
-        update_cascade: bool,
-        delete_cascade: bool,
-        driver: SQLDriver,
-        frm: Form,
-    ) -> None:
-        """
-        Initialize a new Relationship instance.
-
-        :param join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
-        :param child_table: The table name of the child table
-        :param fk_column: The child table's foreign key column
-        :param parent_table: The table name of the parent table
-        :param pk_column: The parent table's primary key column
-        :param update_cascade: True if the child's fk_column ON UPDATE rule is 'CASCADE'
-        :param delete_cascade: True if the child's fk_column ON DELETE rule is 'CASCADE'
-        :param driver: A `SQLDriver` instance
-        :param frm: A Form instance
-        :returns: None
-        """
-        self.join_type = join_type
-        self.child_table = child_table
-        self.fk_column = fk_column
-        self.parent_table = parent_table
-        self.pk_column = pk_column
-        self.update_cascade = update_cascade
-        self.delete_cascade = delete_cascade
-        self.driver = driver
-        self.frm = frm
-        Relationship.instances.append(self)
-
-    @property
-    def on_update_cascade(self):
-        return bool(self.update_cascade and self.frm.update_cascade)
-
-    @property
-    def on_delete_cascade(self):
-        return bool(self.delete_cascade and self.frm.delete_cascade)
-
-    def __str__(self):
-        """Return a join clause when cast to a string."""
-        return self.driver.relationship_to_join_clause(self)
-
-    def __repr__(self):
-        """Return a more descriptive string for debugging."""
-        return (
-            f"Relationship ("
-            f"\n\tjoin={self.join_type},"
-            f"\n\tchild_table={self.child_table},"
-            f"\n\tfk_column={self.fk_column},"
-            f"\n\tparent_table={self.parent_table},"
-            f"\n\tpk_column={self.pk_column}"
-            f"\n)"
-        )
 
 
 class ElementMap(dict):
