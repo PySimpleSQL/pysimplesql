@@ -215,6 +215,8 @@ TK_COMBOBOX_SELECTED = "35"
 # Misc Constants
 # --------------
 PK_PLACEHOLDER = "Null"
+EMPTY = ["", None]
+
 
 
 class Boolean(enum.Flag):
@@ -2496,7 +2498,7 @@ class DataSet:
         rows = self.map_fk_descriptions(rows, columns)
 
         # filter rows to only contain search, or virtual/unsaved row
-        if apply_search_filter and self.search_string not in ["", None]:
+        if apply_search_filter and self.search_string not in EMPTY:
             masks = [
                 rows[col].astype(str).str.contains(self.search_string, case=False)
                 | rows[pk_column].isin(virtual_row_pks)
@@ -5469,12 +5471,12 @@ class _PlaceholderText(abc.ABC):
             # Otherwise, use the current value
             value = self.get()
 
-        if self.active_placeholder and value:
+        if self.active_placeholder and value not in EMPTY:
             # Replace the placeholder with the new value
             super().update(value=value)
             self.active_placeholder = False
             self.Widget.config(fg=self.normal_color, font=self.normal_font)
-        elif not value:
+        elif value in EMPTY:
             # If the value is empty, reinsert the placeholder
             super().update(value=self.placeholder_text, *args, **kwargs)
             self.active_placeholder = True
@@ -8066,7 +8068,7 @@ class ColumnInfo(List):
         s: str,
     ):
         # check if the string is empty
-        if not s:
+        if s in EMPTY:
             return False
 
         # If the entire string is in all caps, it looks like a function
