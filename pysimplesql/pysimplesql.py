@@ -10386,17 +10386,97 @@ class MSAccess(SQLDriver):
     The MSAccess driver supports Microsoft Access databases.
     Note that only database interactions are supported, including stored Queries, but
     not operations dealing with Forms, Reports, etc.
+
+    Note: `Jackcess` and `UCanAccess` libraries may not accurately report decimal places
+    for `Number` or `Currency` columns. Manual configuration of decimal places may
+    be required by replacing the placeholders as follows:
+    frm[DATASET KEY].column_info[COLUMN NAME].scale = 2
     """
 
-    def __init__(self, database_file):
+    COLUMN_CLASS_MAP = {
+        "BIG_INT": IntCol,
+        "BOOLEAN": BoolCol,
+        "DECIMAL": DecimalCol,
+        "INTEGER": IntCol,
+        "VARCHAR": StrCol,
+        "TIMESTAMP": DateTimeCol,
+    }
+
+    def __init__(
+        self,
+        database_file,
+        overwrite_file: bool = False,
+        sql_commands: str = None,
+        sql_script=None,
+        sql_script_encoding: str = "utf-8",
+        infer_datetype_from_default_function: bool = True,
+        use_newer_jackcess: bool = False,
+    ):
+        """
+        Initialize the MSAccess class.
+
+        :param database_file: The path to the MS Access database file.
+        :param overwrite_file: If True, prompts the user if the file already exists. If
+            the user declines to overwrite the file, the provided SQL commands or script
+            will not be executed.
+        :param sql_commands: Optional SQL commands to execute after opening the
+            database.
+        :param sql_script: Optional SQL script file to execute after opening the
+            database.
+        :param sql_script_encoding: The encoding of the SQL script file. Defaults to
+            'utf-8'.
+        :param infer_datetype_from_default_function: If True, specializes a DateTime
+            column by examining the column's default function. A DateTime column with
+            '=Date()' will be treated as a 'DateCol', and '=Time()' will be treated as a
+            'TimeCol'. Defaults to True.
+        :param use_newer_jackcess: If True, uses a newer version of the Jackcess library
+            for improved compatibility, specifically allowing handling of 'attachment'
+            columns. Defaults to False.
+        """
+
         super().__init__(
             name="MSAccess", requires=["Jype1"], table_quote="[]", placeholder="?"
         )
-
         self.import_required_modules()
-
         self.database_file = database_file
+        self.infer_datetype_from_default_function = infer_datetype_from_default_function
+        self.use_newer_jackcess = use_newer_jackcess
+
+        if not self.start_jvm():
+            logger.debug("Failed to start jvm")
+            exit()
+
+        # handle if file doesn't exist or user wants to overwrite_file
+        create_access_file = False
+        if not os.path.exists(self.database_file):
+            create_access_file = True
+        elif os.path.exists(self.database_file) and overwrite_file:
+            text = sg.popup_get_text(lang.overwrite, title=lang.overwrite_title)
+            if text == lang.overwrite_prompt:
+                create_access_file = True
+            else:
+                sql_script = None
+                sql_commands = None
+
+        if create_access_file:
+            self._create_access_file()
+
+        # then connect
         self.con = self.connect()
+
+        self.win_pb.update(lang.sqldriver_execute, 50)
+        if sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info("Executing sql commands passed in")
+            logger.debug(sql_commands)
+            queries = sql_commands.split(";")  # Split the query string by semicolons
+            for query in queries:
+                self.execute(query)
+        if sql_script is not None:
+            # run SQL script from the file if the database does not yet exist
+            logger.info("Executing sql script from file passed in")
+            self.execute_script(sql_script, sql_script_encoding)
+        self.win_pb.close()
 
     import os
     import sys
@@ -10408,17 +10488,23 @@ class MSAccess(SQLDriver):
         except ModuleNotFoundError as e:
             self.import_failed(e)
 
-    def connect(self):
+    def start_jvm(self):
         # Get the path to the 'lib' folder
         current_path = os.path.dirname(os.path.abspath(__file__))
         lib_path = os.path.join(current_path, "lib", "UCanAccess-5.0.1.bin")
+
+        jackcess_file = (
+            "jackcess-3.0.1.jar"
+            if not self.use_newer_jackcess
+            else "jackcess-4.0.5.jar"
+        )
 
         jars = [
             "ucanaccess-5.0.1.jar",
             os.path.join("lib", "commons-lang3-3.8.1.jar"),
             os.path.join("lib", "commons-logging-1.2.jar"),
             os.path.join("lib", "hsqldb-2.5.0.jar"),
-            os.path.join("lib", "jackcess-3.0.1.jar"),
+            os.path.join("lib", jackcess_file),
             os.path.join("loader", "ucanload.jar"),
         ]
         classpath = os.pathsep.join([os.path.join(lib_path, jar) for jar in jars])
@@ -10427,7 +10513,10 @@ class MSAccess(SQLDriver):
             jpype.startJVM(
                 jpype.getDefaultJVMPath(), "-ea", f"-Djava.class.path={classpath}"
             )
+            return True
+        return True
 
+    def connect(self):
         driver_manager = jpype.JPackage("java").sql.DriverManager
         con_str = f"jdbc:ucanaccess://{self.database_file}"
         return driver_manager.getConnection(con_str)
@@ -10468,6 +10557,7 @@ class MSAccess(SQLDriver):
             metadata = rs.getMetaData()
             column_count = metadata.getColumnCount()
             rows = []
+            lastrowid = None
 
             while rs.next():
                 row = {}
@@ -10505,7 +10595,6 @@ class MSAccess(SQLDriver):
                 rows.append(row)
 
                 # Set the last row ID
-                lastrowid = None
                 if "insert" in query.lower():
                     res = self.execute("SELECT @@IDENTITY AS ID")
                     lastrowid = res.iloc[0]["ID"]
@@ -10515,23 +10604,71 @@ class MSAccess(SQLDriver):
         stmt.getUpdateCount()
         return Result.set([], None, exception, column_info)
 
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into the database.")
+            script_content = file.read()  # Read the entire script content
+            queries = script_content.split(";")  # Split the script by semicolons
+            for query in queries:
+                q = query.strip()  # Remove leading/trailing whitespace
+                if q:
+                    self.execute(q)
+
     def column_info(self, table):
         meta_data = self.con.getMetaData()
+
+        # get column info
         rs = meta_data.getColumns(None, None, table, None)
 
         col_info = ColumnInfo(self, table)
         pk_columns = [self.pk_column(table)]
 
         while rs.next():
+            # for debugging
+            debug = False
+            if debug:
+                # fmt: off
+                columns = ['TABLE_CAT', 'TABLE_SCHEM', 'TABLE_NAME', 'COLUMN_NAME',
+                           'DATA_TYPE', 'TYPE_NAME', 'COLUMN_SIZE', 'BUFFER_LENGTH',
+                           'DECIMAL_DIGITS', 'NUM_PREC_RADIX', 'NULLABLE', 'REMARKS',
+                           'COLUMN_DEF', 'SQL_DATA_TYPE', 'SQL_DATETIME_SUB',
+                           'CHAR_OCTET_LENGTH', 'ORDINAL_POSITION', 'IS_NULLABLE',
+                           'SCOPE_CATALOG', 'SCOPE_SCHEMA', 'SCOPE_TABLE',
+                           'SOURCE_DATA_TYPE', 'IS_AUTOINCREMENT', 'IS_GENERATEDCOLUMN',
+                           'ORIGINAL_TYPE']
+                # fmt: on
+                for col in columns:
+                    value = str(rs.getString(col))
+                    print(f"{col}: {value}")
             name = str(rs.getString("column_name"))
             domain = str(rs.getString("TYPE_NAME")).upper()
             notnull = str(rs.getString("IS_NULLABLE")) == "NO"
             default = str(rs.getString("COLUMN_DEF"))
             pk = name in pk_columns
+            generated = str(rs.getString("IS_GENERATEDCOLUMN")) == "YES"
+            col_class = self.get_column_class(domain)
+
+            domain_args = []
+            # handling Date/Time columns, since they are all reported as DateTime
+            if self.infer_datetype_from_default_function and col_class == DateTimeCol:
+                if default == "=Date()":
+                    col_class = DateCol
+                elif default == "=Time()":
+                    col_class = TimeCol
+            if col_class in [DecimalCol, FloatCol, IntCol, StrCol]:
+                domain_args = [str(rs.getString("COLUMN_SIZE"))]
+            if col_class == DecimalCol:
+                domain_args.append(str(rs.getString("DECIMAL_DIGITS")))
 
             col_info.append(
-                Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                col_class(
+                    *domain_args,
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -10614,9 +10751,7 @@ class MSAccess(SQLDriver):
         cols = ""
         for c in columns:
             cols += f"{c['name']} {c['domain']}, "
-        cols = cols[:-2]
-
-        return cols
+        return cols[:-2]
 
     def _insert_duplicate_record(
         self, table: str, columns: str, pk_column: str, pk: int
@@ -10647,6 +10782,33 @@ class MSAccess(SQLDriver):
         )
         values = [value for key, value in row.items()]
         return self.execute(query, tuple(values))
+
+    def _create_access_file(self):
+        try:
+            db_builder = jpype.JClass(
+                "com.healthmarketscience.jackcess.DatabaseBuilder"
+            )
+            if self.database_file.endswith(".mdb"):
+                db_file_format = jpype.JClass(
+                    "com.healthmarketscience.jackcess.Database$FileFormat"
+                ).V2003
+            elif self.database_file.endswith(".accdb"):
+                db_file_format = jpype.JClass(
+                    "com.healthmarketscience.jackcess.Database$FileFormat"
+                ).V2016
+            else:
+                sg.popup("Access file name must end with .accdb or .mdb")
+                return False
+            access_db = (
+                db_builder(jpype.JClass("java.io.File")(self.database_file))
+                .setFileFormat(db_file_format)
+                .create()
+            )
+            access_db.close()
+        except Exception as e:  # noqa BLE001
+            print("Error creating access file:", e)
+            return False
+        return True
 
 
 # --------------------------
