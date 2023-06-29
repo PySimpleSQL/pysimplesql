@@ -9021,6 +9021,35 @@ class Sqlite(SQLDriver):
     The SQLite driver supports SQLite3 databases.
     """
 
+    DECIMAL_DOMAINS = ["DECIMAL", "DECTEXT", "MONEY", "NUMERIC"]
+
+    COLUMN_CLASS_MAP = {
+        "BOOLEAN": BoolCol,
+        "CLOB": StrCol,
+        "CHARACTER": StrCol,
+        "DATE": DateCol,
+        "DATETIME": DateTimeCol,
+        "DECIMAL": DecimalCol,
+        "DECTEXT": DecimalCol,
+        "INTEGER": IntCol,
+        "MONEY": DecimalCol,
+        "NATIVE CHARACTER": StrCol,
+        "NCHAR": StrCol,
+        "NVARCHAR": StrCol,
+        "NUMERIC": DecimalCol,
+        "REAL": FloatCol,
+        "TEXT": StrCol,
+        "VARCHAR": StrCol,
+        "VARYING CHARACTER": StrCol,
+    }
+
+    SQL_CONSTANTS = [
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+        "CURRENT_TIMESTAMP",
+        "NULL",
+    ]
+
     def __init__(
         self,
         db_path=None,
@@ -9038,6 +9067,12 @@ class Sqlite(SQLDriver):
         )
 
         self.import_required_modules()
+
+        # Register the adapter
+        sqlite3.register_adapter(Decimal, self.adapt_decimal)
+        # Register the converter
+        for domain in self.DECIMAL_DOMAINS:
+            sqlite3.register_converter(domain, self.convert_decimal)
 
         new_database = False
         if db_path is not None:
@@ -9075,7 +9110,9 @@ class Sqlite(SQLDriver):
             self.import_failed(e)
 
     def connect(self, database):
-        self.con = sqlite3.connect(database)
+        self.con = sqlite3.connect(
+            database, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+        )
 
     def execute(
         self,
@@ -9090,6 +9127,7 @@ class Sqlite(SQLDriver):
 
         cursor = self.con.cursor()
         exception = None
+
         try:
             cur = cursor.execute(query, values) if values else cursor.execute(query)
         except sqlite3.Error as e:
@@ -9112,6 +9150,11 @@ class Sqlite(SQLDriver):
         return Result.set(
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
+
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            self.con.executescript(file.read())
 
     def close(self):
         # Only do cleanup if this is not an imported database
@@ -9139,15 +9182,22 @@ class Sqlite(SQLDriver):
         col_info = ColumnInfo(self, table)
 
         for _, row in rows.iterrows():
+            domain, domain_args = self.parse_domain(row["type"])
+            col_class = self.get_column_class(domain)
+
+            # TODO: should we exclude hidden columns?
+            # if row["hidden"] == 1:
+            #    continue
             name = row["name"]
             names.append(name)
             domain = row["type"]
             notnull = row["notnull"]
             default = row["dflt_value"]
             pk = row["pk"]
-            generated = row["hidden"]
+            generated = row["hidden"] in [2, 3]
             col_info.append(
-                Column(
+                col_class(
+                    *domain_args,
                     name=name,
                     domain=domain,
                     notnull=notnull,
@@ -9191,10 +9241,11 @@ class Sqlite(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def execute_script(self, script, encoding):
-        with open(script, "r", encoding=encoding) as file:
-            logger.info(f"Loading script {script} into database.")
-            self.con.executescript(file.read())
+    def adapt_decimal(self, d):
+        return str(d)
+
+    def convert_decimal(self, s):
+        return Decimal(s.decode("utf-8"))
 
 
 # --------------------------------------------------------------------------------------
