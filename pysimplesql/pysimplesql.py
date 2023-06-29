@@ -5099,10 +5099,9 @@ class ProgressAnimate:
     async def run_process(self, fn: callable, *args, **kwargs):
         loop = asyncio.get_running_loop()
         try:
-            result = await loop.run_in_executor(
+            return await loop.run_in_executor(
                 None, functools.partial(fn, *args, **kwargs)
             )
-            return result
         except Exception as e:  # noqa: BLE001
             print(f"\nAn error occurred in the process: {e}")
             raise e  # Pass the exception along to the caller
