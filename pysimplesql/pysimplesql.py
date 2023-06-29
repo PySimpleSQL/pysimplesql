@@ -6025,13 +6025,13 @@ class _DatePicker(ttk.Entry):
         self.calendar.bind("<Leave>", self.hide_calendar, "+")
 
     def show_calendar(self, event=None):
-        self.configure(state="disabled")
+        self.configure(state=tk.DISABLED)
         self.calendar.place(in_=self, relx=0, rely=1)
         self.calendar.focus_force()
         self.calendar.select_date()
 
     def hide_calendar(self, event=None):
-        self.configure(state="!disabled")
+        self.configure(state=tk.NORMAL)
         self.calendar.place_forget()
         self.focus_force()
 
