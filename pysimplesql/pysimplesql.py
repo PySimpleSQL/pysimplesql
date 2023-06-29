@@ -9750,6 +9750,30 @@ class Postgres(SQLDriver):
     The Postgres driver supports PostgreSQL databases.
     """
 
+    COLUMN_CLASS_MAP = {
+        "BIGINT": IntCol,
+        "BIGSERIAL": IntCol,
+        "BOOLEAN": BoolCol,
+        "CHARACTER": StrCol,
+        "CHARACTER VARYING": StrCol,
+        "DATE": DateCol,
+        "DOUBLE PRECISION": FloatCol,
+        "INTEGER": IntCol,
+        "MONEY": DecimalCol,
+        "NUMERIC": DecimalCol,
+        "REAL": FloatCol,
+        "SMALLINT": IntCol,
+        "SMALLSERIAL": IntCol,
+        "SERIAL": IntCol,
+        "TEXT": StrCol,
+        "TIME": TimeCol,
+        "TIMETZ": TimeCol,
+        "TIMESTAMP": DateTimeCol,
+        "TIMESTAMPTZ": DateTimeCol,
+    }
+
+    SQL_CONSTANTS = ["CURRENT_USER", "SESSION_USER", "USER"]
+
     def __init__(
         self,
         host,
@@ -9757,6 +9781,7 @@ class Postgres(SQLDriver):
         password,
         database,
         sql_script=None,
+        sql_script_encoding: str = "utf-8",
         sql_commands=None,
         sync_sequences=False,
     ):
@@ -9806,17 +9831,19 @@ class Postgres(SQLDriver):
                     q = f"SELECT setval('{seq}', 1, false);"
                 self.execute(q, silent=True, auto_commit_rollback=True)
 
-        self.win_pb.update("executing SQL commands", 50)
+        self.win_pb.update(lang.sqldriver_execute, 50)
         if sql_commands is not None:
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
             logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(sql_commands)
             self.con.commit()
+            cursor.close()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
+            self.execute_script(sql_script, sql_script_encoding)
         self.win_pb.close()
 
     def import_required_modules(self):
@@ -9831,14 +9858,13 @@ class Postgres(SQLDriver):
         attempt = 0
         while attempt < retries:
             try:
-                con = psycopg2.connect(
+                return psycopg2.connect(
                     host=self.host,
                     user=self.user,
                     password=self.password,
                     database=self.database,
                     # connect_timeout=3,
                 )
-                return con
             except psycopg2.Error as e:
                 print(f"Failed to connect to database ({attempt + 1}/{retries})")
                 print(e)
@@ -9883,6 +9909,14 @@ class Postgres(SQLDriver):
             [dict(row) for row in rows], exception=exception, column_info=column_info
         )
 
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            cursor = self.con.cursor()
+            cursor.execute(file.read())
+        self.con.commit()
+        cursor.close()
+
     def get_tables(self):
         query = (
             "SELECT table_name FROM information_schema.tables WHERE "
@@ -9896,22 +9930,35 @@ class Postgres(SQLDriver):
         # Return a list of column names
         query = f"SELECT * FROM information_schema.columns WHERE table_name = '{table}'"
         rows = self.execute(query, silent=True)
-
         col_info = ColumnInfo(self, table)
         pk_column = self.pk_column(table)
         for _, row in rows.iterrows():
             name = row["column_name"]
             domain = row["data_type"].upper()
+            col_class = self.get_column_class(domain)
+            domain_args = []
+            if col_class == DecimalCol:
+                domain_args = [row["numeric_precision"], row["numeric_scale"]]
+            elif col_class in [FloatCol, IntCol]:
+                domain_args = [row["numeric_precision"]]
+            elif col_class == StrCol:
+                domain_args = [row["character_maximum_length"]]
             notnull = row["is_nullable"] != "YES"
             default = row["column_default"]
             # Fix the default value by removing the datatype that is appended to the end
             if default is not None and "::" in default:
                 default = default[: default.index("::")]
-
             pk = name == pk_column
+            generated = row["is_generated"] == "ALWAYS"
             col_info.append(
-                Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                col_class(
+                    *domain_args,
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -9922,7 +9969,7 @@ class Postgres(SQLDriver):
             "SELECT column_name FROM information_schema.table_constraints tc JOIN "
             "information_schema.key_column_usage kcu ON tc.constraint_name = "
             "kcu.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY' AND "
-            f"tc.table_name = '{table}' "
+            f"tc.table_name = '{table}';"
         )
         rows = self.execute(query, silent=True)
         return rows.iloc[0]["column_name"]
@@ -10010,9 +10057,6 @@ class Postgres(SQLDriver):
 
         result.attrs["lastid"] = pk
         return result
-
-    def execute_script(self, script):
-        pass
 
 
 # --------------------------------------------------------------------------------------
@@ -10229,6 +10273,27 @@ class Sqlserver(SQLDriver):
             f"WHERE {self.quote_column(pk_column)} = {pk};"
         )
         res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
+        res.attrs["lastrowid"] = res.iloc[0][pk_column].tolist()
+        return res
+
+    def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
+        # Remove the pk column
+        row = {self.quote_column(k): v for k, v in row.items() if k != pk_column}
+
+        # quote appropriately
+        table = self.quote_table(table)
+
+        # Remove the primary key column to ensure autoincrement is used!
+        query = (
+            f"INSERT INTO {table} ({', '.join(key for key in row)}) "
+            f"OUTPUT inserted.{self.quote_column(pk_column)} "
+            f"VALUES "
+            f"({','.join(self.placeholder for _ in range(len(row)))}); "
+        )
+        values = [value for key, value in row.items()]
+        res = self.execute(query, tuple(values))
         if res.attrs["exception"]:
             return res
         res.attrs["lastrowid"] = res.iloc[0][pk_column].tolist()
