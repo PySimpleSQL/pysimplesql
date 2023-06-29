@@ -10067,15 +10067,57 @@ class Sqlserver(SQLDriver):
     The Sqlserver driver supports Microsoft SQL Server databases.
     """
 
+    COLUMN_CLASS_MAP = {
+        "BIGINT": IntCol,
+        "BIT": BoolCol,
+        "CHAR": StrCol,
+        "DATE": DateCol,
+        "DATETIME": DateTimeCol,
+        "DATETIME2": DateTimeCol,
+        "DATETIMEOFFSET": DateTimeCol,
+        "DECIMAL": DecimalCol,
+        "FLOAT": FloatCol,
+        "INT": IntCol,
+        "MONEY": DecimalCol,
+        "NCHAR": StrCol,
+        "NTEXT": StrCol,
+        "NUMERIC": DecimalCol,
+        "NVARCHAR": StrCol,
+        "REAL": FloatCol,
+        "SMALLDATETIME": DateTimeCol,
+        "SMALLINT": IntCol,
+        "SMALLMONEY": DecimalCol,
+        "TEXT": StrCol,
+        "TIME": TimeCol,
+        "TIMESTAMP": DateTimeCol,
+        "TINYINT": IntCol,
+        "VARCHAR": StrCol,
+    }
+
+    SQL_CONSTANTS = [
+        "CURRENT_USER",
+        "HOST_NAME",
+        "NULL",
+        "SESSION_USER",
+        "SYSTEM_USER",
+        "USER",
+    ]
+
     def __init__(
-        self, host, user, password, database, sql_script=None, sql_commands=None
+        self,
+        host,
+        user,
+        password,
+        database,
+        sql_script=None,
+        sql_script_encoding: str = "utf-8",
+        sql_commands=None,
     ):
         super().__init__(
             name="Sqlserver", requires=["pyodbc"], table_quote="[]", placeholder="?"
         )
 
         self.import_required_modules()
-
         self.name = "Sqlserver"  # is this redundant?
         self.host = host
         self.user = user
@@ -10087,13 +10129,14 @@ class Sqlserver(SQLDriver):
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
             logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(sql_commands)
             self.con.commit()
+            cursor.close()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
-
+            self.execute_script(sql_script, sql_script_encoding)
         self.win_pb.close()
 
     def import_required_modules(self):
@@ -10107,7 +10150,7 @@ class Sqlserver(SQLDriver):
         attempt = 0
         while attempt < retries:
             try:
-                con = pyodbc.connect(
+                return pyodbc.connect(
                     f"DRIVER={{ODBC Driver 17 for SQL Server}};"
                     f"SERVER={self.host};"
                     f"DATABASE={self.database};"
@@ -10115,7 +10158,6 @@ class Sqlserver(SQLDriver):
                     f"PWD={self.password}",
                     timeout=timeout,
                 )
-                return con
             except pyodbc.Error as e:
                 print(f"Failed to connect to database ({attempt + 1}/{retries})")
                 print(e)
@@ -10165,6 +10207,14 @@ class Sqlserver(SQLDriver):
             column_info,
         )
 
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            cursor = self.con.cursor()
+            cursor.execute(file.read())
+        self.con.commit()
+        cursor.close()
+
     def get_tables(self):
         query = (
             "SELECT table_name FROM information_schema.tables WHERE table_catalog = ?"
@@ -10177,7 +10227,6 @@ class Sqlserver(SQLDriver):
         query = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
         rows = self.execute(query, [table], silent=True)
         col_info = ColumnInfo(self, table)
-
         # Get the primary key column(s)
         pk_columns = []
         pk_query = """
@@ -10189,9 +10238,31 @@ class Sqlserver(SQLDriver):
         for _, pk_row in pk_rows.iterrows():
             pk_columns.append(pk_row["COLUMN_NAME"])
 
+        # get the generated columns:
+        gen_query = (
+            "SELECT name "
+            "FROM sys.columns "
+            "WHERE object_id = OBJECT_ID(?) "
+            "AND is_computed = 1;"
+        )
+        generated_columns = []
+        gen_rows = self.execute(gen_query, [table], silent=True)
+        for _, row in gen_rows.iterrows():
+            generated_columns.append(row[0])
+
+        rows = rows.fillna("")
+        # setup all the variables to be passed to col_info
         for _, row in rows.iterrows():
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
+            col_class = self.get_column_class(domain)
+            domain_args = []
+            if col_class == DecimalCol:
+                domain_args = [row["NUMERIC_PRECISION"], row["NUMERIC_SCALE"]]
+            elif col_class in [FloatCol, IntCol]:
+                domain_args = [row["NUMERIC_PRECISION"]]
+            elif col_class == StrCol:
+                domain_args = [row["CHARACTER_MAXIMUM_LENGTH"]]
             notnull = row["IS_NULLABLE"] == "NO"
             if row["COLUMN_DEFAULT"]:
                 col_default = row["COLUMN_DEFAULT"]
@@ -10204,9 +10275,16 @@ class Sqlserver(SQLDriver):
             else:
                 default = None
             pk = name in pk_columns
+            generated = name in generated_columns
             col_info.append(
-                Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                col_class(
+                    *domain_args,
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
