@@ -5504,21 +5504,20 @@ class _PlaceholderText(abc.ABC):
     a placeholder text when the input is empty.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.placeholder_feature_enabled = False
-        self.normal_color = None
-        self.normal_font = None
-        self.placeholder_text = ""
-        self.placeholder_color = None
-        self.placeholder_font = None
-        self.active_placeholder = False
-        # fmt: off
-        self._non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
-                    "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
-                    "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4","F5",
-                    "F6","F7","F8","F9","F10","F11","F12", "Delete"]
-        # fmt: on
+    binds = {}
+    placeholder_feature_enabled = False
+    normal_color = None
+    normal_font = None
+    placeholder_text = ""
+    placeholder_color = None
+    placeholder_font = None
+    active_placeholder = False
+    # fmt: off
+    _non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
+                "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
+                "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4","F5",
+                "F6","F7","F8","F9","F10","F11","F12", "Delete"]
+    # fmt: on
 
     def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
         """
