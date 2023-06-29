@@ -5765,76 +5765,55 @@ class _SearchInput(_EnhancedInput):
             self.insert_placeholder()
 
 
-def _autocomplete_combo(widget, completion_list, delta=0):
-    """Perform autocompletion on a Combobox widget based on the current input."""
-    if delta:
-        # Delete text from current position to end
-        widget.delete(widget.position, tk.END)
-    else:
-        # Set the position to the length of the current input text
-        widget.position = len(widget.get())
+class _AutoCompleteLogic:
+    _completion_list = []
+    _hits = []
+    _hit_index = 0
+    position = 0
+    finalized = False
 
-    prefix = widget.get().lower()
-    hits = [
-        element for element in completion_list if element.lower().startswith(prefix)
-    ]
-    # Create a list of elements that start with the lowercase prefix
+    def _autocomplete_combo(self, completion_list, delta=0):
+        widget = self.Widget
+        """Perform autocompletion on a Combobox widget based on the current input."""
+        if delta:
+            # Delete text from current position to end
+            widget.delete(widget.position, tk.END)
+        else:
+            # Set the position to the length of the current input text
+            widget.position = len(widget.get())
 
-    if hits:
-        closest_match = min(hits, key=len)
-        if prefix != closest_match.lower():
-            # Insert the closest match at the beginning, move the cursor to the end
-            widget.delete(0, tk.END)
-            widget.insert(0, closest_match)
-            widget.icursor(len(closest_match))
+        prefix = widget.get().lower()
+        hits = [
+            element for element in completion_list if element.lower().startswith(prefix)
+        ]
+        # Create a list of elements that start with the lowercase prefix
 
-            # Highlight the remaining text after the closest match
-            widget.select_range(widget.position, tk.END)
+        if hits:
+            closest_match = min(hits, key=len)
+            if prefix != closest_match.lower():
+                # Insert the closest match at the beginning, move the cursor to the end
+                widget.delete(0, tk.END)
+                widget.insert(0, closest_match)
+                widget.icursor(len(closest_match))
 
-        if len(hits) == 1 and closest_match.lower() != prefix:
-            # If there is only one hit and it's not equal to the lowercase prefix,
-            # open dropdown
-            widget.event_generate("<Down>")
-            widget.event_generate("<<ComboboxSelected>>")
+                # Highlight the remaining text after the closest match
+                widget.select_range(widget.position, tk.END)
 
-    else:
-        # If there are no hits, move the cursor to the current position
-        widget.icursor(widget.position)
+            if len(hits) == 1 and closest_match.lower() != prefix:
+                # If there is only one hit and it's not equal to the lowercase prefix,
+                # open dropdown
+                widget.event_generate("<Down>")
+                widget.event_generate("<<ComboboxSelected>>")
 
-    return hits
+        else:
+            # If there are no hits, move the cursor to the current position
+            widget.icursor(widget.position)
 
-
-class _AutocompleteCombo(sg.Combo):
-    """Customized Combo widget with autocompletion feature.
-
-    Please note that due to how PySimpleSql initilizes widgets, you must call update()
-    once to activate autocompletion, eg `window['combo_key'].update(values=values)`
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the Combo widget."""
-        self._completion_list = []
-        self._hits = []
-        self._hit_index = 0
-        self.position = 0
-        self.finalized = False
-
-        super().__init__(*args, **kwargs)
-
-    def update(self, *args, **kwargs):
-        """Update the Combo widget with new values."""
-        if "values" in kwargs and kwargs["values"] is not None:
-            self._completion_list = [str(row) for row in kwargs["values"]]
-            if not self.finalized:
-                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
-            self._hits = []
-            self._hit_index = 0
-            self.position = 0
-        super().update(*args, **kwargs)
+        return hits
 
     def autocomplete(self, delta=0):
         """Perform autocompletion based on the current input."""
-        self._hits = _autocomplete_combo(self.Widget, self._completion_list, delta)
+        self._hits = self._autocomplete_combo(self._completion_list, delta)
         self._hit_index = 0
 
     def handle_keyrelease(self, event):
@@ -5859,44 +5838,33 @@ class _AutocompleteCombo(sg.Combo):
             self.autocomplete()
 
 
-class _TtkCombo(ttk.Combobox):
+class _AutocompleteCombo(_AutoCompleteLogic, sg.Combo):
+    """Customized Combo widget with autocompletion feature.
+
+    Please note that due to how PySimpleSql initilizes widgets, you must call update()
+    once to activate autocompletion, eg `window['combo_key'].update(values=values)`
+    """
+
+    def update(self, *args, **kwargs):
+        """Update the Combo widget with new values."""
+        if "values" in kwargs and kwargs["values"] is not None:
+            self._completion_list = [str(row) for row in kwargs["values"]]
+            if not self.finalized:
+                self.Widget.bind("<KeyRelease>", self.handle_keyrelease, "+")
+            self._hits = []
+            self._hit_index = 0
+            self.position = 0
+        super().update(*args, **kwargs)
+
+
+class _TtkCombo(_AutoCompleteLogic, ttk.Combobox):
     """Customized Combo widget with autocompletion feature."""
 
     def __init__(self, *args, **kwargs):
         """Initialize the Combo widget."""
         self._completion_list = [str(row) for row in kwargs["values"]]
-        self._hits = []
-        self._hit_index = 0
-        self.position = 0
-        self.finalized = False
-
+        self.Widget = self
         super().__init__(*args, **kwargs)
-
-    def autocomplete(self, delta=0):
-        """Perform autocompletion based on the current input."""
-        self._hits = _autocomplete_combo(self, self._completion_list, delta)
-        self._hit_index = 0
-
-    def handle_keyrelease(self, event):
-        """Handle key release event for autocompletion and navigation."""
-        if event.keysym == "BackSpace":
-            self.delete(self.position, tk.END)
-            self.position = self.position
-        if event.keysym == "Left":
-            if self.position < self.index(tk.END):
-                self.delete(self.position, tk.END)
-            else:
-                self.position -= 1
-                self.delete(self.position, tk.END)
-        if event.keysym == "Right":
-            self.position = self.index(tk.END)
-        if event.keysym == "Return":
-            self.icursor(tk.END)
-            self.selection_clear()
-            return
-
-        if len(event.keysym) == 1:
-            self.autocomplete()
 
 
 class _TtkCalendar(ttk.Frame):
