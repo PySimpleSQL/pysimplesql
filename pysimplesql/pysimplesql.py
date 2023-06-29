@@ -5878,7 +5878,7 @@ class _TtkCalendar(ttk.Frame):
         sel_bg = kwargs.pop("selectbackground", "#ecffc4")
         sel_fg = kwargs.pop("selectforeground", "#05640e")
 
-        super().__init__(master, class_="ttkcalendar", **kwargs)
+        super().__init__(master, **kwargs)
 
         self.master = master
         self.cal_date = init_date
@@ -6010,13 +6010,16 @@ class _TtkCalendar(ttk.Frame):
 
 
 class _DatePicker(ttk.Entry):
-    def __init__(self, master, frm_reference, init_date, **kwargs):
-        self.frm = frm_reference
+    def __init__(self, master, dataset, column_name, init_date, **kwargs):
+        self.dataset = dataset
+        self.column_name = column_name
         textvariable = kwargs["textvariable"]
-        self.calendar = _TtkCalendar(self.frm.window.TKroot, init_date, textvariable)
+        self.calendar = _TtkCalendar(
+            self.dataset.frm.window.TKroot, init_date, textvariable
+        )
         self.calendar.place_forget()
         self.button = ttk.Button(master, text="▼", width=2, command=self.show_calendar)
-        super().__init__(master, class_="Datepicker", **kwargs)
+        super().__init__(master, **kwargs)
 
         self.bind("<KeyRelease>", self.on_entry_key_release, "+")
         self.calendar.bind("<Leave>", self.hide_calendar, "+")
