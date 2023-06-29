@@ -2525,9 +2525,9 @@ class DataSet:
                 and self.column_info[column].domain == "BOOLEAN"
             ]
             for col in bool_columns:
-                rows[col] = (
-                    themepack.checkbox_true
-                    if checkbox_to_bool(rows[col])
+                rows[col] = rows[col].apply(
+                    lambda x: themepack.checkbox_true
+                    if checkbox_to_bool(x)
                     else themepack.checkbox_false
                 )
 
