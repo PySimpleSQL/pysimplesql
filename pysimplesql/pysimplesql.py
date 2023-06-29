@@ -750,7 +750,7 @@ class DataSet:
         self.search_order = order
 
     def set_callback(
-        self, callback: str, fctn: Callable[[Form, sg.Window], bool]
+        self, callback: str, fctn: Callable[[Form, sg.Window, DataSet.key], bool]
     ) -> None:
         """
         Set DataSet callbacks. A runtime error will be thrown if the callback is not
@@ -781,6 +781,8 @@ class DataSet:
             after_search  called after a search has been performed.  The record change
                 will undo if the callback returns False
             record_changed called after a record has changed (previous,next, etc.)
+            after_record_edit called after the internal `DataSet` row is edited via a
+                `sg.Table` cell-edit, or `field` live-update.
 
         :param callback: The name of the callback, from the list above
         :param fctn: The function to call. Note, the function must take at least two
@@ -801,7 +803,7 @@ class DataSet:
             "before_search",
             "after_search",
             "record_changed",
-            "current_row_updated",
+            "after_record_edit",
         ]
         if callback in supported:
             # handle our convenience aliases
@@ -1675,7 +1677,7 @@ class DataSet:
         :param column: The column you want to set the value for
         :param value: A value to set the current record's column to
         :param write_event: (optional) If True, writes an event to PySimpleGui
-            as `current_row_updated`.
+            as `after_record_edit`.
         :returns: None
         """
         logger.debug(f"Setting current record for {self.key}.{column} = {value}")
@@ -1683,7 +1685,7 @@ class DataSet:
         self.rows.loc[self.rows.index[self.current_index], column] = value
         if write_event:
             self.frm.window.write_event_value(
-                "current_row_updated",
+                "after_record_edit",
                 {
                     "frm_reference": self.frm,
                     "data_key": self.key,
@@ -1692,8 +1694,8 @@ class DataSet:
                 },
             )
         # call callback
-        if "current_row_updated" in self.callbacks:
-            self.callbacks["current_row_updated"](self.frm, self.frm.window, self.key)
+        if "after_record_edit" in self.callbacks:
+            self.callbacks["after_record_edit"](self.frm, self.frm.window, self.key)
 
     def get_keyed_value(
         self, value_column: str, key_column: str, key_value: Union[str, int]
