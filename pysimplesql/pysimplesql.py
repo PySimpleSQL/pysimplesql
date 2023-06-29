@@ -7402,7 +7402,7 @@ class _LiveUpdate:
                 column = e["column"]
                 element = e["element"]
                 if widget_type == TK_COMBOBOX and isinstance(element.get(), ElementRow):
-                    new_value = element.get().get_pk()
+                    new_value = element.get().get_pk_ignore_placeholder()
                 else:
                     new_value = element.get()
 
