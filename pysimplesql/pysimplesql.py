@@ -811,7 +811,7 @@ class DataSet:
         else:
             raise RuntimeError(f'Callback "{callback}" not supported.')
 
-    def _invoke_callback(callback, *args):
+    def _invoke_callback(self, callback, *args):
         # Get the callback's signature
         signature = inspect.signature(callback)
 
