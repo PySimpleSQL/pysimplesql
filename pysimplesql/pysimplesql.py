@@ -591,6 +591,7 @@ class DataSet:
         prompt_save: int = None,
         save_quiet: bool = None,
         duplicate_children: bool = None,
+        validate_fields: bool = None,
     ) -> None:
         """
         Initialize a new `DataSet` instance.
@@ -619,6 +620,7 @@ class DataSet:
             save. Error popups will still be shown.
         :param duplicate_children: (optional) Default: Set in `Form`. If record has
             children, prompt user to choose to duplicate current record, or both.
+        :param validate_fields: Validate fields before saving to database.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -650,18 +652,22 @@ class DataSet:
         self.callbacks: CallbacksDict = {}
         self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
         self.filtered: bool = filtered
-        if prompt_save is None:
-            self._prompt_save = self.frm._prompt_save
-        else:
-            self._prompt_save: int = prompt_save
-        if save_quiet is None:
-            self.save_quiet = self.frm.save_quiet
-        else:
-            self.save_quiet: bool = save_quiet
-        if duplicate_children is None:
-            self.duplicate_children = self.frm.duplicate_children
-        else:
-            self.duplicate_children: bool = duplicate_children
+        self._prompt_save = (
+            self.frm._prompt_save if prompt_save is None else int(prompt_save)
+        )
+        self.save_quiet = (
+            self.frm.save_quiet if save_quiet is None else bool(save_quiet)
+        )
+        self.duplicate_children = (
+            self.frm.duplicate_children
+            if duplicate_children is None
+            else bool(duplicate_children)
+        )
+        self.validate_fields = (
+            self.frm.validate_fields
+            if validate_fields is None
+            else bool(validate_fields)
+        )
         self._simple_transform: SimpleTransformsDict = {}
 
     # Override the [] operator to retrieve current columns by key
@@ -1852,7 +1858,10 @@ class DataSet:
         self.requery_dependents()
 
     def save_record(
-        self, display_message: bool = None, update_elements: bool = True
+        self,
+        display_message: bool = None,
+        update_elements: bool = True,
+        validate_fields: bool = None,
     ) -> int:
         """
         Save the currently selected record.
@@ -1864,11 +1873,15 @@ class DataSet:
         :param display_message: Displays a message "Updates saved successfully",
             otherwise is silent on success.
         :param update_elements: Update the GUI elements after saving
+        :param validate_fields: Validate fields before saving to database.
         :returns: SAVE_NONE, SAVE_FAIL or SAVE_SUCCESS masked with SHOW_MESSAGE
         """
         logger.debug(f"Saving records for table {self.table}...")
         if display_message is None:
             display_message = not self.save_quiet
+
+        if validate_fields is None:
+            validate_fields = self.validate_fields
 
         # Ensure that there is actually something to save
         if not self.row_count:
@@ -1991,6 +2004,26 @@ class DataSet:
                 self.frm.update_selectors(self.key)
                 self.frm.update_fields(self.key)
             return SAVE_NONE + SHOW_MESSAGE
+
+        # check to make sure we have valid inputs
+        if validate_fields:
+            invalid_response = {}
+            for col, value in changed_row_dict.items():
+                response = self.column_info[col].validate(value)
+                if response.exception:
+                    invalid_response[col] = response
+            if invalid_response:
+                msg = f"{lang.dataset_save_validate_error_header}"
+                for col, response in invalid_response.items():
+                    field = lang.dataset_save_validate_error_field.format_map(
+                        LangFormat(field=col)
+                    )
+                    exception = lang[response.exception].format_map(
+                        LangFormat(value=response.value, rule=response.rule)
+                    )
+                    msg += f"{field}{exception}\n"
+                self.frm.popup.ok(lang.dataset_save_validate_error_title, msg)
+                return SAVE_FAIL
 
         # check to see if cascading-fk has changed before we update database
         cascade_fk_changed = False
@@ -3099,6 +3132,7 @@ class Form:
         description_column_names: List[str] = None,
         live_update: bool = False,
         auto_add_relationships: bool = True,
+        validate_fields: bool = True,
     ) -> None:
         """
         Initialize a new `Form` instance.
@@ -3137,6 +3171,8 @@ class Form:
         :param auto_add_relationships: (optional) Controls the invocation of
             auto_add_relationships. Default is True. Set it to False when creating a new
             `Form` with pre-existing `Relationship` instances.
+        :param validate_fields: Passed to `DataSet` init to validate fields before
+            saving to database.
         :returns: None
         """
         win_pb = ProgressBar(lang.startup_form)
@@ -3171,6 +3207,7 @@ class Form:
         else:
             self.description_column_names = description_column_names
         self.live_update: bool = live_update
+        self.validate_fields: bool = validate_fields
 
         # empty variables, just in-case bind() never called
         self.popup = None
@@ -7748,8 +7785,11 @@ class LanguagePack:
         "overwrite": "File exists, type YES to overwrite",
         "overwrite_prompt": "YES",
         # ------------------------------------------------------------------------------
-        # Invalid Input msgs
+        # Validate Msgs
         # ------------------------------------------------------------------------------
+        "dataset_save_validate_error_title": "Error: Invalid Input(s)",
+        "dataset_save_validate_error_header": "The following fields(s) have issues:\n",
+        "dataset_save_validate_error_field": "{field}: ",
         ValidateRule.REQUIRED: "Field is required",
         ValidateRule.PYTHON_TYPE: "{value} could not be cast to correct type, {rule}",
         ValidateRule.PRECISION: "{value} exceeds max precision length, {rule}",
