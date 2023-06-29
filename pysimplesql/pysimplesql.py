@@ -2869,11 +2869,11 @@ class DataSet:
                 column_copy = self.map_fk_descriptions(column_copy, [column])[column]
 
                 # Assign the transformed column to the temporary column
-                temp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
-                self.rows[temp_column] = column_copy
+                tmp_column = f"temp_{rel.parent_table}.{rel.pk_column}"
+                self.rows[tmp_column] = column_copy
 
                 # Use the temporary column as the new sorting column
-                column = temp_column
+                column = tmp_column
 
                 transformed = True
                 break
