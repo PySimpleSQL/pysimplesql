@@ -7137,7 +7137,11 @@ class _CellEdit:
         if widget_type == TK_DATEPICKER:
             text = dt.date.today() if type(text) is str else text
             self.field = _DatePicker(
-                frame, self.frm, init_date=text, textvariable=field_var
+                frame,
+                self.frm[data_key],
+                column_name=column,
+                init_date=text,
+                textvariable=field_var,
             )
             expand = True
 
@@ -7230,6 +7234,20 @@ class _CellEdit:
             new_value = combobox_values[self.field.current()].get_pk()
 
         dataset = self.frm[data_key]
+
+        for col in dataset.column_info:
+            if col.name == column:
+                response = col.validate(new_value)
+                if response.exception:
+                    self.frm.popup.info(
+                        lang[response.exception].format_map(
+                            LangFormat(value=response.value, rule=response.rule)
+                        ),
+                        display_message=False,
+                    )
+                    _shake_animation(self.field)
+                    return
+                self.frm.popup.update_info_element(erase=True)
 
         # see if there was a change
         old_value = dataset.get_current_row().copy()[column]
@@ -7394,6 +7412,17 @@ class _LiveUpdate:
                 # get cast new value to correct type
                 for col in dataset.column_info:
                     if col.name == column:
+                        response = col.validate(new_value)
+                        if response.exception:
+                            self.frm.popup.info(
+                                lang[response.exception].format_map(
+                                    LangFormat(value=response.value, rule=response.rule)
+                                ),
+                                display_message=False,
+                            )
+                            _shake_animation(e["element"].widget)
+                            return
+                        self.frm.popup.update_info_element(erase=True)
                         new_value = col.cast(new_value)
                         break
 
