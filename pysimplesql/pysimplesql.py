@@ -6036,11 +6036,10 @@ class _DatePicker(ttk.Entry):
         self.focus_force()
 
     def on_entry_key_release(self, event=None):
+        date = self.get()
+        date = self.dataset.column_info[self.column_name].cast(date)
         # Check if the user has typed a valid date
-        try:
-            date_str = self.get()
-            date = dt.datetime.strptime(date_str, "%Y-%m-%d")
-        except ValueError:
+        if not isinstance(date, dt.date):
             return
 
         # Update the calendar to show the new date
