@@ -10,7 +10,7 @@ import time
 
 import docker
 
-from pysimplesql import ProgressBar
+from pysimplesql import Popup, ProgressBar
 
 # Set the logging level here (NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL)
 logger = logging.getLogger(__name__)
@@ -61,7 +61,11 @@ def docker_image_pull(image: str, latest: bool = True) -> None:
     :param latest: Ensure that the latest docker image is used (updates the local image)
     :return:
     """
-    client = docker.from_env()
+    try:
+        client = docker.from_env()
+    except docker.errors.DockerException as e:
+        popup = Popup()
+        popup.ok("Error", f"Error opening docker. Is Docker Desktop open?/n{e}"),
     # Check if the installed image is installed, and if it is the latest.
     # Also check to see if the latest was requested in the function call
     if docker_image_installed(image):
@@ -138,7 +142,7 @@ def docker_container_start(
         container.start()
 
     # Wait for the container to be fully initialized
-    retries = 3
+    retries = 25
     progress_bar = ProgressBar(
         title="Waiting for container to start", max_value=retries, hide_delay=1000
     )
@@ -148,8 +152,13 @@ def docker_container_start(
             logs = container.logs().decode("utf-8")
             # TODO: Refactor to include callback or other mechanism to determine if
             # a container is fully initialized, since this needs to be more general
-            # purpose. For now, this should work in both Postgres and MySQL
-            if "ready" in logs and "connect" in logs:
+            # purpose. For now, this should work in both MySQL/Postgres/SqlServer
+            ready_msg = [
+                "MySQL init process done. Ready for start up",
+                "PostgreSQL Database directory appears to contain a database",
+                "Recovery is complete. This is an informational message only.",
+            ]
+            if any(msg in logs for msg in ready_msg):
                 progress_bar.close()
                 return container
         progress_bar.update("Container initializing...", progress)
