@@ -7843,7 +7843,7 @@ class Abstractions:
 # The column abstraction hides the complexity of dealing with SQL columns, getting their
 # names, default values, data types, primary key status and notnull status
 # --------------------------------------------------------------------------------------
-@dataclass(order=True)
+@dataclass
 class Column:
 
     """
