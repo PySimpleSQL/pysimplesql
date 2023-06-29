@@ -217,6 +217,33 @@ TK_COMBOBOX_SELECTED = "35"
 PK_PLACEHOLDER = "Null"
 EMPTY = ["", None]
 
+# --------------------
+# Date formats
+# --------------------
+# Format for date only
+DATE_FORMAT = "%Y-%m-%d"
+
+# --------------------
+# DateTime formats
+# --------------------
+# Format for date and time without fraction
+DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+# Format for date and time with microsecond precision
+DATETIME_FORMAT_MICROSECOND = "%Y-%m-%d %H:%M:%S.%f"
+
+# --------------------
+# Timestamp formats
+# --------------------
+# Format for timestamp without fraction
+TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
+# Format for timestamp with microsecond precision
+TIMESTAMP_FORMAT_MICROSECOND = "%Y-%m-%dT%H:%M:%S.%f"
+
+# --------------------
+# Time format
+# --------------------
+# Format for time only
+TIME_FORMAT = "%H:%M:%S"
 
 
 class Boolean(enum.Flag):
@@ -5888,7 +5915,7 @@ class _TtkCalendar(ttk.Frame):
         if bbox and text:
             self.cal_date = dt.date(self.cal_date.year, self.cal_date.month, int(text))
             self.draw_selection(bbox)
-            self.textvariable.set(self.cal_date.strftime("%Y-%m-%d"))
+            self.textvariable.set(self.cal_date.strftime(DATE_FORMAT))
 
     def draw_selection(self, bbox):
         canvas, text = self.canvas, "%02d" % self.cal_date.day
@@ -9886,19 +9913,17 @@ class MSAccess(SQLDriver):
                     if isinstance(value, jpype.JPackage("java").sql.Timestamp):
                         timestamp_str = value.toInstant().toString()[:-1]
                         if "." in timestamp_str:
-                            timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
+                            timestamp_format = TIMESTAMP_FORMAT_MICROSECOND
                         else:
-                            timestamp_format = "%Y-%m-%dT%H:%M:%S"
+                            timestamp_format = TIMESTAMP_FORMAT
                         dt_value = dt.datetime.strptime(timestamp_str, timestamp_format)
-                        value = dt_value.strftime("%Y-%m-%d")
+                        value = dt_value.strftime(DATE_FORMAT)
                     elif isinstance(value, jpype.JPackage("java").sql.Date):
                         date_str = value.toString()
-                        date_format = "%Y-%m-%d"
-                        value = dt.datetime.strptime(date_str, date_format).date()
+                        value = dt.datetime.strptime(date_str, DATE_FORMAT).date()
                     elif isinstance(value, jpype.JPackage("java").sql.Time):
                         time_str = value.toString()
-                        time_format = "%H:%M:%S"
-                        value = dt.datetime.strptime(time_str, time_format).time()
+                        value = dt.datetime.strptime(time_str, TIME_FORMAT).time()
                     elif value is not None:
                         value = value
                     # TODO: More conversions?
