@@ -9428,8 +9428,45 @@ class Mysql(SQLDriver):
     The Mysql driver supports MySQL databases.
     """
 
+    COLUMN_CLASS_MAP = {
+        "BIT": BoolCol,
+        "BIGINT": IntCol,
+        "CHAR": StrCol,
+        "DATE": DateCol,
+        "DATETIME": DateTimeCol,
+        "DECIMAL": DecimalCol,
+        "DOUBLE": FloatCol,
+        "FLOAT": FloatCol,
+        "INT": IntCol,
+        "INTEGER": IntCol,
+        "LONGTEXT": StrCol,
+        "MEDIUMINT": IntCol,
+        "MEDIUMTEXT": StrCol,
+        "MULTILINESTRING": StrCol,
+        "NUMERIC": DecimalCol,
+        "REAL": FloatCol,
+        "SMALLINT": IntCol,
+        "TEXT": StrCol,
+        "TIME": TimeCol,
+        "TIMESTAMP": DateTimeCol,
+        "TINYINT": IntCol,
+        "TINYTEXT": StrCol,
+        "VARCHAR": StrCol,
+        "YEAR": IntCol,
+    }
+
+    SQL_CONSTANTS = ["CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP"]
+
     def __init__(
-        self, host, user, password, database, sql_script=None, sql_commands=None
+        self,
+        host,
+        user,
+        password,
+        database,
+        sql_script=None,
+        sql_script_encoding: str = "utf-8",
+        sql_commands=None,
+        tinyint1_is_boolean=True,
     ):
         super().__init__(name="MySQL", requires=["mysql-connector-python"])
 
@@ -9440,6 +9477,7 @@ class Mysql(SQLDriver):
         self.user = user
         self.password = password
         self.database = database
+        self.tinyint1_is_boolean = tinyint1_is_boolean
         self.con = self.connect()
 
         self.win_pb.update(lang.sqldriver_execute, 50)
@@ -9447,12 +9485,23 @@ class Mysql(SQLDriver):
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
             logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            cursor = self.con.cursor()
+            for result in cursor.execute(sql_commands, multi=True):
+                if result.with_rows:
+                    print("Rows produced by statement '{}':".format(result.statement))
+                    print(result.fetchall())
+                else:
+                    print(
+                        "Number of rows affected by statement '{}': {}".format(
+                            result.statement, result.rowcount
+                        )
+                    )
             self.con.commit()
+            cursor.close()
         if sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script)
+            self.execute_script(sql_script, sql_script_encoding)
 
         self.win_pb.close()
 
@@ -9467,7 +9516,7 @@ class Mysql(SQLDriver):
         attempt = 0
         while attempt < retries:
             try:
-                con = mysql.connector.connect(
+                return mysql.connector.connect(
                     host=self.host,
                     user=self.user,
                     password=self.password,
@@ -9518,6 +9567,14 @@ class Mysql(SQLDriver):
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
 
+    def execute_script(self, script, encoding):
+        with open(script, "r", encoding=encoding) as file:
+            logger.info(f"Loading script {script} into database.")
+            cursor = self.con.cursor()
+            cursor.execute(file.read(), multi=True)
+        self.con.commit()
+        cursor.close()
+
     def get_tables(self):
         query = (
             "SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema = %s"
@@ -9527,27 +9584,56 @@ class Mysql(SQLDriver):
 
     def column_info(self, table):
         # Return a list of column names
-        query = "DESCRIBE {}".format(table)
+        query = f"SELECT * FROM information_schema.columns WHERE table_name = '{table}'"
         rows = self.execute(query, silent=True)
         col_info = ColumnInfo(self, table)
-
+        rows = rows.fillna("")
         for _, row in rows.iterrows():
-            name = row["Field"]
+            name = row["COLUMN_NAME"]
             # Check if the value is a bytes-like object, and decode if necessary
             type_value = (
-                row["Type"].decode("utf-8")
-                if isinstance(row["Type"], bytes)
-                else row["Type"]
+                row["COLUMN_TYPE"].decode("utf-8")
+                if isinstance(row["COLUMN_TYPE"], bytes)
+                else row["COLUMN_TYPE"]
             )
             # Capitalize and get rid of the extra information of the row type
             # I.e. varchar(255) becomes VARCHAR
-            domain = type_value.split("(")[0].upper()
-            notnull = row["Null"] == "NO"
-            default = row["Default"]
-            pk = row["Key"] == "PRI"
+            domain, domain_args = self.parse_domain(type_value)
+
+            # TODO, think about an Enum or SetCol
+            # # domain_args for enum/set are actually a list
+            # if domain in ["ENUM", "SET"]:
+            #     domain_args = [domain_args]
+
+            if (
+                self.tinyint1_is_boolean
+                and domain == "TINYINT"
+                and domain_args == ["1"]
+            ):
+                col_class = BoolCol
+
+            else:
+                col_class = self.get_column_class(domain)
+                if col_class == DecimalCol:
+                    domain_args = [row["NUMERIC_PRECISION"], row["NUMERIC_SCALE"]]
+                elif col_class in [FloatCol, IntCol]:
+                    domain_args = [row["NUMERIC_PRECISION"]]
+                elif col_class == StrCol:
+                    domain_args = [row["CHARACTER_MAXIMUM_LENGTH"]]
+
+            notnull = row["IS_NULLABLE"] == "NO"
+            default = row["COLUMN_DEFAULT"]
+            pk = row["COLUMN_KEY"] == "PRI"
+            generated = row["EXTRA"] in ["VIRTUAL GENERATED", "STORED GENERATED"]
             col_info.append(
-                Column(
-                    name=name, domain=domain, notnull=notnull, default=default, pk=pk
+                col_class(
+                    *domain_args,
+                    name=name,
+                    domain=domain,
+                    notnull=notnull,
+                    default=default,
+                    pk=pk,
+                    generated=generated,
                 )
             )
 
@@ -9588,11 +9674,6 @@ class Mysql(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def execute_script(self, script):
-        with open(script, "r"):
-            logger.info(f"Loading script {script} into database.")
-            # TODO
-
     # Not required for SQLDriver
     def constraint(self, constraint_name):
         query = (
@@ -9609,6 +9690,38 @@ class Mysql(SQLDriver):
             if "DELETE_RULE" in row:
                 delete_rule = row["DELETE_RULE"]
         return update_rule, delete_rule
+
+    def _insert_duplicate_record(
+        self, table: str, columns: str, pk_column: str, pk: int
+    ) -> pd.DataFrame:
+        """
+        Inserts duplicate record, sets attrs["lastrowid"] to new record's pk.
+
+        Used by `SQLDriver.duplicate_record` to handle database-specific differences in
+        returning new primary keys.
+
+        :param table: Escaped table name of record to be duplicated
+        :param columns: Escaped and comman (,) seperated list of columns
+        :param pk_column: Non-escaped pk_column
+        :param pk: Primary key of record
+        """
+        query = (
+            f"INSERT INTO {table} ({columns}) "
+            f"SELECT {columns} FROM {table} "
+            f"WHERE {self.quote_column(pk_column)} = {pk};"
+        )
+        res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
+
+        query = "SELECT LAST_INSERT_ID();"
+
+        res = self.execute(query)
+        if res.attrs["exception"]:
+            return res
+
+        res.attrs["lastrowid"] = res.iloc[0]["LAST_INSERT_ID()"].tolist()
+        return res
 
 
 # --------------------------------------------------------------------------------------
