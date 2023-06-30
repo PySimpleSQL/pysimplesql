@@ -3103,6 +3103,43 @@ class DataSet:
 
         self.rows.attrs["virtual"].append(row[self.pk_column])
 
+    def validate_field(
+        self,
+        column_name: str,
+        new_value: Any,
+        tk_widget=None,
+        display_message: bool = False,
+    ) -> bool:
+        """
+        Validate the given field value for the specified column.
+
+        :param column_name: The name of the column to validate the field against.
+        :param new_value: The new value to validate.
+        :param tk_widget: The Tkinter widget associated with the field. (Optional)
+        :param display_message: Flag to display validation messages. (Default: False)
+        :return: True if the field value is valid, False otherwise.
+        """
+
+        if column_name in self.column_info:
+            # Validate the new value against the column's validation rules
+            response = self.column_info[column_name].validate(new_value)
+            # If validation fails, display an error message and return False
+            if response.exception:
+                self.frm.popup.info(
+                    lang[response.exception].format_map(
+                        LangFormat(value=response.value, rule=response.rule)
+                    ),
+                    display_message=display_message,
+                )
+                if tk_widget:
+                    _shake_animation(tk_widget)
+                return False
+            # If validation passes, update the info element and return True
+            self.frm.popup.update_info_element(erase=True)
+            return True
+        logger.debug(f"{column_name} not in dataset.column_info!")
+        return None
+
 
 class Form:
 
@@ -7271,19 +7308,11 @@ class _CellEdit:
 
         dataset = self.frm[data_key]
 
-        for col in dataset.column_info:
-            if col.name == column:
-                response = col.validate(new_value)
-                if response.exception:
-                    self.frm.popup.info(
-                        lang[response.exception].format_map(
-                            LangFormat(value=response.value, rule=response.rule)
-                        ),
-                        display_message=False,
-                    )
-                    _shake_animation(self.field)
-                    return
-                self.frm.popup.update_info_element(erase=True)
+        # validate the field
+        if dataset.validate_fields:
+            valid = dataset.validate_field(column, new_value, self.field)
+            if not valid:
+                return
 
         # see if there was a change
         old_value = dataset.get_current_row().copy()[column]
@@ -7445,22 +7474,13 @@ class _LiveUpdate:
 
                 dataset = self.frm[data_key]
 
-                # get cast new value to correct type
-                for col in dataset.column_info:
-                    if col.name == column:
-                        response = col.validate(new_value)
-                        if response.exception:
-                            self.frm.popup.info(
-                                lang[response.exception].format_map(
-                                    LangFormat(value=response.value, rule=response.rule)
-                                ),
-                                display_message=False,
-                            )
-                            _shake_animation(e["element"].widget)
-                            return
-                        self.frm.popup.update_info_element(erase=True)
-                        new_value = col.cast(new_value)
-                        break
+                # validate the field
+                if dataset.validate_fields:
+                    valid = dataset.validate_field(
+                        column, new_value, e["element"].widget
+                    )
+                    if not valid:
+                        return
 
                 # see if there was a change
                 old_value = dataset.get_current_row()[column]
