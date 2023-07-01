@@ -5576,13 +5576,22 @@ class LazyTable(sg.Table):
         super().__setattr__(name, value)
 
 
-def _shake_animation(widget, dx=5, delay=50, ignore_themepack=False):
+def _shake_animation(widget, pixels=4, delay=50, ignore_themepack=False):
     if ignore_themepack or themepack.shake_gui_widget_on_invalid_input:
         original_options = widget.pack_info()
-        original_padx = original_options.pop("padx", 0)
+        original_padx = original_options.get("padx", 0)
+
+        if isinstance(original_padx, tuple):
+            padx_plus = original_padx[0] + pixels
+            padx_minus = original_padx[1] - pixels
+            new_padx = (padx_plus, padx_minus)
+        else:
+            padx_plus = original_padx + pixels
+            padx_minus = max(original_padx - pixels, 0)
+            new_padx = (padx_plus, padx_minus)
 
         for _ in range(themepack.shake_animation_loops):
-            widget.pack_configure(padx=original_padx + dx)
+            widget.pack_configure(padx=new_padx)
             widget.update()
             widget.after(delay)
             widget.pack_configure(padx=original_padx)
@@ -7571,7 +7580,7 @@ class ThemePack:
         "popup_info_auto_close_seconds": 1.5,
         "popup_info_alpha_channel": 0.85,
         "info_element_auto_erase_seconds": 5,
-        "live_update_typing_delay_seconds": 0.75,
+        "live_update_typing_delay_seconds": 0.3,
         # Default sizes for elements
         # ---------------------------
         # Label Size
