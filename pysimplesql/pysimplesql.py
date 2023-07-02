@@ -3867,11 +3867,13 @@ class Form:
                     search_box = f"{search_element}:search_input"
                     if data_key:
                         funct = functools.partial(self[data_key].search, search_box)
-                    self.window[search_box].add_placeholder(
-                        placeholder=lang.search_placeholder,
-                        color=themepack.placeholder_color,
-                    )
-                    self.window[search_box].bind_dataset(self[data_key])
+                        # add placeholder
+                        self.window[search_box].add_placeholder(
+                            placeholder=lang.search_placeholder,
+                            color=themepack.placeholder_color,
+                        )
+                        # bind dataset
+                        self.window[search_box].bind_dataset(self[data_key])
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
                     referring_table = table
