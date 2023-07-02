@@ -3107,7 +3107,7 @@ class DataSet:
         self,
         column_name: str,
         new_value: Any,
-        tk_widget=None,
+        widget=None,
         display_message: bool = False,
     ) -> bool:
         """
@@ -3115,7 +3115,7 @@ class DataSet:
 
         :param column_name: The name of the column to validate the field against.
         :param new_value: The new value to validate.
-        :param tk_widget: The Tkinter widget associated with the field. (Optional)
+        :param widget: The widget associated with the field. (Optional)
         :param display_message: Flag to display validation messages. (Default: False)
         :return: True if the field value is valid, False otherwise.
         """
@@ -3131,8 +3131,8 @@ class DataSet:
                     ),
                     display_message=display_message,
                 )
-                if tk_widget:
-                    _shake_animation(tk_widget)
+                if widget and themepack.validate_exception_animation is not None:
+                    themepack.validate_exception_animation(widget)
                 return False
             # If validation passes, update the info element and return True
             self.frm.popup.update_info_element(erase=True)
@@ -4777,6 +4777,45 @@ def checkbox_to_bool(value):
     ]
 
 
+def shake_widget(widget: Union[sg.Element, tk.Widget], pixels=4, delay_ms=50, repeat=2):
+    """
+    Shakes the given widget by modifying its padx attribute.
+
+    :param widget: The widget to shake. Must be an instance of sg.Element or tk.Widget.
+    :param pixels: The number of pixels by which to shake the widget horizontally.
+    :param delay_ms: The delay in milliseconds between each shake movement.
+    :param repeat: The number of times to repeat the shaking movement.
+
+    """
+    if isinstance(widget, sg.Element):
+        widget = widget.Widget
+    elif not isinstance(widget, tk.Widget):
+        logger.debug(f"{widget} not a valid sg.Element or tk.Widget")
+        return
+    padx = widget.pack_info().get("padx", 0)
+
+    # Adjust padx based on its current value
+    if isinstance(padx, tuple):
+        padx_left = padx[0] + pixels
+        padx_right = padx[1] - pixels
+        new_padx = (padx_left, padx_right)
+    else:
+        padx_left = padx + pixels
+        padx_right = max(padx - pixels, 0)
+        new_padx = (padx_left, padx_right)
+
+    widget.update()
+
+    # Perform the shaking movement
+    for _ in range(repeat):
+        widget.pack_configure(padx=new_padx)
+        widget.update()
+        widget.after(delay_ms)
+        widget.pack_configure(padx=padx)
+        widget.update()
+        widget.after(delay_ms)
+
+
 class Popup:
 
     """
@@ -5574,29 +5613,6 @@ class LazyTable(sg.Table):
             # Handle PySimpleGui attempts to set our SelectedRows property
             return
         super().__setattr__(name, value)
-
-
-def _shake_animation(widget, pixels=4, delay=50, ignore_themepack=False):
-    if ignore_themepack or themepack.shake_gui_widget_on_invalid_input:
-        original_options = widget.pack_info()
-        original_padx = original_options.get("padx", 0)
-
-        if isinstance(original_padx, tuple):
-            padx_plus = original_padx[0] + pixels
-            padx_minus = original_padx[1] - pixels
-            new_padx = (padx_plus, padx_minus)
-        else:
-            padx_plus = original_padx + pixels
-            padx_minus = max(original_padx - pixels, 0)
-            new_padx = (padx_plus, padx_minus)
-
-        for _ in range(themepack.shake_animation_loops):
-            widget.pack_configure(padx=new_padx)
-            widget.update()
-            widget.after(delay)
-            widget.pack_configure(padx=original_padx)
-            widget.update()
-            widget.after(delay)
 
 
 class _PlaceholderText(abc.ABC):
@@ -7319,7 +7335,12 @@ class _CellEdit:
 
         # validate the field
         if dataset.validate_fields:
-            valid = dataset.validate_field(column, new_value, self.field)
+            widget = (
+                self.field
+                if themepack.validate_exception_animation is not None
+                else None
+            )
+            valid = dataset.validate_field(column, new_value, widget)
             if not valid:
                 return
 
@@ -7485,9 +7506,12 @@ class _LiveUpdate:
 
                 # validate the field
                 if dataset.validate_fields:
-                    valid = dataset.validate_field(
-                        column, new_value, e["element"].widget
+                    widget = (
+                        e["element"].Widget
+                        if themepack.validate_exception_animation is not None
+                        else None
                     )
+                    valid = dataset.validate_field(column, new_value, widget)
                     if not valid:
                         return
 
@@ -7606,9 +7630,8 @@ class ThemePack:
         "display_bool_as_checkbox": True,
         "checkbox_true": "☑",
         "checkbox_false": "☐",
-        # Shake the gui widget on an invalid input
-        "shake_gui_widget_on_invalid_input": False,
-        "shake_animation_loops": 3,
+        # invalid input animation
+        "validate_exception_animation": lambda widget: shake_widget(widget),
     }
     """
     Default Themepack.

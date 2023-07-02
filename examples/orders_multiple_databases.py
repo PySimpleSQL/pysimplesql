@@ -36,9 +36,6 @@ custom = {
     "ttk_theme": os_ttktheme,
     "marker_sort_asc": " ⬇",
     "marker_sort_desc": " ⬆",
-    "shake_gui_widget_on_invalid_input": True,
-    # Recommended to set a lower delay if 'shake' is disabled
-    # "live_update_typing_delay_seconds": 0.25,
 }
 custom = custom | os_tp
 ss.themepack(custom)
