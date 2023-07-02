@@ -7970,7 +7970,7 @@ class Column:
     pk: bool
     virtual: bool = False
     generated: bool = False
-    python_type: Type[object] = Any
+    python_type: Type[object] = object
     custom_cast_fn: callable = None
     custom_validate_fn: callable = None
 
@@ -8015,9 +8015,6 @@ class Column:
                     return response
             except Exception as e:  # noqa: BLE001
                 logger.debug(f"Error running custom_validate_fn, {e}")
-
-        if self.python_type == Any:
-            return ValidateResponse()
 
         if not isinstance(value, self.python_type):
             return ValidateResponse(
