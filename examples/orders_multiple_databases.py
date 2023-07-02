@@ -101,6 +101,25 @@ class Template:
         return self.template_string.format_map(lang_format)
 
 
+# create your own validator to be passed to a
+# frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
+# used below in the quick_editor arguments
+def is_valid_email(email):
+    valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
+    if not valid_email:
+        return ss.ValidateResponse(
+            ss.ValidateRule.CUSTOM, email, " is not a valid email"
+        )
+    return ss.ValidateResponse()
+
+
+quick_editor_kwargs = {
+    "column_attributes": {
+        "email": {"custom_validate_fn": lambda value: is_valid_email(value)}
+    }
+}
+
+
 # SQL Statement
 # ======================================================================================
 sql = """
@@ -413,7 +432,14 @@ details_heading.add_column("subtotal", "subtotal", 10, readonly=True)
 
 orderdetails_layout = [
     [sg.Sizer(h_pixels=0, v_pixels=10)],
-    [ss.field("orders.customer_id", sg.Combo, label="Customer")],
+    [
+        ss.field(
+            "orders.customer_id",
+            sg.Combo,
+            label="Customer",
+            quick_editor_kwargs=quick_editor_kwargs,
+        )
+    ],
     [
         ss.field("orders.date", label="Date"),
     ],
@@ -544,19 +570,6 @@ def update_orders(frm_reference, window, data_key):
 frm["order_details"].set_callback("after_save", update_orders)
 frm["order_details"].set_callback("after_delete", update_orders)
 
-
-# create your own validator to be passed to a
-# frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
-# used below in the quick_editor arguments
-def is_valid_email(email):
-    valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
-    if not valid_email:
-        return ss.ValidateResponse(
-            ss.ValidateRule.CUSTOM, email, " is not a valid email"
-        )
-    return ss.ValidateResponse()
-
-
 # ---------
 # MAIN LOOP
 # ---------
@@ -600,11 +613,7 @@ while True:
     elif "Edit Products" in event:
         frm["products"].quick_editor()
     elif "Edit Customers" in event:
-        frm["customers"].quick_editor(
-            column_info_settings={
-                "email": {"custom_validate_fn": lambda value: is_valid_email(value)}
-            }
-        )
+        frm["customers"].quick_editor(**quick_editor_kwargs)
     # call a Form-level save
     elif "Save" in event:
         frm.save_records()

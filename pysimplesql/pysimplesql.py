@@ -2724,7 +2724,7 @@ class DataSet:
         pk_update_funct: callable = None,
         funct_param: any = None,
         skip_prompt_save: bool = False,
-        column_info_settings: dict = None,
+        column_attributes: dict = None,
     ) -> None:
         """
         The quick editor is a dynamic PySimpleGUI Window for quick editing of tables.
@@ -2737,8 +2737,9 @@ class DataSet:
             select by default when the quick editor loads.
         :param funct_param: (optional) A parameter to pass to the `pk_update_funct`
         :param skip_prompt_save: (Optional) True to skip prompting to save dirty records
-        :param column_info_settings: (Optional) Set Column attributes in
-            `DataSet.column_info`, in the form of {column_name {attribute : value}}.
+        :param column_attributes: (Optional) Dictionary specifying column attributes
+            for `DataSet.column_info`. The dictionary should be in the form
+            {column_name: {attribute: value}}.
         :returns: None
         """
         # prompt_save
@@ -2844,8 +2845,8 @@ class DataSet:
             else:
                 quick_frm[data_key].set_by_pk(pk_update_funct(funct_param))
 
-        if column_info_settings:
-            for col, kwargs in column_info_settings.items():
+        if column_attributes:
+            for col, kwargs in column_attributes.items():
                 if quick_frm[data_key].column_info[col]:
                     for attr, value in kwargs.items():
                         quick_frm[data_key].column_info[col][attr] = value
@@ -3876,12 +3877,16 @@ class Form:
                         self.window[search_box].bind_dataset(self[data_key])
                 # elif event_type==EVENT_SEARCH_DB:
                 elif event_type == EVENT_QUICK_EDIT:
+                    quick_editor_kwargs = {}
+                    if "quick_editor_kwargs" in element.metadata:
+                        quick_editor_kwargs = element.metadata["quick_editor_kwargs"]
                     referring_table = table
                     table = self[table].get_related_table_for_column(column)
                     funct = functools.partial(
                         self[table].quick_editor,
                         self[referring_table].get_current,
                         column,
+                        **quick_editor_kwargs if quick_editor_kwargs else {},
                     )
                 elif event_type == EVENT_FUNCTION:
                     funct = function
@@ -6200,6 +6205,7 @@ def field(
     no_label: bool = False,
     label_above: bool = False,
     quick_editor: bool = True,
+    quick_editor_kwargs: dict = None,
     filter=None,
     key=None,
     use_ttk_buttons=None,
@@ -6225,6 +6231,7 @@ def field(
     :param label_above: Place the label above the element instead of to the left.
     :param quick_editor: For records that reference another table, place a quick edit
         button next to the element
+    :param quick_editor_kwargs: Additional keyword arguments to pass to quick editor.
     :param filter: Can be used to reference different `Form`s in the same layout. Use a
         matching filter when creating the `Form` with the filter parameter.
     :param key: (optional) The key to give this element. See note above about the
@@ -6242,7 +6249,7 @@ def field(
     if use_ttk_buttons is None:
         use_ttk_buttons = themepack.use_ttk_buttons
     if pad is None:
-        pad = themepack.quick_editor_button_pad
+        pad = themepack.default_element_pad
 
     # if Record imply a where clause (indicated by ?) If so, strip out the info we need
     if "?" in field:
@@ -6280,6 +6287,7 @@ def field(
                 "field": field,
                 "data_key": key,
             },
+            pad=pad,
             **kwargs,
         )
     else:
@@ -6294,6 +6302,7 @@ def field(
                 "field": field,
                 "data_key": key,
             },
+            pad=pad,
             **kwargs,
         )
     layout_label = sg.Text(
@@ -6331,6 +6340,7 @@ def field(
             "function": None,
             "Form": None,
             "filter": filter,
+            "quick_editor_kwargs": quick_editor_kwargs,
         }
         if type(themepack.quick_edit) is bytes:
             layout[-1].append(
@@ -7570,7 +7580,7 @@ class ThemePack:
         # Defaults for actions() buttons & popups
         # ----------------------------------------
         "use_ttk_buttons": True,
-        "quick_editor_button_pad": (3, 0),
+        "default_element_pad": (5, 0),
         "action_button_pad": (3, 0),
         "popup_button_pad": (5, 5),
         # Action buttons
