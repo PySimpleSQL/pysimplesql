@@ -58,6 +58,7 @@ import abc
 import asyncio
 import calendar
 import contextlib
+import dataclasses as dc
 import datetime as dt
 import enum
 import functools
@@ -71,11 +72,21 @@ import re
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
-from dataclasses import dataclass
 from decimal import Decimal, DecimalException
 from time import sleep, time
 from tkinter import ttk
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypedDict, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypedDict,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -262,7 +273,7 @@ class ValidateRule(str, enum.Enum):
     CUSTOM = "custom"
 
 
-@dataclass
+@dc.dataclass
 class ValidateResponse:
     exception: Union[ValidateRule, None] = None
     value: str = None
@@ -336,7 +347,7 @@ class ElementRow:
         return self
 
 
-@dataclass
+@dc.dataclass
 class Relationship:
 
     """
@@ -524,7 +535,7 @@ class Relationship:
         }
 
 
-@dataclass
+@dc.dataclass
 class ElementMap:
 
     """
@@ -7941,13 +7952,16 @@ class Abstractions:
     pass
 
 
+T = TypeVar("T")
+
+
 # ======================================================================================
 # COLUMN ABSTRACTION
 # ======================================================================================
 # The column abstraction hides the complexity of dealing with SQL columns, getting their
 # names, default values, data types, primary key status and notnull status
 # --------------------------------------------------------------------------------------
-@dataclass
+@dc.dataclass
 class Column:
 
     """
@@ -7966,13 +7980,14 @@ class Column:
     name: str
     domain: str
     notnull: bool
-    default: None
+    default: Any
     pk: bool
     virtual: bool = False
     generated: bool = False
-    python_type: Type[object] = object
+    python_type: Type[T] = object
     custom_cast_fn: callable = None
     custom_validate_fn: callable = None
+    domain_args: List[str, int] = None
 
     def __getitem__(self, key):
         return self.__dict__[key]
@@ -7982,6 +7997,9 @@ class Column:
 
     def __contains__(self, item):
         return item in self.__dict__
+    
+    def __post_init__(self):
+        pass
 
     def cast(self, value: Any) -> Any:
         """
@@ -8023,7 +8041,7 @@ class Column:
 
         return ValidateResponse()
 
-
+@dc.dataclass
 class MinMaxCol(Column):
     """
     Column subclass representing a value with minimum and maximum constraints.
@@ -8039,10 +8057,8 @@ class MinMaxCol(Column):
     :type max_value: Any valid value type compatible with the column's data type.
     """
 
-    def __init__(self, min_value=None, max_value=None, **kwargs):
-        super().__init__(**kwargs)
-        self.min_value = min_value
-        self.max_value = max_value
+    min_value: Any = None
+    max_value: Any = None
 
     def validate(self, value):
         response = super().validate(value)
@@ -8060,6 +8076,7 @@ class MinMaxCol(Column):
         return ValidateResponse()
 
 
+@dc.dataclass
 class LengthCol(Column):
     """
     Column subclass for length-constrained columns.
@@ -8072,10 +8089,14 @@ class LengthCol(Column):
     :param min_length: Minimum length allowed for the column value.
     """
 
-    def __init__(self, max_length: int = None, min_length: int = None, **kwargs):
-        super().__init__(**kwargs)
-        self.max_length = int(max_length) if max_length is not None else None
-        self.min_length = int(min_length) if min_length is not None else None
+    min_length: int = None
+    max_length: int = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.domain_args and self.max_length is None:
+            self.max_length = int(self.domain_args[0])
+
 
     def validate(self, value):
         response = super().validate(value)
@@ -8091,20 +8112,23 @@ class LengthCol(Column):
         return ValidateResponse()
 
 
+@dc.dataclass
 class BoolCol(Column):
-    def __init__(self, *args, **kwargs):
-        super().__init__(**kwargs)
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = bool
 
     def cast(self, value):
         return checkbox_to_bool(value)
 
 
+@dc.dataclass
 class DateCol(MinMaxCol):
-    def __init__(self, date_format: str = DATE_FORMAT, **kwargs):
-        super().__init__(**kwargs)
+    date_format: str = DATE_FORMAT
+
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = dt.date
-        self.date_format = date_format
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -8145,20 +8169,20 @@ class DateCol(MinMaxCol):
             return super().cast(value)
 
 
+@dc.dataclass
 class DateTimeCol(MinMaxCol):
-    def __init__(
-        self,
-        datetime_format_list: List[str] = [
+    datetime_format_list: List[str] = dc.field(
+        default_factory=lambda: [
             DATETIME_FORMAT,
             DATETIME_FORMAT_MICROSECOND,
             TIMESTAMP_FORMAT,
             TIMESTAMP_FORMAT_MICROSECOND,
-        ],
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
+        ]
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = dt.datetime
-        self.datetime_format_list = datetime_format_list
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -8174,12 +8198,18 @@ class DateTimeCol(MinMaxCol):
         return super().cast(value)
 
 
+@dc.dataclass
 class DecimalCol(MinMaxCol):
-    def __init__(self, precision=10, scale=2, **kwargs):
-        super().__init__(**kwargs)
+    precision: int = 10
+    scale: int = 2
+
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = Decimal
-        self.precision = int(precision) if precision is not None else None
-        self.scale = int(scale) if scale is not None else None
+        if self.domain_args:
+            self.precision = int(self.domain_args[0]) if self.precision == 10 else 10
+        if len(self.domain_args) == 2:
+            self.scale = int(self.domain_args[1]) if self.scale == 2 else 2
 
     def cast(self, value):
         if value == "-":
@@ -8203,9 +8233,10 @@ class DecimalCol(MinMaxCol):
         return ValidateResponse()
 
 
+@dc.dataclass
 class FloatCol(LengthCol, MinMaxCol):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = float
 
     def cast(self, value):
@@ -8217,16 +8248,13 @@ class FloatCol(LengthCol, MinMaxCol):
             return super().cast(value)
 
 
+@dc.dataclass
 class IntCol(LengthCol, MinMaxCol):
-    def __init__(
-        self,
-        *args,
-        truncate_decimals: bool = False,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
+    truncate_decimals: bool = False
+
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = int
-        self.truncate_decimals = truncate_decimals
 
     def cast(self, value, truncate_decimals: bool = None):
         truncate_decimals = (
@@ -8253,20 +8281,23 @@ class IntCol(LengthCol, MinMaxCol):
             return super().cast(value_backup)
 
 
+@dc.dataclass
 class StrCol(LengthCol):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = str
 
     def cast(self, value):
         return super().cast(value)
 
 
-class TimeCol(Column):
-    def __init__(self, time_format: str = TIME_FORMAT, **kwargs):
-        super().__init__(**kwargs)
+@dc.dataclass
+class TimeCol(MinMaxCol):
+    time_format: str = TIME_FORMAT
+
+    def __post_init__(self):
+        super().__post_init__()
         self.python_type = dt.time
-        self.time_format = time_format
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -9200,11 +9231,8 @@ class Sqlite(SQLDriver):
 
         self.import_required_modules()
 
-        # Register the adapter
-        sqlite3.register_adapter(Decimal, self.adapt_decimal)
-        # Register the converter
-        for domain in self.DECIMAL_DOMAINS:
-            sqlite3.register_converter(domain, self.convert_decimal)
+        # register adapters and converters
+        self._register_type_callables()
 
         new_database = False
         if db_path is not None:
@@ -9327,13 +9355,13 @@ class Sqlite(SQLDriver):
             generated = row["hidden"] in [2, 3]
             col_info.append(
                 col_class(
-                    *domain_args,
                     name=name,
                     domain=domain,
                     notnull=notnull,
                     default=default,
                     pk=pk,
                     generated=generated,
+                    domain_args=domain_args,
                 )
             )
 
@@ -9787,13 +9815,13 @@ class Mysql(SQLDriver):
             generated = row["EXTRA"] in ["VIRTUAL GENERATED", "STORED GENERATED"]
             col_info.append(
                 col_class(
-                    *domain_args,
                     name=name,
                     domain=domain,
                     notnull=notnull,
                     default=default,
                     pk=pk,
                     generated=generated,
+                    domain_args=domain_args,
                 )
             )
 
@@ -10112,13 +10140,13 @@ class Postgres(SQLDriver):
             generated = row["is_generated"] == "ALWAYS"
             col_info.append(
                 col_class(
-                    *domain_args,
                     name=name,
                     domain=domain,
                     notnull=notnull,
                     default=default,
                     pk=pk,
                     generated=generated,
+                    domain_args=domain_args,
                 )
             )
 
@@ -10438,13 +10466,13 @@ class Sqlserver(SQLDriver):
             generated = name in generated_columns
             col_info.append(
                 col_class(
-                    *domain_args,
                     name=name,
                     domain=domain,
                     notnull=notnull,
                     default=default,
                     pk=pk,
                     generated=generated,
+                    domain_args=domain_args,
                 )
             )
 
@@ -10822,13 +10850,13 @@ class MSAccess(SQLDriver):
 
             col_info.append(
                 col_class(
-                    *domain_args,
                     name=name,
                     domain=domain,
                     notnull=notnull,
                     default=default,
                     pk=pk,
                     generated=generated,
+                    domain_args=domain_args,
                 )
             )
 
