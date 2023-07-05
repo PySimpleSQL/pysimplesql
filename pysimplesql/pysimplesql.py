@@ -11029,7 +11029,7 @@ class SimpleTransform(TypedDict):
     encode: Dict[str, Callable[[str, str], None]]
 
 
-ColumnClass = TypeVar("T", bound=Column)
+ColumnClass = TypeVar("ColumnClass", bound=Column)
 
 SimpleTransformsDict = Dict[str, SimpleTransform]
 
