@@ -135,7 +135,7 @@ DROP TABLE IF EXISTS orders {cascade};
 CREATE TABLE orders (
     order_id {pk_type} NOT NULL PRIMARY KEY {autoincrement},
     customer_id {integer_type} NOT NULL,
-    date DATE NOT NULL DEFAULT {date_default},
+    date {date_type} NOT NULL DEFAULT {date_default},
     total {numeric_type},
     completed {boolean_type} NOT NULL,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
@@ -292,7 +292,7 @@ compatibility = {
         "text_type": "TEXT",
         "integer_type": "INTEGER",
         "date_type": "DATE",
-        "numeric_type": "NUMERIC(10,2)",
+        "numeric_type": "DECTEXT(10,2)",
         "date_default": "(date('now'))",
         "boolean_type": "BOOLEAN",
         "default_string": "'New Product'",

@@ -9156,11 +9156,11 @@ class SQLDriver:
 
         return domain_name, domain_args
 
-    def get_column_class(self, domain):
+    def get_column_class(self, domain) -> ColumnClass:
         if domain in self.COLUMN_CLASS_MAP:
             return self.COLUMN_CLASS_MAP[domain]
         logger.info(f"Mapping {domain} to generic Column class")
-        return Column
+        return None
 
 
 # --------------------------------------------------------------------------------------
@@ -9173,25 +9173,7 @@ class Sqlite(SQLDriver):
 
     DECIMAL_DOMAINS = ["DECIMAL", "DECTEXT", "MONEY", "NUMERIC"]
 
-    COLUMN_CLASS_MAP = {
-        "BOOLEAN": BoolCol,
-        "CLOB": StrCol,
-        "CHARACTER": StrCol,
-        "DATE": DateCol,
-        "DATETIME": DateTimeCol,
-        "DECIMAL": DecimalCol,
-        "DECTEXT": DecimalCol,
-        "INTEGER": IntCol,
-        "MONEY": DecimalCol,
-        "NATIVE CHARACTER": StrCol,
-        "NCHAR": StrCol,
-        "NVARCHAR": StrCol,
-        "NUMERIC": DecimalCol,
-        "REAL": FloatCol,
-        "TEXT": StrCol,
-        "VARCHAR": StrCol,
-        "VARYING CHARACTER": StrCol,
-    }
+    COLUMN_CLASS_MAP = {}
 
     SQL_CONSTANTS = [
         "CURRENT_DATE",
@@ -9332,8 +9314,7 @@ class Sqlite(SQLDriver):
         col_info = ColumnInfo(self, table)
         for _, row in rows.iterrows():
             domain, domain_args = self.parse_domain(row["type"])
-            col_class = self.get_column_class(domain)
-
+            col_class = self.get_column_class(domain) or Column
             # TODO: should we exclude hidden columns?
             # if row["hidden"] == 1:
             #    continue
@@ -9392,6 +9373,31 @@ class Sqlite(SQLDriver):
 
     def adapt_decimal(self, d):
         return str(d)
+    def get_column_class(self, domain):
+        if self.COLUMN_CLASS_MAP:
+            col_class = super().get_column_class(domain)
+            if col_class is not None:
+                return col_class
+        if "DATETIME" in domain or "TIMESTAMP" in domain:
+            return DateTimeCol
+        if "DATE" in domain:
+            return DateCol
+        if "TIME" in domain:
+            return TimeCol
+        if any(col_name in domain for col_name in self.DECIMAL_DOMAINS):
+            return DecimalCol
+        if "BOOL" in domain:
+            return BoolCol
+        if "INT" in domain:
+            return IntCol
+        if any(col_name in domain for col_name in ["TEXT", "CHAR", "CLOB"]):
+            return StrCol
+        if any(col_name in domain for col_name in ["REAL", "FLOA", "DOUB"]):
+            return FloatCol
+        if "BLOB" in domain or domain == "":
+            return Column
+        return None
+
 
     def convert_decimal(self, s):
         return Decimal(s.decode("utf-8"))
@@ -9761,7 +9767,7 @@ class Mysql(SQLDriver):
                 col_class = BoolCol
 
             else:
-                col_class = self.get_column_class(domain)
+                col_class = self.get_column_class(domain) or Column
                 if col_class == DecimalCol:
                     domain_args = [row["NUMERIC_PRECISION"], row["NUMERIC_SCALE"]]
                 elif col_class in [FloatCol, IntCol]:
@@ -10083,7 +10089,7 @@ class Postgres(SQLDriver):
         for _, row in rows.iterrows():
             name = row["column_name"]
             domain = row["data_type"].upper()
-            col_class = self.get_column_class(domain)
+            col_class = self.get_column_class(domain) or Column
             domain_args = []
             if col_class == DecimalCol:
                 domain_args = [row["numeric_precision"], row["numeric_scale"]]
@@ -10403,7 +10409,7 @@ class Sqlserver(SQLDriver):
         for _, row in rows.iterrows():
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
-            col_class = self.get_column_class(domain)
+            col_class = self.get_column_class(domain) or Column
             domain_args = []
             if col_class == DecimalCol:
                 domain_args = [row["NUMERIC_PRECISION"], row["NUMERIC_SCALE"]]
@@ -10794,7 +10800,7 @@ class MSAccess(SQLDriver):
             default = str(rs.getString("COLUMN_DEF"))
             pk = name in pk_columns
             generated = str(rs.getString("IS_GENERATEDCOLUMN")) == "YES"
-            col_class = self.get_column_class(domain)
+            col_class = self.get_column_class(domain) or Column
 
             domain_args = []
             # handling Date/Time columns, since they are all reported as DateTime
@@ -10988,6 +10994,7 @@ class SimpleTransform(TypedDict):
     decode: Dict[str, Callable[[str, str], None]]
     encode: Dict[str, Callable[[str, str], None]]
 
+ColumnClass = TypeVar('T', bound=Column)
 
 SimpleTransformsDict = Dict[str, SimpleTransform]
 
