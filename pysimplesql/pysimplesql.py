@@ -7997,7 +7997,7 @@ class Column:
 
     def __contains__(self, item):
         return item in self.__dict__
-    
+
     def __post_init__(self):
         pass
 
@@ -8040,6 +8040,7 @@ class Column:
             )
 
         return ValidateResponse()
+
 
 @dc.dataclass
 class MinMaxCol(Column):
@@ -8096,7 +8097,6 @@ class LengthCol(Column):
         super().__post_init__()
         if self.domain_args and self.max_length is None:
             self.max_length = int(self.domain_args[0])
-
 
     def validate(self, value):
         response = super().validate(value)
@@ -11028,7 +11028,8 @@ class SimpleTransform(TypedDict):
     decode: Dict[str, Callable[[str, str], None]]
     encode: Dict[str, Callable[[str, str], None]]
 
-ColumnClass = TypeVar('T', bound=Column)
+
+ColumnClass = TypeVar("T", bound=Column)
 
 SimpleTransformsDict = Dict[str, SimpleTransform]
 
