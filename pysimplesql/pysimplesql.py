@@ -9371,8 +9371,6 @@ class Sqlite(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def adapt_decimal(self, d):
-        return str(d)
     def get_column_class(self, domain):
         if self.COLUMN_CLASS_MAP:
             col_class = super().get_column_class(domain)
@@ -9398,9 +9396,17 @@ class Sqlite(SQLDriver):
             return Column
         return None
 
+    def _register_type_callables(self):
+        # Register datetime adapters/converters
+        # python 3.12 will depreciate dt.date/dt.datetime default adapters
+        sqlite3.register_adapter(dt.date, lambda val: val.isoformat())
+        sqlite3.register_adapter(dt.datetime, lambda val: val.isoformat(" "))
+        sqlite3.register_adapter(dt.time, lambda val: val.isoformat())
 
-    def convert_decimal(self, s):
-        return Decimal(s.decode("utf-8"))
+        # Register Decimal adapter/converter
+        sqlite3.register_adapter(Decimal, str)
+        for domain in self.DECIMAL_DOMAINS:
+            sqlite3.register_converter(domain, lambda val: Decimal(val.decode("utf-8")))
 
 
 # --------------------------------------------------------------------------------------
