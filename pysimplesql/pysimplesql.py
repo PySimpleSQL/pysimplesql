@@ -3321,7 +3321,7 @@ class Form:
         """
         logger.info("Binding Window to Form")
         self.window = win
-        self.popup = Popup(self)
+        self.popup = Popup(self.window)
         self.auto_map_elements(win)
         self.auto_map_events(win)
         self.update_elements()
@@ -4844,17 +4844,25 @@ class Popup:
     Has popup functions for internal use. Stores last info popup as last_info
     """
 
-    def __init__(self, frm_reference: Form = None):
+    def __init__(self, window: sg.Window = None):
         """
         Create a new Popup instance
         :returns: None.
         """
-        self.frm = frm_reference
+        self.window = window
         self.popup_info = None
         self.last_info_msg: str = ""
         self.last_info_time = None
         self.info_elements = []
         self._timeout_id = None
+        self._window_kwargs = {
+            "keep_on_top": True,
+            "element_justification": "center",
+            "enable_close_attempted_event": True,
+            "icon": themepack.icon,
+            "ttk_theme": themepack.ttk_theme,
+            "finalize": True,
+        }
 
     def ok(self, title, msg):
         """
@@ -4872,17 +4880,7 @@ class Popup:
                 pad=themepack.popup_button_pad,
             )
         )
-        popup_win = sg.Window(
-            title,
-            layout=[layout],
-            keep_on_top=True,
-            modal=True,
-            finalize=True,
-            ttk_theme=themepack.ttk_theme,
-            element_justification="center",
-            enable_close_attempted_event=True,
-            icon=themepack.icon,
-        )
+        popup_win = sg.Window(title, layout=[layout], modal=True, **self._window_kwargs)
 
         while True:
             event, values = popup_win.read()
@@ -4914,17 +4912,7 @@ class Popup:
                 pad=themepack.popup_button_pad,
             )
         )
-        popup_win = sg.Window(
-            title,
-            layout=[layout],
-            keep_on_top=True,
-            modal=True,
-            finalize=True,
-            ttk_theme=themepack.ttk_theme,
-            element_justification="center",
-            enable_close_attempted_event=True,
-            icon=themepack.icon,
-        )
+        popup_win = sg.Window(title, layout=[layout], modal=True, **self._window_kwargs)
 
         while True:
             event, values = popup_win.read()
@@ -4963,14 +4951,8 @@ class Popup:
             self.popup_info = sg.Window(
                 title=title,
                 layout=layout,
-                no_titlebar=False,
-                keep_on_top=True,
-                finalize=True,
                 alpha_channel=themepack.popup_info_alpha_channel,
-                element_justification="center",
-                ttk_theme=themepack.ttk_theme,
-                enable_close_attempted_event=True,
-                icon=themepack.icon,
+                **self._window_kwargs,
             )
             self.popup_info.TKroot.after(
                 int(auto_close_seconds * 1000), self._auto_close
@@ -5011,7 +4993,7 @@ class Popup:
         if erase:
             message = ""
             if self._timeout_id:
-                self.frm.window.TKroot.after_cancel(self._timeout_id)
+                self.window.TKroot.after_cancel(self._timeout_id)
 
         elif timeout and self.last_info_time:
             elapsed_sec = time() - self.last_info_time
@@ -5023,11 +5005,11 @@ class Popup:
             element.update(message)
 
         # record time of update, and tk.after
-        if not erase and self.frm:
+        if not erase and self.window:
             self.last_info_time = time()
             if self._timeout_id:
-                self.frm.window.TKroot.after_cancel(self._timeout_id)
-            self._timeout_id = self.frm.window.TKroot.after(
+                self.window.TKroot.after_cancel(self._timeout_id)
+            self._timeout_id = self.window.TKroot.after(
                 int(auto_erase_seconds * 1000),
                 lambda: self.update_info_element(timeout=True),
             )
