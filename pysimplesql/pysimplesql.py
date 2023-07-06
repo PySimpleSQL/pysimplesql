@@ -227,6 +227,8 @@ TK_COMBOBOX_SELECTED = "35"
 # --------------
 PK_PLACEHOLDER = "Null"
 EMPTY = ["", None]
+DECIMAL_PRECISION = 12
+DECIMAL_SCALE = 2
 
 # --------------------
 # Date formats
@@ -8188,15 +8190,27 @@ class DateTimeCol(MinMaxCol):
 
 @dc.dataclass
 class DecimalCol(MinMaxCol):
-    precision: int = 10
-    scale: int = 2
+    precision: int = DECIMAL_PRECISION
+    scale: int = DECIMAL_SCALE
     python_type: Type[Decimal] = dc.field(default=Decimal, init=False)
 
     def __post_init__(self):
         if self.domain_args:
-            self.precision = int(self.domain_args[0]) if self.precision == 10 else 10
-        if len(self.domain_args) == 2:
-            self.scale = int(self.domain_args[1]) if self.scale == 2 else 2
+            try:
+                self.precision = int(self.domain_args[0])
+            except ValueError:
+                logger.debug(
+                    f"Unable to set {self.name} column decimal precision to "
+                    f"{self.domain_args[0]}"
+                )
+        if len(self.domain_args) >= 2:
+            try:
+                self.scale = int(self.domain_args[1])
+            except ValueError:
+                logger.debug(
+                    f"Unable to set {self.name} column decimal scale to "
+                    f"{self.domain_args[1]}"
+                )
 
     def cast(self, value):
         if value == "-":
