@@ -7998,9 +7998,6 @@ class Column:
     def __contains__(self, item):
         return item in self.__dict__
 
-    def __post_init__(self):
-        pass
-
     def cast(self, value: Any) -> Any:
         """
         Cast a value to the appropriate data type as defined by the column info for the
@@ -8094,7 +8091,6 @@ class LengthCol(Column):
     max_length: int = None
 
     def __post_init__(self):
-        super().__post_init__()
         if self.domain_args and self.max_length is None:
             self.max_length = int(self.domain_args[0])
 
@@ -8114,9 +8110,7 @@ class LengthCol(Column):
 
 @dc.dataclass
 class BoolCol(Column):
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = bool
+    python_type: Type[bool] = dc.field(default=bool, init=False)
 
     def cast(self, value):
         return checkbox_to_bool(value)
@@ -8125,10 +8119,7 @@ class BoolCol(Column):
 @dc.dataclass
 class DateCol(MinMaxCol):
     date_format: str = DATE_FORMAT
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = dt.date
+    python_type: Type[dt.date] = dc.field(default=dt.date, init=False)
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -8179,10 +8170,7 @@ class DateTimeCol(MinMaxCol):
             TIMESTAMP_FORMAT_MICROSECOND,
         ]
     )
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = dt.datetime
+    python_type: Type[dt.datetime] = dc.field(default=dt.datetime, init=False)
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -8202,10 +8190,9 @@ class DateTimeCol(MinMaxCol):
 class DecimalCol(MinMaxCol):
     precision: int = 10
     scale: int = 2
+    python_type: Type[Decimal] = dc.field(default=Decimal, init=False)
 
     def __post_init__(self):
-        super().__post_init__()
-        self.python_type = Decimal
         if self.domain_args:
             self.precision = int(self.domain_args[0]) if self.precision == 10 else 10
         if len(self.domain_args) == 2:
@@ -8235,9 +8222,7 @@ class DecimalCol(MinMaxCol):
 
 @dc.dataclass
 class FloatCol(LengthCol, MinMaxCol):
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = float
+    python_type: Type[float] = dc.field(default=float, init=False)
 
     def cast(self, value):
         if value == "-":
@@ -8251,10 +8236,7 @@ class FloatCol(LengthCol, MinMaxCol):
 @dc.dataclass
 class IntCol(LengthCol, MinMaxCol):
     truncate_decimals: bool = False
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = int
+    python_type: Type[int] = dc.field(default=int, init=False)
 
     def cast(self, value, truncate_decimals: bool = None):
         truncate_decimals = (
@@ -8283,9 +8265,7 @@ class IntCol(LengthCol, MinMaxCol):
 
 @dc.dataclass
 class StrCol(LengthCol):
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = str
+    python_type: Type[str] = dc.field(default=str, init=False)
 
     def cast(self, value):
         return super().cast(value)
@@ -8294,10 +8274,7 @@ class StrCol(LengthCol):
 @dc.dataclass
 class TimeCol(MinMaxCol):
     time_format: str = TIME_FORMAT
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.python_type = dt.time
+    python_type: Type[dt.time] = dc.field(default=dt.time, init=False)
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -9187,7 +9164,7 @@ class SQLDriver:
 
         return domain_name, domain_args
 
-    def get_column_class(self, domain) -> ColumnClass:
+    def get_column_class(self, domain) -> Union[ColumnClass, None]:
         if domain in self.COLUMN_CLASS_MAP:
             return self.COLUMN_CLASS_MAP[domain]
         logger.info(f"Mapping {domain} to generic Column class")
@@ -9399,7 +9376,7 @@ class Sqlite(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def get_column_class(self, domain):
+    def get_column_class(self, domain) -> Union[ColumnClass, None]:
         if self.COLUMN_CLASS_MAP:
             col_class = super().get_column_class(domain)
             if col_class is not None:
