@@ -50,7 +50,7 @@ frm = ss.Form(driver, bind_window=win)  # <=== load the database and bind it to 
 
 # Set our callbacks
 # See documentation for a full list of callbacks supported
-frm.set_callback('allow_cell_edits', enable)
+frm.set_callback('edit_enable', enable)
 frm.set_callback('edit_disable', disable)
 
 while True:

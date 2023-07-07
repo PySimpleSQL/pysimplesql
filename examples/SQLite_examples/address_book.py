@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)  # <=== Set the logging level here (NOTS
 
 
 # Zip code validation
-def validate_zip():
+def validate_zip(frm, window):
     zipcode = win['Addresses.zip'].get()
     if len(zipcode) != 5:
         sg.popup('Check your zip code and try again!', title="Zip code validation failed!")
@@ -97,7 +97,7 @@ layout = [
     [sg.Text("Zip:"+" "*63), ss.field("Addresses.zip", size=(6, 1), no_label=True)],
     [ss.actions("Addresses", edit_protect=False, duplicate=True)],
     # sg.StatusBar sets character limit based on initial value. Here we are filling it with 100 spaces.
-    [sg.StatusBar(' '*100, key='status_bar')]
+    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.TYPE_INFO})]
 
 ]
 win = sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.themepack.ttk_theme)
@@ -111,13 +111,6 @@ frm = ss.Form(driver, bind_window=win,
 
 # Use a callback to validate the zip code
 frm['Addresses'].set_callback('before_save', validate_zip)
-
-# variables for updating our sg.StatusBar
-seconds_to_display = 3
-last_val = ""
-new_val = ""
-counter = 1
-
 
 # ---------
 # MAIN LOOP
@@ -137,22 +130,6 @@ while True:
         # This could also be done by enabling events in the input controls, but this is much simpler.
         dirty = frm['Addresses'].records_changed()
         win['Addresses:db_save'].update(disabled=not dirty)
-        #--------------------------------------------------
-        # Status bar updating
-        #--------------------------------------------------
-        # Using the same timeout, we can update our sg.StatusBar with save messages
-        counter += 1
-        new_val = frm.popup.last_info_msg
-        # If there is a new info popup msg, reset our counter and update the sg.StatusBar
-        if new_val != last_val:
-            counter = 0
-            win['status_bar'].update(value=new_val)
-            last_val = new_val
-        # After counter reaches seconds limit, clear sg.StatusBar and frm.popup.last_info_msg
-        if counter > seconds_to_display * 10:
-            counter = 0
-            frm.popup.last_info_msg = ""
-            win['status_bar'].update(value="")
     elif ss.process_events(event, values):                  # <=== let PySimpleSQL process its own events! Simple!
         logger.info(f'PySimpleDB event handler handled the event {event}!')
     else:

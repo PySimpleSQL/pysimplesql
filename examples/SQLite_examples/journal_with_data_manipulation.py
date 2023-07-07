@@ -16,7 +16,7 @@ sql="""
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "title"         TEXT DEFAULT "New Entry",
-    "entry_date"    INTEGER DEFAULT (strftime('%s', 'now')), --Store date information as a unix epoch timestamp
+    "entry_date"    TEXT DEFAULT (strftime('%s', 'now')), --Store date information as a unix epoch timestamp
     "mood_id"       INTEGER,
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES Mood(id)
@@ -32,7 +32,6 @@ INSERT INTO Mood VALUES (4,"Content");
 INSERT INTO Journal (id,mood_id,title,entry)VALUES (1,1,"My first entry!","I am excited to write my thoughts every day");
 INSERT INTO Journal (id,mood_id,title,entry)VALUES (2,4,"My 2nd entry!","I feel like Doogie Howser ");
 """
-
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------

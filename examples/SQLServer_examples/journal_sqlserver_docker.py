@@ -25,6 +25,20 @@ docker_container = docker_container_start(
     ports={"1433/tcp": ("127.0.0.1", 1433)},
 )
 
+# The original docker has DEFAULT for entry_date column as GETDATE()
+# which returns a DateTime. We just want the date
+sql_commands = """
+DECLARE @ConstraintName nvarchar(200)
+SELECT @ConstraintName = Name FROM SYS.DEFAULT_CONSTRAINTS
+WHERE PARENT_OBJECT_ID = OBJECT_ID('Journal')
+AND PARENT_COLUMN_ID = (SELECT column_id FROM sys.columns
+                        WHERE NAME = N'entry_date'
+                        AND object_id = OBJECT_ID(N'Journal'))
+IF @ConstraintName IS NOT NULL
+EXEC('ALTER TABLE Journal DROP CONSTRAINT ' + @ConstraintName);
+ALTER TABLE [Journal] ADD DEFAULT CAST(GETDATE() AS DATE) FOR [entry_date];
+"""
+
 # -------------------------
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
@@ -69,9 +83,8 @@ sqlserver_docker = {
 }
 # Create the Window, Driver and Form
 win = sg.Window("Journal example: MS SQLServer", layout, finalize=True)
-driver = ss.Driver.sqlserver(
-    **sqlserver_docker
-)  # Use the postgres examples database credentials
+# Use the postgres examples database credentials
+driver = ss.Driver.sqlserver(**sqlserver_docker, sql_commands=sql_commands)
 frm = ss.Form(driver, bind_window=win)  # <=== Here is the magic!
 
 # Reverse the default sort order so new journal entries appear at the top

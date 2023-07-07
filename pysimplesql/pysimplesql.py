@@ -857,6 +857,10 @@ class DataSet:
         # Get the number of parameters in the signature
         expected_args = len(signature.parameters)
 
+        # handling a no-argument callback
+        if expected_args == 0:
+            return callback()
+
         if expected_args == 3 or (expected_args == 2 and len(args) == 2):
             # Pass all arguments if callback supports same length.
             # len(args) == 2, for backwards compatibility while converting code
@@ -8076,7 +8080,9 @@ class LengthCol(Column):
 
     def __post_init__(self):
         if self.domain_args and self.max_length is None:
-            self.max_length = int(self.domain_args[0])
+            self.max_length = (
+                int(self.domain_args[0]) if self.domain_args[0] is not None else None
+            )
 
     def validate(self, value):
         response = super().validate(value)
@@ -8179,7 +8185,11 @@ class DecimalCol(MinMaxCol):
     def __post_init__(self):
         if self.domain_args:
             try:
-                self.precision = int(self.domain_args[0])
+                self.precision = (
+                    int(self.domain_args[0])
+                    if self.domain_args[0] is not None
+                    else None
+                )
             except ValueError:
                 logger.debug(
                     f"Unable to set {self.name} column decimal precision to "
@@ -8187,7 +8197,11 @@ class DecimalCol(MinMaxCol):
                 )
         if len(self.domain_args) >= 2:
             try:
-                self.scale = int(self.domain_args[1])
+                self.scale = (
+                    int(self.domain_args[1])
+                    if self.domain_args[1] is not None
+                    else None
+                )
             except ValueError:
                 logger.debug(
                     f"Unable to set {self.name} column decimal scale to "
@@ -8598,6 +8612,8 @@ class SQLDriver:
     SQLDriver.insert_record()
     """
 
+    SQL_CONSTANTS = []
+
     # ---------------------------------------------------------------------
     # MUST implement
     # in order to function
@@ -8617,7 +8633,6 @@ class SQLDriver:
         to close the database.
         """
         # Be sure to call super().__init__() in derived class!
-        self.SQL_CONSTANTS = []
         self.con = None
         self.name = name
         self.requires = requires
@@ -8793,11 +8808,17 @@ class SQLDriver:
 
     def min_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MIN({pk_column}) as min_pk FROM {table}")
-        return rows.iloc[0]["min_pk"].tolist()
+        if rows.iloc[0]["min_pk"] is not None:
+            return rows.iloc[0]["min_pk"].tolist()
+        else:
+            return 0
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.iloc[0]["max_pk"].tolist()
+        if rows.iloc[0]["max_pk"] is not None:
+            return rows.iloc[0]["max_pk"].tolist()
+        else:
+            return 0
 
     def generate_join_clause(self, dataset: DataSet) -> str:
         """
@@ -9933,7 +9954,16 @@ class Postgres(SQLDriver):
         "TIMESTAMPTZ": DateTimeCol,
     }
 
-    SQL_CONSTANTS = ["CURRENT_USER", "SESSION_USER", "USER"]
+    SQL_CONSTANTS = [
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+        "CURRENT_TIMESTAMP",
+        "LOCALTIME",
+        "LOCALTIMESTAMP",
+        "CURRENT_USER",
+        "SESSION_USER",
+        "USER",
+    ]
 
     def __init__(
         self,
@@ -10410,7 +10440,6 @@ class Sqlserver(SQLDriver):
         gen_rows = self.execute(gen_query, [table], silent=True)
         for _, row in gen_rows.iterrows():
             generated_columns.append(row[0])
-
         rows = rows.fillna("")
         # setup all the variables to be passed to col_info
         for _, row in rows.iterrows():
@@ -10423,7 +10452,8 @@ class Sqlserver(SQLDriver):
             elif col_class in [FloatCol, IntCol]:
                 domain_args = [row["NUMERIC_PRECISION"]]
             elif col_class == StrCol:
-                domain_args = [row["CHARACTER_MAXIMUM_LENGTH"]]
+                # SqlServer apparently uses -1.0 for None
+                domain_args = [row["CHARACTER_MAXIMUM_LENGTH"]] if not -1.0 else None
             notnull = row["IS_NULLABLE"] == "NO"
             if row["COLUMN_DEFAULT"]:
                 col_default = row["COLUMN_DEFAULT"]

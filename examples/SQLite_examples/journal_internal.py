@@ -17,7 +17,7 @@ DROP TABLE IF EXISTS Mood;
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "title"         TEXT DEFAULT 'New Entry',
-    "entry_date"    INTEGER NOT NULL DEFAULT (date('now')),
+    "entry_date"    DATE NOT NULL DEFAULT (date('now')),
     "mood_id"       INTEGER NOT NULL,
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES Mood(id) --This line is important to the automatic functionality of PySimpleSQL~
