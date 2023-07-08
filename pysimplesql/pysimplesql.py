@@ -857,18 +857,8 @@ class DataSet:
         # Get the number of parameters in the signature
         expected_args = len(signature.parameters)
 
-        # handling a no-argument callback
-        if expected_args == 0:
-            return callback()
-
-        if expected_args == 3 or (expected_args == 2 and len(args) == 2):
-            # Pass all arguments if callback supports same length.
-            # len(args) == 2, for backwards compatibility while converting code
-            return callback(*args)
-        if expected_args == 2 and len(args) == 3:
-            # for backwards compatibility, pass only first 2 args (frm & win)
-            return callback(*args[:-1])
-        # Handle the case if the callback expects a different number of parameters
+        if expected_args <= 3:
+            return callback(*args[:expected_args])
         raise ValueError("Unexpected number of parameters in the callback function")
 
     def set_transform(self, fn: callable) -> None:
