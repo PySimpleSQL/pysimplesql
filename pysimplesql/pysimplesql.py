@@ -8811,15 +8811,13 @@ class SQLDriver:
         rows = self.execute(f"SELECT MIN({pk_column}) as min_pk FROM {table}")
         if rows.iloc[0]["min_pk"] is not None:
             return rows.iloc[0]["min_pk"].tolist()
-        else:
-            return 0
+        return 0
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
         if rows.iloc[0]["max_pk"] is not None:
             return rows.iloc[0]["max_pk"].tolist()
-        else:
-            return 0
+        return 0
 
     def generate_join_clause(self, dataset: DataSet) -> str:
         """
