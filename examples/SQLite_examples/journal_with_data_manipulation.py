@@ -16,7 +16,7 @@ sql="""
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "title"         TEXT DEFAULT "New Entry",
-    "entry_date"    TEXT DEFAULT (strftime('%s', 'now')), --Store date information as a unix epoch timestamp
+    "entry_date"    INTEGER DEFAULT (strftime('%s', 'now')), --Store date information as a unix epoch timestamp
     "mood_id"       INTEGER,
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES Mood(id)

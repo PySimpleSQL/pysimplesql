@@ -2022,6 +2022,10 @@ class DataSet:
                 self.frm.update_fields(self.key)
             return SAVE_NONE + SHOW_MESSAGE
 
+        # apply any transformations
+        if self.transform is not None:
+            self.transform(self, changed_row_dict, TFORM_ENCODE)
+
         # check to make sure we have valid inputs
         if validate_fields:
             invalid_response = {}
@@ -2055,9 +2059,6 @@ class DataSet:
 
         # Update the database from the stored rows
         # ----------------------------------------
-
-        if self.transform is not None:
-            self.transform(self, changed_row_dict, TFORM_ENCODE)
 
         # reset search string
         self.search_string = ""
