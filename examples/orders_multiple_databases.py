@@ -270,7 +270,7 @@ UPDATE orders
         SELECT SUM(subtotal) FROM order_details WHERE order_details.order_id = orders.order_id
 );
 {enable_constraints}
-"""  # noqa E501
+"""
 
 sqlserver_disable_constraints = """
 DECLARE @sql nvarchar(MAX)
@@ -316,7 +316,7 @@ compatibility = {
         "boolean_type": "BIT",
         "default_string": "'New Product'",
         "default_boolean": "FALSE",
-        "generated_column": "DECIMAL(10,2) GENERATED ALWAYS AS (`price` * `quantity`) STORED",  # noqa E501
+        "generated_column": "DECIMAL(10,2) GENERATED ALWAYS AS (`price` * `quantity`) STORED",
         "autoincrement": "AUTO_INCREMENT",
         "false_bool": 0,
         "true_bool": 1,
@@ -333,7 +333,7 @@ compatibility = {
         "boolean_type": "BOOLEAN",
         "default_string": "'New Product'",
         "default_boolean": "FALSE",
-        "generated_column": "NUMERIC(10,2) GENERATED ALWAYS AS (price * quantity) STORED",  # noqa E501
+        "generated_column": "NUMERIC(10,2) GENERATED ALWAYS AS (price * quantity) STORED",
         "autoincrement": "",
         "false_bool": False,
         "true_bool": True,

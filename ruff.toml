@@ -1,3 +1,4 @@
+target-version = "py38"
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
 select = [
     "F", #Pyflakes
@@ -48,7 +49,7 @@ select = [
     "PLW", #Pylint Warning
 #     "TRY", #tryceratops
     "NPY", #NumPy-specific rules
-#     "RUF", #Ruff-specific rules
+    "RUF", #Ruff-specific rules
     ] 
 ignore = [
     "D211", #No blank lines allowed before class docstring
@@ -56,6 +57,7 @@ ignore = [
     "PLC1901", #We compare to "" alot, and for good reason.
     "N813", # ignore Camelcase `PySimpleGUI` imported as lowercase `sg`
     "B905", # py310,  `zip()` without an explicit `strict=` parameter
+    "RUF013", #TODO, way it autofixes is '|', should use Union
     ]
 
 [per-file-ignores]

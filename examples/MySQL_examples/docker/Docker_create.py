@@ -45,7 +45,7 @@ time.sleep(5)
 with tqdm(desc="Starting up container") as pbar:
     container.reload()
     while True:
-        if "Status" in container.attrs["State"]:  # noqa: SIM102
+        if "Status" in container.attrs["State"]:
             if container.attrs["State"]["Status"] == "running":
                 break
         time.sleep(1)

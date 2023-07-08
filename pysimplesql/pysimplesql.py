@@ -78,6 +78,7 @@ from tkinter import ttk
 from typing import (
     Any,
     Callable,
+    ClassVar,
     Dict,
     List,
     Optional,
@@ -373,7 +374,7 @@ class Relationship:
     """
 
     # store our own instances
-    instances = []
+    instances: ClassVar[List[Relationship]] = []
 
     join_type: str
     child_table: str
@@ -589,7 +590,7 @@ class DataSet:
     typically aren't created manually by the user.
     """
 
-    instances = []  # Track our own instances
+    instances: ClassVar[List[DataSet]] = []  # Track our own instances
 
     def __init__(
         self,
@@ -3158,8 +3159,8 @@ class Form:
     `DataSet` objects can be accessed by key, I.e. frm['data_key'].
     """
 
-    instances = []  # Track our instances
-    relationships = []  # Track our relationships
+    instances: ClassVar[List[Form]] = []  # Track our instances
+    relationships: ClassVar[List[Relationship]] = []  # Track our relationships
 
     def __init__(
         self,
@@ -3609,7 +3610,7 @@ class Form:
         :returns: None
         """
         if not isinstance(element, (sg.StatusBar, sg.Text)):
-            logger.debug(f"Can only add info {str(element)}")
+            logger.debug(f"Can only add info {element!s}")
             return
         logger.debug(f"Mapping element {element.key}")
         self.popup.info_elements.append(element)
@@ -3744,7 +3745,7 @@ class Form:
                         )
 
                 else:
-                    logger.debug(f"Can not add selector {str(element)}")
+                    logger.debug(f"Can not add selector {element!s}")
 
             elif element.metadata["type"] == TYPE_INFO:
                 self.add_info_element(element)
@@ -5149,7 +5150,7 @@ class ProgressAnimate:
 
         if "phrase_delay" in config and not all(
             isinstance(v, (int, float)) for v in config["phrase_delay"]
-        ):  # noqa SIM102
+        ):
             raise ValueError("phrase_delay must be numeric")
 
         self.config = {**default_config, **config}
@@ -5209,7 +5210,7 @@ class ProgressAnimate:
             return await loop.run_in_executor(
                 None, functools.partial(fn, *args, **kwargs)
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"\nAn error occurred in the process: {e}")
             raise e  # Pass the exception along to the caller
         finally:
@@ -5220,7 +5221,7 @@ class ProgressAnimate:
         gui_task = asyncio.create_task(self._gui())
         result = await self.run_process(fn, *args, **kwargs)
         await gui_task
-        return result  # noqa RET504
+        return result
 
     def _animate(self, config: dict = None):
         def _oscillate_params(oscillator):
@@ -5319,7 +5320,7 @@ class KeyGen:
         return_key = key
         if self._keygen[key] > 0:
             # only modify the key if it is a duplicate!
-            return_key += f"{separator}{str(self._keygen[key])}"
+            return_key += f"{separator}{self._keygen[key]!s}"
         logger.debug(f"Key generated: {return_key}")
         self._keygen[key] += 1
         return return_key
@@ -5609,26 +5610,28 @@ class LazyTable(sg.Table):
         super().__setattr__(name, value)
 
 
+@dc.dataclass(init=False)
 class _PlaceholderText(abc.ABC):
     """
     An abstract class for PySimpleGUI text-entry elements that allows for the display of
     a placeholder text when the input is empty.
     """
 
-    binds = {}
-    placeholder_feature_enabled = False
-    normal_color = None
-    normal_font = None
-    placeholder_text = ""
-    placeholder_color = None
-    placeholder_font = None
-    active_placeholder = False
     # fmt: off
-    _non_keys = ["Control_L","Control_R","Alt_L","Alt_R","Shift_L","Shift_R",
-                "Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down","Left",
-                "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4","F5",
-                "F6","F7","F8","F9","F10","F11","F12", "Delete"]
+    _non_keys: ClassVar[List[str]] = {"Control_L","Control_R","Alt_L","Alt_R","Shift_L",
+                "Shift_R","Caps_Lock","Return","Escape","Tab","BackSpace","Up","Down",
+                "Left", "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4",
+                "F5","F6","F7","F8","F9","F10","F11","F12", "Delete"}
     # fmt: on
+
+    binds: dict = dc.field(default_factory=lambda: {})
+    placeholder_feature_enabled: bool = False
+    normal_color: str = None
+    normal_font: str = None
+    placeholder_text: str = ""
+    placeholder_color: str = None
+    placeholder_font: str = None
+    active_placeholder: bool = False
 
     def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
         """
@@ -5749,7 +5752,7 @@ class _EnhancedInput(_PlaceholderText, sg.Input):
             return None
 
         def on_key_release(event):
-            if widget.get() == "":  # noqa PLC1901
+            if widget.get() in EMPTY:
                 with contextlib.suppress(tk.TclError):
                     self.insert_placeholder()
                     widget.icursor(0)
@@ -5870,18 +5873,21 @@ class _SearchInput(_EnhancedInput):
         if (
             not self.active_placeholder
             and self.get() != self.search_string.get()
-            and self.search_string.get() == ""  # noqa PLC1901
+            and self.search_string.get() in EMPTY
         ):
             # reinsert placeholder if DataSet.search_string == ""
             self.insert_placeholder()
 
 
+@dc.dataclass(init=False)
 class _AutoCompleteLogic:
-    _completion_list = []
-    _hits = []
-    _hit_index = 0
-    position = 0
-    finalized = False
+    _completion_list: List[Union[str, ElementRow]] = dc.field(
+        default_factory=lambda: list
+    )
+    _hits: List[int] = dc.field(default_factory=lambda: list)
+    _hit_index: int = 0
+    position: int = 0
+    finalized: bool = False
 
     def _autocomplete_combo(self, completion_list, delta=0):
         widget = self.Widget
@@ -6906,7 +6912,7 @@ class TableHeadings(list):
     """
 
     # store our instances
-    instances = []
+    instances: ClassVar[List[TableHeadings]] = []
 
     def __init__(
         self,
@@ -7556,7 +7562,7 @@ class ThemePack:
         sg.Button(ss.themepack.search, key='search_button')
     """
 
-    default = {
+    default: ClassVar[Dict[Any]] = {
         # Theme to use with ttk widgets.
         # -------------------------------
         # Choices (on Windows) include:
@@ -7709,7 +7715,7 @@ class LanguagePack:
         lp_en = {'save_success': 'SAVED!'}
     """
 
-    default = {
+    default: ClassVar[Dict[Any]] = {
         # ------------------------------------------------------------------------------
         # Buttons
         # ------------------------------------------------------------------------------
@@ -8303,7 +8309,7 @@ class ColumnInfo(List):
     """
 
     # List of required SQL types to check against when user sets custom values
-    _python_types = [
+    _python_types: ClassVar[List[str]] = [
         "str",
         "int",
         "float",
@@ -8596,7 +8602,7 @@ class SQLDriver:
     SQLDriver.insert_record()
     """
 
-    SQL_CONSTANTS = []
+    SQL_CONSTANTS: ClassVar[List[str]] = []
 
     # ---------------------------------------------------------------------
     # MUST implement
@@ -8838,7 +8844,7 @@ class SQLDriver:
                 if not parent_pk:
                     parent_pk = PK_PLACEHOLDER
 
-                clause = f" WHERE {table}.{r.fk_column}={str(parent_pk)}"
+                clause = f" WHERE {table}.{r.fk_column}={parent_pk!s}"
                 if where:
                     clause = clause.replace("WHERE", "AND")
                 where += clause
@@ -9095,7 +9101,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in changed_row.items():
-            if v == "":
+            if v in EMPTY:
                 changed_row[k] = None
 
         # quote appropriately
@@ -9122,7 +9128,7 @@ class SQLDriver:
 
         # Set empty fields to None
         for k, v in row.items():
-            if v == "":  # noqa: PLC1901
+            if v in EMPTY:
                 row[k] = None
 
         # quote appropriately
@@ -9178,11 +9184,11 @@ class Sqlite(SQLDriver):
     The SQLite driver supports SQLite3 databases.
     """
 
-    DECIMAL_DOMAINS = ["DECIMAL", "DECTEXT", "MONEY", "NUMERIC"]
+    DECIMAL_DOMAINS: ClassVar[List[str]] = ["DECIMAL", "DECTEXT", "MONEY", "NUMERIC"]
 
-    COLUMN_CLASS_MAP = {}
+    COLUMN_CLASS_MAP: ClassVar[List[str]] = {}
 
-    SQL_CONSTANTS = [
+    SQL_CONSTANTS: ClassVar[List[str]] = [
         "CURRENT_DATE",
         "CURRENT_TIME",
         "CURRENT_TIMESTAMP",
@@ -9396,7 +9402,7 @@ class Sqlite(SQLDriver):
             return StrCol
         if any(col_name in domain for col_name in ["REAL", "FLOA", "DOUB"]):
             return FloatCol
-        if "BLOB" in domain or domain == "":
+        if "BLOB" in domain or domain in EMPTY:
             return Column
         return None
 
@@ -9593,7 +9599,7 @@ class Mysql(SQLDriver):
     The Mysql driver supports MySQL databases.
     """
 
-    COLUMN_CLASS_MAP = {
+    COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIT": BoolCol,
         "BIGINT": IntCol,
         "CHAR": StrCol,
@@ -9620,7 +9626,11 @@ class Mysql(SQLDriver):
         "YEAR": IntCol,
     }
 
-    SQL_CONSTANTS = ["CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP"]
+    SQL_CONSTANTS: ClassVar[List[str]] = [
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+        "CURRENT_TIMESTAMP",
+    ]
 
     def __init__(
         self,
@@ -9671,7 +9681,7 @@ class Mysql(SQLDriver):
         self.win_pb.close()
 
     def import_required_modules(self):
-        global mysql  # noqa PLW0603
+        global mysql
         try:
             import mysql.connector
         except ModuleNotFoundError as e:
@@ -9914,7 +9924,7 @@ class Postgres(SQLDriver):
     The Postgres driver supports PostgreSQL databases.
     """
 
-    COLUMN_CLASS_MAP = {
+    COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIGINT": IntCol,
         "BIGSERIAL": IntCol,
         "BOOLEAN": BoolCol,
@@ -9936,7 +9946,7 @@ class Postgres(SQLDriver):
         "TIMESTAMPTZ": DateTimeCol,
     }
 
-    SQL_CONSTANTS = [
+    SQL_CONSTANTS: ClassVar[List[str]] = [
         "CURRENT_DATE",
         "CURRENT_TIME",
         "CURRENT_TIMESTAMP",
@@ -10240,7 +10250,7 @@ class Sqlserver(SQLDriver):
     The Sqlserver driver supports Microsoft SQL Server databases.
     """
 
-    COLUMN_CLASS_MAP = {
+    COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIGINT": IntCol,
         "BIT": BoolCol,
         "CHAR": StrCol,
@@ -10267,7 +10277,7 @@ class Sqlserver(SQLDriver):
         "VARCHAR": StrCol,
     }
 
-    SQL_CONSTANTS = [
+    SQL_CONSTANTS: ClassVar[List[str]] = [
         "CURRENT_USER",
         "HOST_NAME",
         "NULL",
@@ -10566,7 +10576,7 @@ class MSAccess(SQLDriver):
     frm[DATASET KEY].column_info[COLUMN NAME].scale = 2
     """
 
-    COLUMN_CLASS_MAP = {
+    COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIG_INT": IntCol,
         "BOOLEAN": BoolCol,
         "DECIMAL": DecimalCol,

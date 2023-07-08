@@ -6,7 +6,7 @@ import docker.errors
 import pytest
 
 import pysimplesql as ss
-from pysimplesql.docker_utils import *  # noqa F403
+from pysimplesql.docker_utils import *
 
 # ruff: noqa
 
