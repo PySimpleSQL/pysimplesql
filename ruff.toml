@@ -5,7 +5,7 @@ select = [
     "W", #pycodestyle Warning
 #     "C90", #mccabe
     "I", #isort
-#     "N", #pep8-naming
+    "N", #pep8-naming
 #     "D", #pydocstyle
 #     "UP", #pyupgrade
     "YTT", #flake8-2020
@@ -40,7 +40,7 @@ select = [
 #     "ARG", #flake8-unused-arguments
 #     "PTH", #flake8-use-pathlib
 #     "ERA", #eradicate
-#     "PD", #pandas-vet
+    "PD", #pandas-vet
 #     "PGH", #pygrep-hooks
     "PLC", #Pylint Convention
     "PLE", #Pylint Error
@@ -54,6 +54,7 @@ ignore = [
     "D211", #No blank lines allowed before class docstring
     "D212", #Multi-line docstring summary should start at the first line
     "PLC1901", #We compare to "" alot, and for good reason.
+    "N813", # ignore Camelcase `PySimpleGUI` imported as lowercase `sg`
     # Will do below later
     ]
 

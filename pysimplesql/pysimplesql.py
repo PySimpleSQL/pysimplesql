@@ -2416,7 +2416,7 @@ class DataSet:
             return current_row[self.description_column]
         try:
             index = self.rows.loc[self.rows[self.pk_column] == pk].index[0]
-            return self.rows[self.description_column].iat[index]
+            return self.rows[self.description_column].iloc[index]
         except IndexError:
             return None
 
@@ -2551,7 +2551,7 @@ class DataSet:
                     self.rows.loc[
                         self.rows[pk_column] == self.get_current_row()[pk_column],
                         pk_column,
-                    ].values[0]
+                    ].to_numpy()[0]
                 )
 
             # Create a new column 'marker' with the desired values
@@ -2592,7 +2592,7 @@ class DataSet:
 
         # set the pk to the index to use below
         rows["pk_idx"] = rows[pk_column].copy()
-        rows.set_index("pk_idx", inplace=True)
+        rows = rows.set_index("pk_idx")
 
         # insert the marker
         columns.insert(0, "marker")
@@ -2605,7 +2605,7 @@ class DataSet:
             TableRow(pk, values.tolist())
             for pk, values in zip(
                 rows.index,
-                np.vstack((rows.fillna("").astype("O").values.T, rows.index)).T,
+                np.vstack((rows.fillna("").astype("O").to_numpy().T, rows.index)).T,
             )
         ]
 
@@ -2905,7 +2905,7 @@ class DataSet:
         # remove the rows where virtual is True in place, along with the corresponding
         # virtual attribute
         virtual_rows = self.rows[self.rows[self.pk_column].isin(self.virtual_pks)]
-        self.rows.drop(index=virtual_rows.index, inplace=True)
+        self.rows = self.rows.drop(index=virtual_rows.index)
         self.rows.attrs["virtual"] = []
 
     def sort_by_column(self, column: str, table: str, reverse=False) -> None:
@@ -2956,17 +2956,16 @@ class DataSet:
 
         # sort
         try:
-            self.rows.sort_values(
+            self.rows = self.rows.sort_values(
                 column,
                 ascending=not reverse,
-                inplace=True,
             )
         except (KeyError, TypeError) as e:
             logger.debug(f"DataFrame could not sort by column {column}. {e}")
         finally:
             # Drop the temporary description column (if it exists)
             if tmp_column is not None:
-                self.rows.drop(columns=tmp_column, inplace=True, errors="ignore")
+                self.rows = self.rows.drop(columns=tmp_column, errors="ignore")
 
     def sort_by_index(self, index: int, table: str, reverse=False):
         """
@@ -3009,7 +3008,7 @@ class DataSet:
         :returns: None
         """
         # Restore the original sort order
-        self.rows.sort_index(inplace=True)
+        self.rows = self.rows.sort_index()
 
     def sort(self, table: str, update_elements: bool = True, sort_order=None) -> None:
         """
@@ -5384,7 +5383,7 @@ class LazyTable(sg.Table):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.values = []  # full set of rows
+        self.values = []  # noqa PD011 # full set of rows
         self.data = []  # lazy slice of rows
         self.Values = self.data
 
@@ -5423,7 +5422,7 @@ class LazyTable(sg.Table):
             return
 
         # update total list
-        self.values = values
+        self.values = values  # noqa PD011
         # Update current_index with the selected index
         self.current_index = select_rows[0] if select_rows else 0
 
@@ -5518,7 +5517,7 @@ class LazyTable(sg.Table):
         # determine slice
         num_rows = min(self._start_index, self.insert_qty)
         new_start_index = max(0, self._start_index - num_rows)
-        new_rows = self.values[new_start_index : self._start_index]
+        new_rows = self.values[new_start_index : self._start_index]  # noqa PD011
 
         # insert
         for row in reversed(new_rows):
@@ -5545,7 +5544,7 @@ class LazyTable(sg.Table):
         # determine slice
         start_index = max(0, self._end_index)
         end_index = min(self._end_index + self.insert_qty, num_rows)
-        new_rows = self.values[start_index:end_index]
+        new_rows = self.values[start_index:end_index]  # noqa PD011
 
         # insert
         for row in new_rows:
@@ -5580,7 +5579,7 @@ class LazyTable(sg.Table):
         return toggle_color
 
     @property
-    def SelectedRows(self):
+    def SelectedRows(self):  # noqa N802
         """
         Returns the selected row(s) in the LazyTable.
 
@@ -8568,13 +8567,13 @@ class Result:
         :param exception: Exceptions passed back from the SQLDriver
         :param column_info: An optional ColumnInfo object
         """
-        df = pd.DataFrame(row_data)
-        df.attrs["lastrowid"] = lastrowid
-        df.attrs["exception"] = exception
-        df.attrs["column_info"] = column_info
-        df.attrs["row_backup"] = row_backup
-        df.attrs["virtual"] = []
-        return df
+        rows = pd.DataFrame(row_data)
+        rows.attrs["lastrowid"] = lastrowid
+        rows.attrs["exception"] = exception
+        rows.attrs["column_info"] = column_info
+        rows.attrs["row_backup"] = row_backup
+        rows.attrs["virtual"] = []
+        return rows
 
 
 class ReservedKeywordError(Exception):

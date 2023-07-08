@@ -229,7 +229,7 @@ orderdetails_layout = [
     [ss.field("order_details.price", sg.Text)],
     [ss.field("order_details.subtotal", sg.Text)],
     [sg.Sizer(h_pixels=0, v_pixels=10)],
-    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.TYPE_INFO})]
+    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.TYPE_INFO})],
 ]
 
 layout.append([sg.Frame("Order Details", orderdetails_layout, expand_x=True)])
@@ -335,7 +335,7 @@ while True:
             # set current rows 'price' to match price as matching product_id
             dataset["price"] = product_df.loc[
                 product_df["product_id"] == product_id, "price"
-            ].values[0]
+            ].to_numpy()[0]
             # save the record
             dataset.save_record(display_message=False)
 

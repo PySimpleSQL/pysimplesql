@@ -603,7 +603,7 @@ while True:
             # set current rows 'price' to match price as matching product_id
             dataset["price"] = product_df.loc[
                 product_df["product_id"] == product_id, "price"
-            ].values[0]
+            ].to_numpy()[0]
             # save the record
             dataset.save_record(display_message=False)
 
