@@ -1,7 +1,6 @@
 import logging
 import platform
 import re
-import time
 
 import numpy as np
 import pandas as pd
@@ -218,12 +217,15 @@ INSERT INTO products (name, price, inventory) VALUES
 
 # Generate random orders using pandas DataFrame
 num_orders = 100
+rng = np.random.default_rng()
 orders_df = pd.DataFrame(
     {
         "order_id": np.arange(1, num_orders + 1),
-        "customer_id": np.random.randint(1, 25, num_orders),
-        "date": pd.date_range(start=time.strftime("%Y-%m-%d"), periods=num_orders).date,
-        "completed": np.random.choice(["{true_bool}", "{false_bool}"], num_orders),
+        "customer_id": rng.integers(1, 25, size=num_orders),
+        "date": pd.date_range(
+            start=pd.Timestamp.now().strftime("%Y-%m-%d"), periods=num_orders
+        ).date.tolist(),
+        "completed": rng.choice(["{true_bool}", "{false_bool}"], size=num_orders),
     }
 )
 
@@ -231,9 +233,11 @@ orders_df = pd.DataFrame(
 num_order_details = num_orders * 5
 order_details_df = pd.DataFrame(
     {
-        "order_id": np.random.choice(orders_df["order_id"], num_order_details),
-        "product_id": np.random.randint(1, 25, num_order_details),
-        "quantity": np.random.randint(1, 10, num_order_details),
+        "order_id": rng.choice(
+            orders_df["order_id"], size=num_order_details, replace=True
+        ),
+        "product_id": rng.integers(1, 25, size=num_order_details),
+        "quantity": rng.integers(1, 10, size=num_order_details),
     }
 )
 

@@ -41,13 +41,13 @@ select = [
 #     "PTH", #flake8-use-pathlib
 #     "ERA", #eradicate
     "PD", #pandas-vet
-#     "PGH", #pygrep-hooks
+#     "PGH", #pygrep-hooks # DONT
     "PLC", #Pylint Convention
     "PLE", #Pylint Error
 #     "PLR", #Pylint Refactor
     "PLW", #Pylint Warning
 #     "TRY", #tryceratops
-#     "NPY", #NumPy-specific rules
+    "NPY", #NumPy-specific rules
 #     "RUF", #Ruff-specific rules
     ] 
 ignore = [

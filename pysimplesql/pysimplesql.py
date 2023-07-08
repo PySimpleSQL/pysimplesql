@@ -6182,7 +6182,6 @@ class Convenience:
     """
 
 
-
 def field(
     field: str,
     element: Type[sg.Element] = _EnhancedInput,
@@ -7923,7 +7922,6 @@ class Abstractions:
     Note: This is a dummy class that exists purely to enhance documentation and has no
     use to the end user.
     """
-
 
 
 T = TypeVar("T")
