@@ -4671,8 +4671,6 @@ class Utility:
     use to the end user.
     """
 
-    pass
-
 
 def process_events(event: str, values: list) -> bool:
     """
@@ -6183,7 +6181,6 @@ class Convenience:
     use to the end user.
     """
 
-    pass
 
 
 def field(
@@ -7927,7 +7924,6 @@ class Abstractions:
     use to the end user.
     """
 
-    pass
 
 
 T = TypeVar("T")
