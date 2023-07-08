@@ -13,10 +13,10 @@ select = [
 #     "S", #flake8-bandit
     "BLE", #flake8-blind-except
 #     "FBT", #flake8-boolean-trap
-#     "B", #flake8-bugbear
+    "B", #flake8-bugbear
 #     "A", #flake8-builtins
 #     "COM", #flake8-commas
-#     "C4", #flake8-comprehensions
+    "C4", #flake8-comprehensions
 #     "DTZ", #flake8-datetimez
     "T10", #flake8-debugger
     "DJ", #flake8-django
@@ -55,7 +55,7 @@ ignore = [
     "D212", #Multi-line docstring summary should start at the first line
     "PLC1901", #We compare to "" alot, and for good reason.
     "N813", # ignore Camelcase `PySimpleGUI` imported as lowercase `sg`
-    # Will do below later
+    "B905", # py310,  `zip()` without an explicit `strict=` parameter
     ]
 
 [per-file-ignores]
@@ -70,3 +70,4 @@ ignore = [
 "tests/*" = ["BLE001", "F405", "PT011", "PT012", "PT015", "PT017", "SIM114"]
 "pysimplesql/language_pack.py" = ["E501"]
 "pysimplesql/theme_pack.py" = ["E501"]
+"pysimplesql/reserved_sql_keywords.py" = ["C405"]

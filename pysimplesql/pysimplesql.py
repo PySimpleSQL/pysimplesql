@@ -3282,12 +3282,12 @@ class Form:
     def __getitem__(self, key: str) -> DataSet:
         try:
             return self.datasets[key]
-        except KeyError:
+        except KeyError as e:
             raise RuntimeError(
                 f"The DataSet for `{key}` does not exist. This can be caused because "
                 f"the database does not exist, the database user does not have the "
                 f"proper permissions set, or any number of db configuration issues."
-            )
+            ) from e
 
     def close(self, reset_keygen: bool = True):
         """
@@ -5698,7 +5698,7 @@ class _PlaceholderText(abc.ABC):
             self.Widget.config(fg=self.normal_color, font=self.normal_font)
         elif value in EMPTY:
             # If the value is empty, reinsert the placeholder
-            super().update(value=self.placeholder_text, *args, **kwargs)
+            super().update(value=self.placeholder_text, **kwargs)
             self.active_placeholder = True
             self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
         else:
@@ -7638,8 +7638,8 @@ class ThemePack:
     Default Themepack.
     """
 
-    def __init__(self, tp_dict: Dict[str, str] = {}) -> None:
-        self.tp_dict = ThemePack.default
+    def __init__(self, tp_dict: Dict[str, str] = None) -> None:
+        self.tp_dict = tp_dict or ThemePack.default
 
     def __getattr__(self, key):
         # Try to get the key from the internal tp_dict first.
@@ -7649,10 +7649,12 @@ class ThemePack:
         except KeyError:
             try:
                 return ThemePack.default[key]
-            except KeyError:
-                raise AttributeError(f"ThemePack object has no attribute '{key}'")
+            except KeyError as e:
+                raise AttributeError(
+                    f"ThemePack object has no attribute '{key}'"
+                ) from e
 
-    def __call__(self, tp_dict: Dict[str, str] = {}) -> None:
+    def __call__(self, tp_dict: Dict[str, str] = None) -> None:
         """
         Update the ThemePack object from tp_dict.
 
@@ -7688,10 +7690,7 @@ class ThemePack:
         """  # noqa: E501
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
-        if tp_dict == {}:
-            tp_dict = ThemePack.default
-
-        self.tp_dict = tp_dict
+        self.tp_dict = tp_dict or ThemePack.default
 
 
 # set a default themepack
@@ -7856,8 +7855,8 @@ class LanguagePack:
     Default LanguagePack.
     """
 
-    def __init__(self, lp_dict={}):
-        self.lp_dict = type(self).default
+    def __init__(self, lp_dict=None):
+        self.lp_dict = lp_dict or type(self).default
 
     def __getattr__(self, key):
         # Try to get the key from the internal lp_dict first.
@@ -7867,8 +7866,10 @@ class LanguagePack:
         except KeyError:
             try:
                 return type(self).default[key]
-            except KeyError:
-                raise AttributeError(f"LanguagePack object has no attribute '{key}'")
+            except KeyError as e:
+                raise AttributeError(
+                    f"LanguagePack object has no attribute '{key}'"
+                ) from e
 
     def __getitem__(self, key):
         try:
@@ -7876,17 +7877,16 @@ class LanguagePack:
         except KeyError:
             try:
                 return type(self).default[key]
-            except KeyError:
-                raise AttributeError(f"LanguagePack object has no attribute '{key}'")
+            except KeyError as e:
+                raise AttributeError(
+                    f"LanguagePack object has no attribute '{key}'"
+                ) from e
 
-    def __call__(self, lp_dict={}):
+    def __call__(self, lp_dict=None):
         """Update the LanguagePack instance."""
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
-        if lp_dict == {}:
-            lp_dict = type(self).default
-
-        self.lp_dict = lp_dict
+        self.lp_dict = lp_dict or type(self).default
 
 
 # set a default languagepack
