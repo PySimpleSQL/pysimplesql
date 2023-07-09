@@ -265,6 +265,11 @@ class Boolean(enum.Flag):
     FALSE = False
 
 
+class ValidateMode(str, enum.Enum):
+    STRICT = "strict"
+    RELAXED = "relaxed"
+
+
 class ValidateRule(str, enum.Enum):
     REQUIRED = "required"
     PYTHON_TYPE = "python_type"
@@ -605,7 +610,7 @@ class DataSet:
         prompt_save: int = None,
         save_quiet: bool = None,
         duplicate_children: bool = None,
-        validate_fields: bool = None,
+        validate_mode: ValidateMode = None,
     ) -> None:
         """
         Initialize a new `DataSet` instance.
@@ -634,7 +639,9 @@ class DataSet:
             save. Error popups will still be shown.
         :param duplicate_children: (optional) Default: Set in `Form`. If record has
             children, prompt user to choose to duplicate current record, or both.
-        :param validate_fields: Validate fields before saving to database.
+        :param validate_mode: `ss.ValidateMode.STRICT` to prevent invalid values from
+            being entered. `ss.ValidateMode.RELAXED` allows invalid input, but ensures
+            validation occurs before saving to the database.
         :returns: None
         """
         DataSet.instances.append(self)
@@ -677,10 +684,8 @@ class DataSet:
             if duplicate_children is None
             else bool(duplicate_children)
         )
-        self.validate_fields = (
-            self.frm.validate_fields
-            if validate_fields is None
-            else bool(validate_fields)
+        self.validate_mode = (
+            self.frm.validate_mode if validate_mode is None else validate_mode
         )
         self._simple_transform: SimpleTransformsDict = {}
 
@@ -1099,7 +1104,7 @@ class DataSet:
         #    db: {table_val}({type(table_val)})"
         # )
         if element_val != table_val:
-            return new_value
+            return new_value if new_value is not None else ""
         return Boolean.FALSE
 
     def prompt_save(
@@ -1889,7 +1894,7 @@ class DataSet:
             display_message = not self.save_quiet
 
         if validate_fields is None:
-            validate_fields = self.validate_fields
+            validate_fields = self.validate_mode
 
         # Ensure that there is actually something to save
         if not self.row_count:
@@ -3178,7 +3183,7 @@ class Form:
         description_column_names: List[str] = None,
         live_update: bool = False,
         auto_add_relationships: bool = True,
-        validate_fields: bool = True,
+        validate_mode: ValidateMode = ValidateMode.RELAXED,
     ) -> None:
         """
         Initialize a new `Form` instance.
@@ -3217,8 +3222,10 @@ class Form:
         :param auto_add_relationships: (optional) Controls the invocation of
             auto_add_relationships. Default is True. Set it to False when creating a new
             `Form` with pre-existing `Relationship` instances.
-        :param validate_fields: Passed to `DataSet` init to validate fields before
-            saving to database.
+        :param validate_mode: Passed to `DataSet` init to set validate mode.
+            `ss.ValidateMode.STRICT` to prevent invalid values from being entered.
+            `ss.ValidateMode.RELAXED` allows invalid input, but ensures validation
+            occurs before saving to the database.
         :returns: None
         """
         win_pb = ProgressBar(lang.startup_form)
@@ -3253,7 +3260,7 @@ class Form:
         else:
             self.description_column_names = description_column_names
         self.live_update: bool = live_update
-        self.validate_fields: bool = validate_fields
+        self.validate_mode: ValidateMode = validate_mode
 
         # empty variables, just in-case bind() never called
         self.popup = None
@@ -3706,6 +3713,11 @@ class Form:
                             placeholder=lang.notnull_placeholder,
                             color=themepack.placeholder_color,
                         )
+                    if (
+                        isinstance(element, _EnhancedInput)
+                        and col in self[table].column_info.names()
+                    ):
+                        element.add_validate(self[table], col)
 
             # Map Selector Element
             elif element.metadata["type"] == TYPE_SELECTOR:
@@ -5609,6 +5621,34 @@ class LazyTable(sg.Table):
             return
         super().__setattr__(name, value)
 
+class _StrictInput:
+    def strict_validate(self, value, action):
+        if hasattr(self, 'active_placeholder'):
+            active_placeholder = self.active_placeholder
+        else:
+            active_placeholder = None
+
+        if (
+            not active_placeholder
+            and action == "1"
+            and self.dataset.validate_mode is ValidateMode.STRICT
+        ) and not self.dataset.validate_field(self.column_name, value):
+            return False
+        return True
+
+    def add_validate(self, dataset: DataSet, column_name: str):
+        self.dataset: DataSet = dataset
+        self.column_name = column_name
+        widget = self.widget if isinstance(self, sg.Input) else self
+        widget["validate"] = "key"
+        widget["validatecommand"] = (
+            widget.register(self.strict_validate),
+            "%P",
+            "%d",
+        )
+
+class _TtkStrictInput(ttk.Entry, _StrictInput):
+    """ Internal Ttk Entry with validate commands """
 
 @dc.dataclass(init=False)
 class _PlaceholderText(abc.ABC):
@@ -5694,13 +5734,13 @@ class _PlaceholderText(abc.ABC):
 
         if self.active_placeholder and value not in EMPTY:
             # Replace the placeholder with the new value
-            super().update(value=value)
             self.active_placeholder = False
+            super().update(value=value)
             self.Widget.config(fg=self.normal_color, font=self.normal_font)
         elif value in EMPTY:
             # If the value is empty, reinsert the placeholder
-            super().update(value=self.placeholder_text, **kwargs)
             self.active_placeholder = True
+            super().update(value=self.placeholder_text, **kwargs)
             self.Widget.config(fg=self.placeholder_color, font=self.placeholder_font)
         else:
             super().update(*args, **kwargs)
@@ -5725,7 +5765,7 @@ class _PlaceholderText(abc.ABC):
         pass
 
 
-class _EnhancedInput(_PlaceholderText, sg.Input):
+class _EnhancedInput(_PlaceholderText, sg.Input, _StrictInput):
     """
     An Input that allows for the display of a placeholder text when empty.
     """
@@ -5783,15 +5823,15 @@ class _EnhancedInput(_PlaceholderText, sg.Input):
             self.insert_placeholder()
 
     def insert_placeholder(self):
+        self.active_placeholder = True
         self.widget.delete(0, "end")
         self.widget.insert(0, self.placeholder_text)
         self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
-        self.active_placeholder = True
 
     def delete_placeholder(self):
+        self.active_placeholder = False
         self.widget.delete(0, "end")
         self.widget.config(fg=self.normal_color, font=self.normal_font)
-        self.active_placeholder = False
 
 
 class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
@@ -6126,7 +6166,7 @@ class _TtkCalendar(ttk.Frame):
         self.master.minsize(width, height)
 
 
-class _DatePicker(ttk.Entry):
+class _DatePicker(_TtkStrictInput):
     def __init__(self, master, dataset, column_name, init_date, **kwargs):
         self.dataset = dataset
         self.column_name = column_name
@@ -7232,7 +7272,7 @@ class _CellEdit:
 
         # entry
         if widget_type == TK_ENTRY:
-            self.field = ttk.Entry(frame, textvariable=field_var, justify="left")
+            self.field = _TtkStrictInput(frame, textvariable=field_var, justify="left")
             expand = True
 
         if widget_type == TK_DATEPICKER:
@@ -7253,6 +7293,9 @@ class _CellEdit:
             )
             self.field.bind("<Configure>", self.combo_configure)
             expand = True
+
+        if isinstance(self.field, _TtkStrictInput):
+            self.field.add_validate(self.frm[data_key], column)
 
         # bind text to Return (for save), and Escape (for discard)
         # event is discarded
@@ -7337,7 +7380,7 @@ class _CellEdit:
         dataset = self.frm[data_key]
 
         # validate the field
-        if dataset.validate_fields:
+        if dataset.validate_mode:
             widget = (
                 self.field
                 if themepack.validate_exception_animation is not None
@@ -7508,7 +7551,10 @@ class _LiveUpdate:
                 dataset = self.frm[data_key]
 
                 # validate the field
-                if dataset.validate_fields:
+                if dataset.validate_mode == ValidateMode.RELAXED or (
+                    not isinstance(e["element"], _EnhancedInput)
+                    and dataset.validate_mode == ValidateMode.STRICT
+                ):
                     widget = (
                         e["element"].Widget
                         if themepack.validate_exception_animation is not None
