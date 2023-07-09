@@ -64,6 +64,7 @@ import enum
 import functools
 import inspect
 import itertools
+import locale
 import logging
 import math
 import os.path
@@ -125,6 +126,11 @@ pd.set_option("display.max_columns", 10)  # Show a maximum of 10 columns
 pd.set_option("display.width", 250)  # Set the display width to 250 characters
 pd.set_option("display.max_colwidth", 25)  # Set the maximum col width to 25 characters
 pd.set_option("display.precision", 2)  # Set the number of decimal places to 2
+
+# ----------------------------------------------
+# # Set the locale to the user's default setting
+# ----------------------------------------------
+locale.setlocale(locale.LC_ALL, "")
 
 # ---------------------------
 # Types for automatic mapping
@@ -5653,7 +5659,6 @@ class _TtkStrictInput(ttk.Entry, _StrictInput):
     """Internal Ttk Entry with validate commands"""
 
 
-@dc.dataclass(init=False)
 class _PlaceholderText(abc.ABC):
     """
     An abstract class for PySimpleGUI text-entry elements that allows for the display of
@@ -5666,8 +5671,7 @@ class _PlaceholderText(abc.ABC):
                 "Left", "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4",
                 "F5","F6","F7","F8","F9","F10","F11","F12", "Delete"}
     # fmt: on
-
-    binds: dict = dc.field(default_factory=lambda: {})
+    binds: dict = dc.field(default_factory=lambda: dict)
     placeholder_feature_enabled: bool = False
     normal_color: str = None
     normal_font: str = None
@@ -5922,7 +5926,6 @@ class _SearchInput(_EnhancedInput):
             self.insert_placeholder()
 
 
-@dc.dataclass(init=False)
 class _AutoCompleteLogic:
     _completion_list: List[Union[str, ElementRow]] = dc.field(
         default_factory=lambda: list
@@ -7188,9 +7191,9 @@ class _CellEdit:
         table_element = element.Widget
         root = table_element.master
 
-        # get cell text, coordinates, width and height
-        text = table_element.item(row, "values")[col_idx]
+        # get text, coordinates, width and height
         x, y, width, height = table_element.bbox(row, col_idx)
+        text = self.frm[data_key][column]
 
         # return early due to following conditions:
         if col_idx == 0:
@@ -7221,6 +7224,8 @@ class _CellEdit:
         )
 
         if combobox_values:
+            # overwrite text with description from sg.Table
+            text = table_element.item(row, "values")[col_idx]
             widget_type = TK_COMBOBOX
             width = (
                 width
@@ -8069,7 +8074,7 @@ class Column:
 @dc.dataclass
 class MinMaxCol(Column):
     """
-    Column subclass representing a value with minimum and maximum constraints.
+    Base ColumnClass for columns with minimum and maximum constraints.
 
     This class extends the functionality of the base `Column` class to include optional
     validation based on minimum and maximum values.
@@ -8104,7 +8109,7 @@ class MinMaxCol(Column):
 @dc.dataclass
 class LengthCol(Column):
     """
-    Column subclass for length-constrained columns.
+    Base ColumnClass for length-constrained columns.
 
     This class represents a column with length constraints. It inherits from the base
     `Column` class and adds attributes to store the maximum and minimum length values.
@@ -8123,6 +8128,11 @@ class LengthCol(Column):
                 int(self.domain_args[0]) if self.domain_args[0] is not None else None
             )
 
+    def cast(self, value):
+        if value in EMPTY:
+            return ""
+        return super().cast(value)
+
     def validate(self, value):
         response = super().validate(value)
         if response.exception:
@@ -8135,6 +8145,33 @@ class LengthCol(Column):
             return ValidateResponse(ValidateRule.MAX_LENGTH, value, self.max_length)
 
         return ValidateResponse()
+
+
+@dc.dataclass
+class LocaleCol(Column):
+    """
+    Base ColumnClass that provides Locale functions
+
+    :param negative_symbol: The symbol representing negative values in the locale.
+    :param currency_symbol: The symbol representing the currency in the locale.
+
+    Example:
+        col = LocaleCol()
+        normalized_value = col.strip_locale("$1,000.50")
+    """
+
+    negative_symbol: str = locale.localeconv()["negative_sign"]
+    currency_symbol: str = locale.localeconv()["currency_symbol"]
+
+    def strip_locale(self, value):
+        if value == self.negative_symbol:
+            return "0"
+        value = str(value)
+        if value == self.currency_symbol:
+            return "0"
+        if self.currency_symbol in value:
+            value = value.replace(self.currency_symbol, "")
+        return locale.delocalize(value)
 
 
 @dc.dataclass
@@ -8216,7 +8253,7 @@ class DateTimeCol(MinMaxCol):
 
 
 @dc.dataclass
-class DecimalCol(MinMaxCol):
+class DecimalCol(LocaleCol, MinMaxCol):
     precision: int = DECIMAL_PRECISION
     scale: int = DECIMAL_SCALE
     python_type: Type[Decimal] = dc.field(default=Decimal, init=False)
@@ -8248,8 +8285,7 @@ class DecimalCol(MinMaxCol):
                 )
 
     def cast(self, value):
-        if value == "-":
-            return Decimal(0)
+        value = self.strip_locale(value)
         try:
             decimal_value = Decimal(value)
             return decimal_value.quantize(Decimal("0." + "0" * self.scale))
@@ -8270,12 +8306,11 @@ class DecimalCol(MinMaxCol):
 
 
 @dc.dataclass
-class FloatCol(LengthCol, MinMaxCol):
+class FloatCol(LocaleCol, LengthCol, MinMaxCol):
     python_type: Type[float] = dc.field(default=float, init=False)
 
     def cast(self, value):
-        if value == "-":
-            return float(0)
+        value = self.strip_locale(value)
         try:
             return float(value)
         except ValueError:
@@ -8283,7 +8318,7 @@ class FloatCol(LengthCol, MinMaxCol):
 
 
 @dc.dataclass
-class IntCol(LengthCol, MinMaxCol):
+class IntCol(LocaleCol, LengthCol, MinMaxCol):
     truncate_decimals: bool = False
     python_type: Type[int] = dc.field(default=int, init=False)
 
@@ -8294,8 +8329,7 @@ class IntCol(LengthCol, MinMaxCol):
             else self.truncate_decimals
         )
         value_backup = value
-        if value in ["-", "", None]:
-            return None
+        value = self.strip_locale(value)
         try:
             if isinstance(value, int):
                 return value
