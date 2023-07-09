@@ -5621,9 +5621,10 @@ class LazyTable(sg.Table):
             return
         super().__setattr__(name, value)
 
+
 class _StrictInput:
     def strict_validate(self, value, action):
-        if hasattr(self, 'active_placeholder'):
+        if hasattr(self, "active_placeholder"):
             active_placeholder = self.active_placeholder
         else:
             active_placeholder = None
@@ -5647,8 +5648,10 @@ class _StrictInput:
             "%d",
         )
 
+
 class _TtkStrictInput(ttk.Entry, _StrictInput):
-    """ Internal Ttk Entry with validate commands """
+    """Internal Ttk Entry with validate commands"""
+
 
 @dc.dataclass(init=False)
 class _PlaceholderText(abc.ABC):
