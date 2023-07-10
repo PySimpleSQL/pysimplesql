@@ -294,6 +294,23 @@ class ValidateResponse:
     rule: str = None
 
 
+class CellFormatFn:
+    @staticmethod
+    def bool_to_checkbox(val):
+        return (
+            themepack.checkbox_true
+            if checkbox_to_bool(val)
+            else themepack.checkbox_false
+        )
+
+    @staticmethod
+    def decimal_places(val, decimal_places):
+        format_string = f"%.{decimal_places}f"
+        if val not in EMPTY:
+            return locale.format_string(format_string, val)
+        return val
+
+
 # -------
 # CLASSES
 # -------
@@ -2527,6 +2544,7 @@ class DataSet:
         columns: List[str] = None,
         mark_unsaved: bool = False,
         apply_search_filter: bool = False,
+        apply_cell_format_fn: bool = True,
     ) -> List[TableRow]:
         """
         Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
@@ -2536,7 +2554,9 @@ class DataSet:
         :param mark_unsaved: Place a marker next to virtual records, or records with
             unsaved changes.
         :param apply_search_filter: Filter rows to only those columns in
-            `DataSet.search_order` that contain `Dataself.search_string`.
+            `DataSet.search_order` that contain `DataSet.search_string`.
+        :param apply_cell_format_fn: If set, apply()
+            `DataSet.column_info[col].cell_format_fn` to rows column
         :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
@@ -2587,20 +2607,12 @@ class DataSet:
             # Apply the mask to filter the DataFrame
             rows = rows[mask_pd]
 
-        # transform bool
-        if themepack.display_bool_as_checkbox:
-            bool_columns = [
-                column
-                for column in columns
-                if self.column_info[column]
-                and self.column_info[column].python_type == bool
-            ]
-            for col in bool_columns:
-                rows[col] = rows[col].apply(
-                    lambda x: themepack.checkbox_true
-                    if checkbox_to_bool(x)
-                    else themepack.checkbox_false
-                )
+        # apply cell format functions
+        if apply_cell_format_fn:
+            for column in columns:
+                if self.column_info[column] and self.column_info[column].cell_format_fn:
+                    fn = self.column_info[column].cell_format_fn
+                    rows[column] = rows[column].apply(fn)
 
         # set the pk to the index to use below
         rows["pk_idx"] = rows[pk_column].copy()
@@ -7418,13 +7430,10 @@ class _CellEdit:
         if widget_type == TK_COMBOBOX:
             new_value = combobox_values[self.field.current()]
 
-        # if boolean, set
-        if widget_type == TK_CHECKBUTTON and themepack.display_bool_as_checkbox:
-            new_value = (
-                themepack.checkbox_true
-                if checkbox_to_bool(new_value)
-                else themepack.checkbox_false
-            )
+        # apply cell format fn
+        if self.frm[data_key].column_info[column].cell_format_fn:
+            fn = self.frm[data_key].column_info[column].cell_format_fn
+            new_value = fn(new_value)
 
         # update value row with new text
         values[col_idx] = new_value
@@ -8019,6 +8028,7 @@ class Column:
     python_type: Type[T] = object
     custom_cast_fn: callable = None
     custom_validate_fn: callable = None
+    cell_format_fn: callable = None
     domain_args: List[str, int] = None
 
     def __getitem__(self, key):
@@ -8178,6 +8188,10 @@ class LocaleCol(Column):
 class BoolCol(Column):
     python_type: Type[bool] = dc.field(default=bool, init=False)
 
+    def __post_init__(self):
+        if themepack.display_bool_as_checkbox:
+            self.cell_format_fn: callable = CellFormatFn.bool_to_checkbox
+
     def cast(self, value):
         return checkbox_to_bool(value)
 
@@ -8283,6 +8297,9 @@ class DecimalCol(LocaleCol, MinMaxCol):
                     f"Unable to set {self.name} column decimal scale to "
                     f"{self.domain_args[1]}"
                 )
+            self.cell_format_fn: callable = lambda x: CellFormatFn.decimal_places(
+                x, self.scale
+            )
 
     def cast(self, value):
         value = self.strip_locale(value)
@@ -8329,12 +8346,12 @@ class IntCol(LocaleCol, LengthCol, MinMaxCol):
             else self.truncate_decimals
         )
         value_backup = value
-        value = self.strip_locale(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, ElementRow):
+            return int(value)
         try:
-            if isinstance(value, int):
-                return value
-            if isinstance(value, ElementRow):
-                return int(value)
+            value = self.strip_locale(value)
             if type(value) is str:
                 value = float(value)
             if type(value) is float:
