@@ -33,8 +33,8 @@ else:
 # -----------------------------
 custom = {
     "ttk_theme": os_ttktheme,
-    "marker_sort_asc": " ⬇",
-    "marker_sort_desc": " ⬆",
+    "marker_sort_asc": " ⬇ ",
+    "marker_sort_desc": " ⬆ ",
 }
 custom = custom | os_tp
 ss.themepack(custom)
@@ -216,7 +216,7 @@ INSERT INTO products (name, price, inventory) VALUES
 """
 
 # Generate random orders using pandas DataFrame
-num_orders = 100
+num_orders = 1000
 rng = np.random.default_rng()
 orders_df = pd.DataFrame(
     {
@@ -389,23 +389,38 @@ menu_def = [
 # fmt: on
 layout = [[sg.Menu(menu_def, key="-MENUBAR-", font="_ 12")]]
 
-# Define the columns for the table selector using the TableHeading class.
-order_heading = ss.TableHeadings(
-    sort_enable=True,  # Click a heading to sort
+# Set our universal table options
+table_style = ss.TableStyler(
+    row_height=25,
+    expand_x=True,
+    expand_y=True,
+    frame_pack_kwargs={"expand": True, "fill": "both"},
+)
+
+# Define the columns for the table selector using the Tabletable class.
+order_table = ss.TableBuilder(
+    num_rows=5,
+    sort_enable=True,  # Click a table to sort
     allow_cell_edits=True,  # Double-click a cell to make edits.
     # Exempted: Primary Key columns, Generated columns, and columns set as readonly
-    add_save_heading_button=True,  # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
     apply_search_filter=True,  # Filter rows as you type in the search input
+    lazy_loading=True,  # For larger DataSets, inserts slice of rows. See `LazyTable`
+    add_save_heading_button=True,  # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
+    style=table_style,
 )
 
 # Add columns
-order_heading.add_column(column="order_id", heading_column="ID", width=5)
-order_heading.add_column("customer_id", "Customer", 30)
-order_heading.add_column("date", "Date", 20)
-order_heading.add_column(
-    "total", "total", width=10, readonly=True
-)  # set to True to disable editing for individual columns!)
-order_heading.add_column("completed", "✔", 8)
+order_table.add_column(column="order_id", heading="ID", width=5)
+order_table.add_column("customer_id", "Customer", 30)
+order_table.add_column("date", "Date", 20)
+order_table.add_column(
+    column="total",
+    heading="Total",
+    width=10,
+    readonly=True,  # set to True to disable editing for individual columns!
+    col_justify="right",  # default, "left". Available: "left", "right", "center"
+)
+order_table.add_column("completed", "✔", 8)
 
 # Layout
 layout.append(
@@ -414,10 +429,7 @@ layout.append(
         [
             ss.selector(
                 "orders",
-                sg.Table,
-                num_rows=5,
-                headings=order_heading,
-                row_height=25,
+                order_table,
             )
         ],
         [ss.actions("orders")],
@@ -425,14 +437,18 @@ layout.append(
     ]
 )
 
-# order_details TableHeadings:
-details_heading = ss.TableHeadings(
-    sort_enable=True, allow_cell_edits=True, add_save_heading_button=True
+# order_details TableBuilder:
+details_table = ss.TableBuilder(
+    num_rows=10,
+    sort_enable=True,
+    allow_cell_edits=True,
+    add_save_heading_button=True,
+    style=table_style,
 )
-details_heading.add_column("product_id", "Product", 30)
-details_heading.add_column("quantity", "quantity", 10)
-details_heading.add_column("price", "price/Ea", 10, readonly=True)
-details_heading.add_column("subtotal", "subtotal", 10, readonly=True)
+details_table.add_column("product_id", "Product", 30)
+details_table.add_column("quantity", "Quantity", 10, col_justify="right")
+details_table.add_column("price", "Price/Ea", 10, readonly=True, col_justify="right")
+details_table.add_column("subtotal", "Subtotal", 10, readonly=True, col_justify="right")
 
 orderdetails_layout = [
     [sg.Sizer(h_pixels=0, v_pixels=10)],
@@ -451,10 +467,7 @@ orderdetails_layout = [
     [
         ss.selector(
             "order_details",
-            sg.Table,
-            num_rows=10,
-            headings=details_heading,
-            row_height=25,
+            details_table,
         )
     ],
     [ss.actions("order_details", default=False, save=True, insert=True, delete=True)],
@@ -477,12 +490,6 @@ win = sg.Window(
     ttk_theme=os_ttktheme,
     icon=ss.themepack.icon,
 )
-
-# Expand our sg.Tables so they fill the screen
-win["orders:selector"].expand(True, True)
-win["orders:selector"].table_frame.pack(expand=True, fill="both")
-win["order_details:selector"].expand(True, True)
-win["order_details:selector"].table_frame.pack(expand=True, fill="both")
 
 # Init pysimplesql Driver and Form
 # --------------------------------

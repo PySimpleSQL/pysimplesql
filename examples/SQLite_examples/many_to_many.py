@@ -60,11 +60,11 @@ color_layout = [
     [ss.field('Color.name', label_above=True)]
 ]
 
-headings = ss.TableHeadings(sort_enable=True)
-headings.add_column('person_id', 'Person', 18)
-headings.add_column('color_id', 'Favorite Color', 18)
+table_builder = ss.TableBuilder(num_rows=10)
+table_builder.add_column('person_id', 'Person', 18)
+table_builder.add_column('color_id', 'Favorite Color', 18)
 favorites_layout = [
-    [ss.selector('FavoriteColor', sg.Table, key='sel_favorite', num_rows=10, headings=headings)],
+    [ss.selector('FavoriteColor', table_builder, key='sel_favorite')],
     [ss.actions('act_favorites', 'FavoriteColor', edit_protect=False, search=False)],
     [ss.field('FavoriteColor.person_id', element=sg.Combo, size=(30, 10), label='Person:', auto_size_text=False)],
     [ss.field('FavoriteColor.color_id', element=sg.Combo, size=(30, 10), label='Color:', auto_size_text=False)]
