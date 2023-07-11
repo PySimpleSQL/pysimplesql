@@ -229,6 +229,11 @@ TK_COMBOBOX = "Combobox"
 TK_CHECKBUTTON = "Checkbutton"
 TK_DATEPICKER = "Datepicker"
 TK_COMBOBOX_SELECTED = "35"
+TK_ANCHOR_MAP = {
+    "l": "w",
+    "r": "e",
+    "c": "center",
+}
 
 # --------------
 # Misc Constants
@@ -237,7 +242,9 @@ PK_PLACEHOLDER = "Null"
 EMPTY = ["", None]
 DECIMAL_PRECISION = 12
 DECIMAL_SCALE = 2
-ColumnJustify = Literal["left", "right", "center"]
+TableJustify = Literal["left", "right", "center"]
+ColumnJustify = Literal["left", "right", "center", "default"]
+HeadingJustify = Literal["left", "right", "center", "column", "default"]
 
 # --------------------
 # Date formats
@@ -2790,7 +2797,11 @@ class DataSet:
         data_key = self.key
         layout = []
         table_builder = TableBuilder(
-            num_rows=10,sort_enable=True, allow_cell_edits=True, add_save_heading_button=True,style_options=TableStyle(row_height=25)
+            num_rows=10,
+            sort_enable=True,
+            allow_cell_edits=True,
+            add_save_heading_button=True,
+            style=TableStyler(row_height=25),
         )
 
         for col in self.column_info.names():
@@ -2799,15 +2810,18 @@ class DataSet:
             if col == self.pk_column:
                 # make pk column either max length of contained pks, or len of name
                 width = max(self.rows[col].astype(str).map(len).max(), len(col) + 1)
-                justify = 'left'
-            elif (
-                self.column_info[col]
-                and self.column_info[col].python_type in [int, float, Decimal]
-            ):
-                justify = 'right'
+                justify = "left"
+            elif self.column_info[col] and self.column_info[col].python_type in [
+                int,
+                float,
+                Decimal,
+            ]:
+                justify = "right"
             else:
-                justify = 'left'
-            table_builder.add_column(col, col.capitalize(), width=width, justify=justify)
+                justify = "left"
+            table_builder.add_column(
+                col, col.capitalize(), width=width, justify=justify
+            )
 
         layout.append(
             [
@@ -5400,6 +5414,7 @@ This is a global keygen instance for general purpose use.
 See `KeyGen` for more info
 """
 
+
 class LazyTable(sg.Table):
 
     """
@@ -5416,14 +5431,20 @@ class LazyTable(sg.Table):
     support the `sg.Table` `row_colors` argument.
     """
 
-    def __init__(self, *args, lazy_loading=False, heading_justify_list = None, **kwargs):
+    def __init__(self, *args, lazy_loading=False, **kwargs):
+        # remove LazyTable only
+        self.headings_justification = kwargs.pop("headings_justification", None)
+        cols_justification = kwargs.pop("cols_justification", None)
+        self.frame_pack_kwargs = kwargs.pop("frame_pack_kwargs", None)
+
         super().__init__(*args, **kwargs)
 
-        self.finalized = False
+        # set cols_justification after, since PySimpleGUI sets it in its init
+        self.cols_justification = cols_justification
+
         self.data = []  # lazy slice of rows
         self.lazy_loading: bool = True
         self.lazy_insert_qty: int = 100
-        self.heading_justify_list = heading_justify_list
 
         self._start_index = 0
         self._end_index = 0
@@ -5433,13 +5454,45 @@ class LazyTable(sg.Table):
         self._lock = threading.Lock()
         self._bg = None
         self._fg = None
-        
+
+    def __setattr__(self, name, value):
+        if name == "SelectedRows":
+            # Handle PySimpleGui attempts to set our SelectedRows property
+            return
+        super().__setattr__(name, value)
+
     @property
     def insert_qty(self):
         """Number of rows to insert during an `update(values=)` and scroll events"""
         if self.lazy_loading:
             return max(self.NumRows, self.lazy_insert_qty)
         return len(self.Values)
+
+    @property
+    def SelectedRows(self):  # noqa N802
+        """
+        Returns the selected row(s) in the LazyTable.
+
+        :returns:
+            - If the LazyTable has data:
+                - Retrieves the index of the selected row by matching the primary key
+                  (pk) value with the first selected item in the widget.
+                - Returns the corresponding row from the data list based on the index.
+            - If the LazyTable has no data:
+                - Returns None.
+
+        :note:
+            This property assumes that the LazyTable is using a primary key (pk) value
+            to uniquely identify rows in the data list.
+        """
+        if self.data and self.widget.selection():
+            index = [
+                [v.pk for v in self.data].index(
+                    [int(x) for x in self.widget.selection()][0]
+                )
+            ][0]
+            return self.data[index]
+        return None
 
     def update(
         self,
@@ -5449,19 +5502,12 @@ class LazyTable(sg.Table):
         select_rows=None,
         alternating_row_color=None,
     ):
-        if not self.finalized:
-            for i, column_id in enumerate(self.Widget["columns"]):
-                self.Widget.heading(column_id)["anchor"] = self.heading_justify_list[i]
-            self.finalized = True
-
         # check if we shouldn't be doing this update
         # PySimpleGUI version support (PyPi version doesn't support quick_check)
-        if sg.__version__.split(".")[0] == "5" or (
-            sg.__version__.split(".")[0] == "4" and sg.__version__.split(".")[1] == "61"
-        ):
+        kwargs = {}
+        is_closed_sig = inspect.signature(self.ParentForm.is_closed)
+        if "quick_check" in is_closed_sig.parameters:
             kwargs = {"quick_check": True}
-        else:
-            kwargs = {}
 
         if not self._widget_was_created() or (
             self.ParentForm is not None and self.ParentForm.is_closed(**kwargs)
@@ -5476,6 +5522,7 @@ class LazyTable(sg.Table):
         # needed, since PySimpleGUI doesn't create tk widgets during class init
         if not self._finalized:
             self.widget.configure(yscrollcommand=self._handle_scroll)
+            self._handle_extra_kwargs()
             self._finalized = True
 
         # delete all current
@@ -5625,37 +5672,15 @@ class LazyTable(sg.Table):
             self.widget.tag_configure(iid, background=self._bg, foreground=self._fg)
         return toggle_color
 
-    @property
-    def SelectedRows(self):  # noqa N802
-        """
-        Returns the selected row(s) in the LazyTable.
-
-        :returns:
-            - If the LazyTable has data:
-                - Retrieves the index of the selected row by matching the primary key
-                  (pk) value with the first selected item in the widget.
-                - Returns the corresponding row from the data list based on the index.
-            - If the LazyTable has no data:
-                - Returns None.
-
-        :note:
-            This property assumes that the LazyTable is using a primary key (pk) value
-            to uniquely identify rows in the data list.
-        """
-        if self.data and self.widget.selection():
-            index = [
-                [v.pk for v in self.data].index(
-                    [int(x) for x in self.widget.selection()][0]
-                )
-            ][0]
-            return self.data[index]
-        return None
-
-    def __setattr__(self, name, value):
-        if name == "SelectedRows":
-            # Handle PySimpleGui attempts to set our SelectedRows property
-            return
-        super().__setattr__(name, value)
+    def _handle_extra_kwargs(self):
+        if self.headings_justification:
+            for i, heading_id in enumerate(self.Widget["columns"]):
+                self.Widget.heading(heading_id, anchor=self.headings_justification[i])
+        if self.cols_justification:
+            for i, column_id in enumerate(self.Widget["columns"]):
+                self.Widget.column(column_id, anchor=self.cols_justification[i])
+        if self.frame_pack_kwargs:
+            self.table_frame.pack(**self.frame_pack_kwargs)
 
 
 class _StrictInput:
@@ -5957,10 +5982,8 @@ class _SearchInput(_EnhancedInput):
 
 
 class _AutoCompleteLogic:
-    _completion_list: List[Union[str, ElementRow]] = dc.field(
-        default_factory=lambda: list
-    )
-    _hits: List[int] = dc.field(default_factory=lambda: list)
+    _completion_list: List[Union[str, ElementRow]] = dc.field(default_factory=list)
+    _hits: List[int] = dc.field(default_factory=list)
     _hit_index: int = 0
     position: int = 0
     finalized: bool = False
@@ -6965,12 +6988,17 @@ def selector(
         element = table_builder.element
         lazy = table_builder.lazy_loading
         kwargs = table_builder.get_table_kwargs()
-        if 'heading_justify_list' in kwargs:
-            heading_justify_list = kwargs.pop('heading_justify_list')
+
         meta["TableBuilder"] = table_builder
         # Make an empty list of values
         vals = [[""] * len(kwargs["headings"])]
-        layout = element(vals, lazy_loading=lazy, heading_justify_list=heading_justify_list, key=key, metadata=meta, **kwargs)
+        layout = element(
+            vals,
+            lazy_loading=lazy,
+            key=key,
+            metadata=meta,
+            **kwargs,
+        )
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
 
@@ -6987,12 +7015,11 @@ class TableBuilder(list):
     order by clicking on the column in the heading in the PySimpleGUI Table element if
     the sort_enable parameter is set to True.
 
-    :param element: Element to use with this TableBuilder. Default, `sg.Table`. Also
-        available, `ss.LazyTable`, for larger DataSets (see documentation).
     :param sort_enable: True to enable sorting by heading column.
     :param allow_cell_edits: Double-click to edit a cell value if True. Accepted
         edits update both `sg.Table` and associated `field` element. Note: primary
         key, generated, or `readonly` columns don't allow cell edits.
+    :param lazy_loading: For larger DataSets (see `LazyTable`).
     :param add_save_heading_button: Adds a save button to the left-most heading
         column if True.
     :param apply_search_filter: Filter rows to only those columns in
@@ -7008,17 +7035,19 @@ class TableBuilder(list):
     allow_cell_edits: bool = False
     apply_search_filter: bool = False
     lazy_loading: bool = False
-    style_options: TableStyle = None
     add_save_heading_button: bool = False
+    style: TableStyler = None
 
-    _width_map: List[int] = dc.field(default_factory=lambda: [], init=False)
-    _justify_map: List[int] = dc.field(default_factory=lambda: [], init=False)
-    _visible_map: List[bool] = dc.field(default_factory=lambda: [], init=False)
-    readonly_columns: List[str] = dc.field(default_factory=lambda: [], init=False)
+    _width_map: List[int] = dc.field(default_factory=list, init=False)
+    _col_justify_map: List[int] = dc.field(default_factory=list, init=False)
+    _heading_justify_map: List[int] = dc.field(default_factory=list, init=False)
+    _visible_map: List[bool] = dc.field(default_factory=list, init=False)
+    readonly_columns: List[str] = dc.field(default_factory=list, init=False)
 
     def __post_init__(self):
         # Store this instance in the master list of instances
         TableBuilder.instances.append(self)
+
         if self.add_save_heading_button:
             self.insert(0, themepack.unsaved_column_header)
         else:
@@ -7027,9 +7056,10 @@ class TableBuilder(list):
     def add_column(
         self,
         column: str,
-        heading_column: str,
+        heading: str,
         width: int,
-        justify: ColumnJustify = "left",
+        col_justify: ColumnJustify = "default",
+        heading_justify: HeadingJustify = "column",
         visible: bool = True,
         readonly: bool = False,
     ) -> None:
@@ -7038,11 +7068,13 @@ class TableBuilder(list):
         order that this method is called. Note that the primary key column does not need
         to be included, as primary keys are stored internally in the `TableRow` class.
 
-        :param heading_column: The name of this columns heading (title)
-        :param column: The name of the column in the database the heading column is for
+        :param column: The name of the column in the database
+        :param heading: The name of this columns heading (title)
         :param width: The width for this column to display within the Table element
-        :param justify: Default 'left'. Available options: 'left', 'right', 'center'.
-            Only available on supported PySimpleGUI versions (>=4.61).
+        :param col_justify: Default 'left'. Available options: 'left', 'right',
+            'center', 'default'.
+        :param heading_justify: Defaults to 'column' to match col_justify. Available
+            options: 'left', 'right', 'center', 'column', 'default'.
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
@@ -7050,41 +7082,45 @@ class TableBuilder(list):
             `TableBuilder.allow_cell_edits` is True.
         :returns: None
         """
-        self.append({"heading": heading_column, "column": column})
+        self.append({"heading": heading, "column": column})
         self._width_map.append(width)
-        self._justify_map.append(justify)
+
+        # column justify
+        if col_justify == "default":
+            col_justify = self.style.justification
+        self._col_justify_map.append(col_justify)
+
+        # heading justify
+        if heading_justify == "column":
+            heading_justify = col_justify
+        if heading_justify == "default":
+            heading_justify = self.style.justification
+        self._heading_justify_map.append(heading_justify)
+
         self._visible_map.append(visible)
         if readonly:
             self.readonly_columns.append(column)
 
     def get_table_kwargs(self) -> Dict[str]:
         kwargs = {}
-        
-        kwargs["num_rows"] = self.num_rows
-        
-        table_sig = inspect.signature(sg.Table)
-        if "cols_justification" in table_sig.parameters:
-            kwargs["heading_justify_list"] = self.heading_justify_map
-            kwargs["cols_justification"] = self.col_justify_map
-        else:
-            kwargs["justification"] = "left"
 
+        kwargs["num_rows"] = self.num_rows
+        kwargs["headings_justification"] = self.heading_justify_map
+        kwargs["cols_justification"] = self.col_justify_map
         kwargs["headings"] = self.heading_names
         kwargs["visible_column_map"] = self.visible_map
         kwargs["col_widths"] = self.width_map
+        kwargs["auto_size_columns"] = False
+        kwargs["enable_events"] = True
+        kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
 
         # Create a narrow column for displaying a * character for virtual rows.
         # This will be the 1st column
         kwargs["visible_column_map"].insert(0, 1)
         kwargs["col_widths"].insert(0, themepack.unsaved_column_width)
 
-        kwargs["auto_size_columns"] = False
-        kwargs["enable_events"] = True
-        kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
+        return kwargs | self.style.get_table_kwargs()
 
-        kwargs = kwargs | self.style_options.get_non_default_attributes()
-        return kwargs
-    
     @property
     def element(self) -> Type[LazyTable]:
         return LazyTable
@@ -7121,10 +7157,12 @@ class TableBuilder(list):
         :returns: a list column justifications for use with PySimpleGUI Table
             cols_justification parameter
         """
-        justify = list(justify[0].lower() for justify in self._justify_map)
-        justify.insert(0, 'l')
+        justify = [
+            TK_ANCHOR_MAP[justify[0].lower()] for justify in self._col_justify_map
+        ]
+        justify.insert(0, "w")
         return justify
-    
+
     @property
     def heading_justify_map(self) -> List[str]:
         """
@@ -7133,13 +7171,10 @@ class TableBuilder(list):
         :returns: a list column justifications for use with PySimpleGUI Table
             cols_justification parameter
         """
-        tk_map = {
-            "l" : "w",
-            "r" : "e",
-            "c" : "center",
-        }
-        justify = list(tk_map[justify[0].lower()] for justify in self._justify_map)
-        justify.insert(0, 'w')
+        justify = [
+            TK_ANCHOR_MAP[justify[0].lower()] for justify in self._heading_justify_map
+        ]
+        justify.insert(0, "w")
         return justify
 
     @property
@@ -7196,11 +7231,13 @@ class TableBuilder(list):
                 and sort_order != SORT_NONE
             ):
                 marker = asc if sort_order == SORT_ASC else desc
-                if anchor == 'e':
+                if anchor == "e":
                     x["heading"] = marker + x["heading"]
                 else:
                     x["heading"] += marker
-            element.Widget.heading(i, text=x["heading"], anchor=self.heading_justify_map[i])
+            element.Widget.heading(
+                i, text=x["heading"], anchor=self.heading_justify_map[i]
+            )
 
     def enable_heading_function(self, element: sg.Table, fn: callable) -> None:
         """
@@ -7223,8 +7260,8 @@ class TableBuilder(list):
         if self.add_save_heading_button:
             element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
-    def insert(self, idx, heading_column: str, column: str = None, *args, **kwargs):
-        super().insert(idx, {"heading": heading_column, "column": column})
+    def insert(self, idx, heading: str, column: str = None, *args, **kwargs):
+        super().insert(idx, {"heading": heading, "column": column})
 
 
 class _HeadingCallback:
@@ -11213,7 +11250,12 @@ class Driver:
 
 
 @dc.dataclass
-class TableStyle:
+class TableStyler:
+    # pysimplesql specific
+    frame_pack_kwargs: Dict[str] = dc.field(default_factory=dict)
+
+    # PySimpleGUI Table kwargs that are compatible with pysimplesql
+    justification: TableJustify = "left"
     row_height: int = None
     font: str or Tuple[str, int] or None = None
     text_color: str = None
@@ -11244,13 +11286,17 @@ class TableStyle:
     visible: bool = True
 
     def __repr__(self):
-        attrs = self.get_non_default_attributes()
-        return f"TableStyle({attrs})"
+        attrs = self.get_table_kwargs()
+        return f"TableStyler({attrs})"
 
-    def get_non_default_attributes(self):
+    def get_table_kwargs(self):
         non_default_attributes = {}
         for field in dc.fields(self):
-            if getattr(self, field.name) != field.default:
+            if (
+                getattr(self, field.name) != field.default
+                and getattr(self, field.name)
+                and field.name not in []
+            ):
                 non_default_attributes[field.name] = getattr(self, field.name)
         return non_default_attributes
 

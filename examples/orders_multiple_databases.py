@@ -216,7 +216,7 @@ INSERT INTO products (name, price, inventory) VALUES
 """
 
 # Generate random orders using pandas DataFrame
-num_orders = 2000
+num_orders = 1000
 rng = np.random.default_rng()
 orders_df = pd.DataFrame(
     {
@@ -390,7 +390,12 @@ menu_def = [
 layout = [[sg.Menu(menu_def, key="-MENUBAR-", font="_ 12")]]
 
 # Set our universal table options
-table_style = ss.TableStyle(row_height=25, expand_x=True, expand_y=True)
+table_style = ss.TableStyler(
+    row_height=25,
+    expand_x=True,
+    expand_y=True,
+    frame_pack_kwargs={"expand": True, "fill": "both"},
+)
 
 # Define the columns for the table selector using the Tabletable class.
 order_table = ss.TableBuilder(
@@ -398,22 +403,23 @@ order_table = ss.TableBuilder(
     sort_enable=True,  # Click a table to sort
     allow_cell_edits=True,  # Double-click a cell to make edits.
     # Exempted: Primary Key columns, Generated columns, and columns set as readonly
-    add_save_heading_button=True,  # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
     apply_search_filter=True,  # Filter rows as you type in the search input
-    style_options=table_style,
+    lazy_loading=True, # For larger DataSets, inserts slice of rows. See `LazyTable`
+    add_save_heading_button=True,  # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
+    style=table_style,
 )
 
 # Add columns
-order_table.add_column(column="order_id", heading_column="ID", width=5)
+order_table.add_column(column="order_id", heading="ID", width=5)
 order_table.add_column("customer_id", "Customer", 30)
 order_table.add_column("date", "Date", 20)
 order_table.add_column(
-    column = "total",
-    heading_column = "Total",
+    column="total",
+    heading="Total",
     width=10,
-    readonly=True, # set to True to disable editing for individual columns!
-    justify='right', # default, "left". Available: "left", "right", "center"
-)  
+    readonly=True,  # set to True to disable editing for individual columns!
+    col_justify="right",  # default, "left". Available: "left", "right", "center"
+)
 order_table.add_column("completed", "✔", 8)
 
 # Layout
@@ -437,12 +443,12 @@ details_table = ss.TableBuilder(
     sort_enable=True,
     allow_cell_edits=True,
     add_save_heading_button=True,
-    style_options=table_style,
+    style=table_style,
 )
 details_table.add_column("product_id", "Product", 30)
-details_table.add_column("quantity", "Quantity", 10, justify="right")
-details_table.add_column("price", "Price/Ea", 10, readonly=True, justify="right")
-details_table.add_column("subtotal", "Subtotal", 10, readonly=True, justify="right")
+details_table.add_column("quantity", "Quantity", 10, col_justify="right")
+details_table.add_column("price", "Price/Ea", 10, readonly=True, col_justify="right")
+details_table.add_column("subtotal", "Subtotal", 10, readonly=True, col_justify="right")
 
 orderdetails_layout = [
     [sg.Sizer(h_pixels=0, v_pixels=10)],
@@ -484,10 +490,6 @@ win = sg.Window(
     ttk_theme=os_ttktheme,
     icon=ss.themepack.icon,
 )
-
-# Expand our sg.Tables so they fill the screen
-win["orders:selector"].table_frame.pack(expand=True, fill="both")
-win["order_details:selector"].table_frame.pack(expand=True, fill="both")
 
 # Init pysimplesql Driver and Form
 # --------------------------------
