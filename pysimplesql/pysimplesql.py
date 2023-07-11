@@ -82,6 +82,7 @@ from typing import (
     ClassVar,
     Dict,
     List,
+    Literal,
     Optional,
     Tuple,
     Type,
@@ -236,6 +237,7 @@ PK_PLACEHOLDER = "Null"
 EMPTY = ["", None]
 DECIMAL_PRECISION = 12
 DECIMAL_SCALE = 2
+ColumnJustify = Literal["left", "right", "center"]
 
 # --------------------
 # Date formats
@@ -2647,13 +2649,13 @@ class DataSet:
             return False
 
         # If table headings are not used, assume the column is displayed, return True
-        if not any("TableHeading" in e["element"].metadata for e in self.selector):
+        if not any("TableBuilder" in e["element"].metadata for e in self.selector):
             return True
 
         # Otherwise, Return True/False if the column is in the list of table headings
         return any(
-            "TableHeading" in e["element"].metadata
-            and column in e["element"].metadata["TableHeading"].columns()
+            "TableBuilder" in e["element"].metadata
+            and column in e["element"].metadata["TableBuilder"].columns
             for e in self.selector
         )
 
@@ -2787,8 +2789,8 @@ class DataSet:
         keygen.reset()
         data_key = self.key
         layout = []
-        headings = TableHeadings(
-            sort_enable=True, allow_cell_edits=True, add_save_heading_button=True
+        table_builder = TableBuilder(
+            num_rows=10,sort_enable=True, allow_cell_edits=True, add_save_heading_button=True,style_options=TableStyle(row_height=25)
         )
 
         for col in self.column_info.names():
@@ -2797,17 +2799,22 @@ class DataSet:
             if col == self.pk_column:
                 # make pk column either max length of contained pks, or len of name
                 width = max(self.rows[col].astype(str).map(len).max(), len(col) + 1)
-            headings.add_column(col, col.capitalize(), width=width)
+                justify = 'left'
+            elif (
+                self.column_info[col]
+                and self.column_info[col].python_type in [int, float, Decimal]
+            ):
+                justify = 'right'
+            else:
+                justify = 'left'
+            table_builder.add_column(col, col.capitalize(), width=width, justify=justify)
 
         layout.append(
             [
                 selector(
                     data_key,
-                    sg.Table,
+                    table_builder,
                     key=f"{data_key}:quick_editor",
-                    num_rows=10,
-                    row_height=25,
-                    headings=headings,
                 )
             ]
         )
@@ -3097,10 +3104,10 @@ class DataSet:
         for e in self.selector:
             element = e["element"]
             if (
-                "TableHeading" in element.metadata
-                and element.metadata["TableHeading"].sort_enable
+                "TableBuilder" in element.metadata
+                and element.metadata["TableBuilder"].sort_enable
             ):
-                element.metadata["TableHeading"].update_headings(
+                element.metadata["TableBuilder"].update_headings(
                     element, column, sort_order
                 )
 
@@ -3757,19 +3764,19 @@ class Form:
                         element, data_key, where_column, where_value
                     )
 
-                    # Enable sorting if TableHeading  is present
+                    # Enable sorting if TableBuilder is present
                     if (
                         isinstance(element, sg.Table)
-                        and "TableHeading" in element.metadata
+                        and "TableBuilder" in element.metadata
                     ):
-                        table_heading: TableHeadings = element.metadata["TableHeading"]
+                        table_builder: TableBuilder = element.metadata["TableBuilder"]
                         # We need a whole chain of things to happen
                         # when a heading is clicked on:
                         # 1 Run the ResultRow.sort_cycle() with the correct column name
-                        # 2 Run TableHeading.update_headings() with the:
+                        # 2 Run TableBuilder.update_headings() with the:
                         #   Table element, sort_column, sort_reverse
                         # 3 Run update_elements() to see the changes
-                        table_heading.enable_heading_function(
+                        table_builder.enable_heading_function(
                             element,
                             _HeadingCallback(self, data_key),
                         )
@@ -4523,9 +4530,9 @@ class Form:
                         # Populate entries
                         apply_search_filter = False
                         try:
-                            columns = element.metadata["TableHeading"].columns()
+                            columns = element.metadata["TableBuilder"].columns
                             apply_search_filter = element.metadata[
-                                "TableHeading"
+                                "TableBuilder"
                             ].apply_search_filter
                         except KeyError:
                             columns = None  # default to all columns
@@ -5393,7 +5400,6 @@ This is a global keygen instance for general purpose use.
 See `KeyGen` for more info
 """
 
-
 class LazyTable(sg.Table):
 
     """
@@ -5410,14 +5416,14 @@ class LazyTable(sg.Table):
     support the `sg.Table` `row_colors` argument.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, lazy_loading=False, heading_justify_list = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.values = []  # noqa PD011 # full set of rows
-        self.data = []  # lazy slice of rows
-        self.Values = self.data
 
-        self.insert_qty = max(self.NumRows, 100)
-        """Number of rows to insert during an `update(values=)` and scroll events"""
+        self.finalized = False
+        self.data = []  # lazy slice of rows
+        self.lazy_loading: bool = True
+        self.lazy_insert_qty: int = 100
+        self.heading_justify_list = heading_justify_list
 
         self._start_index = 0
         self._end_index = 0
@@ -5427,6 +5433,13 @@ class LazyTable(sg.Table):
         self._lock = threading.Lock()
         self._bg = None
         self._fg = None
+        
+    @property
+    def insert_qty(self):
+        """Number of rows to insert during an `update(values=)` and scroll events"""
+        if self.lazy_loading:
+            return max(self.NumRows, self.lazy_insert_qty)
+        return len(self.Values)
 
     def update(
         self,
@@ -5436,6 +5449,11 @@ class LazyTable(sg.Table):
         select_rows=None,
         alternating_row_color=None,
     ):
+        if not self.finalized:
+            for i, column_id in enumerate(self.Widget["columns"]):
+                self.Widget.heading(column_id)["anchor"] = self.heading_justify_list[i]
+            self.finalized = True
+
         # check if we shouldn't be doing this update
         # PySimpleGUI version support (PyPi version doesn't support quick_check)
         if sg.__version__.split(".")[0] == "5" or (
@@ -6239,7 +6257,7 @@ class Convenience:
     building PySimpleGUI layouts that conform to pysimplesql standards so that your
     database application is up and running quickly, and with all the great automatic
     functionality pysimplesql has to offer. See the documentation for the following
-    convenience functions: `field()`, `selector()`, `actions()`, `TableHeadings`.
+    convenience functions: `field()`, `selector()`, `actions()`, `TableBuilder`.
 
     Note: This is a dummy class that exists purely to enhance documentation and has no
     use to the end user.
@@ -6248,7 +6266,12 @@ class Convenience:
 
 def field(
     field: str,
-    element: Type[sg.Element] = _EnhancedInput,
+    element: Union[
+        Type[sg.Checkbox],
+        Type[sg.Combo],
+        Type[sg.Input],
+        Type[sg.Multiline],
+    ] = _EnhancedInput,
     size: Tuple[int, int] = None,
     label: str = "",
     no_label: bool = False,
@@ -6848,7 +6871,14 @@ def actions(
 
 def selector(
     table: str,
-    element: Type[sg.Element] = sg.LBox,
+    element: Union[
+        Type[sg.Combo],
+        Type[LazyTable],
+        Type[sg.Listbox],
+        Type[sg.Slider],
+        Type[sg.Table],
+        TableBuilder,
+    ] = sg.Listbox,
     size: Tuple[int, int] = None,
     filter: str = None,
     key: str = None,
@@ -6861,18 +6891,18 @@ def selector(
     convenience function makes creating selectors very quick and as easy as using a
     normal PySimpleGUI element.
 
-    :param table: The table name in the database that this selector will act on
+    :param table: The table name that this selector will act on.
     :param element: The type of element you would like to use as a selector (defaults to
         a Listbox)
     :param size: The desired size of this selector element
     :param filter: Can be used to reference different `Form`s in the same layout. Use a
         matching filter when creating the `Form` with the filter parameter.
     :param key: (optional) The key to give to this selector. If no key is provided, it
-        will default to table:selector using the table specified in the table parameter.
+        will default to table:selector using the name specified in the table parameter.
         This is also passed through the keygen, so if selectors all use the default
         name, they will be made unique. ie: Journal:selector!1, Journal:selector!2, etc.
     :param kwargs: Any additional arguments supplied will be passed on to the
-        PySimpleGUI element.
+        PySimpleGUI element. Note: TableBuilder objects bring their own kwargs.
     """
     element = _AutocompleteCombo if element == sg.Combo else element
 
@@ -6909,22 +6939,18 @@ def selector(
             metadata=meta,
         )
     elif element in [sg.Table, LazyTable]:
-        # Check if the headings arg is a Table heading...
-        if isinstance(kwargs["headings"], TableHeadings):
-            # Overwrite the kwargs from the TableHeading info
-            kwargs["visible_column_map"] = kwargs["headings"].visible_map()
-            kwargs["col_widths"] = kwargs["headings"].width_map()
-            kwargs["auto_size_columns"] = False  # let the col_widths handle it
-            # Store the TableHeadings object in metadata
-            # to complete setup on auto_add_elements()
-            meta["TableHeading"] = kwargs["headings"]
-        else:
-            required_kwargs = ["headings", "visible_column_map", "num_rows"]
-            for kwarg in required_kwargs:
-                if kwarg not in kwargs:
-                    raise RuntimeError(
-                        f"DataSet selectors must use the {kwarg} keyword argument."
-                    )
+        required_kwargs = ["headings", "visible_column_map", "num_rows"]
+        for kwarg in required_kwargs:
+            if kwarg not in kwargs:
+                raise RuntimeError(
+                    f"DataSet selectors must use the {kwarg} keyword argument."
+                )
+        # Create a narrow column for displaying a * character for virtual rows.
+        # This will be the 1st column
+        kwargs["headings"].insert(0, "")
+        kwargs["visible_column_map"].insert(0, 1)
+        if "col_widths" in kwargs:
+            kwargs["col_widths"].insert(0, themepack.unsaved_column_width)
 
         # Create other kwargs that are required
         kwargs["enable_events"] = True
@@ -6933,105 +6959,137 @@ def selector(
 
         # Make an empty list of values
         vals = [[""] * len(kwargs["headings"])]
-
-        # Create a narrow column for displaying a * character for virtual rows.
-        # This will be the 1st column
-        kwargs["visible_column_map"].insert(0, 1)
-        if "col_widths" in kwargs:
-            kwargs["col_widths"].insert(0, themepack.unsaved_column_width)
-
-        # Change the headings parameter to be a list so
-        # the heading doesn't display dicts when it first loads
-        # The TableHeadings instance is already stored in metadata
-        if isinstance(kwargs["headings"], TableHeadings):
-            if kwargs["headings"].add_save_heading_button:
-                kwargs["headings"].insert(0, themepack.unsaved_column_header)
-            else:
-                kwargs["headings"].insert(0, "")
-            kwargs["headings"] = kwargs["headings"].heading_names()
-        else:
-            kwargs["headings"].insert(0, "")
-
         layout = element(values=vals, key=key, metadata=meta, **kwargs)
+    elif isinstance(element, TableBuilder):
+        table_builder = element
+        element = table_builder.element
+        lazy = table_builder.lazy_loading
+        kwargs = table_builder.get_table_kwargs()
+        if 'heading_justify_list' in kwargs:
+            heading_justify_list = kwargs.pop('heading_justify_list')
+        meta["TableBuilder"] = table_builder
+        # Make an empty list of values
+        vals = [[""] * len(kwargs["headings"])]
+        layout = element(vals, lazy_loading=lazy, heading_justify_list=heading_justify_list, key=key, metadata=meta, **kwargs)
     else:
         raise RuntimeError(f'Element type "{element}" not supported as a selector.')
 
     return layout
 
 
-class TableHeadings(list):
+@dc.dataclass
+class TableBuilder(list):
 
     """
     This is a convenience class used to build table headings for PySimpleGUI.
 
-    In addition, `TableHeading` objects can sort columns in ascending or descending
+    In addition, `TableBuilder` objects can sort columns in ascending or descending
     order by clicking on the column in the heading in the PySimpleGUI Table element if
     the sort_enable parameter is set to True.
+
+    :param element: Element to use with this TableBuilder. Default, `sg.Table`. Also
+        available, `ss.LazyTable`, for larger DataSets (see documentation).
+    :param sort_enable: True to enable sorting by heading column.
+    :param allow_cell_edits: Double-click to edit a cell value if True. Accepted
+        edits update both `sg.Table` and associated `field` element. Note: primary
+        key, generated, or `readonly` columns don't allow cell edits.
+    :param add_save_heading_button: Adds a save button to the left-most heading
+        column if True.
+    :param apply_search_filter: Filter rows to only those columns in
+        `DataSet.search_order` that contain `Dataself.search_string`.
+    :returns: None
     """
 
     # store our instances
-    instances: ClassVar[List[TableHeadings]] = []
+    instances: ClassVar[List[TableBuilder]] = []
 
-    def __init__(
-        self,
-        sort_enable: bool = True,
-        allow_cell_edits: bool = False,
-        add_save_heading_button: bool = False,
-        apply_search_filter: bool = False,
-    ) -> None:
-        """
-        Create a new TableHeadings object.
+    num_rows: int
+    sort_enable: bool = True
+    allow_cell_edits: bool = False
+    apply_search_filter: bool = False
+    lazy_loading: bool = False
+    style_options: TableStyle = None
+    add_save_heading_button: bool = False
 
-        :param sort_enable: True to enable sorting by heading column.
-        :param allow_cell_edits: Double-click to edit a cell value if True. Accepted
-            edits update both `sg.Table` and associated `field` element. Note: primary
-            key, generated, or `readonly` columns don't allow cell edits.
-        :param add_save_heading_button: Adds a save button to the left-most heading
-            column if True.
-        :param apply_search_filter: Filter rows to only those columns in
-            `DataSet.search_order` that contain `Dataself.search_string`.
-        :returns: None
-        """
-        self.sort_enable = sort_enable
-        self.allow_cell_edits = allow_cell_edits
-        self.add_save_heading_button = add_save_heading_button
-        self.apply_search_filter = apply_search_filter
-        self._width_map = []
-        self._visible_map = []
-        self.readonly_columns = []
+    _width_map: List[int] = dc.field(default_factory=lambda: [], init=False)
+    _justify_map: List[int] = dc.field(default_factory=lambda: [], init=False)
+    _visible_map: List[bool] = dc.field(default_factory=lambda: [], init=False)
+    readonly_columns: List[str] = dc.field(default_factory=lambda: [], init=False)
 
+    def __post_init__(self):
         # Store this instance in the master list of instances
-        TableHeadings.instances.append(self)
+        TableBuilder.instances.append(self)
+        if self.add_save_heading_button:
+            self.insert(0, themepack.unsaved_column_header)
+        else:
+            self.insert(0, "")
 
     def add_column(
         self,
         column: str,
         heading_column: str,
         width: int,
+        justify: ColumnJustify = "left",
         visible: bool = True,
         readonly: bool = False,
     ) -> None:
         """
-        Add a new heading column to this TableHeading object.  Columns are added in the
+        Add a new heading column to this TableBuilder object.  Columns are added in the
         order that this method is called. Note that the primary key column does not need
         to be included, as primary keys are stored internally in the `TableRow` class.
 
         :param heading_column: The name of this columns heading (title)
         :param column: The name of the column in the database the heading column is for
         :param width: The width for this column to display within the Table element
+        :param justify: Default 'left'. Available options: 'left', 'right', 'center'.
+            Only available on supported PySimpleGUI versions (>=4.61).
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
         :param readonly: Indicates if the column is read-only when
-            `TableHeading.allow_cell_edits` is True.
+            `TableBuilder.allow_cell_edits` is True.
         :returns: None
         """
         self.append({"heading": heading_column, "column": column})
         self._width_map.append(width)
+        self._justify_map.append(justify)
         self._visible_map.append(visible)
         if readonly:
             self.readonly_columns.append(column)
 
+    def get_table_kwargs(self) -> Dict[str]:
+        kwargs = {}
+        
+        kwargs["num_rows"] = self.num_rows
+        
+        table_sig = inspect.signature(sg.Table)
+        if "cols_justification" in table_sig.parameters:
+            kwargs["heading_justify_list"] = self.heading_justify_map
+            kwargs["cols_justification"] = self.col_justify_map
+        else:
+            kwargs["justification"] = "left"
+
+        kwargs["headings"] = self.heading_names
+        kwargs["visible_column_map"] = self.visible_map
+        kwargs["col_widths"] = self.width_map
+
+        # Create a narrow column for displaying a * character for virtual rows.
+        # This will be the 1st column
+        kwargs["visible_column_map"].insert(0, 1)
+        kwargs["col_widths"].insert(0, themepack.unsaved_column_width)
+
+        kwargs["auto_size_columns"] = False
+        kwargs["enable_events"] = True
+        kwargs["select_mode"] = sg.TABLE_SELECT_MODE_BROWSE
+
+        kwargs = kwargs | self.style_options.get_non_default_attributes()
+        return kwargs
+    
+    @property
+    def element(self) -> Type[LazyTable]:
+        return LazyTable
+
+    @property
     def heading_names(self) -> List[str]:
         """
         Return a list of heading_names for use with the headings parameter of
@@ -7039,8 +7097,14 @@ class TableHeadings(list):
 
         :returns: a list of heading names
         """
+        headings = [c["heading"] for c in self]
+        if self.add_save_heading_button:
+            headings.insert(0, themepack.unsaved_column_header)
+        else:
+            headings.insert(0, "")
         return [c["heading"] for c in self]
 
+    @property
     def columns(self):
         """
         Return a list of column names.
@@ -7049,6 +7113,36 @@ class TableHeadings(list):
         """
         return [c["column"] for c in self if c["column"] is not None]
 
+    @property
+    def col_justify_map(self) -> List[str]:
+        """
+        Convenience method for creating PySimpleGUI tables.
+
+        :returns: a list column justifications for use with PySimpleGUI Table
+            cols_justification parameter
+        """
+        justify = list(justify[0].lower() for justify in self._justify_map)
+        justify.insert(0, 'l')
+        return justify
+    
+    @property
+    def heading_justify_map(self) -> List[str]:
+        """
+        Convenience method for creating PySimpleGUI tables.
+
+        :returns: a list column justifications for use with PySimpleGUI Table
+            cols_justification parameter
+        """
+        tk_map = {
+            "l" : "w",
+            "r" : "e",
+            "c" : "center",
+        }
+        justify = list(tk_map[justify[0].lower()] for justify in self._justify_map)
+        justify.insert(0, 'w')
+        return justify
+
+    @property
     def visible_map(self) -> List[Union[bool, int]]:
         """
         Convenience method for creating PySimpleGUI tables.
@@ -7058,6 +7152,7 @@ class TableHeadings(list):
         """
         return list(self._visible_map)
 
+    @property
     def width_map(self) -> List[int]:
         """
         Convenience method for creating PySimpleGUI tables.
@@ -7092,6 +7187,7 @@ class TableHeadings(list):
             desc = "\u25B2"
 
         for i, x in zip(range(len(self)), self):
+            anchor = self.heading_justify_map[i]
             # Clear the direction markers
             x["heading"] = x["heading"].replace(asc, "").replace(desc, "")
             if (
@@ -7099,8 +7195,12 @@ class TableHeadings(list):
                 and sort_column is not None
                 and sort_order != SORT_NONE
             ):
-                x["heading"] += asc if sort_order == SORT_ASC else desc
-            element.Widget.heading(i, text=x["heading"], anchor="w")
+                marker = asc if sort_order == SORT_ASC else desc
+                if anchor == 'e':
+                    x["heading"] = marker + x["heading"]
+                else:
+                    x["heading"] += marker
+            element.Widget.heading(i, text=x["heading"], anchor=self.heading_justify_map[i])
 
     def enable_heading_function(self, element: sg.Table, fn: callable) -> None:
         """
@@ -7108,7 +7208,7 @@ class TableHeadings(list):
         unsaved changes column
         Note: Not typically used by the end user. Called from `Form.auto_map_elements()`
 
-        :param element: The PySimpleGUI Table element associated with this TableHeading
+        :param element: The PySimpleGUI Table element associated with this TableBuilder
         :param fn: A callback functions to run when a heading is clicked. The callback
             should take one column parameter.
         :returns: None
@@ -7192,11 +7292,11 @@ class _CellEdit:
         if not element:
             return
 
-        # get table_headings
-        table_heading = element.metadata["TableHeading"]
+        # get table_builders
+        table_builder = element.metadata["TableBuilder"]
 
         # get column name
-        columns = table_heading.columns()
+        columns = table_builder.columns
         column = columns[col_idx - 1]
 
         # use table_element to distinguish
@@ -7211,7 +7311,7 @@ class _CellEdit:
         if col_idx == 0:
             return
 
-        if column in table_heading.readonly_columns:
+        if column in table_builder.readonly_columns:
             logger.debug(f"{column} is readonly")
             return
 
@@ -7223,7 +7323,7 @@ class _CellEdit:
             logger.debug(f"{column} is a generated column")
             return
 
-        if not table_heading.allow_cell_edits:
+        if not table_builder.allow_cell_edits:
             logger.debug("This Table element does not allow editing")
             return
 
@@ -7500,7 +7600,7 @@ class _CellEdit:
         ]:
             for e in frm[data_key].selector:
                 element = e["element"]
-                if element.widget == treeview and "TableHeading" in element.metadata:
+                if element.widget == treeview and "TableBuilder" in element.metadata:
                     return data_key, element
         return None
 
@@ -11110,6 +11210,49 @@ class Driver:
     postgres: callable = Postgres
     sqlserver: callable = Sqlserver
     msaccess: callable = MSAccess
+
+
+@dc.dataclass
+class TableStyle:
+    row_height: int = None
+    font: str or Tuple[str, int] or None = None
+    text_color: str = None
+    background_color: str = None
+    alternating_row_color: str = None
+    selected_row_colors: Tuple[str, str] = (None, None)
+    header_text_color: str = None
+    header_background_color: str = None
+    header_font: str or Tuple[str, int] or None = None
+    header_border_width: int = None
+    header_relief: str = None
+    vertical_scroll_only: bool = True
+    hide_vertical_scroll: bool = False
+    border_width: int = None
+    sbar_trough_color: str = None
+    sbar_background_color: str = None
+    sbar_arrow_color: str = None
+    sbar_width: int = None
+    sbar_arrow_width: int = None
+    sbar_frame_color: str = None
+    sbar_relief: str = None
+    enable_click_events: bool = False
+    pad: Union[int, Tuple[int, int], Tuple[Tuple[int, int], Tuple[int, int]]] = None
+    tooltip: str = None
+    right_click_menu: List[Union[List[str], str]] = None
+    expand_x: bool = False
+    expand_y: bool = False
+    visible: bool = True
+
+    def __repr__(self):
+        attrs = self.get_non_default_attributes()
+        return f"TableStyle({attrs})"
+
+    def get_non_default_attributes(self):
+        non_default_attributes = {}
+        for field in dc.fields(self):
+            if getattr(self, field.name) != field.default:
+                non_default_attributes[field.name] = getattr(self, field.name)
+        return non_default_attributes
 
 
 SaveResultsDict = Dict[str, int]
