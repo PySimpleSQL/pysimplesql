@@ -12,13 +12,13 @@ logging.basicConfig(level=logging.INFO)  # <=== set the logging level here (NOTS
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector
-headings = ss.TableHeadings()
-headings.add_column("title", "Title", width=40)
-headings.add_column("entry_date", "Date", width=10)
-headings.add_column("mood_id", "Mood", width=20)
+table_builder = ss.TableBuilder(num_rows=10)
+table_builder.add_column("title", "Title", width=40)
+table_builder.add_column("entry_date", "Date", width=10)
+table_builder.add_column("mood_id", "Mood", width=20)
 
 layout = [
-    [ss.selector('Journal', sg.Table, key='sel_journal', num_rows=10, headings=headings)],
+    [ss.selector('Journal', table_builder, key='sel_journal')],
     [ss.actions('Journal', 'act_journal', edit_protect=False)],
     [ss.field('Journal.entry_date')],
     [ss.field('Journal.mood_id', sg.Combo, size=(30, 10), label='My mood:', auto_size_text=False)],

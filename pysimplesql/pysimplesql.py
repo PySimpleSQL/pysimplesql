@@ -2820,7 +2820,7 @@ class DataSet:
             else:
                 justify = "left"
             table_builder.add_column(
-                col, col.capitalize(), width=width, justify=justify
+                col, col.capitalize(), width=width, col_justify=justify
             )
 
         layout.append(
@@ -7006,6 +7006,57 @@ def selector(
 
 
 @dc.dataclass
+class TableStyler:
+    # pysimplesql specific
+    frame_pack_kwargs: Dict[str] = dc.field(default_factory=dict)
+
+    # PySimpleGUI Table kwargs that are compatible with pysimplesql
+    justification: TableJustify = "left"
+    row_height: int = None
+    font: str or Tuple[str, int] or None = None
+    text_color: str = None
+    background_color: str = None
+    alternating_row_color: str = None
+    selected_row_colors: Tuple[str, str] = (None, None)
+    header_text_color: str = None
+    header_background_color: str = None
+    header_font: str or Tuple[str, int] or None = None
+    header_border_width: int = None
+    header_relief: str = None
+    vertical_scroll_only: bool = True
+    hide_vertical_scroll: bool = False
+    border_width: int = None
+    sbar_trough_color: str = None
+    sbar_background_color: str = None
+    sbar_arrow_color: str = None
+    sbar_width: int = None
+    sbar_arrow_width: int = None
+    sbar_frame_color: str = None
+    sbar_relief: str = None
+    pad: Union[int, Tuple[int, int], Tuple[Tuple[int, int], Tuple[int, int]]] = None
+    tooltip: str = None
+    right_click_menu: List[Union[List[str], str]] = None
+    expand_x: bool = False
+    expand_y: bool = False
+    visible: bool = True
+
+    def __repr__(self):
+        attrs = self.get_table_kwargs()
+        return f"TableStyler({attrs})"
+
+    def get_table_kwargs(self):
+        non_default_attributes = {}
+        for field in dc.fields(self):
+            if (
+                getattr(self, field.name) != field.default
+                and getattr(self, field.name)
+                and field.name not in []
+            ):
+                non_default_attributes[field.name] = getattr(self, field.name)
+        return non_default_attributes
+
+
+@dc.dataclass
 class TableBuilder(list):
 
     """
@@ -7036,7 +7087,7 @@ class TableBuilder(list):
     apply_search_filter: bool = False
     lazy_loading: bool = False
     add_save_heading_button: bool = False
-    style: TableStyler = None
+    style: TableStyler = dc.field(default_factory=TableStyler)
 
     _width_map: List[int] = dc.field(default_factory=list, init=False)
     _col_justify_map: List[int] = dc.field(default_factory=list, init=False)
@@ -11247,58 +11298,6 @@ class Driver:
     postgres: callable = Postgres
     sqlserver: callable = Sqlserver
     msaccess: callable = MSAccess
-
-
-@dc.dataclass
-class TableStyler:
-    # pysimplesql specific
-    frame_pack_kwargs: Dict[str] = dc.field(default_factory=dict)
-
-    # PySimpleGUI Table kwargs that are compatible with pysimplesql
-    justification: TableJustify = "left"
-    row_height: int = None
-    font: str or Tuple[str, int] or None = None
-    text_color: str = None
-    background_color: str = None
-    alternating_row_color: str = None
-    selected_row_colors: Tuple[str, str] = (None, None)
-    header_text_color: str = None
-    header_background_color: str = None
-    header_font: str or Tuple[str, int] or None = None
-    header_border_width: int = None
-    header_relief: str = None
-    vertical_scroll_only: bool = True
-    hide_vertical_scroll: bool = False
-    border_width: int = None
-    sbar_trough_color: str = None
-    sbar_background_color: str = None
-    sbar_arrow_color: str = None
-    sbar_width: int = None
-    sbar_arrow_width: int = None
-    sbar_frame_color: str = None
-    sbar_relief: str = None
-    enable_click_events: bool = False
-    pad: Union[int, Tuple[int, int], Tuple[Tuple[int, int], Tuple[int, int]]] = None
-    tooltip: str = None
-    right_click_menu: List[Union[List[str], str]] = None
-    expand_x: bool = False
-    expand_y: bool = False
-    visible: bool = True
-
-    def __repr__(self):
-        attrs = self.get_table_kwargs()
-        return f"TableStyler({attrs})"
-
-    def get_table_kwargs(self):
-        non_default_attributes = {}
-        for field in dc.fields(self):
-            if (
-                getattr(self, field.name) != field.default
-                and getattr(self, field.name)
-                and field.name not in []
-            ):
-                non_default_attributes[field.name] = getattr(self, field.name)
-        return non_default_attributes
 
 
 SaveResultsDict = Dict[str, int]

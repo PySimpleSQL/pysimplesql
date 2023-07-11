@@ -35,10 +35,10 @@ Try each selector on this frm and watch it all just work!
 """
 
 # PySimpleGUI™ layout code
-headings = ss.TableHeadings()
-headings.add_column('name', 'Name', width=10)
-headings.add_column('example', 'Example', width=40)
-headings.add_column('primary_color', 'Primary Color?', width=15)
+table_builder = ss.TableBuilder(num_rows=10)
+table_builder.add_column('name', 'Name', width=10)
+table_builder.add_column('example', 'Example', width=40)
+table_builder.add_column('primary_color', 'Primary Color?', width=15)
 
 record_columns = [
     [ss.field('Colors.name', label='Color name:')],
@@ -46,7 +46,7 @@ record_columns = [
     [ss.field('Colors.primary_color', element=sg.CBox, label='Primary Color?')],
 ]
 selectors = [
-    [ss.selector('Colors', element=sg.Table, key='tableSelector', headings=headings, num_rows=10)],
+    [ss.selector('Colors', element=table_builder, key='tableSelector')],
     [ss.selector('Colors', size=(15, 10), key='selector1')],
     [ss.selector('Colors', element=sg.Slider, size=(26, 18), key='selector2'),
      ss.selector('Colors', element=sg.Combo, size=(30, 10), key='selector3')],

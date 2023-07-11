@@ -404,7 +404,7 @@ order_table = ss.TableBuilder(
     allow_cell_edits=True,  # Double-click a cell to make edits.
     # Exempted: Primary Key columns, Generated columns, and columns set as readonly
     apply_search_filter=True,  # Filter rows as you type in the search input
-    lazy_loading=True, # For larger DataSets, inserts slice of rows. See `LazyTable`
+    lazy_loading=True,  # For larger DataSets, inserts slice of rows. See `LazyTable`
     add_save_heading_button=True,  # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
     style=table_style,
 )

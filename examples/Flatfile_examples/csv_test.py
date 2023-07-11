@@ -13,14 +13,14 @@ ss.languagepack(ss.lp_90s)
 # Create a simple layout for working with our flatfile data.
 # Note that you can set a specific table name to use, but here I am just using the defaul 'Flatfile'
 # Lets also use some sortable headers so that we can rearrange the flatfile data when saving
-headings=ss.TableHeadings()
-headings.add_column('name', 'Name', width=12)
-headings.add_column('address', 'Address', width=25)
-headings.add_column('phone', 'Phone #', width=10)
-headings.add_column('email', 'EMail', width=25)
+table_builder = ss.TableBuilder(num_rows=10)
+table_builder.add_column('name', 'Name', width=12)
+table_builder.add_column('address', 'Address', width=25)
+table_builder.add_column('phone', 'Phone #', width=10)
+table_builder.add_column('email', 'EMail', width=25)
 
 layout = [
-    [ss.selector('Flatfile', sg.Table, num_rows=10, headings=headings)],
+    [ss.selector('Flatfile', table_builder)],
     [ss.field('Flatfile.name')],
     [ss.field('Flatfile.address')],
     [ss.field('Flatfile.phone')],

@@ -79,14 +79,14 @@ INSERT INTO Addresses VALUES (11, 2, "Rachel", "Moore", "444 Pine St.","Apt 1","
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector.  This will allow entries to be sorted by column!
-headings = ss.TableHeadings()
-headings.add_column('firstName', 'First name:', 15)
-headings.add_column('lastName', 'Last name:', 15)
-headings.add_column('city', 'City:', 13)
-headings.add_column('fkState', 'State:', 5)
+table_builder = ss.TableBuilder(num_rows=10)
+table_builder.add_column('firstName', 'First name:', 15)
+table_builder.add_column('lastName', 'Last name:', 15)
+table_builder.add_column('city', 'City:', 13)
+table_builder.add_column('fkState', 'State:', 5)
 
 layout = [
-    [ss.selector("Addresses", sg.Table, headings=headings, num_rows=10)],
+    [ss.selector("Addresses", table_builder, num_rows=10)],
     [ss.field("Addresses.fkGroupName", sg.Combo, size=(30, 10), auto_size_text=False)],
     [ss.field("Addresses.firstName", label="First name:")],
     [ss.field("Addresses.lastName", label="Last name:")],
