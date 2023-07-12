@@ -1,6 +1,6 @@
 import logging
-
 import platform
+import re
 import PySimpleGUI as sg
 import pysimplesql as ss
 
@@ -13,7 +13,6 @@ sg.set_options(font=("Arial", 11), dpi_awareness=True)
 # -----------------------------
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
 # Set up the appropriate theme depending on the OS
 # -----------------------------
 if platform.system() == "Windows":
@@ -35,6 +34,26 @@ custom = {
 custom = custom | os_tp
 ss.themepack(custom)
 
+
+# create your own validator to be passed to a
+# frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
+# used below in the quick_editor arguments
+def is_valid_email(email):
+    valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
+    if not valid_email:
+        return ss.ValidateResponse(
+            ss.ValidateRule.CUSTOM, email, " is not a valid email"
+        )
+    return ss.ValidateResponse()
+
+
+quick_editor_kwargs = {
+    "column_attributes": {
+        "email": {"custom_validate_fn": lambda value: is_valid_email(value)}
+    }
+}
+
+
 # SQL Statement
 # ======================================================================================
 
@@ -49,7 +68,7 @@ CREATE TABLE orders (
     order_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
     date DATE NOT NULL DEFAULT (date('now')),
-    total REAL,
+    total DECTEXT(10,2),
     completed BOOLEAN NOT NULL,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
 );
@@ -57,7 +76,7 @@ CREATE TABLE orders (
 CREATE TABLE products (
     product_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL DEFAULT 'New Product',
-    price REAL NOT NULL,
+    price DECTEXT(10,2) NOT NULL,
     inventory INTEGER DEFAULT 0
 );
 
@@ -65,9 +84,9 @@ CREATE TABLE order_details (
     order_detail_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER,
     product_id INTEGER NOT NULL,
-    quantity INTEGER,
-    price REAL,
-    subtotal REAL GENERATED ALWAYS AS (price * quantity) STORED,
+    quantity INTEGER NOT NULL,
+    price DECTEXT(10,2),
+    subtotal DECTEXT(10,2) GENERATED ALWAYS AS (price * quantity) STORED,
     FOREIGN KEY (order_id) REFERENCES orders(order_id) ON UPDATE CASCADE ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
@@ -225,7 +244,14 @@ details_table.add_column("subtotal", "Subtotal", 10, readonly=True, col_justify=
 
 orderdetails_layout = [
     [sg.Sizer(h_pixels=0, v_pixels=10)],
-    [ss.field("orders.customer_id", sg.Combo, label="Customer")],
+    [
+        ss.field(
+            "orders.customer_id",
+            sg.Combo,
+            label="Customer",
+            quick_editor_kwargs=quick_editor_kwargs,
+        )
+    ],
     [
         ss.field("orders.date", label="Date"),
     ],
@@ -320,7 +346,6 @@ while True:
     # <=== let PySimpleSQL process its own events! Simple!
     elif ss.process_events(event, values):
         logger.info(f"PySimpleDB event handler handled the event {event}!")
-
     # Code to automatically save and refresh order_details:
     # ----------------------------------------------------
     elif (
@@ -333,7 +358,7 @@ while True:
         if (
             dataset.row_count
             and current_row["product_id"] not in [None, ss.PK_PLACEHOLDER]
-            and current_row["quantity"]
+            and current_row["quantity"] not in ss.EMPTY
         ):
             # get product_id
             product_id = current_row["product_id"]
@@ -352,7 +377,7 @@ while True:
     elif "Edit Products" in event:
         frm["products"].quick_editor()
     elif "Edit Customers" in event:
-        frm["customers"].quick_editor()
+        frm["customers"].quick_editor(**quick_editor_kwargs)
     # call a Form-level save
     elif "Save" in event:
         frm.save_records()

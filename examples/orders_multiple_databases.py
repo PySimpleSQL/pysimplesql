@@ -301,7 +301,7 @@ compatibility = {
         "boolean_type": "BOOLEAN",
         "default_string": "'New Product'",
         "default_boolean": "0",
-        "generated_column": "NUMERIC(10,2) GENERATED ALWAYS AS (price * quantity) STORED",
+        "generated_column": "DECTEXT(10,2) GENERATED ALWAYS AS (price * quantity) STORED",
         "autoincrement": "AUTOINCREMENT",
         "false_bool": 0,
         "true_bool": 1,
