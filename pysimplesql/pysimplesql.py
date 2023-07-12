@@ -5675,10 +5675,14 @@ class LazyTable(sg.Table):
     def _handle_extra_kwargs(self):
         if self.headings_justification:
             for i, heading_id in enumerate(self.Widget["columns"]):
-                self.Widget.heading(heading_id, anchor=self.headings_justification[i])
+                self.Widget.heading(
+                    heading_id, anchor=TK_ANCHOR_MAP[self.headings_justification[i]]
+                )
         if self.cols_justification:
             for i, column_id in enumerate(self.Widget["columns"]):
-                self.Widget.column(column_id, anchor=self.cols_justification[i])
+                self.Widget.column(
+                    column_id, anchor=TK_ANCHOR_MAP[self.cols_justification[i]]
+                )
         if self.frame_pack_kwargs:
             self.table_frame.pack(**self.frame_pack_kwargs)
 
@@ -7111,8 +7115,8 @@ class TableBuilder(list):
         width: int,
         col_justify: ColumnJustify = "default",
         heading_justify: HeadingJustify = "column",
-        visible: bool = True,
         readonly: bool = False,
+        visible: bool = True,
     ) -> None:
         """
         Add a new heading column to this TableBuilder object.  Columns are added in the
@@ -7124,13 +7128,13 @@ class TableBuilder(list):
         :param width: The width for this column to display within the Table element
         :param col_justify: Default 'left'. Available options: 'left', 'right',
             'center', 'default'.
-        :param heading_justify: Defaults to 'column' to match col_justify. Available
+        :param heading_justify: Defaults to 'column' inherity `col_justify`. Available
             options: 'left', 'right', 'center', 'column', 'default'.
+        :param readonly: Indicates if the column is read-only when
+            `TableBuilder.allow_cell_edits` is True.
         :param visible: True if the column is visible.  Typically, the only hidden
             column would be the primary key column if any. This is also useful if the
             `DataSet.rows` DataFrame has information that you don't want to display.
-        :param readonly: Indicates if the column is read-only when
-            `TableBuilder.allow_cell_edits` is True.
         :returns: None
         """
         self.append({"heading": heading, "column": column})
@@ -7208,10 +7212,8 @@ class TableBuilder(list):
         :returns: a list column justifications for use with PySimpleGUI Table
             cols_justification parameter
         """
-        justify = [
-            TK_ANCHOR_MAP[justify[0].lower()] for justify in self._col_justify_map
-        ]
-        justify.insert(0, "w")
+        justify = [justify[0].lower() for justify in self._col_justify_map]
+        justify.insert(0, "l")
         return justify
 
     @property
@@ -7219,8 +7221,19 @@ class TableBuilder(list):
         """
         Convenience method for creating PySimpleGUI tables.
 
-        :returns: a list column justifications for use with PySimpleGUI Table
-            cols_justification parameter
+        :returns: a list heading justifications for use with LazyTable
+            `headings_justification`
+        """
+        justify = [justify[0].lower() for justify in self._heading_justify_map]
+        justify.insert(0, "l")
+        return justify
+
+    @property
+    def heading_anchor_map(self) -> List[str]:
+        """
+        Internal method for passing directly to treeview heading() function.
+
+        :returns: a list heading anchors for use with treeview heading() function.
         """
         justify = [
             TK_ANCHOR_MAP[justify[0].lower()] for justify in self._heading_justify_map
@@ -7273,7 +7286,7 @@ class TableBuilder(list):
             desc = "\u25B2"
 
         for i, x in zip(range(len(self)), self):
-            anchor = self.heading_justify_map[i]
+            anchor = self.heading_anchor_map[i]
             # Clear the direction markers
             x["heading"] = x["heading"].replace(asc, "").replace(desc, "")
             if (
@@ -7287,7 +7300,7 @@ class TableBuilder(list):
                 else:
                     x["heading"] += marker
             element.Widget.heading(
-                i, text=x["heading"], anchor=self.heading_justify_map[i]
+                i, text=x["heading"], anchor=self.heading_anchor_map[i]
             )
 
     def enable_heading_function(self, element: sg.Table, fn: callable) -> None:
