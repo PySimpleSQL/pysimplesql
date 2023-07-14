@@ -248,31 +248,13 @@ ColumnJustify = Literal["left", "right", "center", "default"]
 HeadingJustify = Literal["left", "right", "center", "column", "default"]
 
 # --------------------
-# Date formats
-# --------------------
-# Format for date only
-DATE_FORMAT = "%Y-%m-%d"
-
-# --------------------
 # DateTime formats
 # --------------------
-# Format for date and time without fraction
+DATE_FORMAT = "%Y-%m-%d"
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-# Format for date and time with microsecond precision
 DATETIME_FORMAT_MICROSECOND = "%Y-%m-%d %H:%M:%S.%f"
-
-# --------------------
-# Timestamp formats
-# --------------------
-# Format for timestamp without fraction
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
-# Format for timestamp with microsecond precision
 TIMESTAMP_FORMAT_MICROSECOND = "%Y-%m-%dT%H:%M:%S.%f"
-
-# --------------------
-# Time format
-# --------------------
-# Format for time only
 TIME_FORMAT = "%H:%M:%S"
 
 
@@ -281,12 +263,12 @@ class Boolean(enum.Flag):
     FALSE = False
 
 
-class ValidateMode(str, enum.Enum):
+class ValidateMode(enum.Enum):
     STRICT = "strict"
     RELAXED = "relaxed"
 
 
-class ValidateRule(str, enum.Enum):
+class ValidateRule(enum.Enum):
     REQUIRED = "required"
     PYTHON_TYPE = "python_type"
     PRECISION = "precision"
