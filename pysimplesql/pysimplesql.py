@@ -3181,6 +3181,7 @@ class DataSet:
         return None
 
 
+@dc.dataclass
 class Form:
 
     """
@@ -3188,112 +3189,107 @@ class Form:
 
     Maintains an internal version of the actual database
     `DataSet` objects can be accessed by key, I.e. frm['data_key'].
+
+    :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
+    :param bind_window: Bind this window to the `Form`
+    :param prefix_data_keys: (optional) prefix auto generated data_key names with
+        this value. Example 'data_'
+    :param parent: (optional)Parent `Form` to base dataset off of
+    :param filter: (optional) Only import elements with the same filter set.
+        Typically set with `field()`, but can also be set manually as a dict with
+        the key 'filter' set in the element's metadata
+    :param select_first: (optional) Default:True. For each top-level parent, selects
+        first row, populating children as well.
+    :param prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when
+        dirty records are present.
+        Two modes available, (if pysimplesql is imported as `ss`) use:
+        - `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+        - `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+    :param save_quiet: (optional) Default:False. True to skip info popup on save.
+        Error popups will still be shown.
+    :param update_cascade: (optional) Default:True. Requery and filter child table
+        on selected parent primary key. (ON UPDATE CASCADE in SQL)
+    :param delete_cascade: (optional) Default:True. Delete the dependent child
+        records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
+    :param duplicate_children: (optional) Default:True. If record has children,
+        prompt user to choose to duplicate current record, or both.
+    :param description_column_names: (optional) A list of names to use for the
+        DataSet object's description column, displayed in Listboxes, Comboboxes, and
+        Tables instead of the primary key. The first matching column of the table is
+        given priority. If no match is found, the second column is used. Default
+        list: ['description', 'name', 'title'].
+    :param live_update: (optional) Default value is False. If True, changes made in
+        a field will be immediately pushed to associated selectors. If False,
+        changes will be pushed only after a save action.
+    :param auto_add_relationships: (optional) Controls the invocation of
+        auto_add_relationships. Default is True. Set it to False when creating a new
+        `Form` with pre-existing `Relationship` instances.
+    :param validate_mode: Passed to `DataSet` init to set validate mode.
+        `ss.ValidateMode.STRICT` to prevent invalid values from being entered.
+        `ss.ValidateMode.RELAXED` allows invalid input, but ensures validation
+        occurs before saving to the database.
+    :returns: None
     """
 
     instances: ClassVar[List[Form]] = []  # Track our instances
     relationships: ClassVar[List[Relationship]] = []  # Track our relationships
 
-    def __init__(
-        self,
-        driver: SQLDriver,
-        bind_window: sg.Window = None,
-        prefix_data_keys: str = "",
-        parent: Form = None,
-        filter: str = None,
-        select_first: bool = True,
-        prompt_save: int = PROMPT_MODE,
-        save_quiet: bool = False,
-        update_cascade: bool = True,
-        delete_cascade: bool = True,
-        duplicate_children: bool = True,
-        description_column_names: List[str] = None,
-        live_update: bool = False,
-        auto_add_relationships: bool = True,
-        validate_mode: ValidateMode = ValidateMode.RELAXED,
-    ) -> None:
-        """
-        Initialize a new `Form` instance.
+    driver: SQLDriver
+    bind_window: dc.InitVar[sg.Window] = None
+    prefix_data_keys: dc.InitVar[str] = ""
+    parent: Form = None  # TODO: This doesn't seem to really be used
+    filter: str = None
+    select_first: dc.InitVar[bool] = True
+    prompt_save: dc.InitVar[PROMPT_SAVE_MODES] = PROMPT_MODE
+    save_quiet: bool = False
+    update_cascade: bool = True
+    delete_cascade: bool = True
+    duplicate_children: bool = True
+    description_column_names: List[str] = dc.field(
+        default_factory=lambda: ["description", "name", "title"]
+    )
+    live_update: bool = False
+    auto_add_relationships: dc.InitVar[bool] = True
+    validate_mode: ValidateMode = ValidateMode.RELAXED
 
-        :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
-        :param bind_window: Bind this window to the `Form`
-        :param prefix_data_keys: (optional) prefix auto generated data_key names with
-            this value. Example 'data_'
-        :param parent: (optional)Parent `Form` to base dataset off of
-        :param filter: (optional) Only import elements with the same filter set.
-            Typically set with `field()`, but can also be set manually as a dict with
-            the key 'filter' set in the element's metadata
-        :param select_first: (optional) Default:True. For each top-level parent, selects
-            first row, populating children as well.
-        :param prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when
-            dirty records are present.
-            Two modes available, (if pysimplesql is imported as `ss`) use:
-            - `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-            - `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
-        :param save_quiet: (optional) Default:False. True to skip info popup on save.
-            Error popups will still be shown.
-        :param update_cascade: (optional) Default:True. Requery and filter child table
-            on selected parent primary key. (ON UPDATE CASCADE in SQL)
-        :param delete_cascade: (optional) Default:True. Delete the dependent child
-            records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
-        :param duplicate_children: (optional) Default:True. If record has children,
-            prompt user to choose to duplicate current record, or both.
-        :param description_column_names: (optional) A list of names to use for the
-            DataSet object's description column, displayed in Listboxes, Comboboxes, and
-            Tables instead of the primary key. The first matching column of the table is
-            given priority. If no match is found, the second column is used. Default
-            list: ['description', 'name', 'title'].
-        :param live_update: (optional) Default value is False. If True, changes made in
-            a field will be immediately pushed to associated selectors. If False,
-            changes will be pushed only after a save action.
-        :param auto_add_relationships: (optional) Controls the invocation of
-            auto_add_relationships. Default is True. Set it to False when creating a new
-            `Form` with pre-existing `Relationship` instances.
-        :param validate_mode: Passed to `DataSet` init to set validate mode.
-            `ss.ValidateMode.STRICT` to prevent invalid values from being entered.
-            `ss.ValidateMode.RELAXED` allows invalid input, but ensures validation
-            occurs before saving to the database.
-        :returns: None
-        """
-        win_pb = ProgressBar(lang.startup_form)
-        win_pb.update(lang.startup_init, 0)
+    # init=False attributes
+    window: Optional[sg.Window] = dc.field(default=0, init=False)
+    datasets: Dict[str, DataSet] = dc.field(default_factory=dict, init=False)
+    element_map: List[ElementMap] = dc.field(default_factory=list, init=False)
+    """
+    The element map dict is set up as below:
+
+    .. literalinclude:: ../doc_examples/element_map.1.py
+    :language: python
+    :caption: Example code
+    """
+    event_map: List = dc.field(
+        default_factory=list, init=False
+    )  # Array of dicts, {'event':, 'function':, 'table':}
+    _edit_protect: bool = dc.field(default=False, init=False)
+    relationships: List[Relationship] = dc.field(default_factory=list, init=False)
+    callbacks: CallbacksDict = dc.field(default_factory=dict, init=False)
+    force_save: bool = dc.field(default=False, init=False)
+    # empty variables, just in-case bind() never called
+    popup: Popup = dc.field(default=None, init=False)
+    _celledit: _CellEdit = dc.field(default=None, init=False)
+    _liveupdate: _LiveUpdate = dc.field(default=None, init=False)
+    _liveupdate_binds: dict = dc.field(default_factory=dict, init=False)
+
+    def __post_init__(
+        self,
+        bind_window,
+        prefix_data_keys,
+        select_first,
+        prompt_save,
+        auto_add_relationships,
+    ):
         Form.instances.append(self)
 
-        self.driver: SQLDriver = driver
-        self.filter: str = filter
-        self.parent: Form = parent  # TODO: This doesn't seem to really be used yet
-        self.window: Optional[sg.Window] = None
-        self._edit_protect: bool = False
-        self.datasets: Dict[str, DataSet] = {}
-        self.element_map: List[ElementMap] = []
-        """
-        The element map dict is set up as below:
+        self._prompt_save: PROMPT_SAVE_MODES = prompt_save
 
-        .. literalinclude:: ../doc_examples/element_map.1.py
-        :language: python
-        :caption: Example code
-        """
-        self.event_map = []  # Array of dicts, {'event':, 'function':, 'table':}
-        self.relationships: List[Relationship] = []
-        self.callbacks: CallbacksDict = {}
-        self._prompt_save: int = prompt_save
-        self.save_quiet: bool = save_quiet
-        self.force_save: bool = False
-        self.update_cascade: bool = update_cascade
-        self.delete_cascade: bool = delete_cascade
-        self.duplicate_children: int = duplicate_children
-        if description_column_names is None:
-            self.description_column_names = ["description", "name", "title"]
-        else:
-            self.description_column_names = description_column_names
-        self.live_update: bool = live_update
-        self.validate_mode: ValidateMode = validate_mode
-
-        # empty variables, just in-case bind() never called
-        self.popup = None
-        self._celledit = None
-        self._liveupdate = None
-        self._liveupdate_binds = {}
-
+        win_pb = ProgressBar(lang.startup_form)
+        win_pb.update(lang.startup_init, 0)
         # Add our default datasets and relationships
         win_pb.update(lang.startup_datasets, 25)
         self.auto_add_datasets(prefix_data_keys)
