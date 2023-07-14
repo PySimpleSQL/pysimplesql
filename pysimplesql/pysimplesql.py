@@ -3267,7 +3267,9 @@ class Form:
         default_factory=list, init=False
     )  # Array of dicts, {'event':, 'function':, 'table':}
     _edit_protect: bool = dc.field(default=False, init=False)
-    relationships: List[Relationship] = dc.field(default_factory=list, init=False)
+    relationships: List[Relationship] = dc.field(  # noqa: PIE794
+        default_factory=list, init=False
+    )
     callbacks: CallbacksDict = dc.field(default_factory=dict, init=False)
     force_save: bool = dc.field(default=False, init=False)
     # empty variables, just in-case bind() never called
