@@ -185,6 +185,7 @@ PROMPT_SAVE_DISCARDED: int = 8
 # ---------------------------
 PROMPT_MODE: int = 1
 AUTOSAVE_MODE: int = 2
+PROMPT_SAVE_MODES = Literal[PROMPT_MODE, AUTOSAVE_MODE]
 
 # ---------------------------
 # RECORD SAVE RETURN BITMASKS
@@ -301,6 +302,13 @@ class ValidateResponse:
     exception: Union[ValidateRule, None] = None
     value: str = None
     rule: str = None
+
+
+@dc.dataclass
+class _LastSearch:
+    search_string: str = None
+    column: str = None
+    pks: List[int] = dc.field(default_factory=list)
 
 
 class CellFormatFn:
@@ -614,6 +622,7 @@ class ElementMap:
         return item in self.__dict__
 
 
+@dc.dataclass
 class DataSet:
 
     """
@@ -625,101 +634,101 @@ class DataSet:
     `DataSet` object having its own sorting, where clause, etc.).
     Note: While users will interact with DataSet objects often in pysimplesql, they
     typically aren't created manually by the user.
+
+    :param data_key: The name you are assigning to this `DataSet` object (I.e.
+        'people') Accessible via `DataSet.key`.
+    :param frm_reference: This is a reference to the @ Form object, for convenience.
+        Accessible via `DataSet.frm`
+    :param table: Name of the table
+    :param pk_column: The name of the column containing the primary key for this
+        table.
+    :param description_column: The name of the column used for display to users
+        (normally in a combobox or listbox).
+    :param query: You can optionally set an initial query here. If none is provided,
+        it will default to "SELECT * FROM {table}"
+    :param order_clause: The sort order of the returned query. If none is provided
+        it will default to "ORDER BY {description_column} ASC"
+    :param filtered: (optional) If True, the relationships will be considered and an
+        appropriate WHERE clause will be generated. False will display all records
+        in the table.
+    :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save
+        changes when dirty records are present. There are two modes available,
+        (if pysimplesql is imported as `ss`) use:
+        `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
+        `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
+    :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on
+        save. Error popups will still be shown.
+    :param duplicate_children: (optional) Default: Set in `Form`. If record has
+        children, prompt user to choose to duplicate current record, or both.
+    :param validate_mode: `ss.ValidateMode.STRICT` to prevent invalid values from
+        being entered. `ss.ValidateMode.RELAXED` allows invalid input, but ensures
+        validation occurs before saving to the database.
     """
 
     instances: ClassVar[List[DataSet]] = []  # Track our own instances
 
-    def __init__(
-        self,
-        data_key: str,
-        frm_reference: Form,
-        table: str,
-        pk_column: str,
-        description_column: str,
-        query: Optional[str] = "",
-        order_clause: Optional[str] = "",
-        filtered: bool = True,
-        prompt_save: int = None,
-        save_quiet: bool = None,
-        duplicate_children: bool = None,
-        validate_mode: ValidateMode = None,
-    ) -> None:
-        """
-        Initialize a new `DataSet` instance.
+    data_key: dc.InitVar[str]
+    frm_reference: dc.InitVar[Form]
+    table: str
+    pk_column: str
+    description_column: str
+    query: Optional[str] = ""
+    order_clause: Optional[str] = ""
+    filtered: bool = True
+    prompt_save: dc.InitVar[PROMPT_SAVE_MODES] = None
+    save_quiet: bool = None
+    duplicate_children: bool = None
+    validate_mode: ValidateMode = None
 
-        :param data_key: The name you are assigning to this `DataSet` object (I.e.
-            'people').
-        :param frm_reference: This is a reference to the @ Form object, for convenience
-        :param table: Name of the table
-        :param pk_column: The name of the column containing the primary key for this
-            table.
-        :param description_column: The name of the column used for display to users
-            (normally in a combobox or listbox).
-        :param query: You can optionally set an initial query here. If none is provided,
-            it will default to "SELECT * FROM {table}"
-        :param order_clause: The sort order of the returned query. If none is provided
-            it will default to "ORDER BY {description_column} ASC"
-        :param filtered: (optional) If True, the relationships will be considered and an
-            appropriate WHERE clause will be generated. False will display all records
-            in the table.
-        :param prompt_save: (optional) Default: Mode set in `Form`. Prompt to save
-            changes when dirty records are present. There are two modes available,
-            (if pysimplesql is imported as `ss`) use:
-            `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-            `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
-        :param save_quiet: (optional) Default: Set in `Form`. True to skip info popup on
-            save. Error popups will still be shown.
-        :param duplicate_children: (optional) Default: Set in `Form`. If record has
-            children, prompt user to choose to duplicate current record, or both.
-        :param validate_mode: `ss.ValidateMode.STRICT` to prevent invalid values from
-            being entered. `ss.ValidateMode.RELAXED` allows invalid input, but ensures
-            validation occurs before saving to the database.
-        :returns: None
-        """
+    # setup during init, but not included in args/kwargs
+    # --------------------------------------------------
+    rows: Union[pd.DataFrame, None] = dc.field(default=None, init=False)
+    _current_index: int = dc.field(default=0, init=False)
+    column_info: ColumnInfo = dc.field(default=None, init=False)
+    selector: List[str] = dc.field(default_factory=list, init=False)
+
+    # initally empty clauses
+    join_clause: str = dc.field(default="", init=False)
+    where_clause: str = dc.field(
+        default="", init=False
+    )  # In addition to generated where clause!
+
+    search_order: List[str] = dc.field(default_factory=list, init=False)
+    _last_search: _LastSearch = dc.field(default_factory=_LastSearch, init=False)
+    _search_string: tk.StringVar = dc.field(default=None, init=False)
+
+    callbacks: CallbacksDict = dc.field(default_factory=dict, init=False)
+    transform: Optional[Callable[[pd.DataFrame, int], None]] = dc.field(
+        default=None, init=False
+    )
+    _simple_transform: SimpleTransformsDict = dc.field(default_factory=dict, init=False)
+
+    # Todo: do we need dependents?
+    dependents: list = dc.field(default_factory=list, init=False)
+
+    def __post_init__(self, data_key, frm_reference, prompt_save):
         DataSet.instances.append(self)
-        self.driver = frm_reference.driver
-        # No query was passed in, so we will generate a generic one
-        if not query:
-            query = self.driver.default_query(table)
-        # No order was passed in, so we will generate generic one
-        if not order_clause:
-            order_clause = self.driver.default_order(description_column)
-
         self.key: str = data_key
-        self.frm: Form = frm_reference
-        self._current_index: int = 0
-        self.table: str = table
-        self.pk_column: str = pk_column
-        self.description_column: str = description_column
-        self.query: str = query
-        self.order_clause: str = order_clause
-        self.join_clause: str = ""
-        self.where_clause: str = ""  # In addition to the generated where clause!
-        self.dependents: list = []
-        self.column_info: ColumnInfo  # ColumnInfo collection
-        self.rows: Union[pd.DataFrame, None] = None
-        self.search_order: List[str] = []
-        self._search_string: tk.StringVar = None
-        self._last_search: dict = {"search_string": None, "column": None, "pks": []}
-        self.selector: List[str] = []
-        self.callbacks: CallbacksDict = {}
-        self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
-        self.filtered: bool = filtered
+        self.frm = frm_reference
+        self.driver = self.frm.driver
+
+        # handle where values are not passed in:
+        # ---------------------------------------
         self._prompt_save = (
-            self.frm._prompt_save if prompt_save is None else int(prompt_save)
+            self.frm._prompt_save if prompt_save is None else prompt_save
         )
-        self.save_quiet = (
-            self.frm.save_quiet if save_quiet is None else bool(save_quiet)
-        )
-        self.duplicate_children = (
-            self.frm.duplicate_children
-            if duplicate_children is None
-            else bool(duplicate_children)
-        )
-        self.validate_mode = (
-            self.frm.validate_mode if validate_mode is None else validate_mode
-        )
-        self._simple_transform: SimpleTransformsDict = {}
+        if self.duplicate_children is None:
+            self.duplicate_children = self.frm.duplicate_children
+        if self.save_quiet is None:
+            self.save_quiet = self.frm.save_quiet
+        if self.validate_mode is None:
+            self.validate_mode = self.frm.validate_mode
+
+        # generate generic clauses if none passed in
+        if not self.query:
+            self.query = self.driver.default_query(self.table)
+        if not self.order_clause:
+            self.order_clause = self.driver.default_order(self.description_column)
 
     # Override the [] operator to retrieve current columns by key
     def __getitem__(self, column: str) -> Union[str, int]:
@@ -1529,17 +1538,13 @@ class DataSet:
             return SEARCH_ABORTED
 
         # Reset _last_search if search_string is different
-        if search_string != self._last_search.get("search_string"):
-            self._last_search = {
-                "search_string": search_string,
-                "column": None,
-                "pks": [],
-            }
+        if search_string != self._last_search.search_string:
+            self._last_search = _LastSearch(search_string)
 
         # Reorder search_columns to start with the column in _last_search
         search_columns = self.search_order.copy()
-        if self._last_search["column"] in search_columns:
-            idx = search_columns.index(self._last_search["column"])
+        if self._last_search.column in search_columns:
+            idx = search_columns.index(self._last_search.column)
             search_columns = search_columns[idx:] + search_columns[:idx]
 
         # reorder rows to be idx + 1, and wrap around back to the beginning
@@ -1553,7 +1558,7 @@ class DataSet:
         pk = None
         for column in search_columns:
             # update _last_search column
-            self._last_search["column"] = column
+            self._last_search.column = column
 
             # search through processed rows, looking for search_string
             result = rows[
@@ -1567,7 +1572,7 @@ class DataSet:
                 pk = result.iloc[0][self.pk_column]
 
                 # search next column if the same pk is found again
-                if pk in self._last_search["pks"]:
+                if pk in self._last_search.pks:
                     continue
 
                 # if pk is same as one we are on, we can just updated_elements
@@ -1583,7 +1588,7 @@ class DataSet:
 
         if pk:
             # Update _last_search with the pk
-            self._last_search["pks"].append(pk)
+            self._last_search.pks.append(pk)
 
             # jump to the pk
             self.set_by_pk(
