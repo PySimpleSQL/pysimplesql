@@ -2870,12 +2870,12 @@ class DataSet:
             finalize=True,
             ttk_theme=themepack.ttk_theme,  # Must, otherwise will redraw window
             icon=themepack.icon,
+            enable_close_attempted_event=True,
         )
         quick_frm = Form(
             self.frm.driver,
             bind_window=quick_win,
             live_update=True,
-            auto_add_relationships=False,
         )
 
         # Select the current entry to start with
@@ -2898,15 +2898,14 @@ class DataSet:
                 logger.debug(
                     f"PySimpleSQL Quick Editor event handler handled the event {event}!"
                 )
-            if event in [sg.WIN_CLOSED, "Exit"]:
+            if event == "-WINDOW CLOSE ATTEMPTED-":
+                if quick_frm.popup.popup_info:
+                    quick_frm.popup.popup_info.close()
+                self.requery()
+                self.frm.update_elements()
+                quick_win.close()
                 break
-
             logger.debug(f"This event ({event}) is not yet handled.")
-        if quick_frm.popup.popup_info:
-            quick_frm.popup.popup_info.close()
-        quick_win.close()
-        self.requery()
-        self.frm.update_elements()
 
     def add_simple_transform(self, transforms: SimpleTransformsDict) -> None:
         """
