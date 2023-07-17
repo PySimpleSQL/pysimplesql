@@ -441,6 +441,16 @@ class Relationship:
         return bool(self.delete_cascade and self.frm.delete_cascade)
 
     @classmethod
+    def get(cls, driver_reference) -> List[Relationship]:
+        """
+        Return the relationships for the passed-in `Driver` object.
+
+        :param driver_reference: `Driver` to get relationships for.
+        :returns: A list of @Relationship objects
+        """
+        return [r for r in cls.instances if r.driver == driver_reference]
+
+    @classmethod
     def get_relationships(cls, table: str) -> List[Relationship]:
         """
         Return the relationships for the passed-in table.
@@ -563,6 +573,10 @@ class Relationship:
             and frm_reference[dataset].table == r.child_table
             and not r.on_update_cascade
         }
+
+    @classmethod
+    def purge(cls, driver_reference) -> None:
+        cls.instances = [rel for rel in cls.instances if rel.driver != driver_reference]
 
 
 @dc.dataclass
@@ -1069,7 +1083,7 @@ class DataSet:
 
         # handle recursive checking next
         if recursive:
-            for rel in self.frm.relationships:
+            for rel in Relationship.get(self.frm.driver):
                 if rel.parent_table == self.table and rel.on_update_cascade:
                     dirty = self.frm[rel.child_table].records_changed()
                     if dirty:
@@ -1298,7 +1312,7 @@ class DataSet:
             # dependents=False: no recursive dependent requery
             self.requery(update_elements=update_elements, requery_dependents=False)
 
-        for rel in self.frm.relationships:
+        for rel in Relationship.get(self.frm.driver):
             if rel.parent_table == self.table and rel.on_update_cascade:
                 logger.debug(
                     f"Requerying dependent table {self.frm[rel.child_table].table}"
@@ -1871,7 +1885,7 @@ class DataSet:
                     new_values[k] = v
 
         # Make sure we take into account the foreign key relationships...
-        for r in self.frm.relationships:
+        for r in Relationship.get(self.frm.driver):
             if self.table == r.child_table and r.on_update_cascade:
                 new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
@@ -2204,7 +2218,7 @@ class DataSet:
             elements without saving if individual `DataSet._prompt_save()` is False.
         :returns: dict of {table : results}
         """
-        for rel in self.frm.relationships:
+        for rel in Relationship.get(self.frm.driver):
             if rel.parent_table == self.table and rel.on_update_cascade:
                 self.frm[rel.child_table].save_record_recursive(
                     results=results,
@@ -3220,9 +3234,6 @@ class Form:
     :param live_update: (optional) Default value is False. If True, changes made in
         a field will be immediately pushed to associated selectors. If False,
         changes will be pushed only after a save action.
-    :param auto_add_relationships: (optional) Controls the invocation of
-        auto_add_relationships. Default is True. Set it to False when creating a new
-        `Form` with pre-existing `Relationship` instances.
     :param validate_mode: Passed to `DataSet` init to set validate mode.
         `ss.ValidateMode.STRICT` to prevent invalid values from being entered.
         `ss.ValidateMode.RELAXED` allows invalid input, but ensures validation
@@ -3231,7 +3242,6 @@ class Form:
     """
 
     instances: ClassVar[List[Form]] = []  # Track our instances
-    relationships: ClassVar[List[Relationship]] = []  # Track our relationships
 
     driver: SQLDriver
     bind_window: dc.InitVar[sg.Window] = None
@@ -3266,9 +3276,6 @@ class Form:
         default_factory=list, init=False
     )  # Array of dicts, {'event':, 'function':, 'table':}
     _edit_protect: bool = dc.field(default=False, init=False)
-    relationships: List[Relationship] = dc.field(  # noqa: PIE794
-        default_factory=list, init=False
-    )
     callbacks: CallbacksDict = dc.field(default_factory=dict, init=False)
     force_save: bool = dc.field(default=False, init=False)
     # empty variables, just in-case bind() never called
@@ -3283,7 +3290,6 @@ class Form:
         prefix_data_keys,
         select_first,
         prompt_save,
-        auto_add_relationships,
     ):
         Form.instances.append(self)
 
@@ -3295,8 +3301,7 @@ class Form:
         win_pb.update(lang.startup_datasets, 25)
         self.auto_add_datasets(prefix_data_keys)
         win_pb.update(lang.startup_relationships, 50)
-        if auto_add_relationships:
-            self.auto_add_relationships()
+        self.auto_add_relationships()
         self.requery_all(
             select_first=select_first, update_elements=False, requery_dependents=True
         )
@@ -3486,18 +3491,16 @@ class Form:
             record is deleted (ON UPDATE DELETE in SQL)
         :returns: None
         """
-        self.relationships.append(
-            Relationship(
-                join,
-                child_table,
-                fk_column,
-                parent_table,
-                pk_column,
-                update_cascade,
-                delete_cascade,
-                self.driver,
-                self,
-            )
+        Relationship(
+            join,
+            child_table,
+            fk_column,
+            parent_table,
+            pk_column,
+            update_cascade,
+            delete_cascade,
+            self.driver,
+            self,
         )
 
     def set_fk_column_cascade(
@@ -3585,7 +3588,7 @@ class Form:
         """
         logger.info("Automatically adding foreign key relationships")
         # Clear any current rels so that successive calls will not double the entries
-        self.relationships = []  # clear any relationships already stored
+        Relationship.purge(self.driver)  # clear any relationships already stored
         relationships = self.driver.relationships()
         for r in relationships:
             logger.debug(
@@ -9103,7 +9106,7 @@ class SQLDriver:
         :rtype: str
         """
         join = ""
-        for r in dataset.frm.relationships:
+        for r in Relationship.get(dataset.frm.driver):
             if dataset.table == r.child_table:
                 join += f" {self.relationship_to_join_clause(r)}"
         return join if not dataset.join_clause else dataset.join_clause
@@ -9120,7 +9123,7 @@ class SQLDriver:
         :rtype: str
         """
         where = ""
-        for r in dataset.frm.relationships:
+        for r in Relationship.get(dataset.frm.driver):
             if dataset.table == r.child_table and r.on_update_cascade:
                 table = dataset.table
                 parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
@@ -9307,7 +9310,7 @@ class SQLDriver:
         # Next, duplicate the child records!
         if children:
             for _ in dataset.frm.datasets:
-                for r in dataset.frm.relationships:
+                for r in Relationship.get(dataset.frm.driver):
                     if (
                         r.parent_table == dataset.table
                         and r.on_update_cascade
