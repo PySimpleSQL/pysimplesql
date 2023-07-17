@@ -3181,7 +3181,7 @@ class DataSet:
         return None
 
 
-@dc.dataclass
+@dc.dataclass(eq=False)
 class Form:
 
     """
