@@ -604,7 +604,7 @@ class ElementMap:
         return item in self.__dict__
 
 
-@dc.dataclass
+@dc.dataclass(eq=False)
 class DataSet:
 
     """
