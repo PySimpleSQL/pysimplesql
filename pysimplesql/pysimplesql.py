@@ -11228,7 +11228,7 @@ class MSAccess(SQLDriver):
 
     def max_pk(self, table: str, pk_column: str) -> int:
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
-        return rows.iloc[0]["MAX_PK"]  # returned as upper case
+        return rows.iloc[0]["MAX_PK"].tolist()  # returned as upper case
 
     def _get_column_definitions(self, table_name):
         # Creates a comma separated list of column names and types to be used in a
