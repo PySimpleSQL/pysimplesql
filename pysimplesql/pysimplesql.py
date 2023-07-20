@@ -54,7 +54,6 @@ Naming conventions can fall under 4 categories:
 
 from __future__ import annotations  # docstrings
 
-import abc
 import asyncio
 import calendar
 import contextlib
@@ -73,10 +72,12 @@ import re
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
+from abc import ABC, abstractmethod
 from decimal import Decimal, DecimalException
 from time import sleep, time
 from tkinter import ttk
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -94,6 +95,9 @@ from typing import (
 import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Wrap optional imports so that pysimplesql can be imported as a single file if desired:
 with contextlib.suppress(ModuleNotFoundError, ImportError):
@@ -246,6 +250,7 @@ DECIMAL_SCALE = 2
 TableJustify = Literal["left", "right", "center"]
 ColumnJustify = Literal["left", "right", "center", "default"]
 HeadingJustify = Literal["left", "right", "center", "column", "default"]
+InMemory = Literal[":memory:"]
 
 # --------------------
 # DateTime formats
@@ -379,29 +384,17 @@ class ElementRow:
 
 @dc.dataclass
 class Relationship:
-
     """
-    Used to track primary/foreign key relationships in the database.
-
-    See the following for more information: `Form.add_relationship` and
-    `Form.auto_add_relationships`.
-
     :param join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
-    :param child_table: The table name of the child table
+    :param child_table: The table name of the fk table
     :param fk_column: The child table's foreign key column
     :param parent_table: The table name of the parent table
     :param pk_column: The parent table's primary key column
     :param update_cascade: True if the child's fk_column ON UPDATE rule is 'CASCADE'
     :param delete_cascade: True if the child's fk_column ON DELETE rule is 'CASCADE'
     :param driver: A `SQLDriver` instance
-    :param frm: A Form instance
     :returns: None
-
-    Note: This class is not typically used the end user
     """
-
-    # store our own instances
-    instances: ClassVar[List[Relationship]] = []
 
     join_type: str
     child_table: str
@@ -410,48 +403,44 @@ class Relationship:
     pk_column: Union[str, int]
     update_cascade: bool
     delete_cascade: bool
-    driver: SQLDriver
-    frm: Form
+    driver: Driver
 
-    def __post_init__(self):
-        Relationship.instances.append(self)
+    @property
+    def on_update_cascade(self):
+        return bool(self.update_cascade and self.driver.update_cascade)
+
+    @property
+    def on_delete_cascade(self):
+        return bool(self.delete_cascade and self.driver.delete_cascade)
 
     def __str__(self):
         """Return a join clause when cast to a string."""
         return self.driver.relationship_to_join_clause(self)
 
-    def __repr__(self):
-        """Return a more descriptive string for debugging."""
-        return (
-            f"Relationship ("
-            f"\n\tjoin={self.join_type},"
-            f"\n\tchild_table={self.child_table},"
-            f"\n\tfk_column={self.fk_column},"
-            f"\n\tparent_table={self.parent_table},"
-            f"\n\tpk_column={self.pk_column}"
-            f"\n)"
-        )
 
-    @property
-    def on_update_cascade(self):
-        return bool(self.update_cascade and self.frm.update_cascade)
+@dc.dataclass
+class RelationshipStore(list):
+    """
+    Used to track primary/foreign key relationships in the database.
 
-    @property
-    def on_delete_cascade(self):
-        return bool(self.delete_cascade and self.frm.delete_cascade)
+    See the following for more information: `SQLDriver.add_relationship` and
+    `SQLDriver.auto_add_relationships`.
 
-    @classmethod
-    def get_relationships(cls, table: str) -> List[Relationship]:
+    Note: This class is not typically used the end user
+    """
+
+    driver: SQLDriver
+
+    def get_rels_for(self, table: str) -> List[Relationship]:
         """
         Return the relationships for the passed-in table.
 
         :param table: The table to get relationships for
         :returns: A list of @Relationship objects
         """
-        return [r for r in cls.instances if r.child_table == table]
+        return [r for r in self if r.child_table == table]
 
-    @classmethod
-    def get_update_cascade_tables(cls, table: str) -> List[str]:
+    def get_update_cascade_tables(self, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should requery
         with this table.
@@ -461,14 +450,13 @@ class Relationship:
         """
         rel = [
             r.child_table
-            for r in cls.instances
+            for r in self
             if r.parent_table == table and r.on_update_cascade
         ]
         # make unique
         return list(set(rel))
 
-    @classmethod
-    def get_delete_cascade_tables(cls, table: str) -> List[str]:
+    def get_delete_cascade_tables(self, table: str) -> List[str]:
         """
         Return a unique list of the relationships for this table that should be deleted
         with this table.
@@ -478,27 +466,25 @@ class Relationship:
         """
         rel = [
             r.child_table
-            for r in cls.instances
+            for r in self
             if r.parent_table == table and r.on_delete_cascade
         ]
         # make unique
         return list(set(rel))
 
-    @classmethod
-    def get_parent(cls, table: str) -> Union[str, None]:
+    def get_parent(self, table: str) -> Union[str, None]:
         """
         Return the parent table for the passed-in table.
 
         :param table: The table (str) to get relationships for
         :returns: The name of the Parent table, or None if there is none
         """
-        for r in cls.instances:
+        for r in self:
             if r.child_table == table and r.on_update_cascade:
                 return r.parent_table
         return None
 
-    @classmethod
-    def parent_virtual(cls, table: str, frm: Form) -> Union[bool, None]:
+    def parent_virtual(self, table: str, frm: Form) -> Union[bool, None]:
         """
         Return True if current row of parent table is virtual.
 
@@ -506,7 +492,7 @@ class Relationship:
         :param frm: Form reference
         :returns: True if current row of parent table is virtual
         """
-        for r in cls.instances:
+        for r in self:
             if r.child_table == table and r.on_update_cascade:
                 try:
                     return frm[r.parent_table].pk_is_virtual()
@@ -514,34 +500,31 @@ class Relationship:
                     return False
         return None
 
-    @classmethod
-    def get_update_cascade_fk_column(cls, table: str) -> Union[str, None]:
+    def get_update_cascade_fk_column(self, table: str) -> Union[str, None]:
         """
         Return the cascade fk that filters for the passed-in table.
 
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
         """
-        for r in cls.instances:
+        for r in self:
             if r.child_table == table and r.on_update_cascade:
                 return r.fk_column
         return None
 
-    @classmethod
-    def get_delete_cascade_fk_column(cls, table: str) -> Union[str, None]:
+    def get_delete_cascade_fk_column(self, table: str) -> Union[str, None]:
         """
         Return the cascade fk that filters for the passed-in table.
 
         :param table: The table name of the child
         :returns: The name of the cascade-fk, or None
         """
-        for r in cls.instances:
+        for r in self:
             if r.child_table == table and r.on_delete_cascade:
                 return r.fk_column
         return None
 
-    @classmethod
-    def get_dependent_columns(cls, frm_reference: Form, table: str) -> Dict[str, str]:
+    def get_dependent_columns(self, frm_reference: Form, table: str) -> Dict[str, str]:
         """
         Returns a dictionary of the `DataSet.key` and column names that use the
         description_column text of the given parent table in their `ElementRow` objects.
@@ -557,7 +540,7 @@ class Relationship:
         """
         return {
             frm_reference[dataset].key: r.fk_column
-            for r in cls.instances
+            for r in self
             for dataset in frm_reference.datasets
             if r.parent_table == table
             and frm_reference[dataset].table == r.child_table
@@ -1217,10 +1200,10 @@ class DataSet:
 
         if filtered:
             # Stop requery short if parent has no records or current row is virtual
-            parent_table = Relationship.get_parent(self.table)
+            parent_table = self.relationships.get_parent(self.table)
             if parent_table and (
                 not len(self.frm[parent_table].rows.index)
-                or Relationship.parent_virtual(self.table, self.frm)
+                or self.relationships.parent_virtual(self.table, self.frm)
             ):
                 # purge rows
                 self.rows = Result.set(pd.DataFrame(columns=self.rows.columns))
@@ -1294,7 +1277,7 @@ class DataSet:
             # dependents=False: no recursive dependent requery
             self.requery(update_elements=update_elements, requery_dependents=False)
 
-        for rel in self.frm.relationships:
+        for rel in self.relationships:
             if rel.parent_table == self.table and rel.on_update_cascade:
                 logger.debug(
                     f"Requerying dependent table {self.frm[rel.child_table].table}"
@@ -1848,11 +1831,11 @@ class DataSet:
             return
 
         # Don't insert if parent has no records or is virtual
-        parent_table = Relationship.get_parent(self.table)
+        parent_table = self.relationships.get_parent(self.table)
         if (
             parent_table
             and not len(self.frm[parent_table].rows)
-            or Relationship.parent_virtual(self.table, self.frm)
+            or self.relationships.parent_virtual(self.table, self.frm)
         ):
             logger.debug(f"{parent_table=} is empty or current row is virtual")
             return
@@ -1867,7 +1850,7 @@ class DataSet:
                     new_values[k] = v
 
         # Make sure we take into account the foreign key relationships...
-        for r in self.frm.relationships:
+        for r in self.relationships:
             if self.table == r.child_table and r.on_update_cascade:
                 new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
 
@@ -2059,7 +2042,7 @@ class DataSet:
 
         # check to see if cascading-fk has changed before we update database
         cascade_fk_changed = False
-        cascade_fk_column = Relationship.get_update_cascade_fk_column(self.table)
+        cascade_fk_column = self.relationships.get_update_cascade_fk_column(self.table)
         if cascade_fk_column:
             # check if fk
             for mapped in self.frm.element_map:
@@ -2171,7 +2154,9 @@ class DataSet:
         # that may depend on it, that otherwise wouldn't be requeried because they are
         # not setup as on_update_cascade.
         if self.description_column in changed_row_dict:
-            dependent_columns = Relationship.get_dependent_columns(self.frm, self.table)
+            dependent_columns = self.relationships.get_dependent_columns(
+                self.frm, self.table
+            )
             for key, col in dependent_columns.items():
                 self.frm.update_fields(key, columns=[col], combo_values_only=True)
                 if self.frm[key].column_likely_in_selector(col):
@@ -2200,7 +2185,7 @@ class DataSet:
             elements without saving if individual `DataSet._prompt_save()` is False.
         :returns: dict of {table : results}
         """
-        for rel in self.frm.relationships:
+        for rel in self.relationships:
             if rel.parent_table == self.table and rel.on_update_cascade:
                 self.frm[rel.child_table].save_record_recursive(
                     results=results,
@@ -2246,7 +2231,7 @@ class DataSet:
 
         children = []
         if cascade:
-            children = Relationship.get_delete_cascade_tables(self.table)
+            children = self.relationships.get_delete_cascade_tables(self.table)
 
         msg_children = ", ".join(children)
         if len(children):
@@ -2336,7 +2321,7 @@ class DataSet:
 
         child_list = []
         if children:
-            child_list = Relationship.get_update_cascade_tables(self.table)
+            child_list = self.relationships.get_update_cascade_tables(self.table)
 
         msg_children = ", ".join(child_list)
         msg = lang.duplicate_child.format_map(
@@ -2662,7 +2647,7 @@ class DataSet:
         if not self.row_count:
             return None
 
-        rels = Relationship.get_relationships(self.table)
+        rels = self.relationships.get_rels_for(self.table)
         rel = next((r for r in rels if r.fk_column == column_name), None)
         if rel is None:
             return None
@@ -2692,7 +2677,7 @@ class DataSet:
         :param column: The column name to get related table information for
         :returns: The name of the related table, or the current table if none are found
         """
-        rels = Relationship.get_relationships(self.table)
+        rels = self.relationships.get_rels_for(self.table)
         for rel in rels:
             if column == rel.fk_column:
                 return rel.parent_table
@@ -2716,7 +2701,7 @@ class DataSet:
             columns = rows.columns
 
         # get fk descriptions
-        rels = Relationship.get_relationships(self.table)
+        rels = self.relationships.get_rels_for(self.table)
         for col in columns:
             for rel in rels:
                 if col == rel.fk_column:
@@ -2821,7 +2806,7 @@ class DataSet:
 
         fields_layout = [[sg.Sizer(h_pixels=0, v_pixels=y_pad)]]
 
-        rels = Relationship.get_relationships(self.table)
+        rels = self.relationships.get_rels_for(self.table)
         for col in self.column_info.names():
             found = False
             column = f"{data_key}.{col}"
@@ -2951,7 +2936,7 @@ class DataSet:
         # We don't want to sort by foreign keys directly - we want to sort by the
         # description column of the foreign table that the foreign key references
         tmp_column = None
-        rels = Relationship.get_relationships(table)
+        rels = self.relationships.get_rels_for(table)
 
         transformed = False
         for rel in rels:
@@ -3202,10 +3187,6 @@ class Form:
         - `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are present.
     :param save_quiet: (optional) Default:False. True to skip info popup on save.
         Error popups will still be shown.
-    :param update_cascade: (optional) Default:True. Requery and filter child table
-        on selected parent primary key. (ON UPDATE CASCADE in SQL)
-    :param delete_cascade: (optional) Default:True. Delete the dependent child
-        records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
     :param duplicate_children: (optional) Default:True. If record has children,
         prompt user to choose to duplicate current record, or both.
     :param description_column_names: (optional) A list of names to use for the
@@ -3216,9 +3197,6 @@ class Form:
     :param live_update: (optional) Default value is False. If True, changes made in
         a field will be immediately pushed to associated selectors. If False,
         changes will be pushed only after a save action.
-    :param auto_add_relationships: (optional) Controls the invocation of
-        auto_add_relationships. Default is True. Set it to False when creating a new
-        `Form` with pre-existing `Relationship` instances.
     :param validate_mode: Passed to `DataSet` init to set validate mode.
         `ss.ValidateMode.STRICT` to prevent invalid values from being entered.
         `ss.ValidateMode.RELAXED` allows invalid input, but ensures validation
@@ -3227,7 +3205,6 @@ class Form:
     """
 
     instances: ClassVar[List[Form]] = []  # Track our instances
-    relationships: ClassVar[List[Relationship]] = []  # Track our relationships
 
     driver: SQLDriver
     bind_window: dc.InitVar[sg.Window] = None
@@ -3237,14 +3214,11 @@ class Form:
     select_first: dc.InitVar[bool] = True
     prompt_save: dc.InitVar[PROMPT_SAVE_MODES] = PROMPT_MODE
     save_quiet: bool = False
-    update_cascade: bool = True
-    delete_cascade: bool = True
     duplicate_children: bool = True
     description_column_names: List[str] = dc.field(
         default_factory=lambda: ["description", "name", "title"]
     )
     live_update: bool = False
-    auto_add_relationships: dc.InitVar[bool] = True
     validate_mode: ValidateMode = ValidateMode.RELAXED
 
     def __post_init__(
@@ -3253,7 +3227,6 @@ class Form:
         prefix_data_keys,
         select_first,
         prompt_save,
-        auto_add_relationships,
     ):
         Form.instances.append(self)
 
@@ -3286,8 +3259,6 @@ class Form:
         win_pb.update(lang.startup_datasets, 25)
         self.auto_add_datasets(prefix_data_keys)
         win_pb.update(lang.startup_relationships, 50)
-        if auto_add_relationships:
-            self.auto_add_relationships()
         self.requery_all(
             select_first=select_first, update_elements=False, requery_dependents=True
         )
@@ -3329,7 +3300,7 @@ class Form:
         and relationship mapping. This can happen automatically on `Form` creation with
         the bind parameter and is not typically called by the end user. This function
         literally just groups all the auto_* methods.  See `Form.auto_add_tables()`,
-        `Form.auto_add_relationships()`, `Form.auto_map_elements()`,
+        `SQLDriver.auto_add_relationships()`, `Form.auto_map_elements()`,
         `Form.auto_map_events()`.
 
         :param win: The PySimpleGUI window
@@ -3447,50 +3418,6 @@ class Form:
         # set a default sort order
         self[data_key].set_search_order([description_column])
 
-    def add_relationship(
-        self,
-        join: str,
-        child_table: str,
-        fk_column: str,
-        parent_table: str,
-        pk_column: str,
-        update_cascade: bool,
-        delete_cascade: bool,
-    ) -> None:
-        """
-        Add a foreign key relationship between two dataset of the database When you
-        attach a database, PySimpleSQL isn't aware of the relationships contained until
-        dataset are added via `Form.add_data`, and the relationship of various tables is
-        set with this function. Note that `Form.auto_add_relationships()` will do this
-        automatically from the schema of the database, which also happens automatically
-        when a `Form` is created.
-
-        :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN',
-            'RIGHT JOIN')
-        :param child_table: The child table containing the foreign key
-        :param fk_column: The foreign key column of the child table
-        :param parent_table: The parent table containing the primary key
-        :param pk_column: The primary key column of the parent table
-        :param update_cascade: Requery and filter child table results on selected parent
-            primary key (ON UPDATE CASCADE in SQL)
-        :param delete_cascade: Delete the dependent child records if the parent table
-            record is deleted (ON UPDATE DELETE in SQL)
-        :returns: None
-        """
-        self.relationships.append(
-            Relationship(
-                join,
-                child_table,
-                fk_column,
-                parent_table,
-                pk_column,
-                update_cascade,
-                delete_cascade,
-                self.driver,
-                self,
-            )
-        )
-
     def set_fk_column_cascade(
         self,
         child_table: str,
@@ -3501,7 +3428,7 @@ class Form:
         """
         Set a foreign key's update_cascade and delete_cascade behavior.
 
-        `Form.auto_add_relationships()` does this automatically from the database
+        `SQLDriver.auto_add_relationships()` does this automatically from the database
         schema.
 
         :param child_table: Child table with the foreign key.
@@ -3514,7 +3441,7 @@ class Form:
         """
         for rel in self.relationships:
             if rel.child_table == child_table and rel.fk_column == fk_column:
-                logger.info(f"Updating {fk_column=} relationship.")
+                logger.info(f"Updating {fk_column=} self.relationships.")
                 if update_cascade is not None:
                     rel.update_cascade = update_cascade
                 if delete_cascade is not None:
@@ -3559,39 +3486,6 @@ class Form:
             )
             self.add_dataset(data_key, table, pk_column, description_column)
             self.datasets[data_key].column_info = column_info
-
-    # Make sure to send a list of table names to requery if you want
-    # dependent dataset to requery automatically
-    def auto_add_relationships(self) -> None:
-        """
-        Automatically add a foreign key relationship between tables of the database.
-        This is done by foreign key constraints within the database.  Automatically
-        requery the child table if the parent table changes (ON UPDATE CASCADE in sql is
-        set) When you attach a database, PySimpleSQL isn't aware of the relationships
-        contained until tables are added and the relationship of various tables is set.
-        This happens automatically during `Form` creation. Note that
-        `Form.add_relationship()` can do this manually.
-
-        :returns: None
-        """
-        logger.info("Automatically adding foreign key relationships")
-        # Clear any current rels so that successive calls will not double the entries
-        self.relationships = []  # clear any relationships already stored
-        relationships = self.driver.relationships()
-        for r in relationships:
-            logger.debug(
-                f'Adding relationship {r["from_table"]}.{r["from_column"]} = '
-                f'{r["to_table"]}.{r["to_column"]}'
-            )
-            self.add_relationship(
-                "LEFT JOIN",
-                r["from_table"],
-                r["from_column"],
-                r["to_table"],
-                r["to_column"],
-                r["update_cascade"],
-                r["delete_cascade"],
-            )
 
     # Map an element to a DataSet.
     # Optionally a where_column and a where_value.  This is useful for key,value pairs!
@@ -4088,15 +3982,15 @@ class Form:
             tables = [
                 dataset.table
                 for dataset in self.datasets.values()
-                if len(Relationship.get_update_cascade_tables(dataset.table))
-                and Relationship.get_parent(dataset.table) is None
+                if len(self.relationships.get_update_cascade_tables(dataset.table))
+                and self.relationships.get_parent(dataset.table) is None
             ]
         # default behavior, build list of top-level dataset (ones without a parent)
         else:
             tables = [
                 dataset.table
                 for dataset in self.datasets.values()
-                if Relationship.get_parent(dataset.table) is None
+                if self.relationships.get_parent(dataset.table) is None
             ]
 
         # call save_record_recursive on tables, which saves from last to first.
@@ -4235,12 +4129,12 @@ class Form:
                 # Disable insert on children with no parent/virtual parent records or
                 # edit protect mode
                 elif ":table_insert" in m["event"]:
-                    parent = Relationship.get_parent(data_key)
+                    parent = self.relationships.get_parent(data_key)
                     if parent is not None:
                         disable = bool(
                             not self[parent].row_count
                             or self._edit_protect
-                            or Relationship.parent_virtual(data_key, self)
+                            or self.relationships.parent_virtual(data_key, self)
                         )
                     else:
                         disable = self._edit_protect
@@ -4373,7 +4267,7 @@ class Form:
                 mapped.element.update(values=combo_vals)
 
             elif isinstance(mapped.element, sg.Text):
-                rels = Relationship.get_relationships(mapped.dataset.table)
+                rels = self.relationships.get_rels_for(mapped.dataset.table)
                 found = False
                 # try to get description of linked if foreign-key
                 for rel in rels:
@@ -4585,7 +4479,7 @@ class Form:
         # then select_first/update/dependents
         logger.info("Requerying all datasets")
         for data_key in self.datasets:
-            if Relationship.get_parent(data_key) is None:
+            if self.relationships.get_parent(data_key) is None:
                 self[data_key].requery(
                     select_first=select_first,
                     filtered=filtered,
@@ -5693,7 +5587,7 @@ class _TtkStrictInput(ttk.Entry, _StrictInput):
     """Internal Ttk Entry with validate commands"""
 
 
-class _PlaceholderText(abc.ABC):
+class _PlaceholderText(ABC):
     """
     An abstract class for PySimpleGUI text-entry elements that allows for the display of
     a placeholder text when the input is empty.
@@ -5745,7 +5639,7 @@ class _PlaceholderText(abc.ABC):
         self.placeholder_feature_enabled = True
         self._add_binds()
 
-    @abc.abstractmethod
+    @abstractmethod
     def _add_binds(self):
         pass
 
@@ -5797,11 +5691,11 @@ class _PlaceholderText(abc.ABC):
             return ""
         return super().get()
 
-    @abc.abstractmethod
+    @abstractmethod
     def insert_placeholder(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def delete_placeholder(self):
         pass
 
@@ -7991,6 +7885,8 @@ class LanguagePack:
         "sqldriver_init": "{name} connection",
         "sqldriver_connecting": "Connecting to database",
         "sqldriver_execute": "Executing SQL commands",
+        "sqldriver_file_not_found_title": "Trouble finding db file",
+        "sqldriver_file_not_found": "Could not find file\n{file}",
         # ------------------------------------------------------------------------------
         # Default ProgressAnimate Phrases
         # ------------------------------------------------------------------------------
@@ -8458,7 +8354,7 @@ class DecimalCol(LocaleCol, MinMaxCol):
                 )
             except ValueError:
                 logger.debug(
-                    f"Unable to set {self.name} column decimal precision to "
+                    f"Unable to set {self.NAME} column decimal precision to "
                     f"{self.domain_args[0]}"
                 )
         if len(self.domain_args) >= 2:
@@ -8470,7 +8366,7 @@ class DecimalCol(LocaleCol, MinMaxCol):
                 )
             except ValueError:
                 logger.debug(
-                    f"Unable to set {self.name} column decimal scale to "
+                    f"Unable to set {self.NAME} column decimal scale to "
                     f"{self.domain_args[1]}"
                 )
             self.cell_format_fn: callable = lambda x: CellFormatFn.decimal_places(
@@ -8672,7 +8568,7 @@ class ColumnInfo(List):
             # First, check to see if the default might be a database function
             if self._looks_like_function(default):
                 table = self.driver.quote_table(self.table)
-                # TODO: may need AS column to support all databases?
+
                 q = f"SELECT {default} AS val FROM {table};"
 
                 rows = self.driver.execute(q)
@@ -8687,7 +8583,7 @@ class ColumnInfo(List):
                     d[c.name] = default
                     continue
                 logger.warning(
-                    f"There was an exception getting the default: {rows.exception}"
+                    f"There was an exception getting the default: {rows.attrs['exception']}"
                 )
 
             # The stored default is a literal value, lets try to use it:
@@ -8698,9 +8594,9 @@ class ColumnInfo(List):
                     # Perhaps our default dict does not yet support this datatype
                     null_default = None
 
-                # return PK_PLACEHOLDER if this is a fk_relationship.
+                # return PK_PLACEHOLDER if this is a fk_relationships.
                 # trick used in Combo for the pk to display placeholder
-                rels = Relationship.get_relationships(dataset.table)
+                rels = self.driver.relationships.get_rels_for(dataset.table)
                 rel = next((r for r in rels if r.fk_column == c.name), None)
                 if rel:
                     null_default = PK_PLACEHOLDER
@@ -8856,7 +8752,29 @@ class ReservedKeywordError(Exception):
     pass
 
 
-class SQLDriver:
+@dc.dataclass
+class SqlChar:
+    # Each database type expects their SQL prepared in a certain way.  Below are
+    # defaults for how various elements in the SQL string should be quoted and
+    # represented as placeholders. Override these in the derived class as needed to
+    # satisfy SQL requirements
+
+    # The placeholder for values in the query string.  This is typically '?' or'%s'
+    placeholder: str = "%s"  # override this in derived subclass SqlChar
+
+    # These are the quote characters for tables, columns and values.
+    # It varies between different databases
+
+    # override this in derived subclass SqlChar (defaults to no quotes)
+    table_quote: str = ""
+    # override this in derived subclass SqlChar (defaults to no quotes)
+    column_quote: str = ""
+    # override this in derived subclass SqlChar (defaults to single quotes)
+    value_quote: str = "'"
+
+
+@dc.dataclass
+class SQLDriver(ABC):
 
     """
     Abstract SQLDriver class.  Derive from this class to create drivers that conform to
@@ -8876,68 +8794,70 @@ class SQLDriver:
     pysimplesql convention, the attrs["lastrowid"] should always be None unless and
     INSERT query is executed with SQLDriver.execute() or a record is inserted with
     SQLDriver.insert_record()
+
+    :param update_cascade: (optional) Default:True. Requery and filter child table
+        on selected parent primary key. (ON UPDATE CASCADE in SQL)
+    :param delete_cascade: (optional) Default:True. Delete the dependent child
+        records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
     """
 
-    SQL_CONSTANTS: ClassVar[List[str]] = []
+    host: str = None
+    user: str = None
+    password: str = None
+    database: str = None
+
+    sql_commands: str = None
+    sql_script: str = None
+    sql_script_encoding: str = "utf-8"
+
+    update_cascade: bool = True
+    delete_cascade: bool = True
+
+    sql_char: dc.InitVar[SqlChar] = SqlChar()  # noqa RUF009
 
     # ---------------------------------------------------------------------
     # MUST implement
     # in order to function
     # ---------------------------------------------------------------------
-    def __init__(
-        self,
-        name: str,
-        requires: List[str],
-        placeholder="%s",
-        table_quote="",
-        column_quote="",
-        value_quote="'",
-    ):
-        """
-        Create a new SQLDriver instance This must be overridden in the derived class,
-        which must call super().__init__(), and when finished call self.win_pb.close()
-        to close the database.
-        """
-        # Be sure to call super().__init__() in derived class!
-        self.con = None
-        self.name = name
-        self.requires = requires
-        self._check_reserved_keywords = True
+
+    # ---------------------------------------------------------------------
+    # ClassVars, replace in derived subclass with your own
+    # ---------------------------------------------------------------------
+    NAME: ClassVar[str] = "SQLDriver"
+    REQUIRES: ClassVar[List[str]] = None
+
+    # TODO: Document these
+    COLUMN_CLASS_MAP: ClassVar[Dict[str, ColumnClass]] = {}
+    SQL_CONSTANTS: ClassVar[List[str]] = []
+    _CHECK_RESERVED_KEYWORDS: ClassVar[bool] = True
+
+    def __post_init__(self, sql_char):
+        # if derived subclass implements __init__, call `super()__post_init__()`
+        # unpack quoting
+        self.placeholder = sql_char.placeholder
+        self.quote_table_char = sql_char.table_quote
+        self.quote_column_char = sql_char.column_quote
+        self.quote_value_char = sql_char.value_quote
+
         self.win_pb = ProgressBar(
-            lang.sqldriver_init.format_map(LangFormat(name=name)), 100
+            lang.sqldriver_init.format_map(LangFormat(name=self.NAME)), 100
         )
         self.win_pb.update(lang.sqldriver_connecting, 0)
+        self._import_required_modules()
+        self._init_db()
+        self.relationships = RelationshipStore(self)
+        self.auto_add_relationships()
+        self.win_pb.close()
 
-        # Each database type expects their SQL prepared in a certain way.  Below are
-        # defaults for how various elements in the SQL string should be quoted and
-        # represented as placeholders. Override these in the derived class as needed to
-        # satisfy SQL requirements
+    @abstractmethod
+    def _import_required_modules(self) -> None:
+        pass
 
-        # The placeholder for values in the query string.  This is typically '?' or'%s'
-        self.placeholder = placeholder  # override this in derived __init__()
+    @abstractmethod
+    def _init_db(self) -> None:
+        pass
 
-        # These are the quote characters for tables, columns and values.
-        # It varies between different databases
-
-        # override this in derived __init__() (defaults to no quotes)
-        self.quote_table_char = table_quote
-        # override this in derived __init__() (defaults to no quotes)
-        self.quote_column_char = column_quote
-        # override this in derived __init__() (defaults to single quotes)
-        self.quote_value_char = value_quote
-
-    def check_reserved_keywords(self, value: bool) -> None:
-        """
-        SQLDrivers can check to make sure that field names respect their own reserved
-        keywords.  By default, all SQLDrivers will check for their respective keywords.
-        You can choose to disable this feature with this method.
-
-        :param value: True to check for reserved keywords in field names, false to skip
-            this check
-        :return: None
-        """
-        self._check_reserved_keywords = value
-
+    @abstractmethod
     def connect(self, *args, **kwargs):
         """
         Connect to a database.
@@ -8948,8 +8868,8 @@ class SQLDriver:
         Implementation varies by database, you may need only one parameter, or
         several depending on how a connection is established with the target database.
         """
-        raise NotImplementedError
 
+    @abstractmethod
     def execute(
         self,
         query,
@@ -8968,22 +8888,26 @@ class SQLDriver:
             have exceptions and commit/rollbacks happen automatically
         :return:
         """
-        raise NotImplementedError
 
+    @abstractmethod
     def execute_script(self, script: str, encoding: str):
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def get_tables(self):
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def column_info(self, table):
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def pk_column(self, table):
-        raise NotImplementedError
+        pass
 
-    def relationships(self):
-        raise NotImplementedError
+    @abstractmethod
+    def get_relationships(self):
+        pass
 
     # ---------------------------------------------------------------------
     # SHOULD implement
@@ -9017,7 +8941,7 @@ class SQLDriver:
 
         if key is None:
             # First try using the name of the driver
-            key = self.name.lower() if self.name.lower() in RESERVED else "common"
+            key = self.NAME.lower() if self.NAME.lower() in RESERVED else "common"
 
         if keyword.upper() in RESERVED[key] or keyword.upper in RESERVED["common"]:
             raise ReservedKeywordError(
@@ -9094,13 +9018,12 @@ class SQLDriver:
         :rtype: str
         """
         join = ""
-        for r in dataset.frm.relationships:
+        for r in self.relationships:
             if dataset.table == r.child_table:
                 join += f" {self.relationship_to_join_clause(r)}"
         return join if not dataset.join_clause else dataset.join_clause
 
-    @staticmethod
-    def generate_where_clause(dataset: DataSet) -> str:
+    def generate_where_clause(self, dataset: DataSet) -> str:
         """
         Generates a where clause from the Relationships that have been set, as well as
         the DataSet's where clause.
@@ -9111,7 +9034,7 @@ class SQLDriver:
         :rtype: str
         """
         where = ""
-        for r in dataset.frm.relationships:
+        for r in self.relationships:
             if dataset.table == r.child_table and r.on_update_cascade:
                 table = dataset.table
                 parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
@@ -9171,7 +9094,7 @@ class SQLDriver:
         # Delete child records first!
         if cascade:
             recursion = 0
-            result = self.delete_record_recursive(
+            result = self._delete_record_recursive(
                 dataset, "", where_clause, table, pk_column, recursion
             )
 
@@ -9181,10 +9104,10 @@ class SQLDriver:
         q = delete_clause + where_clause + ";"
         return self.execute(q)
 
-    def delete_record_recursive(
+    def _delete_record_recursive(
         self, dataset: DataSet, inner_join, where_clause, parent, pk_column, recursion
     ):
-        for child in Relationship.get_delete_cascade_tables(dataset.table):
+        for child in self.relationships.get_delete_cascade_tables(dataset.table):
             # Check to make sure we arn't at recursion limit
             recursion += 1  # Increment, since this is a child
             if recursion >= DELETE_CASCADE_RECURSION_LIMIT:
@@ -9192,7 +9115,7 @@ class SQLDriver:
 
             # Get data for query
             fk_column = self.quote_column(
-                Relationship.get_delete_cascade_fk_column(child)
+                self.relationships.get_delete_cascade_fk_column(child)
             )
             pk_column = self.quote_column(dataset.frm[child].pk_column)
             child_table = self.quote_table(child)
@@ -9206,7 +9129,7 @@ class SQLDriver:
             )
 
             # Call function again to create recursion
-            result = self.delete_record_recursive(
+            result = self._delete_record_recursive(
                 dataset.frm[child],
                 inner_join_clause,
                 where_clause,
@@ -9298,7 +9221,7 @@ class SQLDriver:
         # Next, duplicate the child records!
         if children:
             for _ in dataset.frm.datasets:
-                for r in dataset.frm.relationships:
+                for r in self.relationships:
                     if (
                         r.parent_table == dataset.table
                         and r.on_update_cascade
@@ -9422,18 +9345,108 @@ class SQLDriver:
     # Probably won't need to implement the following functions
     # ---------------------------------------------------------------------
 
-    def import_failed(self, exception) -> None:
+    def add_relationship(
+        self,
+        join: str,
+        child_table: str,
+        fk_column: str,
+        parent_table: str,
+        pk_column: str,
+        update_cascade: bool,
+        delete_cascade: bool,
+    ) -> None:
+        """
+        Add a foreign key relationship between two dataset of the database When you
+        attach a database, PySimpleSQL isn't aware of the relationships contained until
+        dataset are added via `Form.add_data`, and the relationship of various tables is
+        set with this function. Note that `SQLDriver.auto_add_relationships()` will do
+        this automatically from the schema of the database, which also happens
+        automatically when a `SQLDriver` is created.
+
+        :param join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN',
+            'RIGHT JOIN')
+        :param child_table: The child table containing the foreign key
+        :param fk_column: The foreign key column of the child table
+        :param parent_table: The parent table containing the primary key
+        :param pk_column: The primary key column of the parent table
+        :param update_cascade: Requery and filter child table results on selected parent
+            primary key (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: Delete the dependent child records if the parent table
+            record is deleted (ON UPDATE DELETE in SQL)
+        :returns: None
+        """
+        self.relationships.append(
+            Relationship(
+                join,
+                child_table,
+                fk_column,
+                parent_table,
+                pk_column,
+                update_cascade,
+                delete_cascade,
+                self,
+            )
+        )
+
+    # Make sure to send a list of table names to requery if you want
+    # dependent dataset to requery automatically
+    def auto_add_relationships(self) -> None:
+        """
+        Automatically add a foreign key relationship between tables of the database.
+        This is done by foreign key constraints within the database.  Automatically
+        requery the child table if the parent table changes (ON UPDATE CASCADE in sql is
+        set) When you attach a database, PySimpleSQL isn't aware of the relationships
+        contained until tables are added and the relationship of various tables is set.
+        This happens automatically during `Form` creation. Note that
+        `Form.add_relationship()` can do this manually.
+
+        :returns: None
+        """
+        logger.info("Automatically adding foreign key relationships")
+        # Clear any current rels so that successive calls will not double the entries
+        self.relationships = RelationshipStore(
+            self
+        )  # clear any relationships already stored
+        relationships = self.get_relationships()
+        for r in relationships:
+            logger.debug(
+                f'Adding relationship {r["from_table"]}.{r["from_column"]} = '
+                f'{r["to_table"]}.{r["to_column"]}'
+            )
+            self.add_relationship(
+                "LEFT JOIN",
+                r["from_table"],
+                r["from_column"],
+                r["to_table"],
+                r["to_column"],
+                r["update_cascade"],
+                r["delete_cascade"],
+            )
+
+    def check_reserved_keywords(self, value: bool) -> None:
+        """
+        SQLDrivers can check to make sure that field names respect their own reserved
+        keywords.  By default, all SQLDrivers will check for their respective keywords.
+        You can choose to disable this feature with this method.
+
+        :param value: True to check for reserved keywords in field names, false to skip
+            this check
+        :return: None
+        """
+        self._CHECK_RESERVED_KEYWORDS = value
+
+    def _import_failed(self, exception) -> None:
         popup = Popup()
-        requires = ", ".join(self.requires)
+        requires = ", ".join(self.REQUIRES)
         popup.ok(
             lang.import_module_failed_title,
             lang.import_module_failed.format_map(
-                LangFormat(name=self.name, requires=requires, exception=exception)
+                LangFormat(name=self.NAME, requires=requires, exception=exception)
             ),
         )
         exit(0)
 
-    def parse_domain(self, domain):
+    def _parse_domain(self, domain):
         domain_parts = domain.split("(")
         domain_name = domain_parts[0].strip().upper()
 
@@ -9445,7 +9458,7 @@ class SQLDriver:
 
         return domain_name, domain_args
 
-    def get_column_class(self, domain) -> Union[ColumnClass, None]:
+    def _get_column_class(self, domain) -> Union[ColumnClass, None]:
         if domain in self.COLUMN_CLASS_MAP:
             return self.COLUMN_CLASS_MAP[domain]
         logger.info(f"Mapping {domain} to generic Column class")
@@ -9455,10 +9468,21 @@ class SQLDriver:
 # --------------------------------------------------------------------------------------
 # SQLITE3 DRIVER
 # --------------------------------------------------------------------------------------
+@dc.dataclass
 class Sqlite(SQLDriver):
     """
     The SQLite driver supports SQLite3 databases.
     """
+
+    global sqlite3  # noqa PLW0603
+    import sqlite3
+
+    sql_char: dc.InitVar[SqlChar] = SqlChar(  # noqa RUF009
+        placeholder="?", table_quote='"', column_quote='"'
+    )
+
+    NAME: ClassVar[str] = "SQLite"
+    REQUIRES: ClassVar[str] = ["sqlite3"]
 
     DECIMAL_DOMAINS: ClassVar[List[str]] = ["DECIMAL", "DECTEXT", "MONEY", "NUMERIC"]
 
@@ -9473,59 +9497,93 @@ class Sqlite(SQLDriver):
 
     def __init__(
         self,
-        db_path=None,
+        database: Union[
+            str,
+            Path,
+            InMemory,
+            sqlite3.Connection,
+        ] = None,
+        *,
+        sql_commands=None,
         sql_script=None,
         sql_script_encoding: str = "utf-8",
-        sqlite3_database=None,
-        sql_commands=None,
+        update_cascade: bool = True,
+        delete_cascade: bool = True,
+        sql_char: SqlChar = sql_char,
+        create_file: bool = True,
+        skip_sql_if_db_exists: bool = True,
     ):
-        super().__init__(
-            name="SQLite",
-            requires=["sqlite3"],
-            placeholder="?",
-            table_quote='"',
-            column_quote='"',
-        )
+        """
+        :param update_cascade: (optional) Default:True. Requery and filter child table
+            on selected parent primary key. (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: (optional) Default:True. Delete the dependent child
+            records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
+        """
+        self._database = str(database)
+        self.sql_commands = sql_commands
+        self.sql_script = sql_script
+        self.sql_script_encoding = sql_script_encoding
+        self.update_cascade = update_cascade
+        self.delete_cascade = delete_cascade
+        self.create_file = create_file
+        self.skip_sql_if_db_exists = skip_sql_if_db_exists
 
-        self.import_required_modules()
+        super().__post_init__(sql_char)
 
+    def _import_required_modules(self):
+        # Sqlite needs Sqlite3.Connection for a type-hint, so we already imported
+        pass
+
+    def _init_db(self) -> None:
         # register adapters and converters
         self._register_type_callables()
 
-        new_database = False
-        if db_path is not None:
-            logger.info(f"Opening database: {db_path}")
-            new_database = not os.path.isfile(db_path)
-            self.connect(db_path)  # Open our database
+        # if str, try opening
+        if isinstance(self._database, str):
+            logger.info(f"Opening database: {self._database}")
+            new_database = not os.path.isfile(self._database)
+            if self._database != ":memory:" and new_database and not self.create_file:
+                popup = Popup()
+                popup.ok(
+                    lang.sqldriver_file_not_found_title,
+                    lang.sqldriver_file_not_found.format_map(
+                        LangFormat(file=self._database)
+                    ),
+                )
+                exit(0)
+            self.connect(self._database)  # Open our database
 
-        self.imported_database = False
-        if sqlite3_database is not None:
-            self.con = sqlite3_database
+        # or use passed preexisting connection
+        elif isinstance(self._database, sqlite3.Connection):
+            self.con = self._database
             new_database = False
-            self.imported_database = True
 
         self.win_pb.update(lang.sqldriver_execute, 50)
         self.con.row_factory = sqlite3.Row
-        if sql_commands is not None and new_database:
+
+        # execute sql
+        if (
+            not self.skip_sql_if_db_exists
+            or self.sql_commands is not None
+            and new_database
+        ):
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
-            logger.debug(sql_commands)
-            self.con.executescript(sql_commands)
+            logger.debug(self.sql_commands)
+            self.con.executescript(self.sql_commands)
             self.con.commit()
-        if sql_script is not None and new_database:
+        if (
+            not self.skip_sql_if_db_exists
+            or self.sql_script is not None
+            and new_database
+        ):
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script, sql_script_encoding)
+            self.execute_script(self.sql_script, self.sql_script_encoding)
 
-        self.db_path = db_path
-        self.win_pb.close()
-
-    def import_required_modules(self):
-        global sqlite3  # noqa PLW0603
-        try:
-            import sqlite3
-        except ModuleNotFoundError as e:
-            self.import_failed(e)
+    @property
+    def _imported_database(self):
+        return isinstance(self._database, sqlite3.Connection)
 
     def connect(self, database):
         self.con = sqlite3.connect(
@@ -9576,9 +9634,9 @@ class Sqlite(SQLDriver):
 
     def close(self):
         # Only do cleanup if this is not an imported database
-        if not self.imported_database:
+        if not self._imported_database:
             # optimize the database for long-term benefits
-            if self.db_path != ":memory:":
+            if self._database != ":memory:":
                 q = "PRAGMA optimize;"
                 self.con.execute(q)
             # Close the connection
@@ -9599,8 +9657,8 @@ class Sqlite(SQLDriver):
         names = []
         col_info = ColumnInfo(self, table)
         for _, row in rows.iterrows():
-            domain, domain_args = self.parse_domain(row["type"])
-            col_class = self.get_column_class(domain) or Column
+            domain, domain_args = self._parse_domain(row["type"])
+            col_class = self._get_column_class(domain) or Column
             # TODO: should we exclude hidden columns?
             # if row["hidden"] == 1:
             #    continue
@@ -9630,7 +9688,7 @@ class Sqlite(SQLDriver):
         result = self.execute(q, silent=True)
         return result.loc[result["pk"] == 1, "name"].iloc[0]
 
-    def relationships(self):
+    def get_relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         relationships = []
         tables = self.get_tables()
@@ -9657,9 +9715,9 @@ class Sqlite(SQLDriver):
                 relationships.append(dic)
         return relationships
 
-    def get_column_class(self, domain) -> Union[ColumnClass, None]:
+    def _get_column_class(self, domain) -> Union[ColumnClass, None]:
         if self.COLUMN_CLASS_MAP:
-            col_class = super().get_column_class(domain)
+            col_class = super()._get_column_class(domain)
             if col_class is not None:
                 return col_class
         if "DATETIME" in domain or "TIMESTAMP" in domain:
@@ -9700,6 +9758,7 @@ class Sqlite(SQLDriver):
 # --------------------------------------------------------------------------------------
 # The CSV driver uses SQlite3 in the background
 # to use pysimplesql directly with CSV files
+@dc.dataclass
 class Flatfile(Sqlite):
 
     """
@@ -9744,17 +9803,6 @@ class Flatfile(Sqlite):
              virtual primary key column that was created will not be written to the
              flatfile.
         """
-        # First up the SQLite driver that we derived from
-        super().__init__(":memory:")  # use an in-memory database
-
-        # Change Sqlite Sqldriver init set values to Flatfile-specific
-        self.name = "Flatfile"
-        self.requires = ["csv,sqlite3"]
-        self.placeholder = "?"  # update
-
-        self.import_required_modules()
-
-        self.connect(":memory:")
         self.file_path = file_path
         self.delimiter = delimiter
         self.quotechar = quotechar
@@ -9762,13 +9810,25 @@ class Flatfile(Sqlite):
         self.pk_col = pk_col if pk_col is not None else "pk"
         self.pk_col_is_virtual = False
         self.table = table if table is not None else "Flatfile"
+
+        # First up the SQLite driver that we derived from
+        super().__init__(":memory:")  # use an in-memory database
+
+        # Change Sqlite Sqldriver init set values to Flatfile-specific
+        self.NAME = "Flatfile"
+        self.REQUIRES = ["csv,sqlite3"]
+        self.placeholder = "?"  # update
+
+    def _init_db(self):
+        self.connect(":memory:")
+
         self.con.row_factory = sqlite3.Row
 
         # Store any text up to the header line, so they can be restored
         self.pre_header = []
 
         # Open the CSV file and read the header row to get column names
-        with open(file_path, "r") as f:
+        with open(self.file_path, "r") as f:
             reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
             # skip lines as determined by header_row_num
             for _i in range(self.header_row_num):
@@ -9816,16 +9876,15 @@ class Flatfile(Sqlite):
                 self.execute(query, row)
 
         self.commit()  # commit them all at the end
-        self.win_pb.close()
 
-    def import_required_modules(self):
+    def _import_required_modules(self):
         global csv  # noqa PLW0603
         global sqlite3  # noqa PLW0603
         try:
             import csv
             import sqlite3
         except ModuleNotFoundError as e:
-            self.import_failed(e)
+            self._import_failed(e)
 
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
@@ -9870,10 +9929,16 @@ class Flatfile(Sqlite):
 # --------------------------------------------------------------------------------------
 # MYSQL DRIVER
 # --------------------------------------------------------------------------------------
+@dc.dataclass
 class Mysql(SQLDriver):
     """
     The Mysql driver supports MySQL databases.
     """
+
+    tinyint1_is_boolean: bool = True
+
+    NAME: ClassVar[str] = "MySQL"
+    REQUIRES: ClassVar[List[str]] = ["mysql-connector-python"]
 
     COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIT": BoolCol,
@@ -9908,36 +9973,16 @@ class Mysql(SQLDriver):
         "CURRENT_TIMESTAMP",
     ]
 
-    def __init__(
-        self,
-        host,
-        user,
-        password,
-        database,
-        sql_script=None,
-        sql_script_encoding: str = "utf-8",
-        sql_commands=None,
-        tinyint1_is_boolean=True,
-    ):
-        super().__init__(name="MySQL", requires=["mysql-connector-python"])
-
-        self.import_required_modules()
-
-        self.name = "MySQL"  # is this redundant?
-        self.host = host
-        self.user = user
-        self.password = password
-        self.database = database
-        self.tinyint1_is_boolean = tinyint1_is_boolean
+    def _init_db(self):
         self.con = self.connect()
 
         self.win_pb.update(lang.sqldriver_execute, 50)
-        if sql_commands is not None:
+        if self.sql_commands is not None:
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
-            logger.debug(sql_commands)
+            logger.debug(self.sql_commands)
             cursor = self.con.cursor()
-            for result in cursor.execute(sql_commands, multi=True):
+            for result in cursor.execute(self.sql_commands, multi=True):
                 if result.with_rows:
                     print("Rows produced by statement '{}':".format(result.statement))
                     print(result.fetchall())
@@ -9949,19 +9994,17 @@ class Mysql(SQLDriver):
                     )
             self.con.commit()
             cursor.close()
-        if sql_script is not None:
+        if self.sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script, sql_script_encoding)
+            self.execute_script(self.sql_script, self.sql_script_encoding)
 
-        self.win_pb.close()
-
-    def import_required_modules(self):
+    def _import_required_modules(self):
         global mysql
         try:
             import mysql.connector
         except ModuleNotFoundError as e:
-            self.import_failed(e)
+            self._import_failed(e)
 
     def connect(self, retries=3):
         attempt = 0
@@ -10048,7 +10091,7 @@ class Mysql(SQLDriver):
             )
             # Capitalize and get rid of the extra information of the row type
             # I.e. varchar(255) becomes VARCHAR
-            domain, domain_args = self.parse_domain(type_value)
+            domain, domain_args = self._parse_domain(type_value)
 
             # TODO, think about an Enum or SetCol
             # # domain_args for enum/set are actually a list
@@ -10063,7 +10106,7 @@ class Mysql(SQLDriver):
                 col_class = BoolCol
 
             else:
-                col_class = self.get_column_class(domain) or Column
+                col_class = self._get_column_class(domain) or Column
                 if col_class == DecimalCol:
                     domain_args = [row["NUMERIC_PRECISION"], row["NUMERIC_SCALE"]]
                 elif col_class in [FloatCol, IntCol]:
@@ -10094,7 +10137,7 @@ class Mysql(SQLDriver):
         rows = self.execute(query, silent=True)
         return rows.iloc[0]["Column_name"]
 
-    def relationships(self):
+    def get_relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables = self.get_tables()
         relationships = []
@@ -10180,25 +10223,29 @@ class Mysql(SQLDriver):
 # MariaDB is a fork of MySQL and backward compatible.  It technically does not need its
 # own driver, but that could change in the future, plus having its own named class makes
 # it more clear for the end user.
+@dc.dataclass
 class Mariadb(Mysql):
     """
     The Mariadb driver supports MariaDB databases.
     """
 
-    def __init__(
-        self, host, user, password, database, sql_script=None, sql_commands=None
-    ):
-        super().__init__(host, user, password, database, sql_script, sql_commands)
-        self.name = "MariaDB"
+    NAME: ClassVar[str] = "MariaDB"
 
 
 # --------------------------------------------------------------------------------------
 # POSTGRES DRIVER
 # --------------------------------------------------------------------------------------
+@dc.dataclass
 class Postgres(SQLDriver):
     """
     The Postgres driver supports PostgreSQL databases.
     """
+
+    sql_char: dc.InitVar[SqlChar] = SqlChar(table_quote='"')  # noqa RUF009
+    sync_sequences: bool = False
+
+    NAME: ClassVar[str] = "Postgres"
+    REQUIRES: ClassVar[List[str]] = ["psycopg2", "psycopg2.extras"]
 
     COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIGINT": IntCol,
@@ -10233,34 +10280,14 @@ class Postgres(SQLDriver):
         "USER",
     ]
 
-    def __init__(
-        self,
-        host,
-        user,
-        password,
-        database,
-        sql_script=None,
-        sql_script_encoding: str = "utf-8",
-        sql_commands=None,
-        sync_sequences=False,
-    ):
-        super().__init__(
-            name="Postgres", requires=["psycopg2", "psycopg2.extras"], table_quote='"'
-        )
-
-        self.import_required_modules()
-
-        self.host = host
-        self.user = user
-        self.password = password
-        self.database = database
+    def _init_db(self):
         self.con = self.connect()
 
         # experiment to see if I can make a nocase collation
         # query ="CREATE COLLATION NOCASE (provider = icu, locale = 'und-u-ks-level2');"
         # self.execute(query)
 
-        if sync_sequences:
+        if self.sync_sequences:
             # synchronize the sequences with the max pk for each table. This is useful
             # if manual records were inserted without calling nextval() to update the
             # sequencer
@@ -10291,27 +10318,28 @@ class Postgres(SQLDriver):
                 self.execute(q, silent=True, auto_commit_rollback=True)
 
         self.win_pb.update(lang.sqldriver_execute, 50)
-        if sql_commands is not None:
-            # run SQL script if the database does not yet exist
-            logger.info("Executing sql commands passed in")
-            logger.debug(sql_commands)
-            cursor = self.con.cursor()
-            cursor.execute(sql_commands)
-            self.con.commit()
-            cursor.close()
-        if sql_script is not None:
+
+        if self.sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script, sql_script_encoding)
-        self.win_pb.close()
+            self.execute_script(self.sql_script, self.sql_script_encoding)
 
-    def import_required_modules(self):
+        if self.sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info("Executing sql commands passed in")
+            logger.debug(self.sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(self.sql_commands)
+            self.con.commit()
+            cursor.close()
+
+    def _import_required_modules(self):
         global psycopg2  # noqa PLW0603
         try:
             import psycopg2
             import psycopg2.extras
         except ModuleNotFoundError as e:
-            self.import_failed(e)
+            self._import_failed(e)
 
     def connect(self, retries=3):
         attempt = 0
@@ -10394,7 +10422,7 @@ class Postgres(SQLDriver):
         for _, row in rows.iterrows():
             name = row["column_name"]
             domain = row["data_type"].upper()
-            col_class = self.get_column_class(domain) or Column
+            col_class = self._get_column_class(domain) or Column
             domain_args = []
             if col_class == DecimalCol:
                 domain_args = [row["numeric_precision"], row["numeric_scale"]]
@@ -10433,7 +10461,7 @@ class Postgres(SQLDriver):
         rows = self.execute(query, silent=True)
         return rows.iloc[0]["column_name"]
 
-    def relationships(self):
+    def get_relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables = self.get_tables()
         relationships = []
@@ -10521,10 +10549,18 @@ class Postgres(SQLDriver):
 # --------------------------------------------------------------------------------------
 # MS SQLSERVER DRIVER
 # --------------------------------------------------------------------------------------
+@dc.dataclass
 class Sqlserver(SQLDriver):
     """
     The Sqlserver driver supports Microsoft SQL Server databases.
     """
+
+    sql_char: dc.InitVar[SqlChar] = SqlChar(  # noqa RUF009
+        placeholder="?", table_quote="[]"
+    )
+
+    NAME: ClassVar[str] = "Sqlserver"
+    REQUIRES: ClassVar[List[str]] = ["pyodbc"]
 
     COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIGINT": IntCol,
@@ -10562,48 +10598,29 @@ class Sqlserver(SQLDriver):
         "USER",
     ]
 
-    def __init__(
-        self,
-        host,
-        user,
-        password,
-        database,
-        sql_script=None,
-        sql_script_encoding: str = "utf-8",
-        sql_commands=None,
-    ):
-        super().__init__(
-            name="Sqlserver", requires=["pyodbc"], table_quote="[]", placeholder="?"
-        )
-
-        self.import_required_modules()
-        self.name = "Sqlserver"  # is this redundant?
-        self.host = host
-        self.user = user
-        self.password = password
-        self.database = database
+    def _init_db(self):
         self.con = self.connect()
 
-        if sql_commands is not None:
-            # run SQL script if the database does not yet exist
-            logger.info("Executing sql commands passed in")
-            logger.debug(sql_commands)
-            cursor = self.con.cursor()
-            cursor.execute(sql_commands)
-            self.con.commit()
-            cursor.close()
-        if sql_script is not None:
+        if self.sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script, sql_script_encoding)
-        self.win_pb.close()
+            self.execute_script(self.sql_script, self.sql_script_encoding)
 
-    def import_required_modules(self):
+        if self.sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info("Executing sql commands passed in")
+            logger.debug(self.sql_commands)
+            cursor = self.con.cursor()
+            cursor.execute(self.sql_commands)
+            self.con.commit()
+            cursor.close()
+
+    def _import_required_modules(self):
         global pyodbc  # noqa PLW0603
         try:
             import pyodbc
         except ModuleNotFoundError as e:
-            self.import_failed(e)
+            self._import_failed(e)
 
     def connect(self, retries=3, timeout=3):
         attempt = 0
@@ -10713,7 +10730,7 @@ class Sqlserver(SQLDriver):
         for _, row in rows.iterrows():
             name = row["COLUMN_NAME"]
             domain = row["DATA_TYPE"].upper()
-            col_class = self.get_column_class(domain) or Column
+            col_class = self._get_column_class(domain) or Column
             domain_args = []
             if col_class == DecimalCol:
                 domain_args = [row["NUMERIC_PRECISION"], row["NUMERIC_SCALE"]]
@@ -10749,7 +10766,7 @@ class Sqlserver(SQLDriver):
 
         return col_info
 
-    def relationships(self):
+    def get_relationships(self):
         # Return a list of dicts {from_table,to_table,from_column,to_column,requery}
         tables = self.get_tables()
         relationships = []
@@ -10840,6 +10857,7 @@ class Sqlserver(SQLDriver):
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
 # --------------------------------------------------------------------------------------
+@dc.dataclass
 class MSAccess(SQLDriver):
     """
     The MSAccess driver supports Microsoft Access databases.
@@ -10852,6 +10870,13 @@ class MSAccess(SQLDriver):
     frm[DATASET KEY].column_info[COLUMN NAME].scale = 2
     """
 
+    sql_char: dc.InitVar[SqlChar] = SqlChar(  # noqa RUF009
+        placeholder="?", table_quote="[]"
+    )
+
+    NAME: ClassVar[str] = "MSAccess"
+    REQUIRES: ClassVar[List[str]] = ["Jype1"]
+
     COLUMN_CLASS_MAP: ClassVar[List[str]] = {
         "BIG_INT": IntCol,
         "BOOLEAN": BoolCol,
@@ -10863,11 +10888,15 @@ class MSAccess(SQLDriver):
 
     def __init__(
         self,
-        database_file,
+        database_file: Union[str, Path],
+        *,
         overwrite_file: bool = False,
-        sql_commands: str = None,
-        sql_script=None,
+        sql_script: str = None,
         sql_script_encoding: str = "utf-8",
+        sql_commands: str = None,
+        update_cascade: bool = True,
+        delete_cascade: bool = True,
+        sql_char: SqlChar = sql_char,
         infer_datetype_from_default_function: bool = True,
         use_newer_jackcess: bool = False,
     ):
@@ -10884,6 +10913,10 @@ class MSAccess(SQLDriver):
             database.
         :param sql_script_encoding: The encoding of the SQL script file. Defaults to
             'utf-8'.
+        :param update_cascade: (optional) Default:True. Requery and filter child table
+            on selected parent primary key. (ON UPDATE CASCADE in SQL)
+        :param delete_cascade: (optional) Default:True. Delete the dependent child
+            records if the parent table record is deleted. (ON UPDATE DELETE in SQL)
         :param infer_datetype_from_default_function: If True, specializes a DateTime
             column by examining the column's default function. A DateTime column with
             '=Date()' will be treated as a 'DateCol', and '=Time()' will be treated as a
@@ -10893,14 +10926,19 @@ class MSAccess(SQLDriver):
             columns. Defaults to False.
         """
 
-        super().__init__(
-            name="MSAccess", requires=["Jype1"], table_quote="[]", placeholder="?"
-        )
-        self.import_required_modules()
-        self.database_file = database_file
+        self.database_file = str(database_file)
+        self.overwrite_file = overwrite_file
+        self.sql_script = sql_script
+        self.sql_script_encoding = sql_script_encoding
+        self.sql_commands = sql_commands
+        self.update_cascade = update_cascade
+        self.delete_cascade = delete_cascade
         self.infer_datetype_from_default_function = infer_datetype_from_default_function
         self.use_newer_jackcess = use_newer_jackcess
 
+        super().__post_init__(sql_char)
+
+    def _init_db(self):
         if not self.start_jvm():
             logger.debug("Failed to start jvm")
             exit()
@@ -10909,13 +10947,13 @@ class MSAccess(SQLDriver):
         create_access_file = False
         if not os.path.exists(self.database_file):
             create_access_file = True
-        elif os.path.exists(self.database_file) and overwrite_file:
+        elif os.path.exists(self.database_file) and self.overwrite_file:
             text = sg.popup_get_text(lang.overwrite, title=lang.overwrite_title)
             if text == lang.overwrite_prompt:
                 create_access_file = True
             else:
-                sql_script = None
-                sql_commands = None
+                self.sql_script = None
+                self.sql_commands = None
 
         if create_access_file:
             self._create_access_file()
@@ -10924,28 +10962,31 @@ class MSAccess(SQLDriver):
         self.con = self.connect()
 
         self.win_pb.update(lang.sqldriver_execute, 50)
-        if sql_commands is not None:
-            # run SQL script if the database does not yet exist
-            logger.info("Executing sql commands passed in")
-            logger.debug(sql_commands)
-            queries = sql_commands.split(";")  # Split the query string by semicolons
-            for query in queries:
-                self.execute(query)
-        if sql_script is not None:
+
+        if self.sql_script is not None:
             # run SQL script from the file if the database does not yet exist
             logger.info("Executing sql script from file passed in")
-            self.execute_script(sql_script, sql_script_encoding)
-        self.win_pb.close()
+            self.execute_script(self.sql_script, self.sql_script_encoding)
+        if self.sql_commands is not None:
+            # run SQL script if the database does not yet exist
+            logger.info("Executing sql commands passed in")
+            logger.debug(self.sql_commands)
+            queries = self.sql_commands.split(
+                ";"
+            )  # Split the query string by semicolons
+            for query in queries:
+                self.execute(query)
 
     import os
     import sys
 
-    def import_required_modules(self):
+    def _import_required_modules(self):
         global jpype  # noqa PLW0603
         try:
             import jpype  # pip install JPype1
+            import jpype.imports
         except ModuleNotFoundError as e:
-            self.import_failed(e)
+            self._import_failed(e)
 
     def start_jvm(self):
         # Get the path to the 'lib' folder
@@ -11150,7 +11191,7 @@ class MSAccess(SQLDriver):
 
         return tables
 
-    def relationships(self):
+    def get_relationships(self):
         # Get the mapping of uppercase table and column names to their original case
         table_mapping = {table.upper(): table for table in self.get_tables()}
         column_mappings = {
