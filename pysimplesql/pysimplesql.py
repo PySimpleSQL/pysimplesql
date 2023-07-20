@@ -662,37 +662,33 @@ class DataSet:
     duplicate_children: bool = None
     validate_mode: ValidateMode = None
 
-    # setup during init, but not included in args/kwargs
-    # --------------------------------------------------
-    rows: Union[pd.DataFrame, None] = dc.field(default=None, init=False)
-    _current_index: int = dc.field(default=0, init=False)
-    column_info: ColumnInfo = dc.field(default=None, init=False)
-    selector: List[str] = dc.field(default_factory=list, init=False)
-
-    # initally empty clauses
-    join_clause: str = dc.field(default="", init=False)
-    where_clause: str = dc.field(
-        default="", init=False
-    )  # In addition to generated where clause!
-
-    search_order: List[str] = dc.field(default_factory=list, init=False)
-    _last_search: _LastSearch = dc.field(default_factory=_LastSearch, init=False)
-    _search_string: tk.StringVar = dc.field(default=None, init=False)
-
-    callbacks: CallbacksDict = dc.field(default_factory=dict, init=False)
-    transform: Optional[Callable[[pd.DataFrame, int], None]] = dc.field(
-        default=None, init=False
-    )
-    _simple_transform: SimpleTransformsDict = dc.field(default_factory=dict, init=False)
-
-    # Todo: do we need dependents?
-    dependents: list = dc.field(default_factory=list, init=False)
-
     def __post_init__(self, data_key, frm_reference, prompt_save):
         DataSet.instances.append(self)
+
         self.key: str = data_key
         self.frm = frm_reference
         self.driver = self.frm.driver
+        self.relationships = self.driver.relationships
+
+        self.rows: Union[pd.DataFrame, None] = []
+        self._current_index: int = 0
+        self.column_info: ColumnInfo = None
+        self.selector: List[str] = []
+
+        # initally empty clauses
+        self.join_clause: str = ""
+        self.where_clause: str = ""  # In addition to generated where clause!
+
+        self.search_order: List[str] = []
+        self._last_search: _LastSearch = _LastSearch()
+        self._search_string: tk.StringVar = None
+
+        self.callbacks: CallbacksDict = {}
+        self.transform: Optional[Callable[[pd.DataFrame, int], None]] = None
+        self._simple_transform: SimpleTransformsDict = {}
+
+        # Todo: do we need dependents?
+        self.dependents: list = []
 
         # handle where values are not passed in:
         # ---------------------------------------
@@ -3251,32 +3247,6 @@ class Form:
     auto_add_relationships: dc.InitVar[bool] = True
     validate_mode: ValidateMode = ValidateMode.RELAXED
 
-    # init=False attributes
-    window: Optional[sg.Window] = dc.field(default=0, init=False)
-    datasets: Dict[str, DataSet] = dc.field(default_factory=dict, init=False)
-    element_map: List[ElementMap] = dc.field(default_factory=list, init=False)
-    """
-    The element map dict is set up as below:
-
-    .. literalinclude:: ../doc_examples/element_map.1.py
-    :language: python
-    :caption: Example code
-    """
-    event_map: List = dc.field(
-        default_factory=list, init=False
-    )  # Array of dicts, {'event':, 'function':, 'table':}
-    _edit_protect: bool = dc.field(default=False, init=False)
-    relationships: List[Relationship] = dc.field(  # noqa: PIE794
-        default_factory=list, init=False
-    )
-    callbacks: CallbacksDict = dc.field(default_factory=dict, init=False)
-    force_save: bool = dc.field(default=False, init=False)
-    # empty variables, just in-case bind() never called
-    popup: Popup = dc.field(default=None, init=False)
-    _celledit: _CellEdit = dc.field(default=None, init=False)
-    _liveupdate: _LiveUpdate = dc.field(default=None, init=False)
-    _liveupdate_binds: dict = dc.field(default_factory=dict, init=False)
-
     def __post_init__(
         self,
         bind_window,
@@ -3286,6 +3256,27 @@ class Form:
         auto_add_relationships,
     ):
         Form.instances.append(self)
+
+        self.window: Optional[sg.Window] = 0
+        self.datasets: Dict[str, DataSet] = {}
+        self.element_map: List[ElementMap] = []
+        """
+        The element map dict is set up as below:
+
+        .. literalinclude:: ../doc_examples/element_map.1.py
+        :language: python
+        :caption: Example code
+        """
+        self.event_map: List = []  # Array of dicts, {'event':, 'function':, 'table':}
+        self._edit_protect: bool = False
+        self.relationships: RelationshipStore = self.driver.relationships
+        self.callbacks: CallbacksDict = {}
+        self.force_save: bool = False
+        # empty variables, just in-case bind() never called
+        self.popup: Popup = None
+        self._celledit: _CellEdit = None
+        self._liveupdate: _LiveUpdate = None
+        self._liveupdate_binds: dict = {}
 
         self._prompt_save: PROMPT_SAVE_MODES = prompt_save
 
@@ -7077,15 +7068,15 @@ class TableBuilder(list):
     add_save_heading_button: bool = False
     style: TableStyler = dc.field(default_factory=TableStyler)
 
-    _width_map: List[int] = dc.field(default_factory=list, init=False)
-    _col_justify_map: List[int] = dc.field(default_factory=list, init=False)
-    _heading_justify_map: List[int] = dc.field(default_factory=list, init=False)
-    _visible_map: List[bool] = dc.field(default_factory=list, init=False)
-    readonly_columns: List[str] = dc.field(default_factory=list, init=False)
-
     def __post_init__(self):
         # Store this instance in the master list of instances
         TableBuilder.instances.append(self)
+
+        self._width_map: List[int] = []
+        self._col_justify_map: List[int] = []
+        self._heading_justify_map: List[int] = []
+        self._visible_map: List[bool] = []
+        self.readonly_columns: List[str] = []
 
         if self.add_save_heading_button:
             self.insert(0, themepack.unsaved_column_header)
