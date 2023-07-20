@@ -1101,10 +1101,12 @@ class DataSet:
 
         # Make the comparison
         # Temporary debug output
-        # print(
-        #    f"element: {element_val}({type(element_val)}),
-        #    db: {table_val}({type(table_val)})"
-        # )
+        debug = False
+        if debug:
+            print(
+               f"element: {element_val}({type(element_val)})"
+               f"db: {table_val}({type(table_val)})"
+            )
         if element_val != table_val:
             return new_value if new_value is not None else ""
         return Boolean.FALSE
@@ -2885,6 +2887,7 @@ class DataSet:
                 self.requery()
                 self.frm.update_elements()
                 quick_win.close()
+                Form.purge_instance(quick_frm)
                 break
             logger.debug(f"This event ({event}) is not yet handled.")
 
@@ -3292,6 +3295,7 @@ class Form:
         DataSet.purge_form(self, reset_keygen)
         if self.popup.popup_info:
             self.popup.popup_info.close()
+        Form.purge_instance(self)
         self.driver.close()
 
     def bind(self, win: sg.Window) -> None:
@@ -4572,7 +4576,16 @@ class Form:
                     element.update(disabled=disable)
                 if visible is not None:
                     element.update(visible=visible)
+                    
+    @classmethod
+    def purge_instance(cls, frm: Form) -> None:
+        """
+        Remove self from Form.instances
 
+        :param frm: the `Form` to purge
+        :returns: None
+        """
+        cls.instances = [i for i in cls.instances if i != frm]
 
 # =====================================================================================
 # MAIN PYSIMPLESQL UTILITY FUNCTIONS
