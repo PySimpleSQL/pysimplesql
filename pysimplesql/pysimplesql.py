@@ -335,6 +335,8 @@ class TableRow(list):
         return str(self[:])
 
     def __int__(self):
+        if isinstance(self.pk, np.int64):
+            return self.pk.tolist()
         return self.pk
 
     def __repr__(self):
@@ -362,6 +364,8 @@ class ElementRow:
         return str(self.val)
 
     def __int__(self):
+        if isinstance(self.pk, np.int64):
+            return self.pk.tolist()
         return self.pk
 
     def get_pk(self):
