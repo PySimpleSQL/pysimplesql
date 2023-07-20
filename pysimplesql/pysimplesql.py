@@ -8583,7 +8583,8 @@ class ColumnInfo(List):
                     d[c.name] = default
                     continue
                 logger.warning(
-                    f"There was an exception getting the default: {rows.attrs['exception']}"
+                    "There was an exception getting the default: "
+                    f"{rows.attrs['exception']}"
                 )
 
             # The stored default is a literal value, lets try to use it:
@@ -11013,8 +11014,9 @@ class MSAccess(SQLDriver):
             jpype.startJVM(
                 jpype.getDefaultJVMPath(), "-ea", f"-Djava.class.path={classpath}"
             )
-            global java
+            global java  # noqa PLW0603
             import java
+
             return True
         return True
 
@@ -11040,8 +11042,8 @@ class MSAccess(SQLDriver):
             if values:
                 stmt = self.con.prepareStatement(query)
                 for index, value in enumerate(values, start=1):
-                    value = self.adapt(value)
-                    stmt.setObject(index, value)
+                    adapted_value = self.adapt(value)
+                    stmt.setObject(index, adapted_value)
                 has_result_set = stmt.execute()
             else:
                 stmt = self.con.createStatement()
@@ -11102,7 +11104,9 @@ class MSAccess(SQLDriver):
                     res = self.execute("SELECT @@IDENTITY AS ID")
                     lastrowid = res.iloc[0]["ID"]
 
-            return Result.set([dict(row) for row in rows], lastrowid, exception, column_info)
+            return Result.set(
+                [dict(row) for row in rows], lastrowid, exception, column_info
+            )
 
         stmt.getUpdateCount()
         return Result.set([], None, exception, column_info)
@@ -11312,14 +11316,14 @@ class MSAccess(SQLDriver):
             print("Error creating access file:", e)
             return False
         return True
-    
+
     def adapt(self, value):
         if isinstance(value, dt.date):
-            return java.sql.Date@value
+            return java.sql.Date @ value
         if isinstance(value, dt.datetime):
-            return java.sql.Timestamp@value
+            return java.sql.Timestamp @ value
         if isinstance(value, dt.time):
-            return java.sql.Time@value
+            return java.sql.Time @ value
         return value
 
 
