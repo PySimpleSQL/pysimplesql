@@ -1108,8 +1108,8 @@ class DataSet:
         debug = False
         if debug:
             print(
-               f"element: {element_val}({type(element_val)})"
-               f"db: {table_val}({type(table_val)})"
+                f"element: {element_val}({type(element_val)})"
+                f"db: {table_val}({type(table_val)})"
             )
         if element_val != table_val:
             return new_value if new_value is not None else ""
@@ -4580,7 +4580,7 @@ class Form:
                     element.update(disabled=disable)
                 if visible is not None:
                     element.update(visible=visible)
-                    
+
     @classmethod
     def purge_instance(cls, frm: Form) -> None:
         """
@@ -4590,6 +4590,7 @@ class Form:
         :returns: None
         """
         cls.instances = [i for i in cls.instances if i != frm]
+
 
 # =====================================================================================
 # MAIN PYSIMPLESQL UTILITY FUNCTIONS
