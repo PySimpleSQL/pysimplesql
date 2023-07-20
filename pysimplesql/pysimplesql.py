@@ -9334,7 +9334,6 @@ class SQLDriver(ABC):
         # quote appropriately
         table = self.quote_table(table)
 
-        # Remove the primary key column to ensure autoincrement is used!
         query = (
             f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
             f"({','.join(self.placeholder for _ in range(len(row)))}); "
@@ -10533,8 +10532,12 @@ class Postgres(SQLDriver):
         # insert_record() for Postgres is a little different from the rest. Instead of
         # relying on an autoincrement, we first already "reserved" a primary key
         # earlier, so we will use it directly quote appropriately
+
+        # add pk back in if its missing
         row[pk_column] = pk
 
+        # quote
+        row = {self.quote_column(k): v for k, v in row.items()}
         table = self.quote_table(table)
 
         query = (
@@ -10841,7 +10844,6 @@ class Sqlserver(SQLDriver):
         # quote appropriately
         table = self.quote_table(table)
 
-        # Remove the primary key column to ensure autoincrement is used!
         query = (
             f"INSERT INTO {table} ({', '.join(key for key in row)}) "
             f"OUTPUT inserted.{self.quote_column(pk_column)} "
@@ -11252,21 +11254,6 @@ class MSAccess(SQLDriver):
         res = self.execute("SELECT @@IDENTITY AS ID")
         res.attrs["lastrowid"] = res.iloc[0]["ID"].tolist()
         return res
-
-    def insert_record(self, table: str, pk: int, pk_column: str, row: dict):
-        # Remove the pk column
-        row = {self.quote_column(k): v for k, v in row.items() if k != pk_column}
-
-        # quote appropriately
-        table = self.quote_table(table)
-
-        # Remove the primary key column to ensure autoincrement is used!
-        query = (
-            f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
-            f"({','.join(self.placeholder for _ in range(len(row)))}); "
-        )
-        values = [value for key, value in row.items()]
-        return self.execute(query, tuple(values))
 
     def _create_access_file(self):
         try:
