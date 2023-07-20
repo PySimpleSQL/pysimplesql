@@ -11013,6 +11013,8 @@ class MSAccess(SQLDriver):
             jpype.startJVM(
                 jpype.getDefaultJVMPath(), "-ea", f"-Djava.class.path={classpath}"
             )
+            global java
+            import java
             return True
         return True
 
@@ -11038,6 +11040,7 @@ class MSAccess(SQLDriver):
             if values:
                 stmt = self.con.prepareStatement(query)
                 for index, value in enumerate(values, start=1):
+                    value = self.adapt(value)
                     stmt.setObject(index, value)
                 has_result_set = stmt.execute()
             else:
@@ -11099,7 +11102,7 @@ class MSAccess(SQLDriver):
                     res = self.execute("SELECT @@IDENTITY AS ID")
                     lastrowid = res.iloc[0]["ID"]
 
-            return Result.set(rows, lastrowid, exception, column_info)
+            return Result.set([dict(row) for row in rows], lastrowid, exception, column_info)
 
         stmt.getUpdateCount()
         return Result.set([], None, exception, column_info)
@@ -11143,17 +11146,17 @@ class MSAccess(SQLDriver):
             name = str(rs.getString("column_name"))
             domain = str(rs.getString("TYPE_NAME")).upper()
             notnull = str(rs.getString("IS_NULLABLE")) == "NO"
-            default = str(rs.getString("COLUMN_DEF"))
+            default = str(rs.getString("COLUMN_DEF")).lstrip("=")
             pk = name in pk_columns
             generated = str(rs.getString("IS_GENERATEDCOLUMN")) == "YES"
-            col_class = self.get_column_class(domain) or Column
+            col_class = self._get_column_class(domain) or Column
 
             domain_args = []
             # handling Date/Time columns, since they are all reported as DateTime
             if self.infer_datetype_from_default_function and col_class == DateTimeCol:
-                if default == "=Date()":
+                if default == "DATE()":
                     col_class = DateCol
-                elif default == "=Time()":
+                elif default == "TIME()":
                     col_class = TimeCol
             if col_class in [DecimalCol, FloatCol, IntCol, StrCol]:
                 domain_args = [str(rs.getString("COLUMN_SIZE"))]
@@ -11309,6 +11312,15 @@ class MSAccess(SQLDriver):
             print("Error creating access file:", e)
             return False
         return True
+    
+    def adapt(self, value):
+        if isinstance(value, dt.date):
+            return java.sql.Date@value
+        if isinstance(value, dt.datetime):
+            return java.sql.Timestamp@value
+        if isinstance(value, dt.time):
+            return java.sql.Time@value
+        return value
 
 
 # --------------------------
