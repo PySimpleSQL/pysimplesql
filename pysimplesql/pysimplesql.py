@@ -11017,6 +11017,9 @@ class MSAccess(SQLDriver):
             global java  # noqa PLW0603
             import java
 
+            self._register_default_adapters()
+            self._register_default_converters()
+
             return True
         return True
 
@@ -11069,33 +11072,7 @@ class MSAccess(SQLDriver):
                 for i in range(1, column_count + 1):
                     column_name = str(metadata.getColumnName(i))
                     value = rs.getObject(i)
-
-                    if isinstance(value, jpype.JPackage("java").lang.String):
-                        value = str(value)
-                    elif isinstance(value, jpype.JPackage("java").lang.Integer):
-                        value = int(value)
-                    elif isinstance(value, jpype.JPackage("java").math.BigDecimal):
-                        value = float(value.doubleValue())
-                    elif isinstance(value, jpype.JPackage("java").lang.Double):
-                        value = float(value)
-                    if isinstance(value, jpype.JPackage("java").sql.Timestamp):
-                        timestamp_str = value.toInstant().toString()[:-1]
-                        if "." in timestamp_str:
-                            timestamp_format = TIMESTAMP_FORMAT_MICROSECOND
-                        else:
-                            timestamp_format = TIMESTAMP_FORMAT
-                        dt_value = dt.datetime.strptime(timestamp_str, timestamp_format)
-                        value = dt_value.strftime(DATE_FORMAT)
-                    elif isinstance(value, jpype.JPackage("java").sql.Date):
-                        date_str = value.toString()
-                        value = dt.datetime.strptime(date_str, DATE_FORMAT).date()
-                    elif isinstance(value, jpype.JPackage("java").sql.Time):
-                        time_str = value.toString()
-                        value = dt.datetime.strptime(time_str, TIME_FORMAT).time()
-                    elif value is not None:
-                        value = value
-                    # TODO: More conversions?
-
+                    value = self.convert(value)
                     row[column_name] = value
                 rows.append(row)
 
@@ -11318,13 +11295,47 @@ class MSAccess(SQLDriver):
         return True
 
     def adapt(self, value):
-        if isinstance(value, dt.date):
-            return java.sql.Date @ value
-        if isinstance(value, dt.datetime):
-            return java.sql.Timestamp @ value
-        if isinstance(value, dt.time):
-            return java.sql.Time @ value
+        for py_type, java_type in self.adapters.items():
+            if isinstance(value, py_type):
+                return java_type @ value
         return value
+
+    def convert(self, value):
+        for java_type, converter_fn in self.converters.items():
+            if isinstance(value, java_type):
+                return converter_fn(value)
+        return value
+
+    def _register_default_adapters(self):
+        self.adapters = {
+            dt.date: java.sql.Date,
+            dt.datetime: java.sql.Timestamp,
+            dt.time: java.sql.Time,
+        }
+
+    def _register_default_converters(self):
+        self.converters = {
+            jpype.JPackage("java").lang.String: lambda value: str(value),
+            jpype.JPackage("java").lang.Integer: lambda value: int(value),
+            jpype.JPackage("java").math.BigDecimal: lambda value: float(
+                value.doubleValue()
+            ),
+            jpype.JPackage("java").lang.Double: lambda value: float(value),
+            jpype.JPackage("java")
+            .sql.Timestamp: lambda value: dt.datetime.strptime(
+                value.toInstant().toString()[:-1],
+                TIMESTAMP_FORMAT_MICROSECOND
+                if "." in value.toInstant().toString()[:-1]
+                else TIMESTAMP_FORMAT,
+            )
+            .strftime(DATE_FORMAT),
+            jpype.JPackage("java")
+            .sql.Date: lambda value: dt.datetime.strptime(value.toString(), DATE_FORMAT)
+            .date(),
+            jpype.JPackage("java")
+            .sql.Time: lambda value: dt.datetime.strptime(value.toString(), TIME_FORMAT)
+            .time(),
+        }
 
 
 # --------------------------
