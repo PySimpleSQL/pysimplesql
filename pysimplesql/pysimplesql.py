@@ -10533,9 +10533,10 @@ class Postgres(SQLDriver):
         # insert_record() for Postgres is a little different from the rest. Instead of
         # relying on an autoincrement, we first already "reserved" a primary key
         # earlier, so we will use it directly quote appropriately
+        row[pk_column] = pk
+
         table = self.quote_table(table)
 
-        # Remove the primary key column to ensure autoincrement is used!
         query = (
             f"INSERT INTO {table} ({', '.join(key for key in row)}) VALUES "
             f"({','.join('%s' for _ in range(len(row)))}); "
