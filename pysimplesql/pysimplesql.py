@@ -3253,13 +3253,6 @@ class Form:
         self.window: Optional[sg.Window] = 0
         self.datasets: Dict[str, DataSet] = {}
         self.element_map: List[ElementMap] = []
-        """
-        The element map dict is set up as below:
-
-        .. literalinclude:: ../doc_examples/element_map.1.py
-        :language: python
-        :caption: Example code
-        """
         self.event_map: List = []  # Array of dicts, {'event':, 'function':, 'table':}
         self._edit_protect: bool = False
         self.relationships: RelationshipStore = self.driver.relationships
