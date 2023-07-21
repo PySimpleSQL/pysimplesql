@@ -657,7 +657,7 @@ class DataSet:
         self.driver = self.frm.driver
         self.relationships = self.driver.relationships
 
-        self.rows: Union[pd.DataFrame, None] = Result.set()
+        self.rows: pd.DataFrame = Result.set()
         self._current_index: int = 0
         self.column_info: ColumnInfo = None
         self.selector: List[str] = []
