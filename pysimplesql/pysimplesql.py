@@ -2908,7 +2908,7 @@ class DataSet:
                 self.requery()
                 self.frm.update_elements()
                 quick_win.close()
-                Form.purge_instance(quick_frm)
+                quick_frm.close(close_driver=False)
                 break
             logger.debug(f"This event ({event}) is not yet handled.")
 
@@ -3302,7 +3302,7 @@ class Form:
                 f"proper permissions set, or any number of db configuration issues."
             ) from e
 
-    def close(self, reset_keygen: bool = True):
+    def close(self, reset_keygen: bool = True, close_driver: bool = True):
         """
         Safely close out the `Form`.
 
@@ -3313,7 +3313,8 @@ class Form:
         if self.popup.popup_info:
             self.popup.popup_info.close()
         Form.purge_instance(self)
-        self.driver.close()
+        if close_driver:
+            self.driver.close()
 
     def bind(self, win: sg.Window) -> None:
         """
