@@ -10463,7 +10463,10 @@ class Postgres(SQLDriver):
 
     def column_info(self, table: str) -> ColumnInfo:
         # Return a list of column names
-        query = f"SELECT * FROM information_schema.columns WHERE table_name = '{table}'"
+        query = (
+            f"SELECT * FROM information_schema.columns WHERE table_name = '{table}' "
+            "ORDER BY ordinal_position"
+        )
         rows = self.execute(query, silent=True)
         col_info = ColumnInfo(self, table)
         pk_column = self.pk_column(table)
