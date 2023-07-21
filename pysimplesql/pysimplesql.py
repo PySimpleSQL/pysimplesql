@@ -3196,8 +3196,6 @@ class Form:
 
     :param driver: Supported `SQLDriver`. See `Sqlite()`, `Mysql()`, `Postgres()`
     :param bind_window: Bind this window to the `Form`
-    :param prefix_data_keys: (optional) prefix auto generated data_key names with
-        this value. Example 'data_'
     :param parent: (optional)Parent `Form` to base dataset off of
     :param filter: (optional) Only import elements with the same filter set.
         Typically set with `field()`, but can also be set manually as a dict with
@@ -3232,7 +3230,6 @@ class Form:
 
     driver: SQLDriver
     bind_window: dc.InitVar[sg.Window] = None
-    prefix_data_keys: dc.InitVar[str] = ""
     parent: Form = None  # TODO: This doesn't seem to really be used
     filter: str = None
     select_first: dc.InitVar[bool] = True
@@ -3248,7 +3245,6 @@ class Form:
     def __post_init__(
         self,
         bind_window,
-        prefix_data_keys,
         select_first,
         prompt_save,
     ):
@@ -3281,7 +3277,7 @@ class Form:
         win_pb.update(lang.startup_init, 0)
         # Add our default datasets and relationships
         win_pb.update(lang.startup_datasets, 25)
-        self.auto_add_datasets(prefix_data_keys)
+        self.auto_add_datasets()
         win_pb.update(lang.startup_relationships, 50)
         self.requery_all(
             select_first=select_first, update_elements=False, requery_dependents=True
@@ -3472,7 +3468,7 @@ class Form:
                 if delete_cascade is not None:
                     rel.delete_cascade = delete_cascade
 
-    def auto_add_datasets(self, prefix_data_keys: str = "") -> None:
+    def auto_add_datasets(self) -> None:
         """
         Automatically add `DataSet` objects from the database by looping through the
         tables available and creating a `DataSet` object for each. Each dataset key is
@@ -3481,7 +3477,6 @@ class Form:
         This is called automatically when a `Form ` is created. Note that
         `Form.add_table()` can do this manually on a per-table basis.
 
-        :param prefix_data_keys: Adds a prefix to the auto-generated `DataSet` keys
         :returns: None
         """
         logger.info(
@@ -3504,7 +3499,7 @@ class Form:
             # Get our pk column
             pk_column = self.driver.pk_column(table)
 
-            data_key = prefix_data_keys + table
+            data_key = table
             logger.debug(
                 f'Adding DataSet "{data_key}" on table {table} to Form with primary '
                 f"key {pk_column} and description of {description_column}"
