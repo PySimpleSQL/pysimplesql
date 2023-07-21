@@ -657,7 +657,7 @@ class DataSet:
         self.driver = self.frm.driver
         self.relationships = self.driver.relationships
 
-        self.rows: Union[pd.DataFrame, None] = []
+        self.rows: Union[pd.DataFrame, None] = Result.set()
         self._current_index: int = 0
         self.column_info: ColumnInfo = None
         self.selector: List[str] = []
@@ -1212,7 +1212,7 @@ class DataSet:
                 or self.relationships.parent_virtual(self.table, self.frm)
             ):
                 # purge rows
-                self.rows = Result.set(pd.DataFrame(columns=self.rows.columns))
+                self.rows = Result.set(pd.DataFrame(columns=self.column_info.names()))
 
                 if update_elements:
                     self.frm.update_elements(self.key)
@@ -1256,6 +1256,10 @@ class DataSet:
         self.rows.loc[:, :] = self.rows.applymap(
             lambda x: x.rstrip() if isinstance(x, str) else x
         )
+
+        # fill in columns if empty
+        if self.rows.columns.empty:
+            self.rows = Result.set(pd.DataFrame(columns=self.column_info.names()))
 
         # reset search string
         self.search_string = ""
@@ -2579,6 +2583,10 @@ class DataSet:
         # get fk descriptions
         rows = self.map_fk_descriptions(rows, columns)
 
+        # return early if empty
+        if rows.empty:
+            return []
+
         # filter rows to only contain search, or virtual/unsaved row
         if apply_search_filter and self.search_string not in EMPTY:
             masks = [
@@ -2658,6 +2666,9 @@ class DataSet:
         if rel is None:
             return None
 
+        if not self.frm[rel.parent_table].row_count:
+            return None
+
         rows = self.frm[rel.parent_table].rows.copy()
         pk_column = self.frm[rel.parent_table].pk_column
         description = self.frm[rel.parent_table].description_column
@@ -2711,6 +2722,10 @@ class DataSet:
         for col in columns:
             for rel in rels:
                 if col == rel.fk_column:
+                    # return early if parent is empty
+                    if not self.frm[rel.parent_table].row_count:
+                        return rows
+
                     parent_df = self.frm[rel.parent_table].rows
                     parent_pk_column = self.frm[rel.parent_table].pk_column
 
@@ -2783,7 +2798,9 @@ class DataSet:
             width = int(55 / (len(self.column_info.names()) - 1))
             if col == self.pk_column:
                 # make pk column either max length of contained pks, or len of name
-                width = max(self.rows[col].astype(str).map(len).max(), len(col) + 1)
+                width = int(
+                    np.nanmax([self.rows[col].astype(str).map(len).max(), len(col) + 1])
+                )
                 justify = "left"
             elif self.column_info[col] and self.column_info[col].python_type in [
                 int,
@@ -4483,9 +4500,10 @@ class Form:
             must = True to use this parameter.
         :returns: None
         """
-        # TODO: It would make sense to reorder these, and put filtered first
-        # then select_first/update/dependents
+
         logger.info("Requerying all datasets")
+
+        # first let datasets requery through cascade
         for data_key in self.datasets:
             if self.relationships.get_parent(data_key) is None:
                 self[data_key].requery(
@@ -4493,6 +4511,13 @@ class Form:
                     filtered=filtered,
                     update_elements=update_elements,
                     requery_dependents=requery_dependents,
+                )
+
+        # fill in any datasets that are empty
+        for data_key in self.datasets:
+            if self[data_key].rows.columns.empty:
+                self[data_key].rows = Result.set(
+                    pd.DataFrame(columns=self[data_key].column_info.names())
                 )
 
     def process_events(self, event: str, values: list) -> bool:
@@ -7231,15 +7256,14 @@ class _HeadingCallback:
         self.data_key = data_key
 
     def __call__(self, column, save):
+        dataset = self.frm[self.data_key]
         if save:
-            self.frm[self.data_key].save_record()
+            dataset.save_record()
             # force a timeout, without this
             # info popup creation broke pysimplegui events, weird!
             self.frm.window.read(timeout=1)
-        else:
-            self.frm[self.data_key].sort_cycle(
-                column, self.data_key, update_elements=True
-            )
+        elif dataset.row_count:  # len(dataset.rows.index) - len(dataset.virtual_pks):
+            dataset.sort_cycle(column, self.data_key, update_elements=True)
 
 
 class _CellEdit:
@@ -8405,6 +8429,10 @@ class DecimalCol(LocaleCol, MinMaxCol):
             return response
 
         value = self.cast(value)
+
+        if isinstance(value, str) and value in EMPTY:
+            return ValidateResponse()
+
         value_precision = len(value.as_tuple().digits)
         if self.precision is not None and value_precision > self.precision:
             return ValidateResponse(ValidateRule.PRECISION, value, self.precision)
@@ -8523,9 +8551,9 @@ class ColumnInfo(List):
             "float": 0.0,
             "Decimal": Decimal(0),
             "bool": 0,
-            "time": lambda x: dt.datetime.now().strftime(TIME_FORMAT),
-            "date": lambda x: dt.date.today().strftime(DATE_FORMAT),
-            "datetime": lambda x: dt.datetime.now().strftime(DATETIME_FORMAT),
+            "time": lambda: dt.datetime.now().strftime(TIME_FORMAT),
+            "date": lambda: dt.date.today().strftime(DATE_FORMAT),
+            "datetime": lambda: dt.datetime.now().strftime(DATETIME_FORMAT),
         }
         super().__init__()
 
@@ -8593,13 +8621,14 @@ class ColumnInfo(List):
                 if rows.attrs["exception"] is None:
                     try:
                         default = rows.iloc[0]["val"]
-                    except KeyError:
+                    except IndexError:
                         try:
                             default = rows.iloc[0]["VAL"]
-                        except KeyError:
-                            default = ""
-                    d[c.name] = default
-                    continue
+                        except IndexError:
+                            default = None
+                    if default is not None:
+                        d[c.name] = default
+                        continue
                 logger.warning(
                     "There was an exception getting the default: "
                     f"{rows.attrs['exception']}"
@@ -8764,6 +8793,7 @@ class Result:
         rows.attrs["column_info"] = column_info
         rows.attrs["row_backup"] = row_backup
         rows.attrs["virtual"] = []
+        rows.attrs["sort_column"] = None
         return rows
 
 
@@ -10766,7 +10796,9 @@ class Sqlserver(SQLDriver):
             if row["COLUMN_DEFAULT"]:
                 col_default = row["COLUMN_DEFAULT"]
                 if (col_default.startswith("('") and col_default.endswith("')")) or (
-                    col_default.startswith('("') and col_default.endswith('")')
+                    col_default.startswith('("')
+                    and col_default.endswith('")')
+                    or (col_default.startswith("((") and col_default.endswith("))"))
                 ):
                     default = col_default[2:-2]
                 else:
