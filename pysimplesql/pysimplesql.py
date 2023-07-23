@@ -318,8 +318,8 @@ class CellFormatFn:
 # -------
 # CLASSES
 # -------
-# TODO: Combine TableRow and ElementRow into one class for simplicity
-class TableRow(list):
+# TODO: Combine _TableRow and _ElementRow into one class for simplicity
+class _TableRow(list):
 
     """
     Convenience class used by Tables to associate a primary key with a row of data.
@@ -341,10 +341,10 @@ class TableRow(list):
 
     def __repr__(self):
         # Add some extra information that could be useful for debugging
-        return f"TableRow(pk={self.pk}): {super().__repr__()}"
+        return f"_TableRow(pk={self.pk}): {super().__repr__()}"
 
 
-class ElementRow:
+class _ElementRow:
 
     """
     Convenience class used by listboxes and comboboxes to associate a primary key with
@@ -531,7 +531,7 @@ class RelationshipStore(list):
     def get_dependent_columns(self, frm_reference: Form, table: str) -> Dict[str, str]:
         """
         Returns a dictionary of the `DataSet.key` and column names that use the
-        description_column text of the given parent table in their `ElementRow` objects.
+        description_column text of the given parent table in their `_ElementRow` objects.
 
         This method is used to determine which GUI field and selector elements to update
         when a new `DataSet.description_column` value is saved. The returned dictionary
@@ -1212,7 +1212,7 @@ class DataSet:
                 or self.relationships.parent_virtual(self.table, self.frm)
             ):
                 # purge rows
-                self.rows = Result.set(pd.DataFrame(columns=self.column_info.names()))
+                self.rows = Result.set(pd.DataFrame(columns=self.column_info.names))
 
                 if update_elements:
                     self.frm.update_elements(self.key)
@@ -1259,7 +1259,7 @@ class DataSet:
 
         # fill in columns if empty
         if self.rows.columns.empty:
-            self.rows = Result.set(pd.DataFrame(columns=self.column_info.names()))
+            self.rows = Result.set(pd.DataFrame(columns=self.column_info.names))
 
         # reset search string
         self.search_string = ""
@@ -1949,7 +1949,7 @@ class DataSet:
 
             # convert the data into the correct type using the domain in ColumnInfo
             if isinstance(mapped.element, sg.Combo):
-                # try to get ElementRow pk
+                # try to get _ElementRow pk
                 try:
                     element_val = self.column_info[mapped.column].cast(
                         mapped.element.get().get_pk_ignore_placeholder()
@@ -2532,9 +2532,9 @@ class DataSet:
         mark_unsaved: bool = False,
         apply_search_filter: bool = False,
         apply_cell_format_fn: bool = True,
-    ) -> List[TableRow]:
+    ) -> List[_TableRow]:
         """
-        Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
+        Create a values list of `_TableRows`s for use in a PySimpleGUI Table element.
 
         :param columns: A list of column names to create table values for.
             Defaults to getting them from the `DataSet.rows` DataFrame.
@@ -2544,7 +2544,7 @@ class DataSet:
             `DataSet.search_order` that contain `DataSet.search_string`.
         :param apply_cell_format_fn: If set, apply()
             `DataSet.column_info[col].cell_format_fn` to rows column
-        :returns: A list of `TableRow`s suitable for using with PySimpleGUI Table
+        :returns: A list of `_TableRow`s suitable for using with PySimpleGUI Table
             element values.
         """
         if not self.row_count:
@@ -2615,9 +2615,9 @@ class DataSet:
         # resort rows with requested columns
         rows = rows[columns]
 
-        # fastest way yet to generate list of TableRows
+        # fastest way yet to generate list of _TableRows
         return [
-            TableRow(pk, values.tolist())
+            _TableRow(pk, values.tolist())
             for pk, values in zip(
                 rows.index,
                 np.vstack((rows.fillna("").astype("O").to_numpy().T, rows.index)).T,
@@ -2650,12 +2650,12 @@ class DataSet:
 
     def combobox_values(
         self, column_name, insert_placeholder: bool = True
-    ) -> List[ElementRow] or None:
+    ) -> List[_ElementRow] or None:
         """
-        Returns the values to use in a sg.Combobox as a list of ElementRow objects.
+        Returns the values to use in a sg.Combobox as a list of _ElementRow objects.
 
         :param column_name: The name of the table column for which to get the values.
-        :returns: A list of ElementRow objects representing the possible values for the
+        :returns: A list of _ElementRow objects representing the possible values for the
             combobox column, or None if no matching relationship is found.
         """
         if not self.row_count:
@@ -2677,14 +2677,14 @@ class DataSet:
         parent_current_row = self.frm[rel.parent_table].get_original_current_row()
         rows.iloc[self.frm[rel.parent_table].current_index] = parent_current_row
 
-        # fastest way yet to generate this list of ElementRow
+        # fastest way yet to generate this list of _ElementRow
         combobox_values = [
-            ElementRow(*values)
+            _ElementRow(*values)
             for values in np.column_stack((rows[pk_column], rows[description]))
         ]
 
         if insert_placeholder:
-            combobox_values.insert(0, ElementRow("Null", lang.combo_placeholder))
+            combobox_values.insert(0, _ElementRow("Null", lang.combo_placeholder))
         return combobox_values
 
     def get_related_table_for_column(self, column: str) -> str:
@@ -2793,9 +2793,9 @@ class DataSet:
             style=TableStyler(row_height=25),
         )
 
-        for col in self.column_info.names():
+        for col in self.column_info.names:
             # set widths
-            width = int(55 / (len(self.column_info.names()) - 1))
+            width = int(55 / (len(self.column_info.names) - 1))
             if col == self.pk_column:
                 # make pk column either max length of contained pks, or len of name
                 width = int(
@@ -2830,7 +2830,7 @@ class DataSet:
         fields_layout = [[sg.Sizer(h_pixels=0, v_pixels=y_pad)]]
 
         rels = self.relationships.get_rels_for(self.table)
-        for col in self.column_info.names():
+        for col in self.column_info.names:
             found = False
             column = f"{data_key}.{col}"
             # make sure isn't pk
@@ -3078,7 +3078,7 @@ class DataSet:
         if update_elements and self.row_count:
             self.frm.update_selectors(self.key)
             self.frm.update_actions(self.key)
-            self.update_headings(self.rows.attrs["sort_column"], sort_order)
+            self._update_headings(self.rows.attrs["sort_column"], sort_order)
 
     def sort_cycle(self, column: str, table: str, update_elements: bool = True) -> int:
         """
@@ -3105,14 +3105,14 @@ class DataSet:
         self.sort(table, update_elements=update_elements, sort_order=SORT_NONE)
         return SORT_NONE
 
-    def update_headings(self, column, sort_order):
+    def _update_headings(self, column, sort_order):
         for e in self.selector:
             element = e["element"]
             if (
                 "TableBuilder" in element.metadata
                 and element.metadata["TableBuilder"].sort_enable
             ):
-                element.metadata["TableBuilder"].update_headings(
+                element.metadata["TableBuilder"]._update_headings(
                     element, column, sort_order
                 )
 
@@ -3485,7 +3485,7 @@ class Form:
             # auto generate description column.  Default it to the 2nd column,
             # but can be overwritten below
             description_column = column_info.col_name(1)
-            for col in column_info.names():
+            for col in column_info.names:
                 if col in self.description_column_names:
                     description_column = col
                     break
@@ -3628,7 +3628,7 @@ class Form:
                         element, self[table], col, where_column, where_value
                     )
                     if isinstance(element, (_EnhancedInput, _EnhancedMultiline)) and (
-                        col in self[table].column_info.names()
+                        col in self[table].column_info.names
                         and self[table].column_info[col].notnull
                     ):
                         element.add_placeholder(
@@ -3637,7 +3637,7 @@ class Form:
                         )
                     if (
                         isinstance(element, _EnhancedInput)
-                        and col in self[table].column_info.names()
+                        and col in self[table].column_info.names
                     ):
                         element.add_validate(self[table], col)
 
@@ -3670,7 +3670,7 @@ class Form:
                         # We need a whole chain of things to happen
                         # when a heading is clicked on:
                         # 1 Run the ResultRow.sort_cycle() with the correct column name
-                        # 2 Run TableBuilder.update_headings() with the:
+                        # 2 Run TableBuilder._update_headings() with the:
                         #   Table element, sort_column, sort_reverse
                         # 3 Run update_elements() to see the changes
                         table_builder.enable_heading_function(
@@ -4218,7 +4218,7 @@ class Form:
                     col = mapped.column
                     # get notnull from the column info
                     if (
-                        col in mapped.dataset.column_info.names()
+                        col in mapped.dataset.column_info.names
                         and mapped.dataset.column_info[col].notnull
                     ):
                         self.window[marker_key].update(
@@ -4393,13 +4393,13 @@ class Form:
                                 # TODO: Kind of a hackish way to check for equality.
                                 if str(r[e["where_column"]]) == str(e["where_value"]):
                                     lst.append(
-                                        ElementRow(r[pk_column], r[description_column])
+                                        _ElementRow(r[pk_column], r[description_column])
                                     )
                                 else:
                                     pass
                             else:
                                 lst.append(
-                                    ElementRow(r[pk_column], r[description_column])
+                                    _ElementRow(r[pk_column], r[description_column])
                                 )
 
                         element.update(
@@ -4506,7 +4506,7 @@ class Form:
         for data_key in self.datasets:
             if self[data_key].rows.columns.empty:
                 self[data_key].rows = Result.set(
-                    pd.DataFrame(columns=self[data_key].column_info.names())
+                    pd.DataFrame(columns=self[data_key].column_info.names)
                 )
 
     def process_events(self, event: str, values: list) -> bool:
@@ -4691,7 +4691,7 @@ def simple_transform(dataset: DataSet, row, encode):
 def update_table_element(
     window: sg.Window,
     element: Type[sg.Table],
-    values: List[TableRow],
+    values: List[_TableRow],
     select_rows: List[int],
 ) -> None:
     """
@@ -5327,7 +5327,7 @@ class LazyTable(sg.Table):
     To use, simply replace `sg.Table` with `ss.LazyTable` as the `element` argument in a
     selector() function call in your layout.
 
-    Expects values in the form of [TableRow(pk, values)], and only becomes active after
+    Expects values in the form of [_TableRow(pk, values)], and only becomes active after
     a update(values=, selected_rows=[int]) call. Please note that LazyTable does not
     support the `sg.Table` `row_colors` argument.
     """
@@ -5526,7 +5526,7 @@ class LazyTable(sg.Table):
         self._start_index = new_start_index
 
         # Insert new_rows to beginning
-        # don't use data.insert(0, new_rows), it breaks TableRow
+        # don't use data.insert(0, new_rows), it breaks _TableRow
         self.data[:0] = new_rows
 
         # to avoid an infinite scroll, move scroll a little after 0.0
@@ -5887,7 +5887,7 @@ class _SearchInput(_EnhancedInput):
 
 
 class _AutoCompleteLogic:
-    _completion_list: List[Union[str, ElementRow]] = dc.field(default_factory=list)
+    _completion_list: List[Union[str, _ElementRow]] = dc.field(default_factory=list)
     _hits: List[int] = dc.field(default_factory=list)
     _hit_index: int = 0
     position: int = 0
@@ -7022,7 +7022,7 @@ class TableBuilder(list):
         """
         Add a new heading column to this TableBuilder object.  Columns are added in the
         order that this method is called. Note that the primary key column does not need
-        to be included, as primary keys are stored internally in the `TableRow` class.
+        to be included, as primary keys are stored internally in the `_TableRow` class.
 
         :param column: The name of the column in the database
         :param heading: The name of this columns heading (title)
@@ -7162,7 +7162,7 @@ class TableBuilder(list):
         """
         return list(self._width_map)
 
-    def update_headings(
+    def _update_headings(
         self, element: sg.Table, sort_column=None, sort_order: int = None
     ) -> None:
         """
@@ -7221,7 +7221,7 @@ class TableBuilder(list):
                     element.widget.heading(
                         i, command=functools.partial(fn, self[i]["column"], False)
                     )
-            self.update_headings(element)
+            self._update_headings(element)
         if self.add_save_heading_button:
             element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
@@ -7484,7 +7484,7 @@ class _CellEdit:
         row,
         column,
         col_idx,
-        combobox_values: ElementRow,
+        combobox_values: _ElementRow,
         widget_type,
         field_var,
     ):
@@ -7661,7 +7661,7 @@ class _LiveUpdate:
                 data_key = e["table"]
                 column = e["column"]
                 element = e["element"]
-                if widget_type == TK_COMBOBOX and isinstance(element.get(), ElementRow):
+                if widget_type == TK_COMBOBOX and isinstance(element.get(), _ElementRow):
                     new_value = element.get().get_pk_ignore_placeholder()
                 else:
                     new_value = element.get()
@@ -8455,7 +8455,7 @@ class IntCol(LocaleCol, LengthCol, MinMaxCol):
         value_backup = value
         if isinstance(value, int):
             return value
-        if isinstance(value, ElementRow):
+        if isinstance(value, _ElementRow):
             return int(value)
         try:
             value = self.strip_locale(value)
@@ -8556,6 +8556,7 @@ class ColumnInfo(List):
             return next((i for i in self if i.name == item), None)
         return super().__getitem__(item)
 
+    @property
     def pk_column(self) -> Union[str, None]:
         """
         Get the pk_column for this colection of column_info.
@@ -8568,6 +8569,7 @@ class ColumnInfo(List):
                 return c.name
         return None
 
+    @property
     def names(self) -> List[str]:
         """
         Return a List of column names from the `Column`s in this collection.
@@ -8783,6 +8785,7 @@ class Result:
         rows.attrs["row_backup"] = row_backup
         rows.attrs["virtual"] = []
         rows.attrs["sort_column"] = None
+        rows.attrs["sort_reverse"] = None
         return rows
 
 
