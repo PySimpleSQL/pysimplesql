@@ -531,7 +531,8 @@ class RelationshipStore(list):
     def get_dependent_columns(self, frm_reference: Form, table: str) -> Dict[str, str]:
         """
         Returns a dictionary of the `DataSet.key` and column names that use the
-        description_column text of the given parent table in their `_ElementRow` objects.
+        description_column text of the given parent table in their `_ElementRow`
+        objects.
 
         This method is used to determine which GUI field and selector elements to update
         when a new `DataSet.description_column` value is saved. The returned dictionary
@@ -7661,7 +7662,9 @@ class _LiveUpdate:
                 data_key = e["table"]
                 column = e["column"]
                 element = e["element"]
-                if widget_type == TK_COMBOBOX and isinstance(element.get(), _ElementRow):
+                if widget_type == TK_COMBOBOX and isinstance(
+                    element.get(), _ElementRow
+                ):
                     new_value = element.get().get_pk_ignore_placeholder()
                 else:
                     new_value = element.get()
