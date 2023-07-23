@@ -28,11 +28,11 @@ def main():
         install_requires=app.__requires__,
         extras_require=app.__extra_requires__,
         classifiers=app.__classifiers__,
-        license=[
+        license=next(
             c.rsplit("::", 1)[1].strip()
             for c in app.__classifiers__
             if c.startswith("License ::")
-        ][0],
+        ),
         include_package_data=True,
         platforms=app.__platforms__,
     )

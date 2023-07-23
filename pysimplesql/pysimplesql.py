@@ -250,7 +250,6 @@ DECIMAL_SCALE = 2
 TableJustify = Literal["left", "right", "center"]
 ColumnJustify = Literal["left", "right", "center", "default"]
 HeadingJustify = Literal["left", "right", "center", "column", "default"]
-InMemory = Literal[":memory:"]
 
 # --------------------
 # DateTime formats
@@ -5390,7 +5389,7 @@ class LazyTable(sg.Table):
         if self.data and self.widget.selection():
             index = [
                 [v.pk for v in self.data].index(
-                    [int(x) for x in self.widget.selection()][0]
+                    next(int(x) for x in self.widget.selection())
                 )
             ][0]
             return self.data[index]
@@ -9543,7 +9542,7 @@ class Sqlite(SQLDriver):
         database: Union[
             str,
             Path,
-            InMemory,
+            Literal[":memory:"],
             sqlite3.Connection,
         ] = None,
         *,
