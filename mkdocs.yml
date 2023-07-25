@@ -1,3 +1,5 @@
+# mkdocs gh-deploy --no-history
+
 site_name: pysimplesql
 site_url: https://example.com/
 
@@ -16,5 +18,5 @@ plugins:
     handlers:
       python:
         options:
-          docstring_style: "sphinx"
+          docstring_style: "google"
 

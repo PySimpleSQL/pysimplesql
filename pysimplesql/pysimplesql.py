@@ -831,31 +831,31 @@ class DataSet:
         supported.
 
         The following callbacks are supported:
-            before_save   called before a record is saved. The save will continue if the
-                callback returns true, or the record will rollback if the callback
+            - before_save: called before a record is saved. The save will continue if
+                the callback returns true, or the record will rollback if the callback
                 returns false.
-            after_save    called after a record is saved. The save will commit to the
+            - after_save: called after a record is saved. The save will commit to the
                 database if the callback returns true, else it will rollback the
                 transaction
-            before_update Alias for before_save
-            after_update  Alias for after_save
-            before_delete called before a record is deleted.  The delete will move
+            - before_update: Alias for before_save
+            - after_update:  Alias for after_save
+            - before_delete: called before a record is deleted.  The delete will move
                 forward if the callback returns true, else the transaction will rollback
-            after_delete  called after a record is deleted. The delete will commit to
+            - after_delete: called after a record is deleted. The delete will commit to
                 the database if the callback returns true, else it will rollback the
                 transaction
-            before_duplicate called before a record is duplicate.  The duplicate will
+            - before_duplicate: called before a record is duplicate.  The duplicate will
                 move forward if the callback returns true, else the transaction will
                 rollback
-            after_duplicate  called after a record is duplicate. The duplicate will
+            - after_duplicate: called after a record is duplicate. The duplicate will
                 commit to the database if the callback returns true, else it will
                 rollback the transaction
-            before_search called before searching.  The search will continue if the
+            - before_search: called before searching.  The search will continue if the
                 callback returns True
-            after_search  called after a search has been performed.  The record change
+            - after_search: called after a search has been performed.  The record change
                 will undo if the callback returns False
-            record_changed called after a record has changed (previous,next, etc.)
-            after_record_edit called after the internal `DataSet` row is edited via a
+            - record_changed: called after a record has changed (previous,next, etc.)
+            - after_record_edit: called after the internal `DataSet` row is edited via a
                 `sg.Table` cell-edit, or `field` live-update.
 
         Args:
@@ -912,10 +912,11 @@ class DataSet:
 
         Args:
             fn: A callable function to preform encode/decode. This function should
-        take three arguments: query, row (which will be populated by a dictionary of the
-        row data), and an encode parameter (1 to encode, 0 to decode - see constants
-        `TFORM_ENCODE` and `TFORM_DECODE`). Note that this transform works on one row at
-        a time. See the example `journal_with_data_manipulation.py` for a usage example.
+                take three arguments: query, row (which will be populated by a
+                dictionary of the row data), and an encode parameter (1 to encode, 0 to
+                decode - see constants `TFORM_ENCODE` and `TFORM_DECODE`). Note that
+                this transform works on one row at a time. See the example
+                `journal_with_data_manipulation.py` for a usage example.
 
         Returns:
             None
@@ -1393,7 +1394,7 @@ class DataSet:
         update_elements: bool = True,
         requery_dependents: bool = True,
         skip_prompt_save: bool = False,
-    ):
+    ) -> None:
         """Move to the last record of the table.
 
         Only one entry in the table is ever considered "Selected". This is one of
@@ -1433,7 +1434,7 @@ class DataSet:
         update_elements: bool = True,
         requery_dependents: bool = True,
         skip_prompt_save: bool = False,
-    ):
+    ) -> None:
         """Move to the next record of the table.
 
         Only one entry in the table is ever considered "Selected". This is one of
@@ -1473,7 +1474,7 @@ class DataSet:
         update_elements: bool = True,
         requery_dependents: bool = True,
         skip_prompt_save: bool = False,
-    ):
+    ) -> None:
         """Move to the previous record of the table.
 
         Only one entry in the table is ever considered "Selected". This is one of
@@ -1887,7 +1888,7 @@ class DataSet:
         self.selector.append(d)
 
     def insert_record(
-        self, values: Dict[str : Union[str, int]] = None, skip_prompt_save: bool = False
+        self, values: Dict[str, Union[str, int]] = None, skip_prompt_save: bool = False
     ) -> None:
         """Insert a new record virtually in the `DataSet` object.
 
@@ -2735,7 +2736,7 @@ class DataSet:
 
     def combobox_values(
         self, column_name, insert_placeholder: bool = True
-    ) -> List[_ElementRow] or None:
+    ) -> Union[List[_ElementRow], None]:
         """Returns the values to use in a sg.Combobox as a list of _ElementRow objects.
 
         Args:
@@ -7074,14 +7075,14 @@ class TableStyler:
     # PySimpleGUI Table kwargs that are compatible with pysimplesql
     justification: TableJustify = "left"
     row_height: int = None
-    font: str or Tuple[str, int] or None = None
+    font: Union[str, Tuple[str, int], None] = None
     text_color: str = None
     background_color: str = None
     alternating_row_color: str = None
     selected_row_colors: Tuple[str, str] = (None, None)
     header_text_color: str = None
     header_background_color: str = None
-    header_font: str or Tuple[str, int] or None = None
+    header_font: Union[str, Tuple[str, int], None] = None
     header_border_width: int = None
     header_relief: str = None
     vertical_scroll_only: bool = True
