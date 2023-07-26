@@ -290,7 +290,9 @@ class ValidateResponse:
 
 
 @dc.dataclass
-class _LastSearch:
+class _PrevSearch:
+    """Internal Class. Keeps track of previous search to cycle through results"""
+
     search_string: str = None
     column: str = None
     pks: List[int] = dc.field(default_factory=list)
@@ -613,8 +615,8 @@ class DataSet:
 
     """`DataSet` objects are used for an internal representation of database tables.
 
-    `DataSet` instances are added by the following `Form` methods: `Form.add_table`,
-    `Form.auto_add_tables`. A `DataSet` is synonymous for a SQL Table (though you can
+    `DataSet` instances are added by the following `Form` methods: `Form.add_dataset`,
+    `Form.auto_add_datasets`. A `DataSet` is synonymous for a SQL Table (though you can
     technically have multiple `DataSet` objects referencing the same table, with each
     `DataSet` object having its own sorting, where clause, etc.).
     Note: While users will interact with DataSet objects often in pysimplesql, they
@@ -683,7 +685,7 @@ class DataSet:
         self.where_clause: str = ""  # In addition to generated where clause!
 
         self.search_order: List[str] = []
-        self._last_search: _LastSearch = _LastSearch()
+        self._prev_search: _PrevSearch = _PrevSearch()
         self._search_string: tk.StringVar = None
 
         self.callbacks: CallbacksDict = {}
@@ -1567,14 +1569,14 @@ class DataSet:
         ):
             return SEARCH_ABORTED
 
-        # Reset _last_search if search_string is different
-        if search_string != self._last_search.search_string:
-            self._last_search = _LastSearch(search_string)
+        # Reset _prev_search if search_string is different
+        if search_string != self._prev_search.search_string:
+            self._prev_search = _PrevSearch(search_string)
 
-        # Reorder search_columns to start with the column in _last_search
+        # Reorder search_columns to start with the column in _prev_search
         search_columns = self.search_order.copy()
-        if self._last_search.column in search_columns:
-            idx = search_columns.index(self._last_search.column)
+        if self._prev_search.column in search_columns:
+            idx = search_columns.index(self._prev_search.column)
             search_columns = search_columns[idx:] + search_columns[:idx]
 
         # reorder rows to be idx + 1, and wrap around back to the beginning
@@ -1587,8 +1589,8 @@ class DataSet:
 
         pk = None
         for column in search_columns:
-            # update _last_search column
-            self._last_search.column = column
+            # update _prev_search column
+            self._prev_search.column = column
 
             # search through processed rows, looking for search_string
             result = rows[
@@ -1602,7 +1604,7 @@ class DataSet:
                 pk = result.iloc[0][self.pk_column]
 
                 # search next column if the same pk is found again
-                if pk in self._last_search.pks:
+                if pk in self._prev_search.pks:
                     continue
 
                 # if pk is same as one we are on, we can just updated_elements
@@ -1617,8 +1619,8 @@ class DataSet:
                 break
 
         if pk:
-            # Update _last_search with the pk
-            self._last_search.pks.append(pk)
+            # Update _prev_search with the pk
+            self._prev_search.pks.append(pk)
 
             # jump to the pk
             self.set_by_pk(
