@@ -12,7 +12,7 @@ theme:
 
 nav:
     - Home: index.md
-    - Docs: pysimplesql.md
+    - API: api.md
     
 markdown_extensions:
     - admonition
@@ -21,9 +21,13 @@ markdown_extensions:
 
 plugins:
 - search
+- autorefs
 - mkdocstrings:
     handlers:
       python:
+        import:
+        - url: https://docs.python-requests.org/en/master/objects.inv
+          domains: [std, py]
         options:
           docstring_style: "google"
 
