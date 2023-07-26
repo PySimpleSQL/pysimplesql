@@ -262,16 +262,36 @@ TIME_FORMAT = "%H:%M:%S"
 
 
 class Boolean(enum.Flag):
+    """
+    Enumeration class providing a convenient way to differentiate when a function may
+    return a 'truthy' or 'falsy' value, such as 1, "", or 0.
+    """
+
     TRUE = True
+    """Represents the boolean value True."""
     FALSE = False
+    """Represents the boolean value False."""
 
 
 class ValidateMode(enum.Enum):
+    """
+    Enumeration class representing different validation modes.
+    """
+
     STRICT = "strict"
+    """Strict prevents invalid values from being entered."""
     RELAXED = "relaxed"
+    """Relaxed allows invalid input, but ensures validation occurs before saving to the
+    database."""
+    DISABLED = "disabled"
+    """Validation is turned off, and no checks or restrictions are applied."""
 
 
 class ValidateRule(enum.Enum):
+    """
+    Mostly internal class. May need to override if creating new custom ColumnClass.
+    """
+
     REQUIRED = "required"
     PYTHON_TYPE = "python_type"
     PRECISION = "precision"
@@ -282,8 +302,36 @@ class ValidateRule(enum.Enum):
     CUSTOM = "custom"
 
 
+
 @dc.dataclass
 class ValidateResponse:
+    """
+    Represents the response returned by `ColumnClass.validate` method.
+
+    Attributes:
+        exception: Indicates validation failure, if any. None for valid responses.
+        value: The value that was being validated.
+        rule: The specific `ValidateRule` that caused the exception, if applicable.
+
+
+    Example of how to create a response from an exception:
+
+        ```python
+        response = frm[data_key].column_info[col].validate(value)
+        if response.exception:
+            msg = f"{ss.lang.dataset_save_validate_error_header}"
+            field = ss.lang.dataset_save_validate_error_field.format_map(
+                ss.LangFormat(field=col)
+            )
+            exception = ss.lang[response.exception].format_map(
+                ss.LangFormat(value=response.value, rule=response.rule)
+            )
+            msg += f"{field}{exception}"
+            frm.popup.ok(lang.dataset_save_validate_error_title, msg)
+        ```
+
+    """
+
     exception: Union[ValidateRule, None] = None
     value: str = None
     rule: str = None

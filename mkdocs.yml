@@ -7,10 +7,17 @@ theme:
   name: "material"
   logo: "assets/icon.svg"
   favicon: "assets/icon.svg"
+  features:
+    - content.code.copy
 
 nav:
     - Home: index.md
     - Docs: pysimplesql.md
+    
+markdown_extensions:
+    - admonition
+    - codehilite
+    - pymdownx.superfences
 
 plugins:
 - search
