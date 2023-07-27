@@ -380,7 +380,16 @@ class CellFormatFn:
         ```
     """
     @staticmethod
-    def bool_to_checkbox(val):
+    def bool_to_checkbox(val: Union[str,int,bool]):
+        """Converts a boolean value to a checkbox representation.
+
+        Args:
+            val: The boolean value to be converted to a checkbox representation.
+
+        Returns:
+            str: The checkbox representation from themepack, either
+            themepack.checkbox_true  or themepack.checkbox_false.
+        """
         return (
             themepack.checkbox_true
             if checkbox_to_bool(val)
@@ -388,7 +397,8 @@ class CellFormatFn:
         )
 
     @staticmethod
-    def decimal_places(val, decimal_places):
+    def decimal_places(val: Union[int,float,Decimal], decimal_places: int):
+        """Format the value to `decimal places` using the system locale."""
         format_string = f"%.{decimal_places}f"
         if val not in EMPTY:
             return locale.format_string(format_string, val)
@@ -4964,7 +4974,7 @@ def update_table_element(
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
 
 
-def checkbox_to_bool(value):
+def checkbox_to_bool(value: Union[str,int,bool]):
     """Allows a variety of checkbox values to still return True or False.
 
     Args:
