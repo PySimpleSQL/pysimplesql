@@ -293,14 +293,35 @@ class ValidateRule(enum.Enum):
     """
 
     REQUIRED = "required"
+    """Required field. Either set as 'NOTNULL' in database, or later in ColumnClass"""
     PYTHON_TYPE = "python_type"
+    """After casting, value is still not correct python type."""
     PRECISION = "precision"
+    """Value has too many numerical places"""
     MIN_VALUE = "min_value"
+    """Value less than set mininum value"""
     MAX_VALUE = "max_value"
+    """Value greater than set maximum value"""
     MIN_LENGTH = "min_length"
+    """Value's length is less than minimum length"""
     MAX_LENGTH = "max_length"
+    """Value's length is greater than than maximum length"""
     CUSTOM = "custom"
-
+    """Special enum to be used when returning a ValidateResponse in your own
+    `custom_validate_fn'.
+    
+    Example:
+        ```python
+        import re
+        def is_valid_email(email):
+            valid_email = re.match(r".+\@.+\..+", email) is not None
+            if not valid_email:
+                return ss.ValidateResponse(
+                    ss.ValidateRule.CUSTOM, email, " is not a valid email"
+                )
+            return ss.ValidateResponse()
+        ```
+    """
 
 
 @dc.dataclass
@@ -3060,11 +3081,12 @@ class DataSet:
         dictionary.
 
         Example:
-        -------
-        {'entry_date' : {
-            'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'), # fmt: skip
-            'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(), # fmt: skip
-        }}
+            ```python
+            {'entry_date' : {
+                'decode' : lambda row,col: datetime.utcfromtimestamp(int(row[col])).strftime('%m/%d/%y'),
+                'encode' : lambda row,col: datetime.strptime(row[col], '%m/%d/%y').replace(tzinfo=timezone.utc).timestamp(),
+            }}
+            ```
 
         Args:
             transforms: A dict of dicts containing either 'encode' or 'decode' along
