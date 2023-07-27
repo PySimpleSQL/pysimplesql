@@ -335,8 +335,8 @@ class ValidateResponse:
         rule: The specific `ValidateRule` that caused the exception, if applicable.
 
 
-    Example of how to create a response from an exception:
-
+    Example:
+         How how to create a ok popup from an exception:
         ```python
         response = frm[data_key].column_info[col].validate(value)
         if response.exception:
@@ -368,6 +368,17 @@ class _PrevSearch:
 
 
 class CellFormatFn:
+    """Collection of functions to pre-format values before populating `sg.Table` values.
+
+    Each function must accept and return 1 value. Additional arguments can be filled in
+    via a lambda.
+    
+    Example:
+        ```python
+        fn = lambda x: ss.CellFormatFn.decimal_places(x, 2)
+        frm[data_key].column_info[col].cell_format_fn = fn
+        ```
+    """
     @staticmethod
     def bool_to_checkbox(val):
         return (
