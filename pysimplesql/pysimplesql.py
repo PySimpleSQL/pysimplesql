@@ -307,9 +307,9 @@ class ValidateRule(enum.Enum):
     MAX_LENGTH = "max_length"
     """Value's length is greater than than maximum length"""
     CUSTOM = "custom"
-    """Special enum to be used when returning a ValidateResponse in your own
+    r"""Special enum to be used when returning a ValidateResponse in your own
     `custom_validate_fn'.
-    
+
     Example:
         ```python
         import re
@@ -372,24 +372,19 @@ class CellFormatFn:
 
     Each function must accept and return 1 value. Additional arguments can be filled in
     via a lambda.
-    
+
     Example:
         ```python
         fn = lambda x: ss.CellFormatFn.decimal_places(x, 2)
         frm[data_key].column_info[col].cell_format_fn = fn
         ```
     """
+
     @staticmethod
-    def bool_to_checkbox(val: Union[str,int,bool]):
-        """Converts a boolean value to a checkbox representation.
-
-        Args:
-            val: The boolean value to be converted to a checkbox representation.
-
-        Returns:
-            str: The checkbox representation from themepack, either
-            themepack.checkbox_true  or themepack.checkbox_false.
-        """
+    def bool_to_checkbox(
+        val: Union[str, int, bool]
+    ) -> Union[themepack.checkbox_true, themepack.checkbox_false]:
+        """Converts a boolean value to a themepack.checkbox_true/false"""
         return (
             themepack.checkbox_true
             if checkbox_to_bool(val)
@@ -397,8 +392,8 @@ class CellFormatFn:
         )
 
     @staticmethod
-    def decimal_places(val: Union[int,float,Decimal], decimal_places: int):
-        """Format the value to `decimal places` using the system locale."""
+    def decimal_places(val: Union[int, float, Decimal], decimal_places: int):
+        """Format the value to specified decimal places using the system locale."""
         format_string = f"%.{decimal_places}f"
         if val not in EMPTY:
             return locale.format_string(format_string, val)
@@ -4974,7 +4969,7 @@ def update_table_element(
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
 
 
-def checkbox_to_bool(value: Union[str,int,bool]):
+def checkbox_to_bool(value: Union[str, int, bool]):
     """Allows a variety of checkbox values to still return True or False.
 
     Args:
