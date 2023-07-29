@@ -181,21 +181,29 @@ SHOW_MESSAGE: int = 4096
 # PROMPT_SAVE RETURN BITMASKS
 # ---------------------------
 PROMPT_SAVE_PROCEED: int = 2
+"""After prompt_save, proceeded to save"""
 PROMPT_SAVE_NONE: int = 4
+"""Found no records changed"""
 PROMPT_SAVE_DISCARDED: int = 8
+"""User declined to save"""
 # ---------------------------
 # PROMPT_SAVE MODES
 # ---------------------------
 PROMPT_MODE: int = 1
+"""TODO"""
 AUTOSAVE_MODE: int = 2
+"""TODO"""
 PROMPT_SAVE_MODES = Literal[PROMPT_MODE, AUTOSAVE_MODE]
 
 # ---------------------------
 # RECORD SAVE RETURN BITMASKS
 # ---------------------------
-SAVE_FAIL: int = 1  # Save failed due to callback
-SAVE_SUCCESS: int = 2  # Save was successful
-SAVE_NONE: int = 4  # There was nothing to save
+SAVE_FAIL: int = 1
+"""Save failed due to callback or database error"""
+SAVE_SUCCESS: int = 2
+"""Save was successful"""
+SAVE_NONE: int = 4
+"""There was nothing to save"""
 
 # ----------------------
 # SEARCH RETURN BITMASKS
@@ -260,11 +268,31 @@ TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 TIMESTAMP_FORMAT_MICROSECOND = "%Y-%m-%dT%H:%M:%S.%f"
 TIME_FORMAT = "%H:%M:%S"
 
+class TestClass:
+    """This is the TestClass docstring"""
+    
+    cls_var: ClassVar[int] = 1
+    """This is the cls_var docstring"""
+    
+    var1: int
+    """var docstring"""
+    
+    def __post_init__(self):
+        """test"""
+
+        self.var2 = 2
+        """var2 docstring"""
+
+class TestLinks:
+    """Links to `TestClass`, `TestClass.cls_var`, `TestClass.var1`, `TestClass.var2`"""
 
 class Boolean(enum.Flag):
     """
     Enumeration class providing a convenient way to differentiate when a function may
     return a 'truthy' or 'falsy' value, such as 1, "", or 0.
+    
+    Used in `DataSet.value_changed`
+    
     """
 
     TRUE = True
@@ -327,7 +355,7 @@ class ValidateRule(enum.Enum):
 @dc.dataclass
 class ValidateResponse:
     """
-    Represents the response returned by `ColumnClass.validate` method.
+    Represents the response returned by `Column.validate` method.
 
     Attributes:
         exception: Indicates validation failure, if any. None for valid responses.
@@ -724,17 +752,22 @@ class DataSet:
             appropriate WHERE clause will be generated. False will display all records
             in the table.
         prompt_save: (optional) Default: Mode set in `Form`. Prompt to save changes when
-            dirty records are present. There are two modes available, (if pysimplesql is
-            imported as `ss`) use: `ss.PROMPT_MODE` to prompt to save when unsaved
-            changes are present. `ss.AUTOSAVE_MODE` to automatically save when unsaved
-            changes are present.
+            dirty records are present. There are two modes available, `PROMPT_MODE`
+            to prompt to save when unsaved changes are present. `AUTOSAVE_MODE` to
+            automatically save when unsaved changes are present.
         save_quiet: (optional) Default: Set in `Form`. True to skip info popup on save.
             Error popups will still be shown.
         duplicate_children: (optional) Default: Set in `Form`. If record has children,
             prompt user to choose to duplicate current record, or both.
-        validate_mode: `ss.ValidateMode.STRICT` to prevent invalid values from being
-            entered. `ss.ValidateMode.RELAXED` allows invalid input, but ensures
+        validate_mode: `ValidateMode.STRICT` to prevent invalid values from being
+            entered. `ValidateMode.RELAXED` allows invalid input, but ensures
             validation occurs before saving to the database.
+            
+    Attributes:
+        [pysimplesql.pysimplesql.DataSet.key]
+            
+    Attributes:
+        key: TODO
     """
 
     instances: ClassVar[List[DataSet]] = []  # Track our own instances
@@ -744,6 +777,7 @@ class DataSet:
     table: str
     pk_column: str
     description_column: str
+    """TODO"""
     query: Optional[str] = ""
     order_clause: Optional[str] = ""
     filtered: bool = True
@@ -888,9 +922,9 @@ class DataSet:
         """Set the prompt to save action when navigating records.
 
         Args:
-            mode: a constant value. If pysimplesql is imported as `ss`, use: -
-                `ss.PROMPT_MODE` to prompt to save when unsaved changes are present. -
-                `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are
+            mode: a constant value. If pysimplesql is imported as `ss`, use:
+                -`PROMPT_MODE` to prompt to save when unsaved changes are present.
+                -`AUTOSAVE_MODE` to automatically save when unsaved changes are
                 present.
 
         Returns:
@@ -948,7 +982,7 @@ class DataSet:
         Args:
             callback: The name of the callback, from the list above
             fctn: The function to call. Note, the function must take at least two
-                parameters, a `Form` instance, and a `PySimpleGUI.Window` instance, with
+                parameters, a `Form` instance, and a `sg.Window` instance, with
                 an optional `DataSet.key`, and return True or False
 
         Returns:
@@ -1251,7 +1285,7 @@ class DataSet:
 
     def prompt_save(
         self, update_elements: bool = True
-    ) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]:
+    ) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE, SAVE_FAIL]:
         """Prompts the user, asking if they want to save when changes are detected.
 
         This is called when the current record is about to change.
@@ -1262,8 +1296,8 @@ class DataSet:
                 discard changes if user reply's 'No' to prompt.
 
         Returns:
-            A prompt return value of one of the following: `PROMPT_PROCEED`,
-            `PROMPT_DISCARDED`, or `PROMPT_NONE`.
+            A prompt return value of one of the following: `PROMPT_SAVE_PROCEED`,
+            `PROMPT_SAVE_DISCARDED`, or `PROMPT_SAVE_NONE`.
         """
         # Return False if there is nothing to check or _prompt_save is False
         if self.current_index is None or not self.row_count or not self._prompt_save:
@@ -2643,9 +2677,9 @@ class DataSet:
     def current_row_has_backup(self) -> bool:
         """Returns True if the current_row has a backup row, and False otherwise.
 
-        A pandas Series object is stored rows.attrs["row_backup"] before a CellEdit or
-        SyncSelector operation is initiated, so that it can be compared in
-        `Dataset.records_changed` and `Dataset.save_record` or used to restore if
+        A pandas Series object is stored rows.attrs["row_backup"] before a 'CellEdit' or
+        'LiveUpdate' operation is initiated, so that it can be compared in
+        `DataSet.records_changed` and `DataSet.save_record` or used to restore if
         changes are discarded during a `prompt_save` operations.
 
         Returns:
@@ -2943,7 +2977,7 @@ class DataSet:
         Args:
             pk_update_funct: (optional) A function to call to determine the pk to select
                 by default when the quick editor loads.
-            funct_param: (optional) A parameter to pass to the `pk_update_funct`
+            funct_param: (optional) A parameter to pass to the 'pk_update_funct'
             skip_prompt_save: (Optional) True to skip prompting to save dirty records
             column_attributes: (Optional) Dictionary specifying column attributes for
                 `DataSet.column_info`. The dictionary should be in the form
@@ -3242,9 +3276,8 @@ class DataSet:
                 `DataSet.sort_by_column()`
             update_elements: Update associated selectors and navigation buttons, and
                 table header sort marker.
-            sort_order: Passed to `Dataset.update_headings`. A SORT_* constant
-                (SORT_NONE, SORT_ASC, SORT_DESC). Note that the update_elements
-                parameter must = True to use this parameter.
+            sort_order: A SORT_* constant (SORT_NONE, SORT_ASC, SORT_DESC).
+                Note that the update_elements parameter must = True to use
 
         Returns:
             None
@@ -3276,7 +3309,7 @@ class DataSet:
         Args:
             column: The column name to cycle the sort on
             table: The table that the column belongs to
-            update_elements: Passed to `Dataset.sort` to update update associated
+            update_elements: Passed to `DataSet.sort` to update update associated
                 selectors and navigation buttons, and table header sort marker.
 
         Returns:
@@ -3397,11 +3430,10 @@ class Form:
             set in the element's metadata
         select_first: (optional) Default:True. For each top-level parent, selects first
             row, populating children as well.
-        prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when dirty
-            records are present. Two modes available, (if pysimplesql is imported as
-            `ss`) use: - `ss.PROMPT_MODE` to prompt to save when unsaved changes are
-            present. - `ss.AUTOSAVE_MODE` to automatically save when unsaved changes are
-            present.
+        prompt_save: (optional) Default:PROMPT_MODE. Prompt to save changes when
+            dirty records are present. There are two modes available, `PROMPT_MODE`
+            to prompt to save when unsaved changes are present. `AUTOSAVE_MODE` to
+            automatically save when unsaved changes are present.
         save_quiet: (optional) Default:False. True to skip info popup on save. Error
             popups will still be shown.
         duplicate_children: (optional) Default:True. If record has children, prompt user
@@ -3415,8 +3447,8 @@ class Form:
             will be immediately pushed to associated selectors. If False, changes will
             be pushed only after a save action.
         validate_mode: Passed to `DataSet` init to set validate mode.
-            `ss.ValidateMode.STRICT` to prevent invalid values from being entered.
-            `ss.ValidateMode.RELAXED` allows invalid input, but ensures validation
+            `ValidateMode.STRICT` to prevent invalid values from being entered.
+            `ValidateMode.RELAXED` allows invalid input, but ensures validation
             occurs before saving to the database.
 
     Returns:
@@ -3510,8 +3542,7 @@ class Form:
         """Bind the PySimpleGUI Window to the Form for the purpose of GUI element, event
         and relationship mapping. This can happen automatically on `Form` creation with
         the bind parameter and is not typically called by the end user. This function
-        literally just groups all the auto_* methods.  See `Form.auto_add_tables()`,
-        `SQLDriver.auto_add_relationships()`, `Form.auto_map_elements()`,
+        literally just groups all the auto_* methods. `Form.auto_map_elements()`,
         `Form.auto_map_events()`.
 
         Args:
@@ -3674,7 +3705,7 @@ class Form:
         an optional prefix plus the name of the table. When you attach to a sqlite
         database, PySimpleSQL isn't aware of what it contains until this command is run.
         This is called automatically when a `Form ` is created. Note that
-        `Form.add_table()` can do this manually on a per-table basis.
+        `Form.add_dataset()` can do this manually on a per-table basis.
 
         Returns:
             None
@@ -4140,8 +4171,8 @@ class Form:
 
         Args:
             mode: a constant value. If pysimplesql is imported as `ss`, use:
-                `ss.PROMPT_MODE` to prompt to save when unsaved changes are present.
-                `ss.AUTOSAVE_MODE` to autosave when unsaved changes are present.
+                `PROMPT_MODE` to prompt to save when unsaved changes are present.
+                `AUTOSAVE_MODE` to autosave when unsaved changes are present.
 
         Returns:
             None
@@ -4202,7 +4233,7 @@ class Form:
             cascade_only: Save only tables with cascaded relationships. Default False.
             check_prompt_save: Passed to `DataSet.save_record_recursive` to check if
                 individual `DataSet` has prompt_save enabled. Used when
-                `DataSet.save_records()` is called from `Form.prompt_save()`.
+                `Form.save_records()` is called from `Form.prompt_save()`.
             update_elements: (optional) Passed to `Form.save_record_recursive()`
 
         Returns:
@@ -5203,8 +5234,8 @@ class ProgressBar:
     def __init__(self, title: str, max_value: int = 100, hide_delay: int = 100):
         """Creates a progress bar window with a message label and a progress bar.
 
-        The progress bar is updated by calling the `update` method to update the
-        progress in incremental steps until the `close` method is called.
+        The progress bar is updated by calling the `ProgressBar.update` method to update
+        the progress in incremental steps until the `ProgressBar.close` method is called
 
         Args:
             title: Title of the window
@@ -5282,7 +5313,7 @@ class ProgressAnimate:
         """Creates an animated progress bar with a message label.
 
         The progress bar will animate indefinitely, until the process passed in to the
-        `run` method finishes.
+        `ProgressAnimate.run` method finishes.
 
         The config for the animated progress bar contains oscillators for the bar
         divider and colors, a list of phrases to be displayed, and the number of seconds
@@ -5571,7 +5602,7 @@ class LazyTable(sg.Table):
     DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
     overcomes this by only inserting a slice of rows during an `update()`.
 
-    To use, simply replace `sg.Table` with `ss.LazyTable` as the `element` argument in a
+    To use, simply replace `sg.Table` with `LazyTable` as the `element` argument in a
     selector() function call in your layout.
 
     Expects values in the form of [_TableRow(pk, values)], and only becomes active after
@@ -6454,17 +6485,15 @@ def field(
 ) -> sg.Column:
     """Convenience function for adding PySimpleGUI elements to the Window, so they are
     properly configured for pysimplesql. The automatic functionality of pysimplesql
-    relies on accompanying metadata so that the `Form.auto_add_elements()` can pick them
+    relies on accompanying metadata so that the `Form.auto_map_elements()` can pick them
     up. This convenience function will create a text label, along with an element with
     the above metadata already set up for you. Note: The element key will default to the
-    record name if none is supplied. See `set_label_size()`, `set_element_size()` and
-    `set_mline_size()` for setting default sizes of these elements.
+    field name if none is supplied.
 
     Args:
         field: The database record in the form of table.column I.e. 'Journal.entry'
         element: (optional) The element type desired (defaults to PySimpleGUI.Input)
-        size: Overrides the default element size that was set with `set_element_size()`
-            for this element only.
+        size: Overrides the default element size for this element only.
         label: The text/label will automatically be generated from the column name. If a
             different text/label is desired, it can be specified here.
         no_label: Do not automatically generate a label for this element
@@ -6633,7 +6662,7 @@ def actions(
     previous, next, last and search).  The action elements can be customized by
     selecting which ones you want generated from the parameters available.  This allows
     full control over what is available to the user of your database application. Check
-    out `ThemePacks` to give any of these autogenerated controls a custom look!.
+    out `ThemePack` to give any of these autogenerated controls a custom look!.
 
     Note: By default, the base element keys generated for PySimpleGUI will be
     `table:action` using the name of the table passed in the table parameter plus the
@@ -6664,7 +6693,7 @@ def actions(
         duplicate: Button to duplicate current record
         save: Button to save record.  Note that the save button feature saves changes
             made to any table, therefore only one save button is needed per window.
-        search: A search Input element. Size can be specified with the `search_size`
+        search: A search Input element. Size can be specified with the 'search_size'
             parameter
         search_size: The size of the search input element
         bind_return_key: Bind the return key to the search button. Defaults to true.
@@ -7157,6 +7186,7 @@ def selector(
 
 @dc.dataclass
 class TableStyler:
+    """TODO"""
     # pysimplesql specific
     frame_pack_kwargs: Dict[str] = dc.field(default_factory=dict)
 
@@ -7216,6 +7246,7 @@ class TableBuilder(list):
     the sort_enable parameter is set to True.
 
     Args:
+        num_rows: Number of rows to display in the table.
         sort_enable: True to enable sorting by heading column.
         allow_cell_edits: Double-click to edit a cell value if True. Accepted edits
             update both `sg.Table` and associated `field` element. Note: primary key,
@@ -7225,6 +7256,7 @@ class TableBuilder(list):
             True.
         apply_search_filter: Filter rows to only those columns in `DataSet.search_order`
             that contain `Dataself.search_string`.
+        style: see `TableStyler`.
 
     Returns:
         None
@@ -7234,11 +7266,20 @@ class TableBuilder(list):
     instances: ClassVar[List[TableBuilder]] = []
 
     num_rows: int
+    """Number of rows to display in the table."""
     sort_enable: bool = True
+    """True to enable sorting by heading column."""
     allow_cell_edits: bool = False
-    apply_search_filter: bool = False
+    """Double-click to edit a cell value if True. Accepted edits update both `sg.Table`
+    and associated `field` element. Note: primary key, generated, or `readonly` columns
+    don't allow cell edits."""
     lazy_loading: bool = False
+    """For larger DataSets (see `LazyTable`)."""
     add_save_heading_button: bool = False
+    """Adds a save button to the left-most heading column if True."""
+    apply_search_filter: bool = False
+    """Filter rows to only those columns in `DataSet.search_order` that contain
+    `Dataself.search_string`."""
     style: TableStyler = dc.field(default_factory=TableStyler)
 
     def __post_init__(self):
@@ -8166,13 +8207,13 @@ class LanguagePack:
         "startup_relationships": "Adding relationships",
         "startup_binding": "Binding window to Form",
         # ------------------------------------------------------------------------------
-        # Progress bar displayed during sqldriver operations
+        # Progress bar displayed during SQLDriver operations
         # ------------------------------------------------------------------------------
-        "sqldriver_init": "{name} connection",
-        "sqldriver_connecting": "Connecting to database",
-        "sqldriver_execute": "Executing SQL commands",
-        "sqldriver_file_not_found_title": "Trouble finding db file",
-        "sqldriver_file_not_found": "Could not find file\n{file}",
+        "SQLDriver_init": "{name} connection",
+        "SQLDriver_connecting": "Connecting to database",
+        "SQLDriver_execute": "Executing SQL commands",
+        "SQLDriver_file_not_found_title": "Trouble finding db file",
+        "SQLDriver_file_not_found": "Could not find file\n{file}",
         # ------------------------------------------------------------------------------
         # Default ProgressAnimate Phrases
         # ------------------------------------------------------------------------------
@@ -8409,6 +8450,7 @@ class Column:
         return str(value)
 
     def validate(self, value: Any) -> bool:
+        """TODO"""
         value = self.cast(value)
 
         if self.notnull and value in EMPTY:
@@ -9136,9 +9178,9 @@ class SQLDriver(ABC):
         self.quote_value_char = sql_char.value_quote
 
         self.win_pb = ProgressBar(
-            lang.sqldriver_init.format_map(LangFormat(name=self.NAME)), 100
+            lang.SQLDriver_init.format_map(LangFormat(name=self.NAME)), 100
         )
-        self.win_pb.update(lang.sqldriver_connecting, 0)
+        self.win_pb.update(lang.SQLDriver_connecting, 0)
         self._import_required_modules()
         self._init_db()
         self.relationships = RelationshipStore(self)
@@ -9270,6 +9312,7 @@ class SQLDriver(ABC):
         return self.quote(value, self.quote_value_char)
 
     def commit(self):
+        """TODO"""
         self.con.commit()
 
     def rollback(self):
@@ -9366,9 +9409,9 @@ class SQLDriver(ABC):
 
         Args:
             dataset: A `DataSet` object
-            join_clause: True to auto-generate `join` clause, False to not
-            where_clause: True to auto-generate `where` clause, False to not
-            order_clause: True to auto-generate `order by` clause, False to not
+            join_clause: True to auto-generate 'join' clause, False to not
+            where_clause: True to auto-generate 'where' clause, False to not
+            order_clause: True to auto-generate 'order by' clause, False to not
 
         Returns:
             a query string for use with sqlite3
@@ -9461,11 +9504,11 @@ class SQLDriver(ABC):
         """Duplicates a record in a database table and optionally duplicates its
         dependent records.
 
-        The function uses all columns found in `Dataset.column_info` and
+        The function uses all columns found in `DataSet.column_info` and
         select all except the primary key column, inserting a duplicate record with the
         same column values.
 
-        If the `children` parameter is set to `True`, the function duplicates the
+        If the 'children' parameter is set to 'True', the function duplicates the
         dependent records by setting the foreign key column of the child records to the
         primary key value of the newly duplicated record before inserting them.
 
@@ -9473,7 +9516,7 @@ class SQLDriver(ABC):
         that no columns are set to unique.
 
         Args:
-            dataset: The `Dataset` of the the record to be duplicated.
+            dataset: The `DataSet` of the the record to be duplicated.
             children: (optional) Whether to duplicate dependent records. Defaults to
                 False.
         """
@@ -9655,9 +9698,9 @@ class SQLDriver(ABC):
     ) -> None:
         """Add a foreign key relationship between two dataset of the database When you
         attach a database, PySimpleSQL isn't aware of the relationships contained until
-        dataset are added via `Form.add_data`, and the relationship of various tables is
-        set with this function. Note that `SQLDriver.auto_add_relationships()` will do
-        this automatically from the schema of the database, which also happens
+        datasets are added via `Form.add_dataset`, and the relationship of various tables
+        is set with this function. Note that `SQLDriver.auto_add_relationships()` will
+        do this automatically from the schema of the database, which also happens
         automatically when a `SQLDriver` is created.
 
         Args:
@@ -9696,8 +9739,8 @@ class SQLDriver(ABC):
         requery the child table if the parent table changes (ON UPDATE CASCADE in sql is
         set) When you attach a database, PySimpleSQL isn't aware of the relationships
         contained until tables are added and the relationship of various tables is set.
-        This happens automatically during `Form` creation. Note that
-        `Form.add_relationship()` can do this manually.
+        This happens automatically during `SQLDriver` creation. Note that
+        `SQLDriver.add_relationship()` can do this manually.
 
         Returns:
             None
@@ -9846,8 +9889,8 @@ class Sqlite(SQLDriver):
             if self._database != ":memory:" and new_database and not self.create_file:
                 popup = Popup()
                 popup.ok(
-                    lang.sqldriver_file_not_found_title,
-                    lang.sqldriver_file_not_found.format_map(
+                    lang.SQLDriver_file_not_found_title,
+                    lang.SQLDriver_file_not_found.format_map(
                         LangFormat(file=self._database)
                     ),
                 )
@@ -9859,7 +9902,7 @@ class Sqlite(SQLDriver):
             self.con = self._database
             new_database = False
 
-        self.win_pb.update(lang.sqldriver_execute, 50)
+        self.win_pb.update(lang.SQLDriver_execute, 50)
         self.con.row_factory = sqlite3.Row
 
         # execute sql
@@ -10113,7 +10156,7 @@ class Flatfile(Sqlite):
         # First up the SQLite driver that we derived from
         super().__init__(":memory:")  # use an in-memory database
 
-        # Change Sqlite Sqldriver init set values to Flatfile-specific
+        # Change Sqlite SQLDriver init set values to Flatfile-specific
         self.NAME = "Flatfile"
         self.REQUIRES = ["csv,sqlite3"]
         self.placeholder = "?"  # update
@@ -10273,7 +10316,7 @@ class Mysql(SQLDriver):
     def _init_db(self):
         self.con = self.connect()
 
-        self.win_pb.update(lang.sqldriver_execute, 50)
+        self.win_pb.update(lang.SQLDriver_execute, 50)
         if self.sql_commands is not None:
             # run SQL script if the database does not yet exist
             logger.info("Executing sql commands passed in")
@@ -10610,7 +10653,7 @@ class Postgres(SQLDriver):
                     q = f"SELECT setval('{seq}', 1, false);"
                 self.execute(q, silent=True, auto_commit_rollback=True)
 
-        self.win_pb.update(lang.sqldriver_execute, 50)
+        self.win_pb.update(lang.SQLDriver_execute, 50)
 
         if self.sql_script is not None:
             # run SQL script from the file if the database does not yet exist
@@ -11163,8 +11206,8 @@ class MSAccess(SQLDriver):
     interactions are supported, including stored Queries, but not operations dealing
     with Forms, Reports, etc.
 
-    Note: `Jackcess` and `UCanAccess` libraries may not accurately report decimal places
-    for `Number` or `Currency` columns. Manual configuration of decimal places may
+    Note: Jackcess and UCanAccess libraries may not accurately report decimal places
+    for "Number" or "Currency" columns. Manual configuration of decimal places may
     be required by replacing the placeholders as follows:
     frm[DATASET KEY].column_info[COLUMN NAME].scale = 2
     """
@@ -11258,7 +11301,7 @@ class MSAccess(SQLDriver):
         # then connect
         self.con = self.connect()
 
-        self.win_pb.update(lang.sqldriver_execute, 50)
+        self.win_pb.update(lang.SQLDriver_execute, 50)
 
         if self.sql_script is not None:
             # run SQL script from the file if the database does not yet exist
@@ -11640,9 +11683,7 @@ class Driver:
 
 SaveResultsDict = Dict[str, int]
 CallbacksDict = Dict[str, Callable[[Form, sg.Window], Union[None, bool]]]
-PromptSaveValue = (
-    int  # Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
-)
+PromptSaveValue = Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
 
 
 class SimpleTransform(TypedDict):
