@@ -148,7 +148,9 @@ TYPE_INFO: int = 4
 # Transform actions
 # -----------------
 TFORM_ENCODE: int = 1
+"""TODO"""
 TFORM_DECODE: int = 0
+"""TODO"""
 
 # -----------
 # Event types
@@ -267,24 +269,6 @@ DATETIME_FORMAT_MICROSECOND = "%Y-%m-%d %H:%M:%S.%f"
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 TIMESTAMP_FORMAT_MICROSECOND = "%Y-%m-%dT%H:%M:%S.%f"
 TIME_FORMAT = "%H:%M:%S"
-
-class TestClass:
-    """This is the TestClass docstring"""
-    
-    cls_var: ClassVar[int] = 1
-    """This is the cls_var docstring"""
-    
-    var1: int
-    """var docstring"""
-    
-    def __post_init__(self):
-        """test"""
-
-        self.var2 = 2
-        """var2 docstring"""
-
-class TestLinks:
-    """Links to `TestClass`, `TestClass.cls_var`, `TestClass.var1`, `TestClass.var2`"""
 
 class Boolean(enum.Flag):
     """
@@ -790,20 +774,28 @@ class DataSet:
         DataSet.instances.append(self)
 
         self.key: str = data_key
+        """TODO"""
         self.frm = frm_reference
+        """TODO"""
         self.driver = self.frm.driver
+        """TODO"""
         self.relationships = self.driver.relationships
-
+        """TODO"""
         self.rows: pd.DataFrame = Result.set()
+        """TODO"""
         self._current_index: int = 0
         self.column_info: ColumnInfo = None
+        """TODO"""
         self.selector: List[str] = []
 
         # initally empty clauses
         self.join_clause: str = ""
+        """TODO"""
         self.where_clause: str = ""  # In addition to generated where clause!
-
+        """TODO"""
         self.search_order: List[str] = []
+        """TODO"""
+
         self._prev_search: _PrevSearch = _PrevSearch()
         self._search_string: tk.StringVar = None
 
@@ -922,10 +914,8 @@ class DataSet:
         """Set the prompt to save action when navigating records.
 
         Args:
-            mode: a constant value. If pysimplesql is imported as `ss`, use:
-                -`PROMPT_MODE` to prompt to save when unsaved changes are present.
-                -`AUTOSAVE_MODE` to automatically save when unsaved changes are
-                present.
+            mode: Use `PROMPT_MODE` to prompt to save when unsaved changes are present.
+                `AUTOSAVE_MODE` to automatically save when unsaved changes are present.
 
         Returns:
             None
@@ -1037,7 +1027,7 @@ class DataSet:
                 dictionary of the row data), and an encode parameter (1 to encode, 0 to
                 decode - see constants `TFORM_ENCODE` and `TFORM_DECODE`). Note that
                 this transform works on one row at a time. See the example
-                `journal_with_data_manipulation.py` for a usage example.
+                'journal_with_data_manipulation.py' for a usage example.
 
         Returns:
             None
@@ -1292,7 +1282,7 @@ class DataSet:
 
         Args:
             update_elements: (optional) Passed to `Form.save_records()` ->
-                `Form.save_records_recursive()` to update_elements. Additionally used to
+                `DataSet.save_record_recursive()` to update_elements. Additionally used to
                 discard changes if user reply's 'No' to prompt.
 
         Returns:
@@ -2680,7 +2670,7 @@ class DataSet:
         A pandas Series object is stored rows.attrs["row_backup"] before a 'CellEdit' or
         'LiveUpdate' operation is initiated, so that it can be compared in
         `DataSet.records_changed` and `DataSet.save_record` or used to restore if
-        changes are discarded during a `prompt_save` operations.
+        changes are discarded during a `DataSet.prompt_save` operations.
 
         Returns:
             True if a backup row is present that matches, and False otherwise.
@@ -4170,8 +4160,7 @@ class Form:
         objects associated with this `Form`.
 
         Args:
-            mode: a constant value. If pysimplesql is imported as `ss`, use:
-                `PROMPT_MODE` to prompt to save when unsaved changes are present.
+            mode: Use `PROMPT_MODE` to prompt to save when unsaved changes are present.
                 `AUTOSAVE_MODE` to autosave when unsaved changes are present.
 
         Returns:
