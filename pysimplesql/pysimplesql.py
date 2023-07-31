@@ -1132,7 +1132,7 @@ class DataSet:
         """
         self.description_column = column
 
-    def records_changed(self, column: str = None, recursive=True) -> bool:
+    def records_changed(self, column: str = None, recursive: bool = True) -> bool:
         """Checks if records have been changed.
 
         This is done by comparing PySimpleGUI control values with the stored `DataSet`
@@ -2366,7 +2366,7 @@ class DataSet:
     def save_record_recursive(
         self,
         results: SaveResultsDict,
-        display_message=False,
+        display_message: bool = False,
         check_prompt_save: bool = False,
         update_elements: bool = True,
     ) -> SaveResultsDict:
@@ -3153,7 +3153,7 @@ class DataSet:
         self.rows = self.rows.drop(index=virtual_rows.index)
         self.rows.attrs["virtual"] = []
 
-    def sort_by_column(self, column: str, table: str, reverse=False) -> None:
+    def sort_by_column(self, column: str, table: str, reverse: bool = False) -> None:
         """Sort the DataFrame by column. Using the mapped relationships of the database,
         foreign keys will automatically sort based on the parent table's description
         column, rather than the foreign key number.
@@ -3214,7 +3214,7 @@ class DataSet:
             if tmp_column is not None:
                 self.rows = self.rows.drop(columns=tmp_column, errors="ignore")
 
-    def sort_by_index(self, index: int, table: str, reverse=False) -> None:
+    def sort_by_index(self, index: int, table: str, reverse: bool = False) -> None:
         """Sort the self.rows DataFrame by column index Using the mapped relationships
         of the database, foreign keys will automatically sort based on the parent
         table's description column, rather than the foreign key number.
@@ -5177,7 +5177,7 @@ class Popup:
         self,
         message: str = None,
         auto_erase_seconds: int = None,
-        timeout=False,
+        timeout: bool = False,
         erase: bool = False,
     ) -> None:
         """Update any mapped info elements:
@@ -5602,7 +5602,7 @@ class LazyTable(sg.Table):
     support the `sg.Table` `row_colors` argument.
     """
 
-    def __init__(self, *args, lazy_loading=False, **kwargs) -> None:
+    def __init__(self, *args, lazy_loading: bool = False, **kwargs) -> None:
         # remove LazyTable only
         self.headings_justification = kwargs.pop("headings_justification", None)
         cols_justification = kwargs.pop("cols_justification", None)
@@ -9418,7 +9418,7 @@ class SQLDriver(ABC):
             f' {dataset.order_clause if order_clause else ""}'
         )
 
-    def delete_record(self, dataset: DataSet, cascade=True):
+    def delete_record(self, dataset: DataSet, cascade: bool = True):
         # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
@@ -9933,7 +9933,7 @@ class Sqlite(SQLDriver):
         self,
         query,
         values=None,
-        silent=False,
+        silent: bool = False,
         column_info=None,
         auto_commit_rollback: bool = False,
     ) -> pd.DataFrame:
@@ -10363,7 +10363,7 @@ class Mysql(SQLDriver):
         self,
         query,
         values=None,
-        silent=False,
+        silent: bool = False,
         column_info=None,
         auto_commit_rollback: bool = False,
     ):
@@ -10694,7 +10694,7 @@ class Postgres(SQLDriver):
         self,
         query: str,
         values=None,
-        silent=False,
+        silent: bool = False,
         column_info=None,
         auto_commit_rollback: bool = False,
     ):
@@ -10982,7 +10982,7 @@ class Sqlserver(SQLDriver):
         self,
         query,
         values=None,
-        silent=False,
+        silent: bool = False,
         column_info=None,
         auto_commit_rollback: bool = False,
     ):
@@ -11366,7 +11366,7 @@ class MSAccess(SQLDriver):
         self,
         query,
         values=None,
-        silent=False,
+        silent: bool = False,
         column_info=None,
         auto_commit_rollback: bool = False,
     ):

@@ -8,7 +8,7 @@ import pysimplesql as ss
 
 
 # Simulated process
-def process(raise_error=False):
+def process(raise_error: bool = False):
     if raise_error:
         raise ValueError("Oops! This process had an error!")
     sleep(5)
