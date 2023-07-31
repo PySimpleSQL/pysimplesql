@@ -1013,7 +1013,7 @@ class DataSet:
             return callback(*args[:expected_args])
         raise ValueError("Unexpected number of parameters in the callback function")
 
-    def set_transform(self, fn: callable) -> None:
+    def set_transform(self, fn: Callable) -> None:
         """Set a transform on the data for this `DataSet`.
 
         Here you can set custom a custom transform to both decode data from the
@@ -2954,7 +2954,7 @@ class DataSet:
 
     def quick_editor(
         self,
-        pk_update_funct: callable = None,
+        pk_update_funct: Callable = None,
         funct_param: any = None,
         skip_prompt_save: bool = False,
         column_attributes: dict = None,
@@ -5397,7 +5397,7 @@ class ProgressAnimate:
         self.phrase_index = 0
         self.completed = asyncio.Event()
 
-    def run(self, fn: callable, *args, **kwargs):
+    def run(self, fn: Callable, *args, **kwargs):
         """Runs the function in a separate co-routine, while animating the progress bar
         in another."""
         if not callable(fn):
@@ -5426,7 +5426,7 @@ class ProgressAnimate:
             await asyncio.sleep(0.05)
         self.win.close()
 
-    async def run_process(self, fn: callable, *args, **kwargs):
+    async def run_process(self, fn: Callable, *args, **kwargs):
         loop = asyncio.get_running_loop()
         try:
             return await loop.run_in_executor(
@@ -5438,7 +5438,7 @@ class ProgressAnimate:
         finally:
             self.completed.set()
 
-    async def _dispatch(self, fn: callable, *args, **kwargs):
+    async def _dispatch(self, fn: Callable, *args, **kwargs):
         # Dispatch to the multiple asyncio co-processes
         gui_task = asyncio.create_task(self._gui())
         result = await self.run_process(fn, *args, **kwargs)
@@ -7494,7 +7494,7 @@ class TableBuilder(list):
                 i, text=x["heading"], anchor=self.heading_anchor_map[i]
             )
 
-    def enable_heading_function(self, element: sg.Table, fn: callable) -> None:
+    def enable_heading_function(self, element: sg.Table, fn: Callable) -> None:
         """Enable the sorting callbacks for each column index, or saving by click the
         unsaved changes column
         Note: Not typically used by the end user. Called from `Form.auto_map_elements()`
@@ -8420,9 +8420,9 @@ class Column:
     virtual: bool = False
     generated: bool = False
     python_type: Type[T] = object
-    custom_cast_fn: callable = None
-    custom_validate_fn: callable = None
-    cell_format_fn: callable = None
+    custom_cast_fn: Callable = None
+    custom_validate_fn: Callable = None
+    cell_format_fn: Callable = None
     domain_args: List[str, int] = None
 
     def __getitem__(self, key):
@@ -8584,7 +8584,7 @@ class BoolCol(Column):
 
     def __post_init__(self) -> None:
         if themepack.display_bool_as_checkbox:
-            self.cell_format_fn: callable = CellFormatFn.bool_to_checkbox
+            self.cell_format_fn: Callable = CellFormatFn.bool_to_checkbox
 
     def cast(self, value):
         return checkbox_to_bool(value)
@@ -8691,7 +8691,7 @@ class DecimalCol(LocaleCol, MinMaxCol):
                     f"Unable to set {self.NAME} column decimal scale to "
                     f"{self.domain_args[1]}"
                 )
-            self.cell_format_fn: callable = lambda x: CellFormatFn.decimal_places(
+            self.cell_format_fn: Callable = lambda x: CellFormatFn.decimal_places(
                 x, self.scale
             )
 
@@ -11672,13 +11672,13 @@ class Driver:
     the various `SQLDriver` classes.
     """
 
-    sqlite: callable = Sqlite
-    flatfile: callable = Flatfile
-    mysql: callable = Mysql
-    mariadb: callable = Mariadb
-    postgres: callable = Postgres
-    sqlserver: callable = Sqlserver
-    msaccess: callable = MSAccess
+    sqlite: Callable = Sqlite
+    flatfile: Callable = Flatfile
+    mysql: Callable = Mysql
+    mariadb: Callable = Mariadb
+    postgres: Callable = Postgres
+    sqlserver: Callable = Sqlserver
+    msaccess: Callable = MSAccess
 
 
 SaveResultsDict = Dict[str, int]
