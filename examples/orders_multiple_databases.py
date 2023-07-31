@@ -92,7 +92,7 @@ class SqlFormat(dict):
 
 
 class Template:
-    def __init__(self, template_string) -> None:
+    def __init__(self, template_string: str) -> None:
         self.template_string = template_string
 
     def render(self, context):
@@ -103,7 +103,7 @@ class Template:
 # create your own validator to be passed to a
 # frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
 # used below in the quick_editor arguments
-def is_valid_email(email):
+def is_valid_email(email: str):
     valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
     if not valid_email:
         return ss.ValidateResponse(

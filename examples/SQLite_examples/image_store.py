@@ -22,7 +22,7 @@ except ModuleNotFoundError:
 # Note in the code later in this file, that you can choose to either:
 # 1) thumbnail the image prior to saving, so that you never store a large image in the database
 # 2) thumbnail the image only for display purposes, storing the full resolution image in the database
-def thumbnail(image_data, size=(320, 240)):
+def thumbnail(image_data, size: int=(320, 240)):
     img = Image.open(BytesIO(image_data))
     img.thumbnail(size)
     with BytesIO() as output:

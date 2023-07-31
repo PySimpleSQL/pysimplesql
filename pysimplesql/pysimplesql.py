@@ -2847,7 +2847,7 @@ class DataSet:
         )
 
     def combobox_values(
-        self, column_name, insert_placeholder: bool = True
+        self, column_name: str, insert_placeholder: bool = True
     ) -> Union[List[_ElementRow], None]:
         """Returns the values to use in a sg.Combobox as a list of _ElementRow objects.
 
@@ -5629,7 +5629,7 @@ class LazyTable(sg.Table):
         self._bg = None
         self._fg = None
 
-    def __setattr__(self, name, value) -> None:
+    def __setattr__(self, name: str, value) -> None:
         if name == "SelectedRows":
             # Handle PySimpleGui attempts to set our SelectedRows property
             return
@@ -5670,7 +5670,7 @@ class LazyTable(sg.Table):
     def update(
         self,
         values=None,
-        num_rows=None,
+        num_rows: Optional[int] = None,
         visible=None,
         select_rows=None,
         alternating_row_color=None,
@@ -6385,7 +6385,7 @@ class _TtkCalendar(ttk.Frame):
                     return self.table.bbox(item, column)
         return None
 
-    def move_month(self, offset) -> None:
+    def move_month(self, offset: int) -> None:
         self.canvas.place_forget()
         month = self.cal_date.month - 1 + offset
         year = self.cal_date.year + month // 12
@@ -6400,7 +6400,7 @@ class _TtkCalendar(ttk.Frame):
 
 
 class _DatePicker(_TtkStrictInput):
-    def __init__(self, master, dataset, column_name, init_date, **kwargs) -> None:
+    def __init__(self, master, dataset, column_name: str, init_date, **kwargs) -> None:
         self.dataset = dataset
         self.column_name = column_name
         textvariable = kwargs["textvariable"]
@@ -7517,7 +7517,9 @@ class TableBuilder(list):
         if self.add_save_heading_button:
             element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
-    def insert(self, idx, heading: str, column: str = None, *args, **kwargs) -> None:
+    def insert(
+        self, idx: int, heading: str, column: str = None, *args, **kwargs
+    ) -> None:
         super().insert(idx, {"heading": heading, "column": column})
 
 
@@ -7538,7 +7540,7 @@ class _HeadingCallback:
         self.frm: Form = frm_reference
         self.data_key = data_key
 
-    def __call__(self, column, save) -> None:
+    def __call__(self, column, save: bool) -> None:
         dataset = self.frm[self.data_key]
         if save:
             dataset.save_record()
@@ -10506,7 +10508,7 @@ class Mysql(SQLDriver):
         return relationships
 
     # Not required for SQLDriver
-    def constraint(self, constraint_name):
+    def constraint(self, constraint_name: str):
         query = (
             "SELECT UPDATE_RULE, DELETE_RULE FROM "
             "INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_NAME = "
@@ -11564,7 +11566,7 @@ class MSAccess(SQLDriver):
         rows = self.execute(f"SELECT MAX({pk_column}) as max_pk FROM {table}")
         return rows.iloc[0]["MAX_PK"].tolist()  # returned as upper case
 
-    def _get_column_definitions(self, table_name):
+    def _get_column_definitions(self, table_name: str):
         # Creates a comma separated list of column names and types to be used in a
         # CREATE TABLE statement
         columns = self.column_info(table_name)

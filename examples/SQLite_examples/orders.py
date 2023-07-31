@@ -38,7 +38,7 @@ ss.themepack(custom)
 # create your own validator to be passed to a
 # frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
 # used below in the quick_editor arguments
-def is_valid_email(email):
+def is_valid_email(email: str):
     valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
     if not valid_email:
         return ss.ValidateResponse(
