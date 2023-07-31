@@ -428,10 +428,10 @@ class _TableRow(list):
         self.pk = pk
         super().__init__(*args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self[:])
 
-    def __int__(self):
+    def __int__(self) -> int:
         if isinstance(self.pk, np.int64):
             return self.pk.tolist()
         return self.pk
@@ -453,13 +453,13 @@ class _ElementRow:
         self.pk = pk
         self.val = val
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self.val)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.val)
 
-    def __int__(self):
+    def __int__(self) -> int:
         if isinstance(self.pk, np.int64):
             return self.pk.tolist()
         return self.pk
@@ -516,7 +516,7 @@ class Relationship:
     def on_delete_cascade(self):
         return bool(self.delete_cascade and self.driver.delete_cascade)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a join clause when cast to a string."""
         return self.driver.relationship_to_join_clause(self)
 
@@ -5304,7 +5304,7 @@ class ProgressBar:
 
 
 class ProgressAnimate:
-    def __init__(self, title: str, config: dict = None):
+    def __init__(self, title: str, config: dict = None) -> None:
         """Creates an animated progress bar with a message label.
 
         The progress bar will animate indefinitely, until the process passed in to the
@@ -8836,7 +8836,7 @@ class ColumnInfo(List):
         }
         super().__init__()
 
-    def __contains__(self, item):
+    def __contains__(self, item) -> bool:
         if isinstance(item, str):
             return self._contains_key_value_pair("name", item)
         return super().__contains__(item)
