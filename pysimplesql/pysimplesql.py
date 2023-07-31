@@ -5012,7 +5012,10 @@ def checkbox_to_bool(value: Union[str, int, bool]) -> bool:
 
 
 def shake_widget(
-    widget: Union[sg.Element, tk.Widget], pixels=4, delay_ms=50, repeat=2
+    widget: Union[sg.Element, tk.Widget],
+    pixels: int = 4,
+    delay_ms: int = 50,
+    repeat: int = 2,
 ) -> None:
     """Shakes the given widget by modifying its padx attribute.
 
@@ -5505,7 +5508,7 @@ class KeyGen:
     automatically, see `keygen` for info.
     """
 
-    def __init__(self, separator="!") -> None:
+    def __init__(self, separator: str = "!") -> None:
         """Create a new KeyGen instance.
 
         Args:
@@ -6159,7 +6162,7 @@ class _AutoCompleteLogic:
     position: int = 0
     finalized: bool = False
 
-    def _autocomplete_combo(self, completion_list, delta=0):
+    def _autocomplete_combo(self, completion_list, delta: int = 0):
         widget = self.Widget
         """Perform autocompletion on a Combobox widget based on the current input."""
         if delta:
@@ -6198,7 +6201,7 @@ class _AutoCompleteLogic:
 
         return hits
 
-    def autocomplete(self, delta=0) -> None:
+    def autocomplete(self, delta: int = 0) -> None:
         """Perform autocompletion based on the current input."""
         self._hits = self._autocomplete_combo(self._completion_list, delta)
         self._hit_index = 0
@@ -10341,7 +10344,7 @@ class Mysql(SQLDriver):
         except ModuleNotFoundError as e:
             self._import_failed(e)
 
-    def connect(self, retries=3):
+    def connect(self, retries: int = 3):
         attempt = 0
         while attempt < retries:
             try:
@@ -10672,7 +10675,7 @@ class Postgres(SQLDriver):
         except ModuleNotFoundError as e:
             self._import_failed(e)
 
-    def connect(self, retries=3):
+    def connect(self, retries: int = 3):
         attempt = 0
         while attempt < retries:
             try:
@@ -10959,7 +10962,7 @@ class Sqlserver(SQLDriver):
         except ModuleNotFoundError as e:
             self._import_failed(e)
 
-    def connect(self, retries=3, timeout=3):
+    def connect(self, retries: int = 3, timeout: int = 3):
         attempt = 0
         while attempt < retries:
             try:
