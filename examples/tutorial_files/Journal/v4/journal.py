@@ -63,7 +63,7 @@ frm['Journal'].set_search_order(['entry_date','title','entry'])
 # ---------------
 # DATA VALIDATION
 # ---------------
-def cb_validate():
+def cb_validate() -> bool:
     date=win['Journal.entry_date'].Get()
     if date[4] == '-' and date[7]=='-' and len(date)==10:   # Make sure the date is 10 digits and has two dashes in the right place
         if str.isdigit(date[:4]):                           # Make sure the first 4 digits represent a year

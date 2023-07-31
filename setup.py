@@ -9,7 +9,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()  # noqa: SIM115
 
 
-def main():
+def main() -> None:
     "Executes setup when this script is the top-level"
     import pysimplesql as app
 

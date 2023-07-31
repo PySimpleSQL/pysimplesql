@@ -87,12 +87,12 @@ if database not in ["sqlite", "msaccess"]:
 
 
 class SqlFormat(dict):
-    def __missing__(self, key):
+    def __missing__(self, key) -> str:
         return ""
 
 
 class Template:
-    def __init__(self, template_string):
+    def __init__(self, template_string) -> None:
         self.template_string = template_string
 
     def render(self, context):
@@ -555,7 +555,7 @@ frm["orders"].set_search_order(["customer_id", "order_id"])
 # Application-side code to update orders `total`
 # when saving/deleting order_details line item
 # ----------------------------------------------
-def update_orders(frm_reference, window, data_key):
+def update_orders(frm_reference, window, data_key) -> bool:
     if data_key == "order_details":
         order_id = frm["order_details"]["order_id"]
         driver.execute(

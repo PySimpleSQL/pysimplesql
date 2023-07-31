@@ -14,7 +14,7 @@ def process(raise_error=False):
     sleep(5)
 
 
-def test_successful_process():
+def test_successful_process() -> None:
     try:
         sa = ss.ProgressAnimate("Test ProgressAnimate")
         sa.run(process, False)
@@ -22,14 +22,14 @@ def test_successful_process():
         assert False, f"An exception was raised: {e}"
 
 
-def test_exception_during_process():
+def test_exception_during_process() -> None:
     with pytest.raises(Exception):
         sa = ss.ProgressAnimate("Test ProgressAnimate")
         v = sa.run(process, True)
         print(v, type(v))
 
 
-def test_config():
+def test_config() -> None:
     # What if config was set with an int?
     with pytest.raises(ValueError):
         ss.ProgressAnimate("Test", config=1)
@@ -66,7 +66,7 @@ def test_config():
         ss.ProgressAnimate("Test", config=config)
 
 
-def test_run():
+def test_run() -> None:
     with pytest.raises(ValueError):
         pa = ss.ProgressAnimate("Test")
         pa.run(True)

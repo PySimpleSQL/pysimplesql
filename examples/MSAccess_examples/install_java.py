@@ -25,7 +25,7 @@ SETTINGS_FILE = pathlib.Path.cwd() / "settings.ini"
 # -------------------------------------------------
 # ROUTINES TO INSTALL JAVA IF USER DOES NOT HAVE IT
 # -------------------------------------------------
-def _is_java_installed():
+def _is_java_installed() -> bool:
     if "JAVA_HOME" in os.environ:
         return True
     previous_jre = load_setting("General", "java_home")
@@ -91,7 +91,7 @@ def java_check_install() -> bool:
     return True
 
 
-def save_setting(section: str, key: str, value: str):
+def save_setting(section: str, key: str, value: str) -> None:
     config = configparser.ConfigParser()
     config.read(SETTINGS_FILE)
 

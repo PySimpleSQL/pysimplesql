@@ -270,13 +270,14 @@ TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 TIMESTAMP_FORMAT_MICROSECOND = "%Y-%m-%dT%H:%M:%S.%f"
 TIME_FORMAT = "%H:%M:%S"
 
+
 class Boolean(enum.Flag):
     """
     Enumeration class providing a convenient way to differentiate when a function may
     return a 'truthy' or 'falsy' value, such as 1, "", or 0.
-    
+
     Used in `DataSet.value_changed`
-    
+
     """
 
     TRUE = True
@@ -423,7 +424,7 @@ class _TableRow(list):
     Note: This is typically not used by the end user.
     """
 
-    def __init__(self, pk: int, *args, **kwargs):
+    def __init__(self, pk: int, *args, **kwargs) -> None:
         self.pk = pk
         super().__init__(*args, **kwargs)
 
@@ -435,7 +436,7 @@ class _TableRow(list):
             return self.pk.tolist()
         return self.pk
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # Add some extra information that could be useful for debugging
         return f"_TableRow(pk={self.pk}): {super().__repr__()}"
 
@@ -694,16 +695,16 @@ class ElementMap:
     where_column: str = None
     where_value: str = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.table = self.dataset.table
 
     def __getitem__(self, key):
         return self.__dict__[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         self.__dict__[key] = value
 
-    def __contains__(self, item):
+    def __contains__(self, item) -> bool:
         return item in self.__dict__
 
 
@@ -746,10 +747,10 @@ class DataSet:
         validate_mode: `ValidateMode.STRICT` to prevent invalid values from being
             entered. `ValidateMode.RELAXED` allows invalid input, but ensures
             validation occurs before saving to the database.
-            
+
     Attributes:
         [pysimplesql.pysimplesql.DataSet.key]
-            
+
     Attributes:
         key: TODO
     """
@@ -770,7 +771,7 @@ class DataSet:
     duplicate_children: bool = None
     validate_mode: ValidateMode = None
 
-    def __post_init__(self, data_key, frm_reference, prompt_save):
+    def __post_init__(self, data_key, frm_reference, prompt_save) -> None:
         DataSet.instances.append(self)
 
         self.key: str = data_key
@@ -856,7 +857,7 @@ class DataSet:
         return None
 
     @search_string.setter
-    def search_string(self, val: str):
+    def search_string(self, val: str) -> None:
         if self._search_string is not None:
             self._search_string.set(val)
 
@@ -867,7 +868,7 @@ class DataSet:
 
     @current_index.setter
     # Keeps the current_index in bounds
-    def current_index(self, val: int):
+    def current_index(self, val: int) -> None:
         if val > self.row_count - 1:
             self._current_index = self.row_count - 1
         elif val < 0:
@@ -3213,7 +3214,7 @@ class DataSet:
             if tmp_column is not None:
                 self.rows = self.rows.drop(columns=tmp_column, errors="ignore")
 
-    def sort_by_index(self, index: int, table: str, reverse=False):
+    def sort_by_index(self, index: int, table: str, reverse=False) -> None:
         """Sort the self.rows DataFrame by column index Using the mapped relationships
         of the database, foreign keys will automatically sort based on the parent
         table's description column, rather than the foreign key number.
@@ -3319,7 +3320,7 @@ class DataSet:
         self.sort(table, update_elements=update_elements, sort_order=SORT_NONE)
         return SORT_NONE
 
-    def _update_headings(self, column, sort_order):
+    def _update_headings(self, column, sort_order) -> None:
         for e in self.selector:
             element = e["element"]
             if (
@@ -3466,7 +3467,7 @@ class Form:
         bind_window,
         select_first,
         prompt_save,
-    ):
+    ) -> None:
         Form.instances.append(self)
 
         self.window: Optional[sg.Window] = 0
@@ -3500,7 +3501,7 @@ class Form:
             self.bind(self.window)
         win_pb.close()
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.close()
 
     # Override the [] operator to retrieve dataset by key
@@ -3514,7 +3515,7 @@ class Form:
                 f"proper permissions set, or any number of db configuration issues."
             ) from e
 
-    def close(self, reset_keygen: bool = True, close_driver: bool = True):
+    def close(self, reset_keygen: bool = True, close_driver: bool = True) -> None:
         """Safely close out the `Form`.
 
         Args:
@@ -4182,7 +4183,7 @@ class Form:
         """
         self.force_save = force
 
-    def set_live_update(self, enable: bool):
+    def set_live_update(self, enable: bool) -> None:
         """Toggle the immediate sync of field elements with other elements in Form.
 
         When live-update is enabled, changes in a field element are immediately
@@ -4940,7 +4941,7 @@ def bind(win: sg.Window) -> None:
         i.bind(win)
 
 
-def simple_transform(dataset: DataSet, row, encode):
+def simple_transform(dataset: DataSet, row, encode) -> None:
     """Convenience transform function that makes it easier to add transforms to your
     records."""
     for col, function in dataset._simple_transform.items():
@@ -4989,7 +4990,7 @@ def update_table_element(
     element.widget.bind("<<TreeviewSelect>>", element._treeview_selected)
 
 
-def checkbox_to_bool(value: Union[str, int, bool]):
+def checkbox_to_bool(value: Union[str, int, bool]) -> bool:
     """Allows a variety of checkbox values to still return True or False.
 
     Args:
@@ -5010,7 +5011,9 @@ def checkbox_to_bool(value: Union[str, int, bool]):
     ]
 
 
-def shake_widget(widget: Union[sg.Element, tk.Widget], pixels=4, delay_ms=50, repeat=2):
+def shake_widget(
+    widget: Union[sg.Element, tk.Widget], pixels=4, delay_ms=50, repeat=2
+) -> None:
     """Shakes the given widget by modifying its padx attribute.
 
     Args:
@@ -5055,7 +5058,7 @@ class Popup:
     Has popup functions for internal use. Stores last info popup as last_info
     """
 
-    def __init__(self, window: sg.Window = None):
+    def __init__(self, window: sg.Window = None) -> None:
         """Create a new Popup instance :returns: None."""
         self.window = window
         self.popup_info = None
@@ -5072,7 +5075,7 @@ class Popup:
             "finalize": True,
         }
 
-    def ok(self, title, msg):
+    def ok(self, title, msg) -> None:
         """Internal use only.
 
         Creates sg.Window with LanguagePack OK button
@@ -5130,7 +5133,7 @@ class Popup:
 
     def info(
         self, msg: str, display_message: bool = True, auto_close_seconds: int = None
-    ):
+    ) -> None:
         """Displays a popup message and saves the message to self.last_info, auto-
         closing after x seconds. The title of the popup window is defined in
         lang.info_popup_title.
@@ -5164,7 +5167,7 @@ class Popup:
                 int(auto_close_seconds * 1000), self._auto_close
             )
 
-    def _auto_close(self):
+    def _auto_close(self) -> None:
         """Use in a tk.after to automatically close the popup_info."""
         if self.popup_info:
             self.popup_info.close()
@@ -5220,7 +5223,7 @@ class Popup:
 
 
 class ProgressBar:
-    def __init__(self, title: str, max_value: int = 100, hide_delay: int = 100):
+    def __init__(self, title: str, max_value: int = 100, hide_delay: int = 100) -> None:
         """Creates a progress bar window with a message label and a progress bar.
 
         The progress bar is updated by calling the `ProgressBar.update` method to update
@@ -5258,7 +5261,7 @@ class ProgressBar:
         self.last_phrase_time = None
         self.phrase_index = 0
 
-    def update(self, message: str, current_count: int):
+    def update(self, message: str, current_count: int) -> None:
         """Updates the progress bar with the current progress message and value.
 
         Args:
@@ -5277,7 +5280,7 @@ class ProgressBar:
         self.win["message"].update(message)
         self.win["bar"].update(current_count=current_count)
 
-    def close(self):
+    def close(self) -> None:
         """Closes the progress bar window.
 
         Returns:
@@ -5286,7 +5289,7 @@ class ProgressBar:
         if self.win is not None:
             self.win.close()
 
-    def _create_window(self):
+    def _create_window(self) -> None:
         self.win = sg.Window(
             self.title,
             layout=self.layout,
@@ -5399,10 +5402,10 @@ class ProgressAnimate:
 
         return asyncio.run(self._dispatch(fn, *args, **kwargs))
 
-    def close(self):
+    def close(self) -> None:
         self.win = None
 
-    async def _gui(self):
+    async def _gui(self) -> None:
         if self.win is None:
             self.win = sg.Window(
                 self.title,
@@ -5439,7 +5442,7 @@ class ProgressAnimate:
         await gui_task
         return result
 
-    def _animate(self, config: dict = None):
+    def _animate(self, config: dict = None) -> None:
         def _oscillate_params(oscillator):
             return (
                 oscillator["value_start"],
@@ -5502,7 +5505,7 @@ class KeyGen:
     automatically, see `keygen` for info.
     """
 
-    def __init__(self, separator="!"):
+    def __init__(self, separator="!") -> None:
         """Create a new KeyGen instance.
 
         Args:
@@ -5599,7 +5602,7 @@ class LazyTable(sg.Table):
     support the `sg.Table` `row_colors` argument.
     """
 
-    def __init__(self, *args, lazy_loading=False, **kwargs):
+    def __init__(self, *args, lazy_loading=False, **kwargs) -> None:
         # remove LazyTable only
         self.headings_justification = kwargs.pop("headings_justification", None)
         cols_justification = kwargs.pop("cols_justification", None)
@@ -5623,7 +5626,7 @@ class LazyTable(sg.Table):
         self._bg = None
         self._fg = None
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name, value) -> None:
         if name == "SelectedRows":
             # Handle PySimpleGui attempts to set our SelectedRows property
             return
@@ -5668,7 +5671,7 @@ class LazyTable(sg.Table):
         visible=None,
         select_rows=None,
         alternating_row_color=None,
-    ):
+    ) -> None:
         # check if we shouldn't be doing this update
         # PySimpleGUI version support (PyPi version doesn't support quick_check)
         kwargs = {}
@@ -5762,7 +5765,7 @@ class LazyTable(sg.Table):
                 # and make sure its visible
                 self.widget.see(row_iid)
 
-    def _handle_scroll(self, x0, x1):
+    def _handle_scroll(self, x0, x1) -> None:
         if float(x0) == 0.0 and self._start_index > 0:
             with self._lock:
                 self._handle_start_scroll()
@@ -5774,7 +5777,7 @@ class LazyTable(sg.Table):
         # else, set the scroll
         self.vsb.set(x0, x1)
 
-    def _handle_start_scroll(self):
+    def _handle_start_scroll(self) -> None:
         # determine slice
         num_rows = min(self._start_index, self.insert_qty)
         new_start_index = max(0, self._start_index - num_rows)
@@ -5800,7 +5803,7 @@ class LazyTable(sg.Table):
             row_iid = self.tree_ids[self.insert_qty + self.NumRows - 1]
             self.widget.see(row_iid)
 
-    def _handle_end_scroll(self):
+    def _handle_end_scroll(self) -> None:
         num_rows = len(self.values)
         # determine slice
         start_index = max(0, self._end_index)
@@ -5839,7 +5842,7 @@ class LazyTable(sg.Table):
             self.widget.tag_configure(iid, background=self._bg, foreground=self._fg)
         return toggle_color
 
-    def _handle_extra_kwargs(self):
+    def _handle_extra_kwargs(self) -> None:
         if self.headings_justification:
             for i, heading_id in enumerate(self.Widget["columns"]):
                 self.Widget.heading(
@@ -5855,7 +5858,7 @@ class LazyTable(sg.Table):
 
 
 class _StrictInput:
-    def strict_validate(self, value, action):
+    def strict_validate(self, value, action) -> bool:
         if hasattr(self, "active_placeholder"):
             active_placeholder = self.active_placeholder
         else:
@@ -5869,7 +5872,7 @@ class _StrictInput:
             return False
         return True
 
-    def add_validate(self, dataset: DataSet, column_name: str):
+    def add_validate(self, dataset: DataSet, column_name: str) -> None:
         self.dataset: DataSet = dataset
         self.column_name = column_name
         widget = self.widget if isinstance(self, sg.Input) else self
@@ -5904,7 +5907,9 @@ class _PlaceholderText(ABC):
     placeholder_font: str = None
     active_placeholder: bool = False
 
-    def add_placeholder(self, placeholder: str, color: str = None, font: str = None):
+    def add_placeholder(
+        self, placeholder: str, color: str = None, font: str = None
+    ) -> None:
         """Adds a placeholder text to the element.
 
         The placeholder text is displayed in the element when the element is empty and
@@ -5939,7 +5944,7 @@ class _PlaceholderText(ABC):
     def _add_binds(self):
         pass
 
-    def update(self, *args, **kwargs):
+    def update(self, *args, **kwargs) -> None:
         """Updates the input widget with a new value and displays the placeholder text
         if the value is empty.
 
@@ -5999,11 +6004,11 @@ class _PlaceholderText(ABC):
 class _EnhancedInput(_PlaceholderText, sg.Input, _StrictInput):
     """An Input that allows for the display of a placeholder text when empty."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         self.binds = {}
         super().__init__(*args, **kwargs)
 
-    def _add_binds(self):
+    def _add_binds(self) -> None:
         widget = self.widget
         if self.binds:
             # remove any existing binds
@@ -6020,18 +6025,18 @@ class _EnhancedInput(_PlaceholderText, sg.Input, _StrictInput):
                 self.delete_placeholder()
             return None
 
-        def on_key_release(event):
+        def on_key_release(event) -> None:
             if widget.get() in EMPTY:
                 with contextlib.suppress(tk.TclError):
                     self.insert_placeholder()
                     widget.icursor(0)
 
-        def on_focusin(event):
+        def on_focusin(event) -> None:
             if self.active_placeholder:
                 # Move cursor to the beginning if the field has a placeholder
                 widget.icursor(0)
 
-        def on_focusout(event):
+        def on_focusout(event) -> None:
             if not widget.get():
                 self.insert_placeholder()
 
@@ -6051,13 +6056,13 @@ class _EnhancedInput(_PlaceholderText, sg.Input, _StrictInput):
         if not widget.get():
             self.insert_placeholder()
 
-    def insert_placeholder(self):
+    def insert_placeholder(self) -> None:
         self.active_placeholder = True
         self.widget.delete(0, "end")
         self.widget.insert(0, self.placeholder_text)
         self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
 
-    def delete_placeholder(self):
+    def delete_placeholder(self) -> None:
         self.active_placeholder = False
         self.widget.delete(0, "end")
         self.widget.config(fg=self.normal_color, font=self.normal_font)
@@ -6067,22 +6072,22 @@ class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
     """A Multiline that allows for the display of a placeholder text when focus-out
     empty."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         self.binds = {}
         super().__init__(*args, **kwargs)
 
-    def _add_binds(self):
+    def _add_binds(self) -> None:
         widget = self.widget
         if self.binds:
             for event, bind in self.binds.items():
                 self.widget.unbind(event, bind)
             self.binds = {}
 
-        def on_focusin(event):
+        def on_focusin(event) -> None:
             if self.active_placeholder:
                 self.delete_placeholder()
 
-        def on_focusout(event):
+        def on_focusout(event) -> None:
             if not widget.get("1.0", "end-1c").strip():
                 self.insert_placeholder()
 
@@ -6092,19 +6097,19 @@ class _EnhancedMultiline(_PlaceholderText, sg.Multiline):
         self.binds["<FocusIn>"] = widget.bind("<FocusIn>", on_focusin, "+")
         self.binds["<FocusOut>"] = widget.bind("<FocusOut>", on_focusout, "+")
 
-    def insert_placeholder(self):
+    def insert_placeholder(self) -> None:
         self.widget.insert("1.0", self.placeholder_text)
         self.widget.config(fg=self.placeholder_color, font=self.placeholder_font)
         self.active_placeholder = True
 
-    def delete_placeholder(self):
+    def delete_placeholder(self) -> None:
         self.widget.delete("1.0", "end")
         self.widget.config(fg=self.normal_color, font=self.normal_font)
         self.active_placeholder = False
 
 
 class _SearchInput(_EnhancedInput):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         self.dataset = None
         self.search_string = None  # Track the StringVar
         super().__init__(*args, **kwargs)
@@ -6112,10 +6117,10 @@ class _SearchInput(_EnhancedInput):
         self.search_non_keys.remove("BackSpace")
         self.search_non_keys.remove("Delete")
 
-    def _add_binds(self):
+    def _add_binds(self) -> None:
         super()._add_binds()  # Call the parent method to maintain existing binds
 
-        def on_key_release(event):
+        def on_key_release(event) -> None:
             # update selectors after each key-release
             if (
                 event.keysym not in self.search_non_keys
@@ -6130,14 +6135,14 @@ class _SearchInput(_EnhancedInput):
             "<KeyRelease>", on_key_release, "+"
         )
 
-    def bind_dataset(self, dataset):
+    def bind_dataset(self, dataset) -> None:
         self.dataset = dataset
         self.search_string = dataset._search_string
         if self.search_string is None:
             self.search_string = dataset._search_string = tk.StringVar()
         self.search_string.trace_add("write", self._on_search_string_change)
 
-    def _on_search_string_change(self, *args):
+    def _on_search_string_change(self, *args) -> None:
         if (
             not self.active_placeholder
             and self.get() != self.search_string.get()
@@ -6193,12 +6198,12 @@ class _AutoCompleteLogic:
 
         return hits
 
-    def autocomplete(self, delta=0):
+    def autocomplete(self, delta=0) -> None:
         """Perform autocompletion based on the current input."""
         self._hits = self._autocomplete_combo(self._completion_list, delta)
         self._hit_index = 0
 
-    def handle_keyrelease(self, event):
+    def handle_keyrelease(self, event) -> None:
         """Handle key release event for autocompletion and navigation."""
         if event.keysym == "BackSpace":
             self.Widget.delete(self.Widget.position, tk.END)
@@ -6227,7 +6232,7 @@ class _AutocompleteCombo(_AutoCompleteLogic, sg.Combo):
     once to activate autocompletion, eg `window['combo_key'].update(values=values)`
     """
 
-    def update(self, *args, **kwargs):
+    def update(self, *args, **kwargs) -> None:
         """Update the Combo widget with new values."""
         if "values" in kwargs and kwargs["values"] is not None:
             self._completion_list = [str(row) for row in kwargs["values"]]
@@ -6242,7 +6247,7 @@ class _AutocompleteCombo(_AutoCompleteLogic, sg.Combo):
 class _TtkCombo(_AutoCompleteLogic, ttk.Combobox):
     """Customized Combo widget with autocompletion feature."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         """Initialize the Combo widget."""
         self._completion_list = [str(row) for row in kwargs["values"]]
         self.Widget = self
@@ -6254,7 +6259,7 @@ class _TtkCalendar(ttk.Frame):
 
     # Modified from Tkinter GUI Application Development Cookbook, MIT License.
 
-    def __init__(self, master, init_date, textvariable, **kwargs):
+    def __init__(self, master, init_date, textvariable, **kwargs) -> None:
         # TODO, set these in themepack?
         fwday = kwargs.pop("firstweekday", calendar.MONDAY)
         sel_bg = kwargs.pop("selectbackground", "#ecffc4")
@@ -6317,7 +6322,7 @@ class _TtkCalendar(ttk.Frame):
         self.table.bind("<ButtonPress-1>", self.pressed_callback, "+")
         return canvas
 
-    def build_calendar(self):
+    def build_calendar(self) -> None:
         year, month = self.cal_date.year, self.cal_date.month
         month_name = self.cal.formatmonthname(year, month, 0)
         month_weeks = self.cal.monthdayscalendar(year, month)
@@ -6328,7 +6333,7 @@ class _TtkCalendar(ttk.Frame):
             fmt_week = [f"{day:02d}" if day else "" for day in (week or [])]
             self.table.item(item, values=fmt_week)
 
-    def pressed_callback(self, event):
+    def pressed_callback(self, event) -> None:
         x, y, widget = event.x, event.y, event.widget
         item = widget.identify_row(y)
         column = widget.identify_column(x)
@@ -6347,7 +6352,7 @@ class _TtkCalendar(ttk.Frame):
             self.draw_selection(bbox)
             self.textvariable.set(self.cal_date.strftime(DATE_FORMAT))
 
-    def draw_selection(self, bbox):
+    def draw_selection(self, bbox) -> None:
         canvas, text = self.canvas, "%02d" % self.cal_date.day
         x, y, width, height = bbox
         textw = self.font.measure(text)
@@ -6356,12 +6361,12 @@ class _TtkCalendar(ttk.Frame):
         canvas.itemconfigure(canvas.text, text=text)
         canvas.place(x=x, y=y)
 
-    def set_date(self, dateobj):
+    def set_date(self, dateobj) -> None:
         self.cal_date = dateobj
         self.canvas.place_forget()
         self.build_calendar()
 
-    def select_date(self):
+    def select_date(self) -> None:
         bbox = self.get_bbox_for_date(self.cal_date)
         if bbox:
             self.draw_selection(bbox)
@@ -6377,7 +6382,7 @@ class _TtkCalendar(ttk.Frame):
                     return self.table.bbox(item, column)
         return None
 
-    def move_month(self, offset):
+    def move_month(self, offset) -> None:
         self.canvas.place_forget()
         month = self.cal_date.month - 1 + offset
         year = self.cal_date.year + month // 12
@@ -6385,14 +6390,14 @@ class _TtkCalendar(ttk.Frame):
         self.cal_date = dt.date(year, month, 1)
         self.build_calendar()
 
-    def minsize(self, e):
+    def minsize(self, e) -> None:
         width, height = self.master.geometry().split("x")
         height = height[: height.index("+")]
         self.master.minsize(width, height)
 
 
 class _DatePicker(_TtkStrictInput):
-    def __init__(self, master, dataset, column_name, init_date, **kwargs):
+    def __init__(self, master, dataset, column_name, init_date, **kwargs) -> None:
         self.dataset = dataset
         self.column_name = column_name
         textvariable = kwargs["textvariable"]
@@ -6406,18 +6411,18 @@ class _DatePicker(_TtkStrictInput):
         self.bind("<KeyRelease>", self.on_entry_key_release, "+")
         self.calendar.bind("<Leave>", self.hide_calendar, "+")
 
-    def show_calendar(self, event=None):
+    def show_calendar(self, event=None) -> None:
         self.configure(state=tk.DISABLED)
         self.calendar.place(in_=self, relx=0, rely=1)
         self.calendar.focus_force()
         self.calendar.select_date()
 
-    def hide_calendar(self, event=None):
+    def hide_calendar(self, event=None) -> None:
         self.configure(state=tk.NORMAL)
         self.calendar.place_forget()
         self.focus_force()
 
-    def on_entry_key_release(self, event=None):
+    def on_entry_key_release(self, event=None) -> None:
         date = self.get()
         date = self.dataset.column_info[self.column_name].cast(date)
         # Check if the user has typed a valid date
@@ -7176,6 +7181,7 @@ def selector(
 @dc.dataclass
 class TableStyler:
     """TODO"""
+
     # pysimplesql specific
     frame_pack_kwargs: Dict[str] = dc.field(default_factory=dict)
 
@@ -7209,7 +7215,7 @@ class TableStyler:
     expand_y: bool = False
     visible: bool = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         attrs = self.get_table_kwargs()
         return f"TableStyler({attrs})"
 
@@ -7271,7 +7277,7 @@ class TableBuilder(list):
     `Dataself.search_string`."""
     style: TableStyler = dc.field(default_factory=TableStyler)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Store this instance in the master list of instances
         TableBuilder.instances.append(self)
 
@@ -7508,7 +7514,7 @@ class TableBuilder(list):
         if self.add_save_heading_button:
             element.widget.heading(0, command=functools.partial(fn, None, save=True))
 
-    def insert(self, idx, heading: str, column: str = None, *args, **kwargs):
+    def insert(self, idx, heading: str, column: str = None, *args, **kwargs) -> None:
         super().insert(idx, {"heading": heading, "column": column})
 
 
@@ -7516,7 +7522,7 @@ class _HeadingCallback:
 
     """Internal class used when sg.Table column headings are clicked."""
 
-    def __init__(self, frm_reference: Form, data_key: str):
+    def __init__(self, frm_reference: Form, data_key: str) -> None:
         """Create a new _HeadingCallback object.
 
         Args:
@@ -7529,7 +7535,7 @@ class _HeadingCallback:
         self.frm: Form = frm_reference
         self.data_key = data_key
 
-    def __call__(self, column, save):
+    def __call__(self, column, save) -> None:
         dataset = self.frm[self.data_key]
         if save:
             dataset.save_record()
@@ -7544,11 +7550,11 @@ class _CellEdit:
 
     """Internal class used when sg.Table cells are double-clicked if edit enabled."""
 
-    def __init__(self, frm_reference: Form):
+    def __init__(self, frm_reference: Form) -> None:
         self.frm = frm_reference
         self.active_edit = False
 
-    def __call__(self, event):
+    def __call__(self, event) -> None:
         # if double click a treeview
         if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
@@ -7557,7 +7563,7 @@ class _CellEdit:
             if region == "cell":
                 self.edit(event)
 
-    def edit(self, event):
+    def edit(self, event) -> None:
         treeview = event.widget
 
         # only allow 1 edit at a time
@@ -7772,7 +7778,7 @@ class _CellEdit:
         combobox_values: _ElementRow,
         widget_type,
         field_var,
-    ):
+    ) -> None:
         # get current entry text
         new_value = field_var.get()
 
@@ -7837,7 +7843,7 @@ class _CellEdit:
 
         self.destroy()
 
-    def destroy(self):
+    def destroy(self) -> None:
         # unbind
         self.frm.window.TKroot.unbind("<Button-1>", self.destroy_bind)
 
@@ -7854,7 +7860,7 @@ class _CellEdit:
         self,
         event,
         accept_dict,
-    ):
+    ) -> None:
         # destroy if you click a heading while editing
         if isinstance(event.widget, ttk.Treeview):
             tk_widget = event.widget
@@ -7890,7 +7896,7 @@ class _CellEdit:
                     return data_key, element
         return None
 
-    def combo_configure(self, event):
+    def combo_configure(self, event) -> None:
         """Configures combobox drop-down to be at least as wide as longest value."""
 
         combo = event.widget
@@ -7912,13 +7918,13 @@ class _LiveUpdate:
 
     """Internal class used to automatically sync selectors with field changes."""
 
-    def __init__(self, frm_reference: Form):
+    def __init__(self, frm_reference: Form) -> None:
         self.frm = frm_reference
         self.last_event_widget = None
         self.last_event_time = None
         self.delay_seconds = themepack.live_update_typing_delay_seconds
 
-    def __call__(self, event):
+    def __call__(self, event) -> None:
         # keep track of time on same widget
         if event.widget == self.last_event_widget:
             self.last_event_time = time()
@@ -7940,7 +7946,7 @@ class _LiveUpdate:
                 lambda: self.delay(event.widget, widget_type),
             )
 
-    def sync(self, widget, widget_type):
+    def sync(self, widget, widget_type) -> None:
         for e in self.frm.element_map:
             if e["element"].widget == widget:
                 data_key = e["table"]
@@ -7982,7 +7988,7 @@ class _LiveUpdate:
                     if dataset.column_likely_in_selector(column):
                         self.frm.update_selectors(dataset.key)
 
-    def delay(self, widget, widget_type):
+    def delay(self, widget, widget_type) -> None:
         if self.last_event_time:
             elapsed_sec = time() - self.last_event_time
             if elapsed_sec >= self.delay_seconds:
@@ -8306,7 +8312,7 @@ class LanguagePack:
     }
     """Default LanguagePack."""
 
-    def __init__(self, lp_dict=None):
+    def __init__(self, lp_dict=None) -> None:
         self.lp_dict = lp_dict or type(self).default
 
     def __getattr__(self, key):
@@ -8333,7 +8339,7 @@ class LanguagePack:
                     f"LanguagePack object has no attribute '{key}'"
                 ) from e
 
-    def __call__(self, lp_dict=None):
+    def __call__(self, lp_dict=None) -> None:
         """Update the LanguagePack instance."""
         # For default use cases, load the default directly to avoid the overhead
         # of __getattr__() going through 2 key reads
@@ -8417,10 +8423,10 @@ class Column:
     def __getitem__(self, key):
         return self.__dict__[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         self.__dict__[key] = value
 
-    def __contains__(self, item):
+    def __contains__(self, item) -> bool:
         return item in self.__dict__
 
     def cast(self, value: Any) -> Any:
@@ -8515,7 +8521,7 @@ class LengthCol(Column):
     min_length: int = None
     max_length: int = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.domain_args and self.max_length is None:
             self.max_length = (
                 int(self.domain_args[0]) if self.domain_args[0] is not None else None
@@ -8571,7 +8577,7 @@ class LocaleCol(Column):
 class BoolCol(Column):
     python_type: Type[bool] = dc.field(default=bool, init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if themepack.display_bool_as_checkbox:
             self.cell_format_fn: callable = CellFormatFn.bool_to_checkbox
 
@@ -8655,7 +8661,7 @@ class DecimalCol(LocaleCol, MinMaxCol):
     scale: int = DECIMAL_SCALE
     python_type: Type[Decimal] = dc.field(default=Decimal, init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.domain_args:
             try:
                 self.precision = (
@@ -8806,7 +8812,7 @@ class ColumnInfo(List):
         "datetime",
     ]
 
-    def __init__(self, driver: SQLDriver, table: str):
+    def __init__(self, driver: SQLDriver, table: str) -> None:
         self.driver = driver
         self.table = table
 
@@ -9158,7 +9164,7 @@ class SQLDriver(ABC):
     SQL_CONSTANTS: ClassVar[List[str]] = []
     _CHECK_RESERVED_KEYWORDS: ClassVar[bool] = True
 
-    def __post_init__(self, sql_char):
+    def __post_init__(self, sql_char) -> None:
         # if derived subclass implements __init__, call `super()__post_init__()`
         # unpack quoting
         self.placeholder = sql_char.placeholder
@@ -9300,25 +9306,25 @@ class SQLDriver(ABC):
     def quote_value(self, value: str):
         return self.quote(value, self.quote_value_char)
 
-    def commit(self):
+    def commit(self) -> None:
         """TODO"""
         self.con.commit()
 
-    def rollback(self):
+    def rollback(self) -> None:
         self.con.rollback()
 
-    def close(self):
+    def close(self) -> None:
         self.con.close()
 
-    def default_query(self, table):
+    def default_query(self, table) -> str:
         table = self.quote_table(table)
         return f"SELECT {table}.* FROM {table}"
 
-    def default_order(self, description_column):
+    def default_order(self, description_column) -> str:
         description_column = self.quote_column(description_column)
         return f" ORDER BY {description_column} ASC"
 
-    def relationship_to_join_clause(self, r_obj: Relationship):
+    def relationship_to_join_clause(self, r_obj: Relationship) -> str:
         parent = self.quote_table(r_obj.parent_table)
         child = self.quote_table(r_obj.child_table)
         fk = self.quote_column(r_obj.fk_column)
@@ -9844,7 +9850,7 @@ class Sqlite(SQLDriver):
         sql_char: SqlChar = sql_char,
         create_file: bool = True,
         skip_sql_if_db_exists: bool = True,
-    ):
+    ) -> None:
         """
         Args:
             update_cascade: (optional) Default:True. Requery and filter child table on
@@ -9863,7 +9869,7 @@ class Sqlite(SQLDriver):
 
         super().__post_init__(sql_char)
 
-    def _import_required_modules(self):
+    def _import_required_modules(self) -> None:
         # Sqlite needs Sqlite3.Connection for a type-hint, so we already imported
         pass
 
@@ -9918,7 +9924,7 @@ class Sqlite(SQLDriver):
     def _imported_database(self):
         return isinstance(self._database, sqlite3.Connection)
 
-    def connect(self, database):
+    def connect(self, database) -> None:
         self.con = sqlite3.connect(
             database, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
         )
@@ -9960,12 +9966,12 @@ class Sqlite(SQLDriver):
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
 
-    def execute_script(self, script, encoding):
+    def execute_script(self, script, encoding) -> None:
         with open(script, "r", encoding=encoding) as file:
             logger.info(f"Loading script {script} into database.")
             self.con.executescript(file.read())
 
-    def close(self):
+    def close(self) -> None:
         # Only do cleanup if this is not an imported database
         if not self._imported_database:
             # optimize the database for long-term benefits
@@ -10073,7 +10079,7 @@ class Sqlite(SQLDriver):
             return Column
         return None
 
-    def _register_type_callables(self):
+    def _register_type_callables(self) -> None:
         # Register datetime adapters/converters
         # python 3.12 will depreciate dt.date/dt.datetime default adapters
         sqlite3.register_adapter(dt.date, lambda val: val.isoformat())
@@ -10150,7 +10156,7 @@ class Flatfile(Sqlite):
         self.REQUIRES = ["csv,sqlite3"]
         self.placeholder = "?"  # update
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         self.connect(":memory:")
 
         self.con.row_factory = sqlite3.Row
@@ -10208,7 +10214,7 @@ class Flatfile(Sqlite):
 
         self.commit()  # commit them all at the end
 
-    def _import_required_modules(self):
+    def _import_required_modules(self) -> None:
         global csv  # noqa PLW0603
         global sqlite3  # noqa PLW0603
         try:
@@ -10302,7 +10308,7 @@ class Mysql(SQLDriver):
         "CURRENT_TIMESTAMP",
     ]
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         self.con = self.connect()
 
         self.win_pb.update(lang.SQLDriver_execute, 50)
@@ -10328,7 +10334,7 @@ class Mysql(SQLDriver):
             logger.info("Executing sql script from file passed in")
             self.execute_script(self.sql_script, self.sql_script_encoding)
 
-    def _import_required_modules(self):
+    def _import_required_modules(self) -> None:
         global mysql
         try:
             import mysql.connector
@@ -10389,7 +10395,7 @@ class Mysql(SQLDriver):
             [dict(row) for row in rows], lastrowid, exception, column_info
         )
 
-    def execute_script(self, script, encoding):
+    def execute_script(self, script, encoding) -> None:
         with open(script, "r", encoding=encoding) as file:
             logger.info(f"Loading script {script} into database.")
             cursor = self.con.cursor()
@@ -10605,7 +10611,7 @@ class Postgres(SQLDriver):
         "USER",
     ]
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         self.con = self.connect()
 
         # experiment to see if I can make a nocase collation
@@ -10658,7 +10664,7 @@ class Postgres(SQLDriver):
             self.con.commit()
             cursor.close()
 
-    def _import_required_modules(self):
+    def _import_required_modules(self) -> None:
         global psycopg2  # noqa PLW0603
         try:
             import psycopg2
@@ -10721,7 +10727,7 @@ class Postgres(SQLDriver):
             [dict(row) for row in rows], exception=exception, column_info=column_info
         )
 
-    def execute_script(self, script, encoding):
+    def execute_script(self, script, encoding) -> None:
         with open(script, "r", encoding=encoding) as file:
             logger.info(f"Loading script {script} into database.")
             cursor = self.con.cursor()
@@ -10929,7 +10935,7 @@ class Sqlserver(SQLDriver):
         "USER",
     ]
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         self.con = self.connect()
 
         if self.sql_script is not None:
@@ -10946,7 +10952,7 @@ class Sqlserver(SQLDriver):
             self.con.commit()
             cursor.close()
 
-    def _import_required_modules(self):
+    def _import_required_modules(self) -> None:
         global pyodbc  # noqa PLW0603
         try:
             import pyodbc
@@ -11014,7 +11020,7 @@ class Sqlserver(SQLDriver):
             column_info,
         )
 
-    def execute_script(self, script, encoding):
+    def execute_script(self, script, encoding) -> None:
         with open(script, "r", encoding=encoding) as file:
             logger.info(f"Loading script {script} into database.")
             cursor = self.con.cursor()
@@ -11230,7 +11236,7 @@ class MSAccess(SQLDriver):
         sql_char: SqlChar = sql_char,
         infer_datetype_from_default_function: bool = True,
         use_newer_jackcess: bool = False,
-    ):
+    ) -> None:
         """Initialize the MSAccess class.
 
         Args:
@@ -11267,7 +11273,7 @@ class MSAccess(SQLDriver):
 
         super().__post_init__(sql_char)
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         if not self.start_jvm():
             logger.debug("Failed to start jvm")
             exit()
@@ -11309,7 +11315,7 @@ class MSAccess(SQLDriver):
     import os
     import sys
 
-    def _import_required_modules(self):
+    def _import_required_modules(self) -> None:
         global jpype  # noqa PLW0603
         try:
             import jpype  # pip install JPype1
@@ -11317,7 +11323,7 @@ class MSAccess(SQLDriver):
         except ModuleNotFoundError as e:
             self._import_failed(e)
 
-    def start_jvm(self):
+    def start_jvm(self) -> bool:
         # Get the path to the 'lib' folder
         current_path = os.path.dirname(os.path.abspath(__file__))
         lib_path = os.path.join(current_path, "lib", "UCanAccess-5.0.1.bin")
@@ -11416,7 +11422,7 @@ class MSAccess(SQLDriver):
         stmt.getUpdateCount()
         return Result.set([], None, exception, column_info)
 
-    def execute_script(self, script, encoding):
+    def execute_script(self, script, encoding) -> None:
         with open(script, "r", encoding=encoding) as file:
             logger.info(f"Loading script {script} into the database.")
             script_content = file.read()  # Read the entire script content
@@ -11580,7 +11586,7 @@ class MSAccess(SQLDriver):
         res.attrs["lastrowid"] = res.iloc[0]["ID"].tolist()
         return res
 
-    def _create_access_file(self):
+    def _create_access_file(self) -> bool:
         try:
             db_builder = jpype.JClass(
                 "com.healthmarketscience.jackcess.DatabaseBuilder"
@@ -11619,14 +11625,14 @@ class MSAccess(SQLDriver):
                 return converter_fn(value)
         return value
 
-    def _register_default_adapters(self):
+    def _register_default_adapters(self) -> None:
         self.adapters = {
             dt.date: java.sql.Date,
             dt.datetime: java.sql.Timestamp,
             dt.time: java.sql.Time,
         }
 
-    def _register_default_converters(self):
+    def _register_default_converters(self) -> None:
         self.converters = {
             jpype.JPackage("java").lang.String: lambda value: str(value),
             jpype.JPackage("java").lang.Integer: lambda value: int(value),
