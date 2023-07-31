@@ -97,7 +97,7 @@ layout = [
     [sg.Text("Zip:"+" "*63), ss.field("Addresses.zip", size=(6, 1), no_label=True)],
     [ss.actions("Addresses", edit_protect=False, duplicate=True)],
     # sg.StatusBar sets character limit based on initial value. Here we are filling it with 100 spaces.
-    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.TYPE_INFO})]
+    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.ElementType.INFO})]
 
 ]
 win = sg.Window('Address book example', layout, finalize=True, ttk_theme=ss.themepack.ttk_theme)

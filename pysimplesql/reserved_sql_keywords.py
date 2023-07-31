@@ -1,3 +1,4 @@
+"""Collection of Reserved SQL keywords."""
 # encoding utf-8
 
 __author__ = "Thadeus Burgess <thadeusb@thadeusb.com>"

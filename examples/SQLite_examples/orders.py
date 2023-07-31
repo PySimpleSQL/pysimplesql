@@ -268,7 +268,7 @@ orderdetails_layout = [
     [ss.field("order_details.price", sg.Text)],
     [ss.field("order_details.subtotal", sg.Text)],
     [sg.Sizer(h_pixels=0, v_pixels=10)],
-    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.TYPE_INFO})],
+    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.ElementType.INFO})],
 ]
 
 layout.append([sg.Frame("Order Details", orderdetails_layout, expand_x=True)])

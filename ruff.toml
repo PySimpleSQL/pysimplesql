@@ -7,7 +7,7 @@ select = [
 #     "C90", #mccabe
     "I", #isort
     "N", #pep8-naming
-#     "D", #pydocstyle
+    "D", #pydocstyle
 #     "UP", #pyupgrade
     "YTT", #flake8-2020
 #     "ANN", #flake8-annotations
@@ -52,8 +52,10 @@ select = [
     "RUF", #Ruff-specific rules
     ] 
 ignore = [
-    "D211", #No blank lines allowed before class docstring
-    "D212", #Multi-line docstring summary should start at the first line
+    "D101",
+    "D102",
+    "D105",
+    "D205",
     "PLC1901", #We compare to "" alot, and for good reason.
     "N813", # ignore Camelcase `PySimpleGUI` imported as lowercase `sg`
     "B905", # py310,  `zip()` without an explicit `strict=` parameter
@@ -67,9 +69,14 @@ ignore = [
     "F405",
     "SIM102",
     "I",
+    "D",
     ]
-"doc_examples/*" = ["F821"]
+"doc_examples/*" = ["ALL"]
+"doc_scripts/*" = ["ALL"]
 "tests/*" = ["BLE001", "F405", "PT011", "PT012", "PT015", "PT017", "SIM114"]
 "pysimplesql/language_pack.py" = ["E501"]
 "pysimplesql/theme_pack.py" = ["E501"]
 "pysimplesql/reserved_sql_keywords.py" = ["C405"]
+
+[pydocstyle]
+convention = "google"

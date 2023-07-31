@@ -1,5 +1,6 @@
 import ast
 import re
+
 from griffe import Extension, Object, ObjectNode
 
 
@@ -24,8 +25,7 @@ class RegexUrl(Extension):
             complete_path = prefix + match.group(1)
             return f"[{text}{fn_suffix}][{complete_path}]"
 
-        output_string = compiled_pattern.sub(replace_function, input_string)
-        return output_string
+        return compiled_pattern.sub(replace_function, input_string)
 
     def on_instance(self, node: ast.AST | ObjectNode, obj: Object) -> None:
         if obj.docstring:
