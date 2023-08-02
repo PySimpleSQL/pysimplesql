@@ -146,7 +146,7 @@ TFORM_DECODE: int = 0
 
 
 class ElementType(Enum):
-    """Types for automatic mapping"""
+    """Types for automatic mapping."""
 
     EVENT = auto()
     FIELD = auto()
@@ -183,15 +183,16 @@ class EventType(Enum):
 # Can be used with other bitmask values
 SHOW_MESSAGE: int = 4096
 
-# ---------------------------
-# PROMPT_SAVE RETURN BITMASKS
-# ---------------------------
-PROMPT_SAVE_PROCEED: int = 2
-"""After prompt_save, proceeded to save"""
-PROMPT_SAVE_NONE: int = 4
-"""Found no records changed"""
-PROMPT_SAVE_DISCARDED: int = 8
-"""User declined to save"""
+class PromptSaveReturn(Enum):
+    """prompt_save return enums."""
+
+    PROCEED = auto()
+    """After prompt_save, proceeded to save"""
+    NONE = auto()
+    """Found no records changed"""
+    DISCARDED = auto()
+    """User declined to save"""
+
 # ---------------------------
 # PROMPT_SAVE MODES
 # ---------------------------
@@ -1269,7 +1270,7 @@ class DataSet:
 
     def prompt_save(
         self, update_elements: bool = True
-    ) -> Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE, SAVE_FAIL]:
+    ) -> Union[Type[PromptSaveReturn], SAVE_FAIL]:
         """Prompts the user, asking if they want to save when changes are detected.
 
         This is called when the current record is about to change.
@@ -1280,12 +1281,12 @@ class DataSet:
                 to discard changes if user reply's 'No' to prompt.
 
         Returns:
-            A prompt return value of one of the following: `PROMPT_SAVE_PROCEED`,
-            `PROMPT_SAVE_DISCARDED`, or `PROMPT_SAVE_NONE`.
+            A prompt return value of one of the following: `PromptSaveReturn.PROCEED`,
+            `PromptSaveReturn.DISCARDED`, or `PromptSaveReturn.NONE`.
         """
         # Return False if there is nothing to check or _prompt_save is False
         if self.current_index is None or not self.row_count or not self._prompt_save:
-            return PROMPT_SAVE_NONE
+            return PromptSaveReturn.NONE
 
         # See if any rows are virtual
         vrows = len(self.virtual_pks)
@@ -1311,7 +1312,7 @@ class DataSet:
                     # set all selectors back to previous position
                     self.frm.update_selectors()
                     return SAVE_FAIL
-                return PROMPT_SAVE_PROCEED
+                return PromptSaveReturn.PROCEED
             # if no
             self.purge_virtual()
             self.restore_current_row()
@@ -1321,9 +1322,9 @@ class DataSet:
             if vrows and update_elements:
                 self.frm.update_elements(self.key)
 
-            return PROMPT_SAVE_DISCARDED
+            return PromptSaveReturn.DISCARDED
         # if no changes
-        return PROMPT_SAVE_NONE
+        return PromptSaveReturn.NONE
 
     def requery(
         self,
@@ -2390,7 +2391,7 @@ class DataSet:
         if check_prompt_save and self._prompt_save is False:
             if update_elements:
                 self.frm.update_elements(self.key)
-            results[self.table] = PROMPT_SAVE_NONE
+            results[self.table] = PromptSaveReturn.NONE
             return results
         # otherwise, proceed
         result = self.save_record(
@@ -3796,9 +3797,9 @@ class Form:
         make elements that conform to this standard, but this information will allow you
         to do this manually if needed. For individual fields, Element keys must be named
         'Table.column'. Additionally, the metadata must contain a dict with the key of
-        'type' set to `ElementType.FIELD`. For selectors, the key can be named whatever you
-        want, but the metadata must contain a dict with the key of 'type' set to
-        TPE_SELECTOR.
+        'type' set to `ElementType.FIELD`. For selectors, the key can be named whatever
+        you want, but the metadata must contain a dict with the key of 'type' set to
+        `ElementType.SELECTOR`.
 
         Args:
             win: A PySimpleGUI Window
@@ -4125,14 +4126,14 @@ class Form:
         """
         return self._edit_protect
 
-    def prompt_save(self) -> PromptSaveValue:
+    def prompt_save(self) -> Type[PromptSaveReturn]:
         """Prompt to save if any GUI changes are found the affect any table on this
         form. The helps prevent data entry loss when performing an action that changes
         the current record of a `DataSet`.
 
         Returns:
-            One of the prompt constant values: PROMPT_SAVE_PROCEED,
-            PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE
+            One of the prompt constant values: PromptSaveReturn.PROCEED,
+            PromptSaveReturn.DISCARDED, PromptSaveReturn.NONE
         """
         user_prompted = False  # Has the user been prompted yet?
         for data_key in self.datasets:
@@ -4156,11 +4157,11 @@ class Form:
                         self[data_key_].restore_current_row()
                     self.update_elements()
                     # We did have a change, regardless if the user chose not to save
-                    return PROMPT_SAVE_DISCARDED
+                    return PromptSaveReturn.DISCARDED
                 break
         if user_prompted:
             self.save_records(check_prompt_save=True)
-        return PROMPT_SAVE_PROCEED if user_prompted else PROMPT_SAVE_NONE
+        return PromptSaveReturn.PROCEED if user_prompted else PromptSaveReturn.NONE
 
     def set_prompt_save(self, mode: int) -> None:
         """Set the prompt to save action when navigating records for all `DataSet`
@@ -9145,10 +9146,17 @@ class SQLDriver(ABC):
     SQLDriver.insert_record()
 
     Args:
+        host: Host.
+        user: User.
+        password: Password.
+        database: Name of database.
         update_cascade: (optional) Default:True. Requery and filter child table on
             selected parent primary key. (ON UPDATE CASCADE in SQL)
         delete_cascade: (optional) Default:True. Delete the dependent child records if
             the parent table record is deleted. (ON UPDATE DELETE in SQL)
+        sql_script:
+        sql_script_encoding:
+        sql_commands:
     """
 
     host: str = None
@@ -11266,6 +11274,7 @@ class MSAccess(SQLDriver):
                 selected parent primary key. (ON UPDATE CASCADE in SQL)
             delete_cascade: (optional) Default:True. Delete the dependent child records
                 if the parent table record is deleted. (ON UPDATE DELETE in SQL)
+            sql_char: (optional) `SqlChar` object, if non-default chars desired.
             infer_datetype_from_default_function: If True, specializes a DateTime column
                 by examining the column's default function. A DateTime column with
                 '=Date()' will be treated as a 'DateCol', and '=Time()' will be treated
@@ -11691,8 +11700,6 @@ class Driver:
 
 SaveResultsDict = Dict[str, int]
 CallbacksDict = Dict[str, Callable[[Form, sg.Window], Union[None, bool]]]
-# PromptSaveValue = Union[PROMPT_SAVE_PROCEED, PROMPT_SAVE_DISCARDED, PROMPT_SAVE_NONE]
-
 
 class SimpleTransform(TypedDict):
     decode: Dict[str, Callable[[str, str], None]]
