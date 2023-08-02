@@ -764,32 +764,42 @@ class DataSet:
     save_quiet: bool = None
     duplicate_children: bool = None
     validate_mode: ValidateMode = None
+    
+    # non-init, instance-vars, here for documentation
+    key: str = _field(init=False)
+    """Short for 'data_key'"""
+    frm = _field(init=False)
+    """TODO"""
+    driver = _field(init=False)
+    """TODO"""
+    relationships = _field(init=False)
+    """TODO"""
+    rows: pd.DataFrame = _field(init=False)
+    """TODO"""
+    join_clause: str = _field(init=False)
+    """TODO"""
+    where_clause: str = _field(init=False)
+    """TODO"""
+    search_order: List[str] = _field(init=False)
+    """TODO"""
+    
 
     def __post_init__(self, data_key, frm_reference, prompt_save) -> None:
         DataSet.instances.append(self)
 
         self.key: str = data_key
-        """TODO"""
         self.frm = frm_reference
-        """TODO"""
         self.driver = self.frm.driver
-        """TODO"""
         self.relationships = self.driver.relationships
-        """TODO"""
         self.rows: pd.DataFrame = Result.set()
-        """TODO"""
         self._current_index: int = 0
         self.column_info: ColumnInfo = None
-        """TODO"""
         self.selector: List[str] = []
 
         # initally empty clauses
         self.join_clause: str = ""
-        """TODO"""
         self.where_clause: str = ""  # In addition to generated where clause!
-        """TODO"""
         self.search_order: List[str] = []
-        """TODO"""
 
         self._prev_search: _PrevSearch = _PrevSearch()
         self._search_string: tk.StringVar = None
