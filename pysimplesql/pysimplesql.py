@@ -56,7 +56,6 @@ from __future__ import annotations  # docstrings
 import asyncio
 import calendar
 import contextlib
-import dataclasses as dc
 import datetime as dt
 import functools
 import inspect
@@ -71,6 +70,7 @@ import threading
 import tkinter as tk
 import tkinter.font as tkfont
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, InitVar, fields, field as field_
 from decimal import Decimal, DecimalException
 from enum import Enum, Flag, auto
 from time import sleep, time
@@ -337,7 +337,7 @@ class ValidateRule(Enum):
     """
 
 
-@dc.dataclass
+@dataclass
 class ValidateResponse:
     """Represents the response returned by `Column.validate` method.
 
@@ -370,13 +370,13 @@ class ValidateResponse:
     rule: str = None
 
 
-@dc.dataclass
+@dataclass
 class _PrevSearch:
     """Internal Class. Keeps track of previous search to cycle through results."""
 
     search_string: str = None
     column: str = None
-    pks: List[int] = dc.field(default_factory=list)
+    pks: List[int] = field_(default_factory=list)
 
 
 class CellFormatFn:
@@ -479,7 +479,7 @@ class _ElementRow:
         return self
 
 
-@dc.dataclass
+@dataclass
 class Relationship:
     """Args:
         join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
@@ -517,7 +517,7 @@ class Relationship:
         return self.driver.relationship_to_join_clause(self)
 
 
-@dc.dataclass
+@dataclass
 class RelationshipStore(list):
     """Used to track primary/foreign key relationships in the database.
 
@@ -663,7 +663,7 @@ class RelationshipStore(list):
         }
 
 
-@dc.dataclass
+@dataclass
 class ElementMap:
     """Map a PySimpleGUI element to a specific `DataSet` column.
 
@@ -703,7 +703,7 @@ class ElementMap:
         return item in self.__dict__
 
 
-@dc.dataclass(eq=False)
+@dataclass(eq=False)
 class DataSet:
     """`DataSet` objects are used for an internal representation of database tables.
 
@@ -751,8 +751,8 @@ class DataSet:
 
     instances: ClassVar[List[DataSet]] = []  # Track our own instances
 
-    data_key: dc.InitVar[str]
-    frm_reference: dc.InitVar[Form]
+    data_key: InitVar[str]
+    frm_reference: InitVar[Form]
     table: str
     pk_column: str
     description_column: str
@@ -760,7 +760,7 @@ class DataSet:
     query: Optional[str] = ""
     order_clause: Optional[str] = ""
     filtered: bool = True
-    prompt_save: dc.InitVar[PROMPT_SAVE_MODES] = None
+    prompt_save: InitVar[PROMPT_SAVE_MODES] = None
     save_quiet: bool = None
     duplicate_children: bool = None
     validate_mode: ValidateMode = None
@@ -3406,7 +3406,7 @@ class DataSet:
         return None
 
 
-@dc.dataclass(eq=False)
+@dataclass(eq=False)
 class Form:
     """`Form` class.
 
@@ -3450,14 +3450,14 @@ class Form:
     instances: ClassVar[List[Form]] = []  # Track our instances
 
     driver: SQLDriver
-    bind_window: dc.InitVar[sg.Window] = None
+    bind_window: InitVar[sg.Window] = None
     parent: Form = None  # TODO: This doesn't seem to really be used
     filter: str = None
-    select_first: dc.InitVar[bool] = True
-    prompt_save: dc.InitVar[PROMPT_SAVE_MODES] = PROMPT_MODE
+    select_first: InitVar[bool] = True
+    prompt_save: InitVar[PROMPT_SAVE_MODES] = PROMPT_MODE
     save_quiet: bool = False
     duplicate_children: bool = True
-    description_column_names: List[str] = dc.field(
+    description_column_names: List[str] = field_(
         default_factory=lambda: ["description", "name", "title"]
     )
     live_update: bool = False
@@ -5919,7 +5919,7 @@ class _PlaceholderText(ABC):
                 "Left", "Right","Home","End","Page_Up","Page_Down","F1","F2","F3","F4",
                 "F5","F6","F7","F8","F9","F10","F11","F12", "Delete"}
     # fmt: on
-    binds: dict = dc.field(default_factory=lambda: dict)
+    binds: dict = field_(default_factory=lambda: dict)
     placeholder_feature_enabled: bool = False
     normal_color: str = None
     normal_font: str = None
@@ -6175,8 +6175,8 @@ class _SearchInput(_EnhancedInput):
 
 
 class _AutoCompleteLogic:
-    _completion_list: List[Union[str, _ElementRow]] = dc.field(default_factory=list)
-    _hits: List[int] = dc.field(default_factory=list)
+    _completion_list: List[Union[str, _ElementRow]] = field_(default_factory=list)
+    _hits: List[int] = field_(default_factory=list)
     _hit_index: int = 0
     position: int = 0
     finalized: bool = False
@@ -7206,12 +7206,12 @@ def selector(
     return layout
 
 
-@dc.dataclass
+@dataclass
 class TableStyler:
     """TODO."""
 
     # pysimplesql specific
-    frame_pack_kwargs: Dict[str] = dc.field(default_factory=dict)
+    frame_pack_kwargs: Dict[str] = field_(default_factory=dict)
 
     # PySimpleGUI Table kwargs that are compatible with pysimplesql
     justification: TableJustify = "left"
@@ -7249,7 +7249,7 @@ class TableStyler:
 
     def get_table_kwargs(self):
         non_default_attributes = {}
-        for field in dc.fields(self):
+        for field in fields(self):
             if (
                 getattr(self, field.name) != field.default
                 and getattr(self, field.name)
@@ -7259,7 +7259,7 @@ class TableStyler:
         return non_default_attributes
 
 
-@dc.dataclass
+@dataclass
 class TableBuilder(list):
     """This is a convenience class used to build table headings for PySimpleGUI.
 
@@ -7302,7 +7302,7 @@ class TableBuilder(list):
     apply_search_filter: bool = False
     """Filter rows to only those columns in `DataSet.search_order` that contain
     `Dataself.search_string`."""
-    style: TableStyler = dc.field(default_factory=TableStyler)
+    style: TableStyler = field_(default_factory=TableStyler)
 
     def __post_init__(self) -> None:
         # Store this instance in the master list of instances
@@ -8412,7 +8412,7 @@ T = TypeVar("T")
 # The column abstraction hides the complexity of dealing with SQL columns, getting their
 # names, default values, data types, primary key status and notnull status
 # --------------------------------------------------------------------------------------
-@dc.dataclass
+@dataclass
 class Column:
     """The `Column` class is a generic column class.  It holds a dict containing the
     column name, type  whether the column is notnull, whether the column is a primary
@@ -8489,7 +8489,7 @@ class Column:
         return ValidateResponse()
 
 
-@dc.dataclass
+@dataclass
 class MinMaxCol(Column):
     """Base ColumnClass for columns with minimum and maximum constraints.
 
@@ -8524,7 +8524,7 @@ class MinMaxCol(Column):
         return ValidateResponse()
 
 
-@dc.dataclass
+@dataclass
 class LengthCol(Column):
     """Base ColumnClass for length-constrained columns.
 
@@ -8565,7 +8565,7 @@ class LengthCol(Column):
         return ValidateResponse()
 
 
-@dc.dataclass
+@dataclass
 class LocaleCol(Column):
     """Base ColumnClass that provides Locale functions.
 
@@ -8592,9 +8592,9 @@ class LocaleCol(Column):
         return locale.delocalize(value)
 
 
-@dc.dataclass
+@dataclass
 class BoolCol(Column):
-    python_type: Type[bool] = dc.field(default=bool, init=False)
+    python_type: Type[bool] = field_(default=bool, init=False)
 
     def __post_init__(self) -> None:
         if themepack.display_bool_as_checkbox:
@@ -8604,10 +8604,10 @@ class BoolCol(Column):
         return checkbox_to_bool(value)
 
 
-@dc.dataclass
+@dataclass
 class DateCol(MinMaxCol):
     date_format: str = DATE_FORMAT
-    python_type: Type[dt.date] = dc.field(default=dt.date, init=False)
+    python_type: Type[dt.date] = field_(default=dt.date, init=False)
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -8648,9 +8648,9 @@ class DateCol(MinMaxCol):
             return super().cast(value)
 
 
-@dc.dataclass
+@dataclass
 class DateTimeCol(MinMaxCol):
-    datetime_format_list: List[str] = dc.field(
+    datetime_format_list: List[str] = field_(
         default_factory=lambda: [
             DATETIME_FORMAT,
             DATETIME_FORMAT_MICROSECOND,
@@ -8658,7 +8658,7 @@ class DateTimeCol(MinMaxCol):
             TIMESTAMP_FORMAT_MICROSECOND,
         ]
     )
-    python_type: Type[dt.datetime] = dc.field(default=dt.datetime, init=False)
+    python_type: Type[dt.datetime] = field_(default=dt.datetime, init=False)
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -8674,11 +8674,11 @@ class DateTimeCol(MinMaxCol):
         return super().cast(value)
 
 
-@dc.dataclass
+@dataclass
 class DecimalCol(LocaleCol, MinMaxCol):
     precision: int = DECIMAL_PRECISION
     scale: int = DECIMAL_SCALE
-    python_type: Type[Decimal] = dc.field(default=Decimal, init=False)
+    python_type: Type[Decimal] = field_(default=Decimal, init=False)
 
     def __post_init__(self) -> None:
         if self.domain_args:
@@ -8734,9 +8734,9 @@ class DecimalCol(LocaleCol, MinMaxCol):
         return ValidateResponse()
 
 
-@dc.dataclass
+@dataclass
 class FloatCol(LocaleCol, LengthCol, MinMaxCol):
-    python_type: Type[float] = dc.field(default=float, init=False)
+    python_type: Type[float] = field_(default=float, init=False)
 
     def cast(self, value):
         value = self.strip_locale(value)
@@ -8746,10 +8746,10 @@ class FloatCol(LocaleCol, LengthCol, MinMaxCol):
             return super().cast(value)
 
 
-@dc.dataclass
+@dataclass
 class IntCol(LocaleCol, LengthCol, MinMaxCol):
     truncate_decimals: bool = False
-    python_type: Type[int] = dc.field(default=int, init=False)
+    python_type: Type[int] = field_(default=int, init=False)
 
     def cast(self, value, truncate_decimals: bool = None):
         truncate_decimals = (
@@ -8775,18 +8775,18 @@ class IntCol(LocaleCol, LengthCol, MinMaxCol):
             return super().cast(value_backup)
 
 
-@dc.dataclass
+@dataclass
 class StrCol(LengthCol):
-    python_type: Type[str] = dc.field(default=str, init=False)
+    python_type: Type[str] = field_(default=str, init=False)
 
     def cast(self, value):
         return super().cast(value)
 
 
-@dc.dataclass
+@dataclass
 class TimeCol(MinMaxCol):
     time_format: str = TIME_FORMAT
-    python_type: Type[dt.time] = dc.field(default=dt.time, init=False)
+    python_type: Type[dt.time] = field_(default=dt.time, init=False)
 
     def cast(self, value):
         if isinstance(value, self.python_type):
@@ -9104,7 +9104,7 @@ class ReservedKeywordError(Exception):
     pass
 
 
-@dc.dataclass
+@dataclass
 class SqlChar:
     # Each database type expects their SQL prepared in a certain way.  Below are
     # defaults for how various elements in the SQL string should be quoted and
@@ -9125,7 +9125,7 @@ class SqlChar:
     value_quote: str = "'"
 
 
-@dc.dataclass
+@dataclass
 class SQLDriver(ABC):
     """Abstract SQLDriver class.  Derive from this class to create drivers that conform
     to PySimpleSQL.  This ensures that the same code will work the same way regardless
@@ -9171,7 +9171,7 @@ class SQLDriver(ABC):
     update_cascade: bool = True
     delete_cascade: bool = True
 
-    sql_char: dc.InitVar[SqlChar] = SqlChar()  # noqa RUF009
+    sql_char: InitVar[SqlChar] = SqlChar()  # noqa RUF009
 
     # ---------------------------------------------------------------------
     # MUST implement
@@ -9832,14 +9832,14 @@ class SQLDriver(ABC):
 # --------------------------------------------------------------------------------------
 # SQLITE3 DRIVER
 # --------------------------------------------------------------------------------------
-@dc.dataclass
+@dataclass
 class Sqlite(SQLDriver):
     """The SQLite driver supports SQLite3 databases."""
 
     global sqlite3  # noqa PLW0603
     import sqlite3
 
-    sql_char: dc.InitVar[SqlChar] = SqlChar(  # noqa RUF009
+    sql_char: InitVar[SqlChar] = SqlChar(  # noqa RUF009
         placeholder="?", table_quote='"', column_quote='"'
     )
 
@@ -10120,7 +10120,7 @@ class Sqlite(SQLDriver):
 # --------------------------------------------------------------------------------------
 # The CSV driver uses SQlite3 in the background
 # to use pysimplesql directly with CSV files
-@dc.dataclass
+@dataclass
 class Flatfile(Sqlite):
     """The Flatfile driver adds support for flatfile databases such as CSV files to
     pysimplesql.
@@ -10288,7 +10288,7 @@ class Flatfile(Sqlite):
 # --------------------------------------------------------------------------------------
 # MYSQL DRIVER
 # --------------------------------------------------------------------------------------
-@dc.dataclass
+@dataclass
 class Mysql(SQLDriver):
     """The Mysql driver supports MySQL databases."""
 
@@ -10580,7 +10580,7 @@ class Mysql(SQLDriver):
 # MariaDB is a fork of MySQL and backward compatible.  It technically does not need its
 # own driver, but that could change in the future, plus having its own named class makes
 # it more clear for the end user.
-@dc.dataclass
+@dataclass
 class Mariadb(Mysql):
     """The Mariadb driver supports MariaDB databases."""
 
@@ -10590,11 +10590,11 @@ class Mariadb(Mysql):
 # --------------------------------------------------------------------------------------
 # POSTGRES DRIVER
 # --------------------------------------------------------------------------------------
-@dc.dataclass
+@dataclass
 class Postgres(SQLDriver):
     """The Postgres driver supports PostgreSQL databases."""
 
-    sql_char: dc.InitVar[SqlChar] = SqlChar(table_quote='"')  # noqa RUF009
+    sql_char: InitVar[SqlChar] = SqlChar(table_quote='"')  # noqa RUF009
     sync_sequences: bool = False
 
     NAME: ClassVar[str] = "Postgres"
@@ -10910,11 +10910,11 @@ class Postgres(SQLDriver):
 # --------------------------------------------------------------------------------------
 # MS SQLSERVER DRIVER
 # --------------------------------------------------------------------------------------
-@dc.dataclass
+@dataclass
 class Sqlserver(SQLDriver):
     """The Sqlserver driver supports Microsoft SQL Server databases."""
 
-    sql_char: dc.InitVar[SqlChar] = SqlChar(  # noqa RUF009
+    sql_char: InitVar[SqlChar] = SqlChar(  # noqa RUF009
         placeholder="?", table_quote="[]"
     )
 
@@ -11217,7 +11217,7 @@ class Sqlserver(SQLDriver):
 # --------------------------------------------------------------------------------------
 # MS ACCESS DRIVER
 # --------------------------------------------------------------------------------------
-@dc.dataclass
+@dataclass
 class MSAccess(SQLDriver):
     """The MSAccess driver supports Microsoft Access databases. Note that only database
     interactions are supported, including stored Queries, but not operations dealing
@@ -11229,7 +11229,7 @@ class MSAccess(SQLDriver):
     frm[DATASET KEY].column_info[COLUMN NAME].scale = 2
     """
 
-    sql_char: dc.InitVar[SqlChar] = SqlChar(  # noqa RUF009
+    sql_char: InitVar[SqlChar] = SqlChar(  # noqa RUF009
         placeholder="?", table_quote="[]"
     )
 
