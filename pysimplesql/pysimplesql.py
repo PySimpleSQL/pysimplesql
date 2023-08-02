@@ -4689,13 +4689,13 @@ class Form:
                         logger.debug("update_elements: Table selector found...")
                         # Populate entries
                         apply_search_filter = False
-                        try:
+                        columns = None  # default to all columns
+
+                        if "TableBuilder" in element.metadata:
                             columns = element.metadata["TableBuilder"].columns
                             apply_search_filter = element.metadata[
                                 "TableBuilder"
                             ].apply_search_filter
-                        except KeyError:
-                            columns = None  # default to all columns
 
                         # skip Tables that don't request search_filter
                         if search_filter_only and not apply_search_filter:
