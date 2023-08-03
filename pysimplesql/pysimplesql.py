@@ -484,7 +484,7 @@ class _ElementRow:
 
 @dataclass
 class Relationship:
-    """Information from Foreign-Keys
+    """Information from Foreign-Keys.
 
     Args:
         join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
@@ -3712,9 +3712,10 @@ class Form:
                     rel.delete_cascade = delete_cascade
 
     def auto_add_datasets(self) -> None:
-        """Automatically add `DataSet` objects from the database by looping through the
-        tables available and creating a `DataSet` object for each. Each dataset key by default
-        name of the table.
+        """Automatically add `DataSet` objects from the database.
+
+        Works by looping through the tables available and creating a `DataSet` object
+        for each. Each dataset key by default name of the table.
 
         This is called automatically when a `Form ` is created. Note that
         `Form.add_dataset()` can do this manually on a per-table basis.
@@ -9134,7 +9135,7 @@ class ReservedKeywordError(Exception):
 
 @dataclass
 class SqlChar:
-    """Container for passing database-specific characters
+    """Container for passing database-specific characters.
 
     Each database type expects their SQL prepared in a certain way. Defaults in this
     dataclass are set for how various elements in the SQL string should be quoted and
