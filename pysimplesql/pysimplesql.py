@@ -593,7 +593,7 @@ class RelationshipStore(list):
                 return r.parent_table
         return None
 
-    def parent_virtual(self, table: str, frm: Form) -> Union[bool, None]:
+    def is_parent_virtual(self, table: str, frm: Form) -> Union[bool, None]:
         """Return True if current row of parent table is virtual.
 
         Args:
@@ -1378,7 +1378,7 @@ class DataSet:
             parent_table = self.relationships.get_parent(self.table)
             if parent_table and (
                 not len(self.frm[parent_table].rows.index)
-                or self.relationships.parent_virtual(self.table, self.frm)
+                or self.relationships.is_parent_virtual(self.table, self.frm)
             ):
                 # purge rows
                 self.rows = Result.set(pd.DataFrame(columns=self.column_info.names))
@@ -2035,7 +2035,7 @@ class DataSet:
         if (
             parent_table
             and not len(self.frm[parent_table].rows)
-            or self.relationships.parent_virtual(self.table, self.frm)
+            or self.relationships.is_parent_virtual(self.table, self.frm)
         ):
             logger.debug(f"{parent_table=} is empty or current row is virtual")
             return
@@ -4420,7 +4420,9 @@ class Form:
                         disable = bool(
                             not self[parent].row_count
                             or self._edit_protect
-                            or self.relationships.parent_virtual(data_key, self)
+                            or self.relationships.is_parent_virtual(
+                                self[data_key].table, self
+                            )
                         )
                     else:
                         disable = self._edit_protect
