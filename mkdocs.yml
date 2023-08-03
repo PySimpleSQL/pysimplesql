@@ -12,7 +12,6 @@ theme:
 
 nav:
     - Home: index.md
-    - API: api.md
     
 markdown_extensions:
     - admonition

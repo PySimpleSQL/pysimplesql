@@ -484,7 +484,9 @@ class _ElementRow:
 
 @dataclass
 class Relationship:
-    """Args:
+    """Information from Foreign-Keys
+
+    Args:
         join_type: The join type. I.e. "LEFT JOIN", "INNER JOIN", etc.
         child_table: The table name of the fk table
         fk_column: The child table's foreign key column
@@ -493,9 +495,6 @@ class Relationship:
         update_cascade: True if the child's fk_column ON UPDATE rule is 'CASCADE'
         delete_cascade: True if the child's fk_column ON DELETE rule is 'CASCADE'
         driver: A `SQLDriver` instance.
-
-    Returns:
-        None
     """
 
     join_type: str
@@ -2911,7 +2910,9 @@ class DataSet:
                 return rel.parent_table
         return self.table  # None could be found, return our own table instead
 
-    def map_fk_descriptions(self, rows: pd.DataFrame, columns: list[str] = None):
+    def map_fk_descriptions(
+        self, rows: pd.DataFrame, columns: list[str] = None
+    ) -> pd.DataFrame:
         """Maps foreign key descriptions to the specified columns in the given
         DataFrame.
 
@@ -2928,7 +2929,7 @@ class DataSet:
 
         Returns:
             The processed DataFrame with foreign key descriptions mapped to the
-            specified columns.
+                specified columns.
         """
         if columns is None:
             columns = rows.columns
@@ -3712,9 +3713,9 @@ class Form:
 
     def auto_add_datasets(self) -> None:
         """Automatically add `DataSet` objects from the database by looping through the
-        tables available and creating a `DataSet` object for each. Each dataset key is
-        an optional prefix plus the name of the table. When you attach to a sqlite
-        database, PySimpleSQL isn't aware of what it contains until this command is run.
+        tables available and creating a `DataSet` object for each. Each dataset key by default
+        name of the table.
+
         This is called automatically when a `Form ` is created. Note that
         `Form.add_dataset()` can do this manually on a per-table basis.
 
@@ -5614,8 +5615,8 @@ class LazyTable(sg.Table):
     DataSets that contain thousands of rows, there may be some noticeable lag. LazyTable
     overcomes this by only inserting a slice of rows during an `update()`.
 
-    To use, simply replace `sg.Table` with `LazyTable` as the `element` argument in a
-    selector() function call in your layout.
+    To use, simply replace `sg.Table` with `LazyTable` as the 'element' argument in a
+    `selector()` function call in your layout.
 
     Expects values in the form of [_TableRow(pk, values)], and only becomes active after
     a update(values=, selected_rows=[int]) call.
@@ -7455,7 +7456,7 @@ class TableBuilder(list):
 
         Returns:
             a list heading justifications for use with LazyTable
-            `headings_justification`
+                `headings_justification`
         """
         justify = [justify[0].lower() for justify in self._heading_justify_map]
         justify.insert(0, "l")
@@ -9133,23 +9134,29 @@ class ReservedKeywordError(Exception):
 
 @dataclass
 class SqlChar:
-    # Each database type expects their SQL prepared in a certain way.  Below are
-    # defaults for how various elements in the SQL string should be quoted and
-    # represented as placeholders. Override these in the derived class as needed to
-    # satisfy SQL requirements
+    """Container for passing database-specific characters
 
-    # The placeholder for values in the query string.  This is typically '?' or'%s'
+    Each database type expects their SQL prepared in a certain way. Defaults in this
+    dataclass are set for how various elements in the SQL string should be quoted and
+    represented as placeholders. Override these in the derived class as needed to
+    satisfy SQL requirements
+    """
+
     placeholder: str = "%s"  # override this in derived subclass SqlChar
+    r"""The placeholder for values in the query string. This is typically '?' or'%s'"""
 
     # These are the quote characters for tables, columns and values.
     # It varies between different databases
 
-    # override this in derived subclass SqlChar (defaults to no quotes)
+    # override this in derived subclass SqlChar
     table_quote: str = ""
-    # override this in derived subclass SqlChar (defaults to no quotes)
+    """Character to quote table. (defaults to no quotes)"""
+    # override this in derived subclass SqlChar
     column_quote: str = ""
-    # override this in derived subclass SqlChar (defaults to single quotes)
+    """Chacter to quote column. (defaults to no quotes)"""
+    # override this in derived subclass SqlChar
     value_quote: str = "'"
+    """Character to quote value. (defaults to single quotes)"""
 
 
 @dataclass
