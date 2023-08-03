@@ -1,5 +1,4 @@
-"""
-ChatGPT prompt:
+r"""ChatGPT prompt:
 I'm working on language localization for my python application.
 Can you look at this dict and make a spanish version?
 Please keep strings in brackets {} unaltered.

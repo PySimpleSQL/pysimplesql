@@ -38,7 +38,7 @@ ss.themepack(custom)
 # create your own validator to be passed to a
 # frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
 # used below in the quick_editor arguments
-def is_valid_email(email):
+def is_valid_email(email: str):
     valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
     if not valid_email:
         return ss.ValidateResponse(
@@ -268,7 +268,7 @@ orderdetails_layout = [
     [ss.field("order_details.price", sg.Text)],
     [ss.field("order_details.subtotal", sg.Text)],
     [sg.Sizer(h_pixels=0, v_pixels=10)],
-    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.TYPE_INFO})],
+    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.ElementType.INFO})],
 ]
 
 layout.append([sg.Frame("Order Details", orderdetails_layout, expand_x=True)])
@@ -308,7 +308,7 @@ frm["orders"].set_search_order(["customer_id", "order_id"])
 # Application-side code to update orders `total`
 # when saving/deleting order_details line item
 # ----------------------------------------------
-def update_orders(frm_reference, window, data_key):
+def update_orders(frm_reference, window, data_key) -> bool:
     if data_key == "order_details":
         order_id = frm["order_details"]["order_id"]
         driver.execute(

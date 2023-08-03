@@ -1,5 +1,4 @@
-"""
-Write data-driven desktop apps fast! Lightweight Python library supports SQLite,
+"""Write data-driven desktop apps fast! Lightweight Python library supports SQLite,
 MySQL/MariaDB, PostgreSQL & Flatfile CSV. Uses PySimpleGUI layouts.
 """
 

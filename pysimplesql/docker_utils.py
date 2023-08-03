@@ -1,5 +1,4 @@
-"""
-DOCKER UTILITIES
+"""DOCKER UTILITIES.
 
 This file is not used for pysimplesql base installation. It exists only as a collection
 of utility functions for examples which provide databases in Docker containers for
@@ -18,8 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def docker_image_installed(image: str) -> bool:
-    """
-    Check if the specified Docker image is installed locally.
+    """Check if the specified Docker image is installed locally.
 
     :param image: The Docker image, including the tag ("pysimplesql/examples:postgres")
     :return: True if the image is installed, False otherwise
@@ -35,8 +33,7 @@ def docker_image_installed(image: str) -> bool:
 
 
 def docker_image_is_latest(image: str) -> bool:
-    """
-    Check if a new version of a Docker image is available for download.
+    """Check if a new version of a Docker image is available for download.
 
     :param image: The Docker image, including the tag ("pysimplesql/examples:postgres")
     :return: True if a newer version is available, False otherwise
@@ -55,8 +52,7 @@ def docker_image_is_latest(image: str) -> bool:
 
 
 def docker_image_pull(image: str, latest: bool = True) -> None:
-    """
-    Pull the supplied docker image, displaying a progress bar.
+    """Pull the supplied docker image, displaying a progress bar.
 
     :param latest: Ensure that the latest docker image is used (updates the local image)
     :return:
@@ -106,8 +102,7 @@ def docker_image_pull(image: str, latest: bool = True) -> None:
 def docker_container_start(
     image: str, container_name: str, ports: dict
 ) -> docker.models.containers.Container:
-    """
-    Create and/or start a Docker container with the specified image and container name.
+    """Create and/or start a Docker container with the specified image/container name.
 
     :param image: The Docker image to use for the container
     :param container_name: The name to use for the container
