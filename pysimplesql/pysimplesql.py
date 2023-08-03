@@ -70,7 +70,8 @@ import threading
 import tkinter as tk
 import tkinter.font as tkfont
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, InitVar, fields, field as field_
+from dataclasses import InitVar, dataclass, fields
+from dataclasses import field as field_
 from decimal import Decimal, DecimalException
 from enum import Enum, Flag, auto
 from time import sleep, time
@@ -183,6 +184,7 @@ class EventType(Enum):
 # Can be used with other bitmask values
 SHOW_MESSAGE: int = 4096
 
+
 class PromptSaveReturn(Enum):
     """prompt_save return enums."""
 
@@ -192,6 +194,7 @@ class PromptSaveReturn(Enum):
     """Found no records changed"""
     DISCARDED = auto()
     """User declined to save"""
+
 
 # ---------------------------
 # PROMPT_SAVE MODES
@@ -764,25 +767,24 @@ class DataSet:
     save_quiet: bool = None
     duplicate_children: bool = None
     validate_mode: ValidateMode = None
-    
+
     # non-init, instance-vars, here for documentation
-    key: str = _field(init=False)
+    key: str = field_(init=False)
     """Short for 'data_key'"""
-    frm = _field(init=False)
+    frm: Form = field_(init=False)
     """TODO"""
-    driver = _field(init=False)
+    driver: Driver = field_(init=False)
     """TODO"""
-    relationships = _field(init=False)
+    relationships: RelationshipStore = field_(init=False)
     """TODO"""
-    rows: pd.DataFrame = _field(init=False)
+    rows: pd.DataFrame = field_(init=False)
     """TODO"""
-    join_clause: str = _field(init=False)
+    join_clause: str = field_(init=False)
     """TODO"""
-    where_clause: str = _field(init=False)
+    where_clause: str = field_(init=False)
     """TODO"""
-    search_order: List[str] = _field(init=False)
+    search_order: List[str] = field_(init=False)
     """TODO"""
-    
 
     def __post_init__(self, data_key, frm_reference, prompt_save) -> None:
         DataSet.instances.append(self)
@@ -3928,7 +3930,7 @@ class Form:
                         # 2 Run TableBuilder._update_headings() with the:
                         #   Table element, sort_column, sort_reverse
                         # 3 Run update_elements() to see the changes
-                        table_builder.enable_heading_function(
+                        table_builder._enable_heading_function(
                             element,
                             _HeadingCallback(self, data_key),
                         )
@@ -6530,9 +6532,10 @@ def field(
             matching filter when creating the `Form` with the filter parameter.
         key: (optional) The key to give this element. See note above about the default
             auto generated key.
-        use_ttk_buttons:
-        pad: The padding to use for the generated elements.
-
+        use_ttk_buttons: Use ttk buttons for all action buttons. If None, defaults to
+            setting `ThemePack.use_ttk_buttons`.
+        pad: The padding to use for the generated elements. If None, defaults to setting
+            `ThemePack.default_element_pad`.
         **kwargs: Any additional arguments will be passed to the PySimpleGUI element.
 
     Returns:
@@ -6727,7 +6730,11 @@ def actions(
         bind_return_key: Bind the return key to the search button. Defaults to true.
         filter: Can be used to reference different `Form`s in the same layout.  Use a
             matching filter when creating the `Form` with the filter parameter.
-        pad: The padding to use for the generated elements.
+        use_ttk_buttons: Use ttk buttons for all action buttons. If None, defaults to
+            setting `ThemePack.use_ttk_buttons`.
+        pad: The padding to use for the generated elements. If None, defaults to setting
+            `ThemePack.action_button_pad`.
+        **kwargs: Any additional arguments will be passed to the PySimpleGUI element.
 
     Returns:
         An element to be used in the creation of PySimpleGUI layouts.  Note that this is
@@ -7527,10 +7534,15 @@ class TableBuilder(list):
                 i, text=x["heading"], anchor=self.heading_anchor_map[i]
             )
 
-    def enable_heading_function(self, element: sg.Table, fn: Callable) -> None:
-        """Enable the sorting callbacks for each column index, or saving by click the
-        unsaved changes column
-        Note: Not typically used by the end user. Called from `Form.auto_map_elements()`.
+    def _enable_heading_function(self, element: sg.Table, fn: Callable) -> None:
+        """Adds appropriate heading function to underlying 'tk.treeview.heading()'.
+
+        Enable the sorting callbacks for each column index, or saving by clicking the
+        unsaved changes column.
+
+
+        Note:
+            Not typically used by the end user. Called from `Form.auto_map_elements()`.
 
         Args:
             element: The PySimpleGUI Table element associated with this TableBuilder
@@ -8128,6 +8140,7 @@ class ThemePack:
     """Default Themepack."""
 
     def __init__(self, tp_dict: Dict[str, str] = None) -> None:
+        """Initialize the `ThemePack` class."""
         self.tp_dict = tp_dict or ThemePack.default
 
     def __getattr__(self, key):
@@ -8345,6 +8358,7 @@ class LanguagePack:
     """Default LanguagePack."""
 
     def __init__(self, lp_dict=None) -> None:
+        """Initialize the `LanguagePack` class."""
         self.lp_dict = lp_dict or type(self).default
 
     def __getattr__(self, key):
@@ -8424,7 +8438,9 @@ T = TypeVar("T")
 # --------------------------------------------------------------------------------------
 @dataclass
 class Column:
-    """The `Column` class is a generic column class.  It holds a dict containing the
+    """Base `ColumnClass` represents a SQL column and helps casting/validating values.
+
+    The `Column` class is a generic column class. It holds a dict containing the
     column name, type  whether the column is notnull, whether the column is a primary
     key and the default value, if any. `Column`s are typically stored in a `ColumnInfo`
     collection. There are multiple ways to get information from a `Column`, including
@@ -8813,11 +8829,10 @@ class TimeCol(MinMaxCol):
 
 
 class ColumnInfo(List):
-    """Column Information Class.
+    """Custom container that behaves like a List containing a collection of `Columns`.
 
-    The `ColumnInfo` class is a custom container that behaves like a List containing a
-    collection of `Columns`. This class is responsible for maintaining information about
-    all the columns (`Column`) in a table. While the individual `Column` elements of
+    This class is responsible for maintaining information about all the columns
+    (`Column`) in a table. While the individual `Column` elements of
     this collection contain information such as default values, primary key status, SQL
     data type, column name, and the notnull status - this class ties them all together
     into a collection and adds functionality to set default values for null columns and
@@ -8841,6 +8856,7 @@ class ColumnInfo(List):
     ]
 
     def __init__(self, driver: SQLDriver, table: str) -> None:
+        """Initilize a ColumnInfo instance."""
         self.driver = driver
         self.table = table
 
@@ -9089,7 +9105,6 @@ class Result:
         lastrowid: int = None,
         exception: Exception = None,
         column_info: ColumnInfo = None,
-        row_backup: pd.Series = None,
     ):
         """Create a pandas DataFrame with the row data and expected attrs set.
 
@@ -9097,13 +9112,13 @@ class Result:
             row_data: A list of dicts of row data
             lastrowid: The inserted row ID from the last INSERT statement
             exception: Exceptions passed back from the SQLDriver
-            column_info: An optional ColumnInfo object
+            column_info: (optional) ColumnInfo object
         """
         rows = pd.DataFrame(row_data)
         rows.attrs["lastrowid"] = lastrowid
         rows.attrs["exception"] = exception
         rows.attrs["column_info"] = column_info
-        rows.attrs["row_backup"] = row_backup
+        rows.attrs["row_backup"] = None
         rows.attrs["virtual"] = []
         rows.attrs["sort_column"] = None
         rows.attrs["sort_reverse"] = None
@@ -9160,13 +9175,17 @@ class SQLDriver(ABC):
         user: User.
         password: Password.
         database: Name of database.
+        sql_script: (optional) SQL script file to execute after opening the database.
+        sql_script_encoding: The encoding of the SQL script file. Defaults to
+            'utf-8'.
+        sql_commands: (optional) SQL commands to execute after opening the database.
+            Note: sql_commands are executed after sql_script.
         update_cascade: (optional) Default:True. Requery and filter child table on
             selected parent primary key. (ON UPDATE CASCADE in SQL)
         delete_cascade: (optional) Default:True. Delete the dependent child records if
             the parent table record is deleted. (ON UPDATE DELETE in SQL)
-        sql_script:
-        sql_script_encoding:
-        sql_commands:
+        sql_char: (optional) `SqlChar` object, if non-default chars desired.
+
     """
 
     host: str = None
@@ -9174,9 +9193,9 @@ class SQLDriver(ABC):
     password: str = None
     database: str = None
 
-    sql_commands: str = None
     sql_script: str = None
     sql_script_encoding: str = "utf-8"
+    sql_commands: str = None
 
     update_cascade: bool = True
     delete_cascade: bool = True
@@ -9244,7 +9263,9 @@ class SQLDriver(ABC):
         column_info: ColumnInfo = None,
         auto_commit_rollback: bool = False,
     ):
-        """Implements the native SQL implementation's execute() command.
+        """Execute a query.
+
+        Implements the native SQL implementation's execute() command.
 
         Args:
             query: The query string to execute
@@ -9253,8 +9274,6 @@ class SQLDriver(ABC):
             auto_commit_rollback: Automatically commit or rollback depending on whether
                 an exception was handled. Set to False by default. Set to True to have
                 exceptions and commit/rollbacks happen automatically
-
-        Returns:
         """
 
     @abstractmethod
@@ -9725,12 +9744,13 @@ class SQLDriver(ABC):
         update_cascade: bool,
         delete_cascade: bool,
     ) -> None:
-        """Add a foreign key relationship between two dataset of the database When you
-        attach a database, PySimpleSQL isn't aware of the relationships contained until
-        datasets are added via `Form.add_dataset`, and the relationship of various tables
-        is set with this function. Note that `SQLDriver.auto_add_relationships()` will
-        do this automatically from the schema of the database, which also happens
-        automatically when a `SQLDriver` is created.
+        """Add a foreign key relationship between two dataset of the database.
+
+        When you attach a database, PySimpleSQL isn't aware of the relationships
+        contained until datasets are added via `Form.add_dataset`, and the relationship
+        of various tables is set with this function. Note that
+        `SQLDriver.auto_add_relationships()` will do this automatically from the schema
+        of the database, which also happens automatically when a `SQLDriver` is created.
 
         Args:
             join: The join type of the relationship ('LEFT JOIN', 'INNER JOIN', 'RIGHT
@@ -9876,25 +9896,38 @@ class Sqlite(SQLDriver):
             sqlite3.Connection,
         ] = None,
         *,
-        sql_commands=None,
         sql_script=None,
         sql_script_encoding: str = "utf-8",
+        sql_commands=None,
         update_cascade: bool = True,
         delete_cascade: bool = True,
         sql_char: SqlChar = sql_char,
         create_file: bool = True,
         skip_sql_if_db_exists: bool = True,
     ) -> None:
-        """Args:
-        update_cascade: (optional) Default:True. Requery and filter child table on
-        selected parent primary key. (ON UPDATE CASCADE in SQL)
-        delete_cascade: (optional) Default:True. Delete the dependent child records
-        if the parent table record is deleted. (ON UPDATE DELETE in SQL).
+        """Initilize a Sqlite instance.
+
+        Args:
+            database: Path to database file, ':memory:' in-memory database, or existing
+                Sqlite3.Connection
+            sql_script: (optional) SQL script file to execute after opening the db.
+            sql_script_encoding: (optional) The encoding of the SQL script file.
+                Defaults to 'utf-8'.
+            sql_commands: (optional) SQL commands to execute after opening the database.
+                Note: sql_commands are executed after sql_script.
+            update_cascade: (optional) Default:True. Requery and filter child table on
+                selected parent primary key. (ON UPDATE CASCADE in SQL)
+            delete_cascade: (optional) Default:True. Delete the dependent child records
+                if the parent table record is deleted. (ON UPDATE DELETE in SQL)
+            sql_char: (optional) `SqlChar` object, if non-default chars desired.
+            create_file: (optional) default True. Create file if it doesn't exist.
+            skip_sql_if_db_exists: (optional) Skip both 'sql_file' and 'sql_commands' if
+                database already exists.
         """
         self._database = str(database)
-        self.sql_commands = sql_commands
         self.sql_script = sql_script
         self.sql_script_encoding = sql_script_encoding
+        self.sql_commands = sql_commands
         self.update_cascade = update_cascade
         self.delete_cascade = delete_cascade
         self.create_file = create_file
@@ -9933,6 +9966,14 @@ class Sqlite(SQLDriver):
         self.win_pb.update(lang.SQLDriver_execute, 50)
         self.con.row_factory = sqlite3.Row
 
+        if (
+            not self.skip_sql_if_db_exists
+            or self.sql_script is not None
+            and new_database
+        ):
+            # run SQL script from the file if the database does not yet exist
+            logger.info("Executing sql script from file passed in")
+            self.execute_script(self.sql_script, self.sql_script_encoding)
         # execute sql
         if (
             not self.skip_sql_if_db_exists
@@ -9944,14 +9985,6 @@ class Sqlite(SQLDriver):
             logger.debug(self.sql_commands)
             self.con.executescript(self.sql_commands)
             self.con.commit()
-        if (
-            not self.skip_sql_if_db_exists
-            or self.sql_script is not None
-            and new_database
-        ):
-            # run SQL script from the file if the database does not yet exist
-            logger.info("Executing sql script from file passed in")
-            self.execute_script(self.sql_script, self.sql_script_encoding)
 
     @property
     def _imported_database(self):
@@ -10303,6 +10336,12 @@ class Mysql(SQLDriver):
     """The Mysql driver supports MySQL databases."""
 
     tinyint1_is_boolean: bool = True
+    """Treat SQL column-type 'tinyint(1)' as Boolean
+
+    MySQL does not have a true 'Boolean' column. Instead, a column is declared as
+    'Boolean' will be stored as 'tinyint(1)'. Setting this arg as 'True' will map the
+    `ColumnClass` as a `BoolCol`.
+    """
 
     NAME: ClassVar[str] = "MySQL"
     REQUIRES: ClassVar[List[str]] = ["mysql-connector-python"]
@@ -10605,7 +10644,13 @@ class Postgres(SQLDriver):
     """The Postgres driver supports PostgreSQL databases."""
 
     sql_char: InitVar[SqlChar] = SqlChar(table_quote='"')  # noqa RUF009
+
     sync_sequences: bool = False
+    """Synchronize the sequences with the max pk for each table on database connection.
+
+    This is useful if manual records were inserted without calling nextval() to update
+    the sequencer.
+    """
 
     NAME: ClassVar[str] = "Postgres"
     REQUIRES: ClassVar[List[str]] = ["psycopg2", "psycopg2.extras"]
@@ -10651,9 +10696,6 @@ class Postgres(SQLDriver):
         # self.execute(query)
 
         if self.sync_sequences:
-            # synchronize the sequences with the max pk for each table. This is useful
-            # if manual records were inserted without calling nextval() to update the
-            # sequencer
             q = "SELECT sequence_name FROM information_schema.sequences;"
             sequences = self.execute(q, silent=True)
             for s in sequences:
@@ -10671,8 +10713,6 @@ class Postgres(SQLDriver):
                 max_pk = self.max_pk(table, pk_column)
 
                 # update the sequence
-                # TODO: This needs fixed.  pysimplesql_user does have permissions on the
-                # sequence, but this still bombs out
                 seq = self.quote_table(seq)
                 if max_pk > 0:
                     q = f"SELECT setval('{seq}', {max_pk});"
@@ -11276,10 +11316,11 @@ class MSAccess(SQLDriver):
             overwrite_file: If True, prompts the user if the file already exists. If the
                 user declines to overwrite the file, the provided SQL commands or script
                 will not be executed.
-            sql_commands: Optional SQL commands to execute after opening the database.
-            sql_script: Optional SQL script file to execute after opening the database.
+            sql_script: (optional) SQL script file to execute after opening the db.
             sql_script_encoding: The encoding of the SQL script file. Defaults to
                 'utf-8'.
+            sql_commands: (optional) SQL commands to execute after opening the database.
+                Note: sql_commands are executed after sql_script.
             update_cascade: (optional) Default:True. Requery and filter child table on
                 selected parent primary key. (ON UPDATE CASCADE in SQL)
             delete_cascade: (optional) Default:True. Delete the dependent child records
@@ -11710,6 +11751,7 @@ class Driver:
 
 SaveResultsDict = Dict[str, int]
 CallbacksDict = Dict[str, Callable[[Form, sg.Window], Union[None, bool]]]
+
 
 class SimpleTransform(TypedDict):
     decode: Dict[str, Callable[[str, str], None]]
