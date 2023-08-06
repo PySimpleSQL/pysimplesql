@@ -353,7 +353,7 @@ while True:
         and values["after_record_edit"]["data_key"] == "order_details"
     ):
         dataset = frm["order_details"]
-        current_row = dataset.get_current_row()
+        current_row = dataset.current.get()
         # after a product and quantity is entered, grab price & save
         if (
             dataset.row_count

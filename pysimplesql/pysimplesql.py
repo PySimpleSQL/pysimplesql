@@ -705,6 +705,165 @@ class ElementMap:
         return item in self.__dict__
 
 
+@dataclass
+class CurrentRow:
+    dataset: DataSet
+
+    def __post_init__(self):
+        self._index = 0
+
+    # Make current.index a property so that bounds can be respected
+    @property
+    def index(self):
+        return self._index
+
+    @index.setter
+    # Keeps the current.index in bounds
+    def index(self, val: int) -> None:
+        if val > self.dataset.row_count - 1:
+            self._index = self.dataset.row_count - 1
+        elif val < 0:
+            self._index = 0
+        else:
+            self._index = val
+
+    @property
+    def has_backup(self) -> bool:
+        """Returns True if the current_row has a backup row, and False otherwise.
+
+        A pandas Series object is stored rows.attrs["row_backup"] before a 'CellEdit' or
+        'LiveUpdate' operation is initiated, so that it can be compared in
+        `DataSet.records_changed` and `DataSet.save_record` or used to restore if
+        changes are discarded during a `DataSet.prompt_save` operations.
+
+        Returns:
+            True if a backup row is present that matches, and False otherwise.
+        """
+        rows = self.dataset.rows
+        if rows is None or rows.empty:
+            return False
+        if (
+            isinstance(rows.attrs["row_backup"], pd.Series)
+            and rows.attrs["row_backup"][self.dataset.pk_column]
+            == self.get()[self.dataset.pk_column]
+        ):
+            return True
+        return False
+
+    def backup(self) -> None:
+        """Creates a backup copy of the current row in `DataSet.rows`."""
+        rows = self.dataset.rows
+        if not self.has_backup:
+            rows.attrs["row_backup"] = self.get().copy()
+
+    def restore_backup(self) -> None:
+        """Restores the backup row to the current row in `DataSet.rows`.
+
+        This method replaces the current row in the dataset with the backup row, if a
+        backup row is present.
+        """
+        rows = self.dataset.rows
+        if self.has_backup:
+            rows.iloc[self.index] = rows.attrs["row_backup"].copy()
+
+    def get(self) -> Union[pd.Series, None]:
+        """Get the row for the currently selected record of this table.
+
+        Returns:
+            A pandas Series object
+        """
+        rows = self.dataset.rows
+        if not rows.empty:
+            # force the current.index to be in bounds!
+            # For child reparenting
+            self.index = self.index
+
+            # make sure to return as python type
+            return rows.astype("O").iloc[self.index]
+        return None
+
+    def get_original(self) -> pd.Series:
+        """Returns a copy of current row as it was fetched in a query from `SQLDriver`.
+
+        If a backup of the current row is present, this method returns a copy of that
+        row. Otherwise, it returns a copy of the current row. Returns None if
+        `DataSet.rows` is empty.
+        """
+        rows = self.dataset.rows
+        if self.has_backup:
+            return rows.attrs["row_backup"].copy()
+        if not rows.empty:
+            return self.get().copy()
+        return None
+
+    def get_pk(self) -> int:
+        """Get the primary key of the currently selected record.
+
+        Returns:
+            the primary key
+        """
+        return self.get_value(self.dataset.pk_column)
+
+    def get_value(self, column: str, default: Union[str, int] = "") -> Union[str, int]:
+        """Get the value for the supplied column in the current row.
+
+        You can also use indexing of the `Form` object to get the current value of a
+        column I.e. frm[{DataSet}].[{column}].
+
+        Args:
+            column: The column you want to get the value from
+            default: A value to return if the record is null
+
+        Returns:
+            The value of the column requested
+        """
+        logger.debug(f"Getting current record for {self.dataset.table}.{column}")
+        if self.dataset.row_count:
+            if self.get()[column] is not None:
+                return self.get()[column]
+            return default
+        return default
+
+    def set_value(
+        self, column: str, value: Union[str, int], write_event: bool = False
+    ) -> None:
+        """Set the value for the supplied column in the current row, making a backup if
+        needed.
+
+        You can also use indexing of the `Form` object to set the current value of a
+        column. I.e. frm[{DataSet}].[{column}] = 'New value'.
+
+        Args:
+            column: The column you want to set the value for
+            value: A value to set the current record's column to
+            write_event: (optional) If True, writes an event to PySimpleGui as
+                `after_record_edit`.
+
+        Returns:
+            None
+        """
+        rows = self.dataset.rows
+        dataset = self.dataset
+        logger.debug(f"Setting current record for {dataset.key}.{column} = {value}")
+        self.backup()
+        rows.loc[rows.index[self.index], column] = value
+        if write_event:
+            self.dataset.frm.window.write_event_value(
+                "after_record_edit",
+                {
+                    "frm_reference": dataset.frm,
+                    "data_key": dataset.key,
+                    "column": column,
+                    "value": value,
+                },
+            )
+        # call callback
+        if "after_record_edit" in dataset.callbacks:
+            dataset.callbacks["after_record_edit"](
+                dataset.frm, dataset.frm.window, dataset.key
+            )
+
+
 @dataclass(eq=False)
 class DataSet:
     """`DataSet` objects are used for an internal representation of database tables.
@@ -793,7 +952,7 @@ class DataSet:
         self.driver = self.frm.driver
         self.relationships = self.driver.relationships
         self.rows: pd.DataFrame = Result.set()
-        self._current_index: int = 0
+        self.current = CurrentRow(self)
         self.column_info: ColumnInfo = None
         self.selector: List[str] = []
 
@@ -840,7 +999,7 @@ class DataSet:
         Returns:
             The current value of the specified column.
         """
-        return self.get_current(column)
+        return self.current.get_value(column)
 
     # Override the [] operator to set current columns value
     def __setitem__(self, column, value: Union[str, int]) -> None:
@@ -853,7 +1012,7 @@ class DataSet:
         Returns:
             None
         """
-        self.set_current(column, value)
+        self.current.set_value(column, value)
 
     @property
     def search_string(self):
@@ -865,21 +1024,6 @@ class DataSet:
     def search_string(self, val: str) -> None:
         if self._search_string is not None:
             self._search_string.set(val)
-
-    # Make current_index a property so that bounds can be respected
-    @property
-    def current_index(self):
-        return self._current_index
-
-    @current_index.setter
-    # Keeps the current_index in bounds
-    def current_index(self, val: int) -> None:
-        if val > self.row_count - 1:
-            self._current_index = self.row_count - 1
-        elif val < 0:
-            self._current_index = 0
-        else:
-            self._current_index = val
 
     @classmethod
     def purge_form(cls, frm: Form, reset_keygen: bool) -> None:
@@ -1156,8 +1300,8 @@ class DataSet:
         if self.pk_is_virtual():
             return True
 
-        if self.current_row_has_backup and not self.get_current_row().equals(
-            self.get_original_current_row()
+        if self.current.has_backup and not self.current.get().equals(
+            self.current.get_original()
         ):
             return True
 
@@ -1296,7 +1440,7 @@ class DataSet:
             `PromptSaveReturn.DISCARDED`, or `PromptSaveReturn.NONE`.
         """
         # Return False if there is nothing to check or _prompt_save is False
-        if self.current_index is None or not self.row_count or not self._prompt_save:
+        if self.current.index is None or not self.row_count or not self._prompt_save:
             return PromptSaveReturn.NONE
 
         # See if any rows are virtual
@@ -1326,7 +1470,7 @@ class DataSet:
                 return PromptSaveReturn.PROCEED
             # if no
             self.purge_virtual()
-            self.restore_current_row()
+            self.current.restore_backup()
 
             # set_by_index already takes care of this, but just in-case this method is
             # called another way.
@@ -1497,7 +1641,7 @@ class DataSet:
         ):
             return
 
-        self.current_index = 0
+        self.current.index = 0
         if update_elements:
             self.frm.update_elements(self.key)
         if requery_dependents:
@@ -1536,7 +1680,7 @@ class DataSet:
         ):
             return
 
-        self.current_index = self.row_count - 1
+        self.current.index = self.row_count - 1
 
         if update_elements:
             self.frm.update_elements(self.key)
@@ -1567,7 +1711,7 @@ class DataSet:
         Returns:
             None
         """
-        if self.current_index < self.row_count - 1:
+        if self.current.index < self.row_count - 1:
             logger.debug(f"Moving to the next record of table {self.table}")
             # prompt_save
             if (
@@ -1577,7 +1721,7 @@ class DataSet:
             ):
                 return
 
-            self.current_index += 1
+            self.current.index += 1
             if update_elements:
                 self.frm.update_elements(self.key)
             if requery_dependents:
@@ -1607,7 +1751,7 @@ class DataSet:
         Returns:
             None
         """
-        if self.current_index > 0:
+        if self.current.index > 0:
             logger.debug(f"Moving to the previous record of table {self.table}")
             # prompt_save
             if (
@@ -1617,7 +1761,7 @@ class DataSet:
             ):
                 return
 
-            self.current_index -= 1
+            self.current.index -= 1
             if update_elements:
                 self.frm.update_elements(self.key)
             if requery_dependents:
@@ -1696,7 +1840,7 @@ class DataSet:
 
         # reorder rows to be idx + 1, and wrap around back to the beginning
         rows = self.rows.copy().reset_index()
-        idx = self.current_index + 1 % len(rows)
+        idx = self.current.index + 1 % len(rows)
         rows = pd.concat([rows.loc[idx:], rows.loc[:idx]])
 
         # fill in descriptions for cols in search_order
@@ -1713,7 +1857,7 @@ class DataSet:
             ]
             if not result.empty:
                 # save index for later, if callback returns False
-                old_index = self.current_index
+                old_index = self.current.index
 
                 # grab the first result
                 pk = result.iloc[0][self.pk_column]
@@ -1749,7 +1893,7 @@ class DataSet:
             if "after_search" in self.callbacks and not self.callbacks["after_search"](
                 self.frm, self.frm.window, self.key
             ):
-                self.current_index = old_index
+                self.current.index = old_index
                 self.frm.update_elements(self.key)
                 self.requery_dependents()
                 return SEARCH_ABORTED
@@ -1794,7 +1938,7 @@ class DataSet:
             None
         """
         # if already there
-        if self.current_index == index:
+        if self.current.index == index:
             return
 
         logger.debug(f"Moving to the record at index {index} on {self.table}")
@@ -1811,7 +1955,7 @@ class DataSet:
             if self.prompt_save(update_elements=False) == SAVE_FAIL:
                 return
 
-        self.current_index = index
+        self.current.index = index
         if update_elements:
             self.frm.update_elements(self.key, omit_elements=omit_elements)
         if requery_dependents:
@@ -1868,63 +2012,6 @@ class DataSet:
             omit_elements=omit_elements,
         )
 
-    def get_current(
-        self, column: str, default: Union[str, int] = ""
-    ) -> Union[str, int]:
-        """Get the value for the supplied column in the current row.
-
-        You can also use indexing of the `Form` object to get the current value of a
-        column I.e. frm[{DataSet}].[{column}].
-
-        Args:
-            column: The column you want to get the value from
-            default: A value to return if the record is null
-
-        Returns:
-            The value of the column requested
-        """
-        logger.debug(f"Getting current record for {self.table}.{column}")
-        if self.row_count:
-            if self.get_current_row()[column] is not None:
-                return self.get_current_row()[column]
-            return default
-        return default
-
-    def set_current(
-        self, column: str, value: Union[str, int], write_event: bool = False
-    ) -> None:
-        """Set the value for the supplied column in the current row, making a backup if
-        needed.
-
-        You can also use indexing of the `Form` object to set the current value of a
-        column. I.e. frm[{DataSet}].[{column}] = 'New value'.
-
-        Args:
-            column: The column you want to set the value for
-            value: A value to set the current record's column to
-            write_event: (optional) If True, writes an event to PySimpleGui as
-                `after_record_edit`.
-
-        Returns:
-            None
-        """
-        logger.debug(f"Setting current record for {self.key}.{column} = {value}")
-        self.backup_current_row()
-        self.rows.loc[self.rows.index[self.current_index], column] = value
-        if write_event:
-            self.frm.window.write_event_value(
-                "after_record_edit",
-                {
-                    "frm_reference": self.frm,
-                    "data_key": self.key,
-                    "column": column,
-                    "value": value,
-                },
-            )
-        # call callback
-        if "after_record_edit" in self.callbacks:
-            self.callbacks["after_record_edit"](self.frm, self.frm.window, self.key)
-
     def get_keyed_value(
         self, value_column: str, key_column: str, key_value: Union[str, int]
     ) -> Union[str, int, None]:
@@ -1943,29 +2030,6 @@ class DataSet:
         for _, row in self.rows.iterrows():
             if row[key_column] == key_value:
                 return row[value_column]
-        return None
-
-    def get_current_pk(self) -> int:
-        """Get the primary key of the currently selected record.
-
-        Returns:
-            the primary key
-        """
-        return self.get_current(self.pk_column)
-
-    def get_current_row(self) -> Union[pd.Series, None]:
-        """Get the row for the currently selected record of this table.
-
-        Returns:
-            A pandas Series object
-        """
-        if not self.rows.empty:
-            # force the current_index to be in bounds!
-            # For child reparenting
-            self.current_index = self.current_index
-
-            # make sure to return as python type
-            return self.rows.astype("O").iloc[self.current_index]
         return None
 
     def add_selector(
@@ -2051,7 +2115,7 @@ class DataSet:
         # Make sure we take into account the foreign key relationships...
         for r in self.relationships:
             if self.table == r.child_table and r.on_update_cascade:
-                new_values[r.fk_column] = self.frm[r.parent_table].get_current_pk()
+                new_values[r.fk_column] = self.frm[r.parent_table].current.get_pk()
 
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
@@ -2061,9 +2125,9 @@ class DataSet:
         self.insert_row(new_values)
 
         # and move to the new record
-        # do this in insert_record, because possibly current_index is already 0
+        # do this in insert_record, because possibly current.index is already 0
         # and set_by_index will return early before update/requery if so.
-        self.current_index = self.row_count
+        self.current.index = self.row_count
         self.frm.update_elements(self.key)
         self.requery_dependents()
 
@@ -2125,7 +2189,7 @@ class DataSet:
         # Work with a copy of the original row and transform it if needed
         # While saving, we are working with just the current row of data,
         # unless it's 'keyed' via ?/=
-        current_row = self.get_current_row().copy()
+        current_row = self.current.get().copy()
 
         # Track the keyed queries we have to run.
         # Set to None, so we can tell later if there were keyed elements
@@ -2191,7 +2255,7 @@ class DataSet:
         if self.pk_is_virtual():
             changed_row_dict = new_dict
         else:
-            old_dict = self.get_original_current_row().fillna("").to_dict()
+            old_dict = self.current.get_original().fillna("").to_dict()
             changed_row_dict = {
                 key: new_dict[key]
                 for key in new_dict
@@ -2211,8 +2275,8 @@ class DataSet:
             # if user is not using liveupdate, they can change something using celledit
             # but then change it back in field element (which overrides the celledit)
             # this refreshes the selector/comboboxes so that gui is up-to-date.
-            if self.current_row_has_backup:
-                self.restore_current_row()
+            if self.current.has_backup:
+                self.current.restore_backup()
                 self.frm.update_selectors(self.key)
                 self.frm.update_fields(self.key)
             return SAVE_NONE + SHOW_MESSAGE
@@ -2281,7 +2345,7 @@ class DataSet:
         else:
             if self.pk_is_virtual():
                 result = self.driver.insert_record(
-                    self.table, self.get_current_pk(), self.pk_column, changed_row_dict
+                    self.table, self.current.get_pk(), self.pk_column, changed_row_dict
                 )
             else:
                 result = self.driver.save_record(self, changed_row_dict)
@@ -2302,12 +2366,12 @@ class DataSet:
             pk = (
                 result.attrs["lastrowid"]
                 if result.attrs["lastrowid"] is not None
-                else self.get_current_pk()
+                else self.current.get_pk()
             )
-            self.set_current(self.pk_column, pk, write_event=False)
+            self.current.set_value(self.pk_column, pk, write_event=False)
 
             # then update the current row data
-            self.rows.iloc[self.current_index] = current_row
+            self.rows.iloc[self.current.index] = current_row
 
             # If child changes parent, move index back and requery/requery_dependents
             if (
@@ -2582,7 +2646,7 @@ class DataSet:
             if answer == "no":
                 return True
         # Store our current pk, so we can move to it if the duplication fails
-        pk = self.get_current_pk()
+        pk = self.current.get_pk()
 
         # Have the driver duplicate the record
         result = self.driver.duplicate_record(self, children)
@@ -2628,7 +2692,7 @@ class DataSet:
         """
         # We don't want to update other views comboboxes/tableviews until row is
         # actually saved. So first check their current
-        current_row = self.get_original_current_row()
+        current_row = self.current.get_original()
         if current_row[self.pk_column] == pk:
             return current_row[self.description_column]
         try:
@@ -2654,7 +2718,7 @@ class DataSet:
             return False
 
         if pk is None:
-            pk = self.get_current_row()[self.pk_column]
+            pk = self.current.get()[self.pk_column]
 
         return bool(pk in self.virtual_pks)
 
@@ -2670,61 +2734,12 @@ class DataSet:
             return len(self.rows.index)
         return 0
 
-    @property
-    def current_row_has_backup(self) -> bool:
-        """Returns True if the current_row has a backup row, and False otherwise.
-
-        A pandas Series object is stored rows.attrs["row_backup"] before a 'CellEdit' or
-        'LiveUpdate' operation is initiated, so that it can be compared in
-        `DataSet.records_changed` and `DataSet.save_record` or used to restore if
-        changes are discarded during a `DataSet.prompt_save` operations.
-
-        Returns:
-            True if a backup row is present that matches, and False otherwise.
-        """
-        if self.rows is None or self.rows.empty:
-            return False
-        if (
-            isinstance(self.rows.attrs["row_backup"], pd.Series)
-            and self.rows.attrs["row_backup"][self.pk_column]
-            == self.get_current_row()[self.pk_column]
-        ):
-            return True
-        return False
-
     def purge_row_backup(self) -> None:
         """Deletes the backup row from the dataset.
 
         This method sets the "row_backup" attribute of the dataset to None.
         """
         self.rows.attrs["row_backup"] = None
-
-    def restore_current_row(self) -> None:
-        """Restores the backup row to the current row in `DataSet.rows`.
-
-        This method replaces the current row in the dataset with the backup row, if a
-        backup row is present.
-        """
-        if self.current_row_has_backup:
-            self.rows.iloc[self.current_index] = self.rows.attrs["row_backup"].copy()
-
-    def get_original_current_row(self) -> pd.Series:
-        """Returns a copy of current row as it was fetched in a query from `SQLDriver`.
-
-        If a backup of the current row is present, this method returns a copy of that
-        row. Otherwise, it returns a copy of the current row. Returns None if
-        `DataSet.rows` is empty.
-        """
-        if self.current_row_has_backup:
-            return self.rows.attrs["row_backup"].copy()
-        if not self.rows.empty:
-            return self.get_current_row().copy()
-        return None
-
-    def backup_current_row(self) -> None:
-        """Creates a backup copy of the current row in `DataSet.rows`."""
-        if not self.current_row_has_backup:
-            self.rows.attrs["row_backup"] = self.get_current_row().copy()
 
     def table_values(
         self,
@@ -2765,12 +2780,12 @@ class DataSet:
         if mark_unsaved:
             virtual_row_pks = self.virtual_pks.copy()
             # add pk of current row if it has changes
-            if self.current_row_has_backup and not self.get_current_row().equals(
-                self.get_original_current_row()
+            if self.current.has_backup and not self.current.get().equals(
+                self.current.get_original()
             ):
                 virtual_row_pks.append(
                     self.rows.loc[
-                        self.rows[pk_column] == self.get_current_row()[pk_column],
+                        self.rows[pk_column] == self.current.get()[pk_column],
                         pk_column,
                     ].to_numpy()[0]
                 )
@@ -2882,8 +2897,8 @@ class DataSet:
         description = self.frm[rel.parent_table].description_column
 
         # revert to original row (so unsaved changes don't show up in dropdowns)
-        parent_current_row = self.frm[rel.parent_table].get_original_current_row()
-        rows.iloc[self.frm[rel.parent_table].current_index] = parent_current_row
+        parent_current_row = self.frm[rel.parent_table].current.get_original()
+        rows.iloc[self.frm[rel.parent_table].current.index] = parent_current_row
 
         # fastest way yet to generate this list of _ElementRow
         combobox_values = [
@@ -2949,7 +2964,7 @@ class DataSet:
                     # get this before map(), to revert below
                     parent_current_row = self.frm[
                         rel.parent_table
-                    ].get_original_current_row()
+                    ].current.get_original()
                     condition = rows[col] == parent_current_row[parent_pk_column]
 
                     # map descriptions to fk column
@@ -3289,7 +3304,7 @@ class DataSet:
         Returns:
             None
         """
-        pk = self.get_current_pk()
+        pk = self.current.get_pk()
         if self.rows.attrs["sort_column"] is None:
             logger.debug("Sort column is None.  Resetting sort.")
             self.sort_reset()
@@ -4093,7 +4108,7 @@ class Form:
                     table = self[table].get_related_table_for_column(column)
                     funct = functools.partial(
                         self[table].quick_editor,
-                        self[referring_table].get_current,
+                        self[referring_table].current.get_value,
                         column,
                         **quick_editor_kwargs if quick_editor_kwargs else {},
                     )
@@ -4168,7 +4183,7 @@ class Form:
                     # since we are choosing not to save
                     for data_key_ in self.datasets:
                         self[data_key_].purge_virtual()
-                        self[data_key_].restore_current_row()
+                        self[data_key_].current.restore_backup()
                     self.update_elements()
                     # We did have a change, regardless if the user chose not to save
                     return PromptSaveReturn.DISCARDED
@@ -4404,13 +4419,13 @@ class Form:
 
                 # Disable first/prev if only 1 row, or first row
                 elif ":table_first" in m["event"] or ":table_previous" in m["event"]:
-                    disable = row_count < 2 or self[data_key].current_index == 0
+                    disable = row_count < 2 or self[data_key].current.index == 0
                     win[m["event"]].update(disabled=disable)
 
                 # Disable next/last if only 1 row, or last row
                 elif ":table_next" in m["event"] or ":table_last" in m["event"]:
                     disable = row_count < 2 or (
-                        self[data_key].current_index == row_count - 1
+                        self[data_key].current.index == row_count - 1
                     )
                     win[m["event"]].update(disabled=disable)
 
@@ -4576,7 +4591,7 @@ class Form:
                 # can't be changed.
                 values = mapped.dataset.table_values()
                 # Select the current one
-                pk = mapped.dataset.get_current_pk()
+                pk = mapped.dataset.current.get_pk()
 
                 if len(values):  # noqa SIM108
                     # set index to pk
@@ -4684,7 +4699,7 @@ class Form:
 
                         element.update(
                             values=lst,
-                            set_to_index=dataset.current_index,
+                            set_to_index=dataset.current.index,
                         )
 
                         # set vertical scroll bar to follow selected element
@@ -4692,7 +4707,7 @@ class Form:
                         if isinstance(element, sg.Listbox):
                             try:
                                 element.set_vscroll_position(
-                                    dataset.current_index / len(lst)
+                                    dataset.current.index / len(lst)
                                 )
                             except ZeroDivisionError:
                                 element.set_vscroll_position(0)
@@ -4700,7 +4715,7 @@ class Form:
                     elif isinstance(element, sg.Slider):
                         # Re-range the element depending on the number of records
                         l = dataset.row_count  # noqa: E741
-                        element.update(value=dataset._current_index + 1, range=(1, l))
+                        element.update(value=dataset._current.index + 1, range=(1, l))
 
                     elif isinstance(element, sg.Table):
                         logger.debug("update_elements: Table selector found...")
@@ -4727,7 +4742,7 @@ class Form:
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
-                        pk = dataset.get_current_pk()
+                        pk = dataset.current.get_pk()
 
                         found = False
                         if len(values):
@@ -7855,13 +7870,13 @@ class _CellEdit:
                 return
 
         # see if there was a change
-        old_value = dataset.get_current_row().copy()[column]
+        old_value = dataset.current.get().copy()[column]
         cast_new_value = dataset.value_changed(
             column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
         )
         if cast_new_value is not Boolean.FALSE:
             # push row to dataset and update
-            dataset.set_current(column, cast_new_value, write_event=True)
+            dataset.current.set_value(column, cast_new_value, write_event=True)
             # Update matching field
             self.frm.update_fields(data_key, columns=[column])
             # TODO: make sure we actually want to set new_value to cast
@@ -7885,8 +7900,8 @@ class _CellEdit:
         # set marker
         values[0] = (
             themepack.marker_unsaved
-            if dataset.current_row_has_backup
-            and not dataset.get_current_row().equals(dataset.get_original_current_row())
+            if dataset.current.has_backup
+            and not dataset.current.get().equals(dataset.current.get_original())
             else " "
         )
 
@@ -8026,13 +8041,13 @@ class _LiveUpdate:
                         return
 
                 # see if there was a change
-                old_value = dataset.get_current_row()[column]
+                old_value = dataset.current.get()[column]
                 new_value = dataset.value_changed(
                     column, old_value, new_value, bool(widget_type == TK_CHECKBUTTON)
                 )
                 if new_value is not Boolean.FALSE:
                     # push row to dataset and update
-                    dataset.set_current(column, new_value, write_event=True)
+                    dataset.current.set_value(column, new_value, write_event=True)
 
                     # Update tableview if uses column:
                     if dataset.column_likely_in_selector(column):
@@ -9436,7 +9451,7 @@ class SQLDriver(ABC):
         for r in self.relationships:
             if dataset.table == r.child_table and r.on_update_cascade:
                 table = dataset.table
-                parent_pk = dataset.frm[r.parent_table].get_current(r.pk_column)
+                parent_pk = dataset.frm[r.parent_table].current.get_value(r.pk_column)
 
                 # Children without cascade-filtering parent aren't displayed
                 if not parent_pk:
@@ -9486,7 +9501,7 @@ class SQLDriver(ABC):
         # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
-        pk = dataset.get_current(dataset.pk_column)
+        pk = dataset.current.get_value(dataset.pk_column)
 
         # Create clauses
         delete_clause = f"DELETE FROM {table} "  # leave a space at end for joining
@@ -9588,7 +9603,7 @@ class SQLDriver(ABC):
         ]
         columns = ", ".join(columns)
         pk_column = dataset.pk_column
-        pk = dataset.get_current(dataset.pk_column)
+        pk = dataset.current.get_value(dataset.pk_column)
 
         # Insert new record
         res = self._insert_duplicate_record(table, columns, pk_column, pk)
@@ -9692,7 +9707,7 @@ class SQLDriver(ABC):
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
     ) -> pd.DataFrame:
-        pk = dataset.get_current_pk()
+        pk = dataset.current.get_pk()
         pk_column = dataset.pk_column
 
         # quote columns
@@ -10309,7 +10324,7 @@ class Flatfile(Sqlite):
 
             # Update the DataSet object's DataFra,e with the changes, so then
             # the entire DataFrame can be written back to file sequentially
-            dataset.rows.iloc[dataset.current_index] = pd.Series(changed_row)
+            dataset.rows.iloc[dataset.current.index] = pd.Series(changed_row)
 
             # open the CSV file for writing
             with open(self.file_path, "w", newline="\n") as csvfile:
