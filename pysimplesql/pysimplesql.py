@@ -418,8 +418,8 @@ class CellFormatFn:
 # -------
 # CLASSES
 # -------
-# TODO: Combine _TableRow and _ElementRow into one class for simplicity
-class _TableRow(list):
+# TODO: Combine TableRow and ElementRow into one class for simplicity
+class TableRow(list):
     """Convenience class used by Tables to associate a primary key with a row of data.
 
     Note: This is typically not used by the end user.
@@ -439,10 +439,10 @@ class _TableRow(list):
 
     def __repr__(self) -> str:
         # Add some extra information that could be useful for debugging
-        return f"_TableRow(pk={self.pk}): {super().__repr__()}"
+        return f"TableRow(pk={self.pk}): {super().__repr__()}"
 
 
-class _ElementRow:
+class ElementRow:
     """Convenience class used by listboxes and comboboxes to associate a primary key
     with a row of data.
 
@@ -640,7 +640,7 @@ class RelationshipStore(list):
 
     def get_dependent_columns(self, frm_reference: Form, table: str) -> Dict[str, str]:
         """Returns a dictionary of the `DataSet.key` and column names that use the
-        description_column text of the given parent table in their `_ElementRow`
+        description_column text of the given parent table in their `ElementRow`
         objects.
 
         This method is used to determine which GUI field and selector elements to update
@@ -2205,7 +2205,7 @@ class DataSet:
 
             # convert the data into the correct type using the domain in ColumnInfo
             if isinstance(mapped.element, sg.Combo):
-                # try to get _ElementRow pk
+                # try to get ElementRow pk
                 try:
                     element_val = self.column_info[mapped.column].cast(
                         mapped.element.get().get_pk_ignore_placeholder()
@@ -2748,8 +2748,8 @@ class DataSet:
         mark_unsaved: bool = False,
         apply_search_filter: bool = False,
         apply_cell_format_fn: bool = True,
-    ) -> List[_TableRow]:
-        """Create a values list of `_TableRows`s for use in a PySimpleGUI Table element.
+    ) -> List[TableRow]:
+        """Create a values list of `TableRows`s for use in a PySimpleGUI Table element.
 
         Args:
             columns: A list of column names to create table values for. Defaults to
@@ -2762,7 +2762,7 @@ class DataSet:
                 `DataSet.column_info[col].cell_format_fn` to rows column
 
         Returns:
-            A list of `_TableRow`s suitable for using with PySimpleGUI Table element
+            A list of `TableRow`s suitable for using with PySimpleGUI Table element
             values.
         """
         if not self.row_count:
@@ -2833,9 +2833,9 @@ class DataSet:
         # resort rows with requested columns
         rows = rows[columns]
 
-        # fastest way yet to generate list of _TableRows
+        # fastest way yet to generate list of TableRows
         return [
-            _TableRow(pk, values.tolist())
+            TableRow(pk, values.tolist())
             for pk, values in zip(
                 rows.index,
                 np.vstack((rows.fillna("").astype("O").to_numpy().T, rows.index)).T,
@@ -2870,8 +2870,8 @@ class DataSet:
 
     def combobox_values(
         self, column_name: str, insert_placeholder: bool = True
-    ) -> Union[List[_ElementRow], None]:
-        """Returns the values to use in a sg.Combobox as a list of _ElementRow objects.
+    ) -> Union[List[ElementRow], None]:
+        """Returns the values to use in a sg.Combobox as a list of ElementRow objects.
 
         Args:
             column_name: The name of the table column for which to get the values.
@@ -2879,7 +2879,7 @@ class DataSet:
                 first value.
 
         Returns:
-            A list of _ElementRow objects representing the possible values for the
+            A list of ElementRow objects representing the possible values for the
             combobox column, or None if no matching relationship is found.
         """
         if not self.row_count:
@@ -2901,14 +2901,14 @@ class DataSet:
         parent_current_row = self.frm[rel.parent_table].current.get_original()
         rows.iloc[self.frm[rel.parent_table].current.index] = parent_current_row
 
-        # fastest way yet to generate this list of _ElementRow
+        # fastest way yet to generate this list of ElementRow
         combobox_values = [
-            _ElementRow(*values)
+            ElementRow(*values)
             for values in np.column_stack((rows[pk_column], rows[description]))
         ]
 
         if insert_placeholder:
-            combobox_values.insert(0, _ElementRow("Null", lang.combo_placeholder))
+            combobox_values.insert(0, ElementRow("Null", lang.combo_placeholder))
         return combobox_values
 
     def get_related_table_for_column(self, column: str) -> str:
@@ -4689,13 +4689,13 @@ class Form:
                                 # TODO: Kind of a hackish way to check for equality.
                                 if str(r[e["where_column"]]) == str(e["where_value"]):
                                     lst.append(
-                                        _ElementRow(r[pk_column], r[description_column])
+                                        ElementRow(r[pk_column], r[description_column])
                                     )
                                 else:
                                     pass
                             else:
                                 lst.append(
-                                    _ElementRow(r[pk_column], r[description_column])
+                                    ElementRow(r[pk_column], r[description_column])
                                 )
 
                         element.update(
@@ -4995,7 +4995,7 @@ def simple_transform(dataset: DataSet, row, encode) -> None:
 def update_table_element(
     window: sg.Window,
     element: Type[sg.Table],
-    values: List[_TableRow],
+    values: List[TableRow],
     select_rows: List[int],
 ) -> None:
     """Updates a PySimpleGUI sg.Table with new data and suppresses extra events emitted.
@@ -5635,7 +5635,7 @@ class LazyTable(sg.Table):
     To use, simply replace `sg.Table` with `LazyTable` as the 'element' argument in a
     `selector()` function call in your layout.
 
-    Expects values in the form of [_TableRow(pk, values)], and only becomes active after
+    Expects values in the form of [TableRow(pk, values)], and only becomes active after
     a update(values=, selected_rows=[int]) call.
 
 
@@ -5847,7 +5847,7 @@ class LazyTable(sg.Table):
         self._start_index = new_start_index
 
         # Insert new_rows to beginning
-        # don't use data.insert(0, new_rows), it breaks _TableRow
+        # don't use data.insert(0, new_rows), it breaks TableRow
         self.data[:0] = new_rows
 
         # to avoid an infinite scroll, move scroll a little after 0.0
@@ -6207,7 +6207,7 @@ class _SearchInput(_EnhancedInput):
 
 
 class _AutoCompleteLogic:
-    _completion_list: List[Union[str, _ElementRow]] = field_(default_factory=list)
+    _completion_list: List[Union[str, ElementRow]] = field_(default_factory=list)
     _hits: List[int] = field_(default_factory=list)
     _hit_index: int = 0
     position: int = 0
@@ -7368,7 +7368,7 @@ class TableBuilder(list):
     ) -> None:
         """Add a new heading column to this TableBuilder object.  Columns are added in
         the order that this method is called. Note that the primary key column does not
-        need to be included, as primary keys are stored internally in the `_TableRow`
+        need to be included, as primary keys are stored internally in the `TableRow`
         class.
 
         Args:
@@ -7843,7 +7843,7 @@ class _CellEdit:
         row,
         column,
         col_idx,
-        combobox_values: _ElementRow,
+        combobox_values: ElementRow,
         widget_type,
         field_var,
     ) -> None:
@@ -8019,7 +8019,7 @@ class _LiveUpdate:
                 column = e["column"]
                 element = e["element"]
                 if widget_type == TK_COMBOBOX and isinstance(
-                    element.get(), _ElementRow
+                    element.get(), ElementRow
                 ):
                     new_value = element.get().get_pk_ignore_placeholder()
                 else:
@@ -8806,7 +8806,7 @@ class IntCol(LocaleCol, LengthCol, MinMaxCol):
         value_backup = value
         if isinstance(value, int):
             return value
-        if isinstance(value, _ElementRow):
+        if isinstance(value, ElementRow):
             return int(value)
         try:
             value = self.strip_locale(value)
