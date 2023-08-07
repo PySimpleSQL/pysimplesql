@@ -749,6 +749,15 @@ class CurrentRow:
         ):
             return True
         return False
+    
+    @property
+    def pk(self) -> int:
+        """Get the primary key of the currently selected record.
+
+        Returns:
+            the primary key
+        """
+        return self.get_value(self.dataset.pk_column)
 
     def backup(self) -> None:
         """Creates a backup copy of the current row in `DataSet.rows`."""
@@ -795,14 +804,6 @@ class CurrentRow:
         if not rows.empty:
             return self.get().copy()
         return None
-
-    def get_pk(self) -> int:
-        """Get the primary key of the currently selected record.
-
-        Returns:
-            the primary key
-        """
-        return self.get_value(self.dataset.pk_column)
 
     def get_value(self, column: str, default: Union[str, int] = "") -> Union[str, int]:
         """Get the value for the supplied column in the current row.
@@ -2115,7 +2116,7 @@ class DataSet:
         # Make sure we take into account the foreign key relationships...
         for r in self.relationships:
             if self.table == r.child_table and r.on_update_cascade:
-                new_values[r.fk_column] = self.frm[r.parent_table].current.get_pk()
+                new_values[r.fk_column] = self.frm[r.parent_table].current.pk
 
         # Update the pk to match the expected pk the driver would generate on insert.
         new_values[self.pk_column] = self.driver.next_pk(self.table, self.pk_column)
@@ -2345,7 +2346,7 @@ class DataSet:
         else:
             if self.pk_is_virtual():
                 result = self.driver.insert_record(
-                    self.table, self.current.get_pk(), self.pk_column, changed_row_dict
+                    self.table, self.current.pk, self.pk_column, changed_row_dict
                 )
             else:
                 result = self.driver.save_record(self, changed_row_dict)
@@ -2366,7 +2367,7 @@ class DataSet:
             pk = (
                 result.attrs["lastrowid"]
                 if result.attrs["lastrowid"] is not None
-                else self.current.get_pk()
+                else self.current.pk
             )
             self.current.set_value(self.pk_column, pk, write_event=False)
 
@@ -2646,7 +2647,7 @@ class DataSet:
             if answer == "no":
                 return True
         # Store our current pk, so we can move to it if the duplication fails
-        pk = self.current.get_pk()
+        pk = self.current.pk
 
         # Have the driver duplicate the record
         result = self.driver.duplicate_record(self, children)
@@ -3304,7 +3305,7 @@ class DataSet:
         Returns:
             None
         """
-        pk = self.current.get_pk()
+        pk = self.current.pk
         if self.rows.attrs["sort_column"] is None:
             logger.debug("Sort column is None.  Resetting sort.")
             self.sort_reset()
@@ -4591,7 +4592,7 @@ class Form:
                 # can't be changed.
                 values = mapped.dataset.table_values()
                 # Select the current one
-                pk = mapped.dataset.current.get_pk()
+                pk = mapped.dataset.current.pk
 
                 if len(values):  # noqa SIM108
                     # set index to pk
@@ -4715,7 +4716,7 @@ class Form:
                     elif isinstance(element, sg.Slider):
                         # Re-range the element depending on the number of records
                         l = dataset.row_count  # noqa: E741
-                        element.update(value=dataset._current.index + 1, range=(1, l))
+                        element.update(value=dataset.current.index + 1, range=(1, l))
 
                     elif isinstance(element, sg.Table):
                         logger.debug("update_elements: Table selector found...")
@@ -4742,7 +4743,7 @@ class Form:
                         # Get the primary key to select.
                         # Use the list above instead of getting it directly
                         # from the table, as the data has yet to be updated
-                        pk = dataset.current.get_pk()
+                        pk = dataset.current.pk
 
                         found = False
                         if len(values):
@@ -9451,7 +9452,7 @@ class SQLDriver(ABC):
         for r in self.relationships:
             if dataset.table == r.child_table and r.on_update_cascade:
                 table = dataset.table
-                parent_pk = dataset.frm[r.parent_table].current.get_value(r.pk_column)
+                parent_pk = dataset.frm[r.parent_table].current.pk
 
                 # Children without cascade-filtering parent aren't displayed
                 if not parent_pk:
@@ -9501,7 +9502,7 @@ class SQLDriver(ABC):
         # Get data for query
         table = self.quote_table(dataset.table)
         pk_column = self.quote_column(dataset.pk_column)
-        pk = dataset.current.get_value(dataset.pk_column)
+        pk = dataset.current.pk
 
         # Create clauses
         delete_clause = f"DELETE FROM {table} "  # leave a space at end for joining
@@ -9603,7 +9604,7 @@ class SQLDriver(ABC):
         ]
         columns = ", ".join(columns)
         pk_column = dataset.pk_column
-        pk = dataset.current.get_value(dataset.pk_column)
+        pk = dataset.current.pk
 
         # Insert new record
         res = self._insert_duplicate_record(table, columns, pk_column, pk)
@@ -9707,7 +9708,7 @@ class SQLDriver(ABC):
     def save_record(
         self, dataset: DataSet, changed_row: dict, where_clause: str = None
     ) -> pd.DataFrame:
-        pk = dataset.current.get_pk()
+        pk = dataset.current.pk
         pk_column = dataset.pk_column
 
         # quote columns
