@@ -9918,7 +9918,7 @@ class Sqlite(SQLDriver):
         database: Union[
             str,
             Path,
-            Literal[":memory:"], # noqa: PYI051
+            Literal[":memory:"],  # noqa: PYI051
             sqlite3.Connection,
         ] = None,
         *,
