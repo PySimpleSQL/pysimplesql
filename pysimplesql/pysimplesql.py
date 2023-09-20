@@ -426,6 +426,7 @@ class TableRow(list):
     """
 
     def __init__(self, pk: int, *args, **kwargs) -> None:
+        """Initilize TableRow."""
         self.pk = pk
         super().__init__(*args, **kwargs)
 
@@ -450,6 +451,7 @@ class ElementRow:
     """
 
     def __init__(self, pk: int, val: Union[str, int]) -> None:
+        """Initilize ElementRow."""
         self.pk = pk
         self.val = val
 
