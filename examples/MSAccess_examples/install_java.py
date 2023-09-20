@@ -6,7 +6,9 @@ with the UCanAccess java JDBC driver, which requires Java to be installed in ord
 run.  This also serves as an example to automatically download a local Java installation
 for your own projects.
 """
+import configparser
 import os
+import pathlib
 import pysimplesql as ss
 import PySimpleGUI as sg
 import subprocess
@@ -17,11 +19,19 @@ except ModuleNotFoundError:
     sg.popup_error("You must `pip install install-jdk` to use this example")
     exit(0)
 
+SETTINGS_FILE = pathlib.Path.cwd() / "settings.ini"
+
 
 # -------------------------------------------------
 # ROUTINES TO INSTALL JAVA IF USER DOES NOT HAVE IT
 # -------------------------------------------------
-def _is_java_installed():
+def _is_java_installed() -> bool:
+    if "JAVA_HOME" in os.environ:
+        return True
+    previous_jre = load_setting("General", "java_home")
+    if previous_jre:
+        os.environ["JAVA_HOME"] = previous_jre
+        return True
     # Returns True if Java is installed, False otherwise
     try:
         subprocess.check_output(["which", "java"])
@@ -64,8 +74,9 @@ def java_check_install() -> bool:
                 pa.close()
                 return False
             pa.close()
-            # set JAVA_HOME
+            # Set JAVA_HOME and save it to settings
             os.environ["JAVA_HOME"] = java_home
+            save_setting("General", "java_home", java_home)
         else:
             url = jdk.get_download_url(11, jre=True)
             sg.popup(
@@ -78,6 +89,33 @@ def java_check_install() -> bool:
         return False
 
     return True
+
+
+def save_setting(section: str, key: str, value: str) -> None:
+    config = configparser.ConfigParser()
+    config.read(SETTINGS_FILE)
+
+    # Create the section if it doesn't exist
+    if section not in config:
+        config[section] = {}
+
+    # Set the value in the section
+    config[section][key] = value
+
+    # Save the settings to the file
+    with open(SETTINGS_FILE, "w") as config_file:
+        config.write(config_file)
+
+
+def load_setting(section: str, key: str, default=None) -> str:
+    config = configparser.ConfigParser()
+    config.read(SETTINGS_FILE)
+
+    # Check if the section and key exist
+    if section in config and key in config[section]:
+        return config[section][key]
+
+    return default
 
 
 if __name__ == "__main__":

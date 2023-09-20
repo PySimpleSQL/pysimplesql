@@ -1,6 +1,6 @@
 import logging
-
 import platform
+import re
 import PySimpleGUI as sg
 import pysimplesql as ss
 
@@ -13,7 +13,6 @@ sg.set_options(font=("Arial", 11), dpi_awareness=True)
 # -----------------------------
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
 # Set up the appropriate theme depending on the OS
 # -----------------------------
 if platform.system() == "Windows":
@@ -29,128 +28,70 @@ else:
 # -----------------------------
 custom = {
     "ttk_theme": os_ttktheme,
-    "marker_sort_asc": " ⬇",
-    "marker_sort_desc": " ⬆",
+    "marker_sort_asc": " ⬇ ",
+    "marker_sort_desc": " ⬆ ",
 }
 custom = custom | os_tp
 ss.themepack(custom)
 
+
+# create your own validator to be passed to a
+# frm[DATA_KEY].column_info[COLUMN_NAME].custom_validate_fn
+# used below in the quick_editor arguments
+def is_valid_email(email: str):
+    valid_email = re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
+    if not valid_email:
+        return ss.ValidateResponse(
+            ss.ValidateRule.CUSTOM, email, " is not a valid email"
+        )
+    return ss.ValidateResponse()
+
+
+quick_editor_kwargs = {
+    "column_attributes": {
+        "email": {"custom_validate_fn": lambda value: is_valid_email(value)}
+    }
+}
+
+
 # SQL Statement
 # ======================================================================================
-# While this example uses triggers to calculate prices and sub/totals, they are not
-# required for pysimplesql to operate. See simpler examples, like journal.
 
 sql = """
-CREATE TABLE IF NOT EXISTS Customers (
-    "CustomerID" INTEGER NOT NULL,
-    "Name" TEXT NOT NULL,
-    "Email" TEXT,
-    PRIMARY KEY("CustomerID" AUTOINCREMENT)
+CREATE TABLE customers (
+    customer_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT
 );
 
-CREATE TABLE IF NOT EXISTS Orders (
-    "OrderID" INTEGER NOT NULL,
-    "CustomerID" INTEGER NOT NULL,
-    "OrderDate" DATE NOT NULL DEFAULT (date('now')),
-    "Total" REAL,
-    "Completed" BOOLEAN NOT NULL,
-    FOREIGN KEY ("CustomerID") REFERENCES Customers(CustomerID),
-    PRIMARY KEY("OrderID" AUTOINCREMENT)
+CREATE TABLE orders (
+    order_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    date DATE NOT NULL DEFAULT (date('now')),
+    total DECTEXT(10,2),
+    completed BOOLEAN NOT NULL,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
 );
 
-CREATE TABLE IF NOT EXISTS Products (
-    "ProductID" INTEGER NOT NULL,
-    "Name" TEXT NOT NULL DEFAULT "New Product",
-    "Price" REAL NOT NULL,
-    "Inventory" INTEGER DEFAULT 0,
-    PRIMARY KEY("ProductID" AUTOINCREMENT)
+CREATE TABLE products (
+    product_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL DEFAULT 'New Product',
+    price DECTEXT(10,2) NOT NULL,
+    inventory INTEGER DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS OrderDetails (
-    "OrderDetailID" INTEGER NOT NULL,
-    "OrderID" INTEGER,
-    "ProductID" INTEGER NOT NULL,
-    "Quantity" INTEGER,
-    "Price" REAL,
-    "SubTotal" REAL GENERATED ALWAYS AS ("Price" * "Quantity") STORED,
-    FOREIGN KEY ("OrderID") REFERENCES "Orders"("OrderID") ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY ("ProductID") REFERENCES "Products"("ProductID"),
-    PRIMARY KEY("OrderDetailID" AUTOINCREMENT)
+CREATE TABLE order_details (
+    order_detail_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    price DECTEXT(10,2),
+    subtotal DECTEXT(10,2) GENERATED ALWAYS AS (price * quantity) STORED,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
 
--- Create a compound index on OrderID and ProductID columns in OrderDetails table
-CREATE INDEX idx_orderdetails_orderid_productid ON OrderDetails (OrderID, ProductID);
-
--- Trigger to set the price value for a new OrderDetail
-CREATE TRIGGER IF NOT EXISTS set_price
-AFTER INSERT ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE OrderDetails
-    SET Price = Products.Price
-    FROM Products
-    WHERE Products.ProductID = NEW.ProductID
-    AND OrderDetails.OrderDetailID = NEW.OrderDetailID;
-END;
-
--- Trigger to update the price value for an existing OrderDetail
-CREATE TRIGGER IF NOT EXISTS set_price_update
-AFTER UPDATE ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE OrderDetails
-    SET Price = Products.Price
-    FROM Products
-    WHERE Products.ProductID = NEW.ProductID
-    AND OrderDetails.OrderDetailID = NEW.OrderDetailID;
-END;
-
--- Trigger to set the total value for a new OrderDetail
-CREATE TRIGGER IF NOT EXISTS set_total
-AFTER INSERT ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE Orders
-    SET Total = (
-        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderID = NEW.OrderID
-    )
-    WHERE OrderID = NEW.OrderID;
-END;
-
--- Trigger to update the total value for an existing OrderDetail
-CREATE TRIGGER IF NOT EXISTS update_total
-AFTER UPDATE ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE Orders
-    SET Total = (
-        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderID = NEW.OrderID
-    )
-    WHERE OrderID = NEW.OrderID;
-END;
-
--- Trigger to update the total value for an existing OrderDetail
-CREATE TRIGGER IF NOT EXISTS delete_order_detail
-AFTER DELETE ON OrderDetails
-FOR EACH ROW
-BEGIN
-    UPDATE Orders
-    SET Total = (
-        SELECT SUM(SubTotal) FROM OrderDetails WHERE OrderID = OLD.OrderID
-    )
-    WHERE OrderID = OLD.OrderID;
-END;
-
-CREATE TRIGGER IF NOT EXISTS update_product_price
-AFTER UPDATE ON Products
-FOR EACH ROW
-BEGIN
-    UPDATE OrderDetails
-    SET Price = NEW.Price
-    WHERE ProductID = NEW.ProductID;
-END;
-
-INSERT INTO Customers (Name, Email) VALUES
+INSERT INTO customers (name, email) VALUES
     ('Alice Rodriguez', 'rodriguez.alice@example.com'),
     ('Bryan Patel', 'patel.bryan@example.com'),
     ('Cassandra Kim', 'kim.cassandra@example.com'),
@@ -178,7 +119,7 @@ INSERT INTO Customers (Name, Email) VALUES
     ('Yara Hassan', 'hassan.yara@example.com'),
     ('Zoe Perez', 'perez.zoe@example.com');
 
-INSERT INTO Products (Name, Price, Inventory) VALUES
+INSERT INTO products (name, price, inventory) VALUES
     ('Thingamabob', 5.00, 200),
     ('Doohickey', 15.00, 75),
     ('Whatchamacallit', 25.00, 50),
@@ -204,17 +145,27 @@ INSERT INTO Products (Name, Price, Inventory) VALUES
     ('Thingy', 7.00, 130),
     ('Doodadery', 17.00, 70);
 
-INSERT INTO Orders (CustomerID, OrderDate, Completed)
-SELECT CustomerID, DATE('now', '-' || (ABS(RANDOM()) % 30) || ' days'), False
-FROM Customers
+INSERT INTO orders (customer_id, date, completed)
+SELECT customer_id, DATE('now', '-' || (ABS(RANDOM()) % 30) || ' days'), 0
+FROM customers
 ORDER BY RANDOM() LIMIT 100;
 
-INSERT INTO OrderDetails (OrderID, ProductID, Quantity)
-SELECT O.OrderID, P.ProductID, (ABS(RANDOM()) % 10) + 1
-FROM Orders O
-JOIN (SELECT ProductID FROM Products ORDER BY RANDOM() LIMIT 25) P
+INSERT INTO order_details (order_id, product_id, quantity)
+SELECT O.order_id, P.product_id, (ABS(RANDOM()) % 10) + 1
+FROM orders O
+JOIN (SELECT product_id FROM products ORDER BY RANDOM() LIMIT 25) P
 ON 1=1
 ORDER BY 1;
+
+UPDATE order_details
+    SET price = (
+        SELECT products.price FROM products WHERE products.product_id = order_details.product_id
+);
+
+UPDATE orders
+    SET total = (
+        SELECT SUM(subtotal) FROM order_details WHERE order_details.order_id = orders.order_id
+);
 """
 
 # -------------------------
@@ -230,27 +181,38 @@ menu_def = [
 # fmt: on
 layout = [[sg.Menu(menu_def, key="-MENUBAR-", font="_ 12")]]
 
-# Define the columns for the table selector using the TableHeading class.
-order_heading = ss.TableHeadings(
-    # Click a heading to sort
-    sort_enable=True,
-    # Double-click a cell to make edits.
+# Set our universal table options
+table_style = ss.TableStyler(
+    row_height=25,
+    expand_x=True,
+    expand_y=True,
+    frame_pack_kwargs={"expand": True, "fill": "both"},
+)
+
+# Define the columns for the table selector using the Tabletable class.
+order_table = ss.TableBuilder(
+    num_rows=5,
+    sort_enable=True,  # Click a table to sort
+    allow_cell_edits=True,  # Double-click a cell to make edits.
     # Exempted: Primary Key columns, Generated columns, and columns set as readonly
-    edit_enable=True,
-    # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
-    save_enable=True,
-    # Filter rows as you type in the search input
-    apply_search_filter=True,
+    apply_search_filter=True,  # Filter rows as you type in the search input
+    lazy_loading=True,  # For larger DataSets, inserts slice of rows. See `LazyTable`
+    add_save_heading_button=True,  # Click 💾 in sg.Table Heading to trigger DataSet.save_record()
+    style=table_style,
 )
 
 # Add columns
-order_heading.add_column(column="OrderID", heading_column="ID", width=5)
-order_heading.add_column("CustomerID", "Customer", 30)
-order_heading.add_column("OrderDate", "Date", 20)
-order_heading.add_column(
-    "Total", "Total", width=10, readonly=True
-)  # set to True to disable editing for individual columns!)
-order_heading.add_column("Completed", "✔", 8)
+order_table.add_column(column="order_id", heading="ID", width=5)
+order_table.add_column("customer_id", "Customer", 30)
+order_table.add_column("date", "Date", 20)
+order_table.add_column(
+    column="total",
+    heading="Total",
+    width=10,
+    readonly=True,  # set to True to disable editing for individual columns!
+    col_justify="right",  # default, "left". Available: "left", "right", "center"
+)
+order_table.add_column("completed", "✔", 8)
 
 # Layout
 layout.append(
@@ -258,47 +220,55 @@ layout.append(
         [sg.Text("Orders", font="_16")],
         [
             ss.selector(
-                "Orders",
-                sg.Table,
-                num_rows=5,
-                headings=order_heading,
-                row_height=25,
+                "orders",
+                order_table,
             )
         ],
-        [ss.actions("Orders")],
+        [ss.actions("orders")],
         [sg.Sizer(h_pixels=0, v_pixels=20)],
     ]
 )
 
-# OrderDetails TableHeadings:
-details_heading = ss.TableHeadings(sort_enable=True, edit_enable=True, save_enable=True)
-details_heading.add_column("ProductID", "Product", 30)
-details_heading.add_column("Quantity", "Quantity", 10)
-details_heading.add_column("Price", "Price/Ea", 10, readonly=True)
-details_heading.add_column("SubTotal", "SubTotal", 10)
+# order_details TableBuilder:
+details_table = ss.TableBuilder(
+    num_rows=10,
+    sort_enable=True,
+    allow_cell_edits=True,
+    add_save_heading_button=True,
+    style=table_style,
+)
+details_table.add_column("product_id", "Product", 30)
+details_table.add_column("quantity", "Quantity", 10, col_justify="right")
+details_table.add_column("price", "Price/Ea", 10, readonly=True, col_justify="right")
+details_table.add_column("subtotal", "Subtotal", 10, readonly=True, col_justify="right")
 
 orderdetails_layout = [
     [sg.Sizer(h_pixels=0, v_pixels=10)],
-    [ss.field("Orders.CustomerID", sg.Combo, label="Customer")],
     [
-        ss.field("Orders.OrderDate", label="Date"),
-    ],
-    [ss.field("Orders.Completed", sg.Checkbox, default=False)],
-    [
-        ss.selector(
-            "OrderDetails",
-            sg.Table,
-            num_rows=10,
-            headings=details_heading,
-            row_height=25,
+        ss.field(
+            "orders.customer_id",
+            sg.Combo,
+            label="Customer",
+            quick_editor_kwargs=quick_editor_kwargs,
         )
     ],
-    [ss.actions("OrderDetails", default=False, save=True, insert=True, delete=True)],
-    [ss.field("OrderDetails.ProductID", sg.Combo)],
-    [ss.field("OrderDetails.Quantity")],
-    [ss.field("OrderDetails.Price", sg.Text)],
-    [ss.field("OrderDetails.SubTotal", sg.Text)],
+    [
+        ss.field("orders.date", label="Date"),
+    ],
+    [ss.field("orders.completed", sg.Checkbox, default=False)],
+    [
+        ss.selector(
+            "order_details",
+            details_table,
+        )
+    ],
+    [ss.actions("order_details", default=False, save=True, insert=True, delete=True)],
+    [ss.field("order_details.product_id", sg.Combo)],
+    [ss.field("order_details.quantity")],
+    [ss.field("order_details.price", sg.Text)],
+    [ss.field("order_details.subtotal", sg.Text)],
     [sg.Sizer(h_pixels=0, v_pixels=10)],
+    [sg.StatusBar(" " * 100, key="info_msg", metadata={"type": ss.ElementType.INFO})],
 ]
 
 layout.append([sg.Frame("Order Details", orderdetails_layout, expand_x=True)])
@@ -313,12 +283,6 @@ win = sg.Window(
     icon=ss.themepack.icon,
 )
 
-# Expand our sg.Tables so they fill the screen
-win["Orders:selector"].expand(True, True)
-win["Orders:selector"].table_frame.pack(expand=True, fill="both")
-win["OrderDetails:selector"].expand(True, True)
-win["OrderDetails:selector"].table_frame.pack(expand=True, fill="both")
-
 # Init pysimplesql Driver and Form
 # --------------------------------
 
@@ -329,17 +293,46 @@ frm = ss.Form(
     bind_window=win,
     live_update=True,  # this updates the `Selector`, sg.Table as we type in fields.
 )
-
 # Few more settings
 # -----------------
 
 frm.edit_protect()  # Comment this out to edit protect when the window is created.
-# Reverse the default sort order so Orders are sorted by date
-frm["Orders"].set_order_clause("ORDER BY OrderDate ASC")
+# Reverse the default sort order so orders are sorted by date
+frm["orders"].set_order_clause("ORDER BY date ASC")
 # Requery the data since we made changes to the sort order
-frm["Orders"].requery()
+frm["orders"].requery()
 # Set the column order for search operations.
-frm["Orders"].set_search_order(["CustomerID", "OrderID"])
+frm["orders"].set_search_order(["customer_id", "order_id"])
+
+
+# Application-side code to update orders `total`
+# when saving/deleting order_details line item
+# ----------------------------------------------
+def update_orders(frm_reference, window, data_key) -> bool:
+    if data_key == "order_details":
+        order_id = frm["order_details"]["order_id"]
+        driver.execute(
+            f"UPDATE orders "
+            f"SET total = ("
+            f"    SELECT SUM(subtotal)"
+            f"    FROM order_details"
+            f"    WHERE order_details.order_id = {order_id}) "
+            f"WHERE orders.order_id = {order_id};"
+        )
+        # do our own subtotal/total summing to avoid requerying
+        frm["order_details"]["subtotal"] = (
+            frm["order_details"]["price"] * frm["order_details"]["quantity"]
+        )
+        frm["orders"]["total"] = frm["order_details"].rows["subtotal"].sum()
+        frm["orders"].save_record(display_message=False)
+        frm.update_selectors("orders")
+        frm.update_selectors("ordersDetails")
+    return True
+
+
+# set this to be called after a save or delete of order_details
+frm["order_details"].set_callback("after_save", update_orders)
+frm["order_details"].set_callback("after_delete", update_orders)
 
 # ---------
 # MAIN LOOP
@@ -347,43 +340,44 @@ frm["Orders"].set_search_order(["CustomerID", "OrderID"])
 while True:
     event, values = win.read()
     if event == sg.WIN_CLOSED or event == "Exit":
-        frm.close()  # <= ensures proper closing of the sqlite database and runs a database optimization
+        frm.close()  # <= ensures proper closing of the sqlite database
         win.close()
         break
     # <=== let PySimpleSQL process its own events! Simple!
     elif ss.process_events(event, values):
         logger.info(f"PySimpleDB event handler handled the event {event}!")
-
-    # Code to automatically save and refresh OrderDetails:
+    # Code to automatically save and refresh order_details:
     # ----------------------------------------------------
     elif (
-        "current_row_updated" in event
-        and values["current_row_updated"]["data_key"] == "OrderDetails"
+        "after_record_edit" in event
+        and values["after_record_edit"]["data_key"] == "order_details"
     ):
-        dataset = frm["OrderDetails"]
-        current_row = dataset.get_current_row()
-        # after a product and quantity is entered, save and requery
+        dataset = frm["order_details"]
+        current_row = dataset.current.get()
+        # after a product and quantity is entered, grab price & save
         if (
             dataset.row_count
-            and current_row["ProductID"] not in [None, ss.PK_PLACEHOLDER]
-            and current_row["Quantity"]
+            and current_row["product_id"] not in [None, ss.PK_PLACEHOLDER]
+            and current_row["quantity"] not in ss.EMPTY
         ):
-            pk_is_virtual = dataset.pk_is_virtual()
+            # get product_id
+            product_id = current_row["product_id"]
+            # get products rows df reference
+            product_df = frm["products"].rows
+            # set current rows 'price' to match price as matching product_id
+            dataset["price"] = product_df.loc[
+                product_df["product_id"] == product_id, "price"
+            ].to_numpy()[0]
+            # save the record
             dataset.save_record(display_message=False)
-            frm["Orders"].requery(select_first=False)
-            frm.update_selectors("Orders")
-            # will need to requery if updating, rather than inserting a new record
-            if not pk_is_virtual:
-                pk = current_row[dataset.pk_column]
-                dataset.requery(select_first=False)
-                dataset.set_by_pk(pk, skip_prompt_save=True)
+
     # ----------------------------------------------------
 
     # Display the quick_editor for products and customers
     elif "Edit Products" in event:
-        frm["Products"].quick_editor()
+        frm["products"].quick_editor()
     elif "Edit Customers" in event:
-        frm["Customers"].quick_editor()
+        frm["customers"].quick_editor(**quick_editor_kwargs)
     # call a Form-level save
     elif "Save" in event:
         frm.save_records()

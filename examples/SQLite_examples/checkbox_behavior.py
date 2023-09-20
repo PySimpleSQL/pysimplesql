@@ -32,15 +32,15 @@ VALUES (NULL,True,False,NULL,1,0,NULL,"True","False");
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Create a table heading object
-headings = ss.TableHeadings(sort_enable=True, edit_enable=True)
+table_builder = ss.TableBuilder(allow_cell_edits=True)
 
 # Add columns to the table heading
-headings.add_column('id', 'id', width=5)
+table_builder.add_column('id', 'id', width=5)
 
 columns = ['bool_none', 'bool_true', 'bool_false', 'int_none', 'int_true', 'int_false', 'text_none', 'text_true', 'text_false']
 
 for col in columns:
-    headings.add_column(col, col, width=8)
+    table_builder.add_column(col, col, width=8)
 
 fields = []
 for col in columns:
@@ -50,7 +50,7 @@ layout = [
     [sg.Text('This test shows pysimplesql checkbox behavior.')],
     [sg.Text('Each column is labeled as type: bool=BOOLEAN, int=INTEGER, text=TEXT')],
     [sg.Text("And the DEFAULT set for new records, no default set, True,1,'True', or False,0,'False'")],
-    [ss.selector('checkboxes', sg.Table, num_rows=10, headings=headings, row_height=25)],
+    [ss.selector('checkboxes', table_builder, row_height=25)],
     [ss.actions('checkboxes', edit_protect=False)],
     fields,
 ]

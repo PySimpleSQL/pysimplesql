@@ -6,7 +6,7 @@ import docker.errors
 import pytest
 
 import pysimplesql as ss
-from pysimplesql.docker_utils import *  # noqa F403
+from pysimplesql.docker_utils import *
 
 # ruff: noqa
 
@@ -165,7 +165,7 @@ def test_connect(driver):
     ],
     indirect=True,
 )
-def test_close(driver):
+def test_close(driver) -> None:
     # Close the driver
     driver.close()
 
@@ -189,7 +189,7 @@ def test_close(driver):
     ],
     indirect=True,
 )
-def test_create_table(driver: ss.SQLDriver):
+def test_create_table(driver: ss.SQLDriver) -> None:
     driver_class = driver.__class__
     # Create
     table = "TestAaBb123"

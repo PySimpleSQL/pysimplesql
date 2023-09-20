@@ -1,3 +1,0 @@
-# Reference
-
-::: pysimplesql.pysimplesql

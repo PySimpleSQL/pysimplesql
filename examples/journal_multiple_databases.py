@@ -27,14 +27,14 @@ win.close()
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.  This will also allow sorting!
-headings = ss.TableHeadings(sort_enable=True)
-headings.add_column('title', 'Title', width=40)
-headings.add_column('entry_date', 'Date', width=10)
-headings.add_column('mood_id', 'Mood', width=20)
+table_builder = ss.TableBuilder(num_rows=10)
+table_builder.add_column('title', 'Title', width=40)
+table_builder.add_column('entry_date', 'Date', width=10)
+table_builder.add_column('mood_id', 'Mood', width=20)
 
 layout = [
     [sg.Text('Selected driver: '), sg.Text('', key='driver')],
-    [ss.selector('Journal', sg.Table, num_rows=10, headings=headings)],
+    [ss.selector('Journal', table_builder)],
     [ss.actions('Journal')],
     [ss.field('Journal.entry_date'), sg.CalendarButton("Select Date", close_when_date_chosen=True,
                                                        target="Journal.entry_date",  # <- target matches field() name
@@ -104,5 +104,5 @@ Learnings from this example:
 - using Form.field() and Form.selector() functions for easy GUI element creation
 - using the label keyword argument to Form.record() to define a custom label
 - using Tables as Form.selector() element types
-- Using the TableHeadings() function to define sortable table headings
+- Using the TableBuilder() function to define sortable table headings
 """

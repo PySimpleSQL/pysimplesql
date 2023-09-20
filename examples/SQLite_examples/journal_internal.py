@@ -17,7 +17,7 @@ DROP TABLE IF EXISTS Mood;
 CREATE TABLE Journal(
     "id"            INTEGER NOT NULL PRIMARY KEY,
     "title"         TEXT DEFAULT 'New Entry',
-    "entry_date"    INTEGER NOT NULL DEFAULT (date('now')),
+    "entry_date"    DATE NOT NULL DEFAULT (date('now')),
     "mood_id"       INTEGER NOT NULL,
     "entry"         TEXT,
     FOREIGN KEY (mood_id) REFERENCES Mood(id) --This line is important to the automatic functionality of PySimpleSQL~
@@ -49,16 +49,18 @@ INSERT INTO Journal (id, mood_id, title, entry) VALUES (12, 4, 'I Found the Solu
 # CREATE PYSIMPLEGUI LAYOUT
 # -------------------------
 # Define the columns for the table selector using the TableHeading convenience class.
-headings = ss.TableHeadings(
+table_builder = ss.TableBuilder(
+    num_rows = 10,
     sort_enable=True, # Click a header to sort
-    edit_enable=True # Double-click a cell to make edits
+    allow_cell_edits=True, # Double-click a cell to make edits
+    style=ss.TableStyler(row_height=25)
     )
-headings.add_column('title', 'Title', width=40)
-headings.add_column('entry_date', 'Date', width=10)
-headings.add_column('mood_id', 'Mood', width=20)
+table_builder.add_column('title', 'Title', width=40)
+table_builder.add_column('entry_date', 'Date', width=10)
+table_builder.add_column('mood_id', 'Mood', width=20)
 
 layout = [
-    [ss.selector('Journal', sg.Table, num_rows=10, headings=headings, row_height=25)],
+    [ss.selector('Journal', table_builder)],
     [ss.actions('Journal')],
     [ss.field('Journal.entry_date'),
         sg.CalendarButton(

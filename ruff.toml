@@ -1,3 +1,4 @@
+target-version = "py38"
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
 select = [
     "F", #Pyflakes
@@ -5,19 +6,19 @@ select = [
     "W", #pycodestyle Warning
 #     "C90", #mccabe
     "I", #isort
-#     "N", #pep8-naming
-#     "D", #pydocstyle
+    "N", #pep8-naming
+    "D", #pydocstyle
 #     "UP", #pyupgrade
     "YTT", #flake8-2020
 #     "ANN", #flake8-annotations
 #     "S", #flake8-bandit
     "BLE", #flake8-blind-except
 #     "FBT", #flake8-boolean-trap
-#     "B", #flake8-bugbear
+    "B", #flake8-bugbear
 #     "A", #flake8-builtins
-#     "COM", #flake8-commas
-#     "C4", #flake8-comprehensions
-#     "DTZ", #flake8-datetimez
+#     "COM", #flake8-commas # DONT
+    "C4", #flake8-comprehensions
+#     "DTZ", #flake8-datetimez # TODO
     "T10", #flake8-debugger
     "DJ", #flake8-django
 #     "EM", #flake8-errmsg
@@ -26,7 +27,7 @@ select = [
 #     "ICN", #flake8-import-conventions
 #     "G", #flake8-logging-format
 #     "INP", #flake8-no-pep420
-#     "PIE", #flake8-pie
+    "PIE", #flake8-pie
 #     "T20", #flake8-print
     "PYI", #flake8-pyi
     "PT", #flake8-pytest-style
@@ -40,20 +41,25 @@ select = [
 #     "ARG", #flake8-unused-arguments
 #     "PTH", #flake8-use-pathlib
 #     "ERA", #eradicate
-#     "PD", #pandas-vet
-#     "PGH", #pygrep-hooks
+    "PD", #pandas-vet
+#     "PGH", #pygrep-hooks # DONT
     "PLC", #Pylint Convention
     "PLE", #Pylint Error
 #     "PLR", #Pylint Refactor
     "PLW", #Pylint Warning
 #     "TRY", #tryceratops
-#     "NPY", #NumPy-specific rules
-#     "RUF", #Ruff-specific rules
+    "NPY", #NumPy-specific rules
+    "RUF", #Ruff-specific rules
     ] 
 ignore = [
-    "D211", #No blank lines allowed before class docstring
-    "D212", #Multi-line docstring summary should start at the first line
-    # Will do below later
+    "D101",
+    "D102",
+    "D105",
+    "D205",
+    "PLC1901", #We compare to "" alot, and for good reason.
+    "N813", # ignore Camelcase `PySimpleGUI` imported as lowercase `sg`
+    "B905", # py310,  `zip()` without an explicit `strict=` parameter
+    "RUF013", #TODO, way it autofixes is '|', should use Union
     ]
 
 [per-file-ignores]
@@ -63,8 +69,14 @@ ignore = [
     "F405",
     "SIM102",
     "I",
+    "D",
     ]
-"doc_examples/*" = ["F821"]
+"doc_examples/*" = ["ALL"]
+"doc_scripts/*" = ["ALL"]
 "tests/*" = ["BLE001", "F405", "PT011", "PT012", "PT015", "PT017", "SIM114"]
 "pysimplesql/language_pack.py" = ["E501"]
 "pysimplesql/theme_pack.py" = ["E501"]
+"pysimplesql/reserved_sql_keywords.py" = ["C405"]
+
+[pydocstyle]
+convention = "google"

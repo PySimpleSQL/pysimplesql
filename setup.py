@@ -1,4 +1,4 @@
-"Setup script for pysimplesql"
+"""Setup script for pysimplesql."""
 
 import os
 
@@ -6,11 +6,17 @@ from setuptools import find_packages, setup
 
 
 def read(fname):
+    """Utility function to read the README file.
+
+    Used for the long_description. It's nice, because now 1) we have a top level
+    README file and 2) it's easier to type in the README file than to put a raw
+    string in below
+    """
     return open(os.path.join(os.path.dirname(__file__), fname)).read()  # noqa: SIM115
 
 
-def main():
-    "Executes setup when this script is the top-level"
+def main() -> None:
+    """Executes setup when this script is the top-level."""
     import pysimplesql as app
 
     setup(
@@ -28,11 +34,11 @@ def main():
         install_requires=app.__requires__,
         extras_require=app.__extra_requires__,
         classifiers=app.__classifiers__,
-        license=[
+        license=next(
             c.rsplit("::", 1)[1].strip()
             for c in app.__classifiers__
             if c.startswith("License ::")
-        ][0],
+        ),
         include_package_data=True,
         platforms=app.__platforms__,
     )

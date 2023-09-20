@@ -22,7 +22,7 @@ except ModuleNotFoundError:
 # Note in the code later in this file, that you can choose to either:
 # 1) thumbnail the image prior to saving, so that you never store a large image in the database
 # 2) thumbnail the image only for display purposes, storing the full resolution image in the database
-def thumbnail(image_data, size=(320, 240)):
+def thumbnail(image_data, size: int=(320, 240)):
     img = Image.open(BytesIO(image_data))
     img.thumbnail(size)
     with BytesIO() as output:
@@ -72,7 +72,7 @@ frm = ss.Database(driver, win)
 # Another callback to update the sg.Image element when the elements update
 
 # first callback for encoding before saving to the database
-def encode_image():
+def encode_image() -> bool:
     if not win['image_path'].get():
         return False
     with open(win['image_path'].get(), 'rb') as file:
@@ -89,7 +89,7 @@ frm['Image'].set_callback('before_save', encode_image)
 
 
 # Second callback updates the sg.Image element with the image data
-def update_display(frm: ss.Form, win: sg.Window):
+def update_display(frm: ss.Form, win: sg.Window) -> None:
     # Handle case where there are no records
     visible = len(frm["Image"].rows) == 0
     win['no_records'].update(visible=visible)
