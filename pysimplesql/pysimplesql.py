@@ -407,7 +407,7 @@ class CellFormatFn:
         )
 
     @staticmethod
-    def decimal_places(val: Union[int, float, Decimal], decimal_places: int):
+    def decimal_places(val: Union[float, Decimal], decimal_places: int):
         """Format the value to specified decimal places using the system locale."""
         format_string = f"%.{decimal_places}f"
         if val not in EMPTY:
@@ -5389,7 +5389,7 @@ class ProgressAnimate:
         if config is None:
             config = {}
 
-        if type(config) is not dict:
+        if not isinstance(config, dict):
             raise ValueError("config must be a dictionary")
 
         if set(config.keys()) - set(default_config.keys()):
@@ -5405,7 +5405,7 @@ class ProgressAnimate:
                 raise ValueError(f"{k} must contain all of {required_keys}")
 
         if "phrases" in config:
-            if type(config["phrases"]) is not list:
+            if not isinstance(config["phrases"], list):
                 raise ValueError("phrases must be a list")
             if not all(isinstance(v, str) for v in config["phrases"]):
                 raise ValueError("phrases must be a list of strings")
@@ -5739,7 +5739,7 @@ class LazyTable(sg.Table):
             return
 
         # update total list
-        self.values = values  # noqa PD011
+        self.values = values  # PD011
         # Update current_index with the selected index
         self.current_index = select_rows[0] if select_rows else 0
 
@@ -5835,7 +5835,7 @@ class LazyTable(sg.Table):
         # determine slice
         num_rows = min(self._start_index, self.insert_qty)
         new_start_index = max(0, self._start_index - num_rows)
-        new_rows = self.values[new_start_index : self._start_index]  # noqa PD011
+        new_rows = self.values[new_start_index : self._start_index]  # PD011
 
         # insert
         for row in reversed(new_rows):
@@ -5862,7 +5862,7 @@ class LazyTable(sg.Table):
         # determine slice
         start_index = max(0, self._end_index)
         end_index = min(self._end_index + self.insert_qty, num_rows)
-        new_rows = self.values[start_index:end_index]  # noqa PD011
+        new_rows = self.values[start_index:end_index]  # PD011
 
         # insert
         for row in new_rows:
@@ -6666,7 +6666,7 @@ def field(
             "filter": filter,
             "quick_editor_kwargs": quick_editor_kwargs,
         }
-        if type(themepack.quick_edit) is bytes:
+        if isinstance(themepack.quick_edit, bytes):
             layout[-1].append(
                 sg.B(
                     "",
@@ -6790,7 +6790,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.edit_protect) is bytes:
+        if isinstance(themepack.edit_protect, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -6824,7 +6824,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.save) is bytes:
+        if isinstance(themepack.save, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -6853,7 +6853,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.first) is bytes:
+        if isinstance(themepack.first, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -6887,7 +6887,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.previous) is bytes:
+        if isinstance(themepack.previous, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -6921,7 +6921,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.next) is bytes:
+        if isinstance(themepack.next, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -6955,7 +6955,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.last) is bytes:
+        if isinstance(themepack.last, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -6989,7 +6989,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.duplicate) is bytes:
+        if isinstance(themepack.duplicate, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -7023,7 +7023,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.insert) is bytes:
+        if isinstance(themepack.insert, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -7057,7 +7057,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.delete) is bytes:
+        if isinstance(themepack.delete, bytes):
             layout.append(
                 sg.B(
                     "",
@@ -7091,7 +7091,7 @@ def actions(
             "Form": None,
             "filter": filter,
         }
-        if type(themepack.search) is bytes:
+        if isinstance(themepack.search, bytes):
             layout += [
                 _SearchInput(
                     "", key=keygen.get(f"{key}search_input"), size=search_size
@@ -7758,7 +7758,7 @@ class _CellEdit:
             expand = True
 
         if widget_type == TK_DATEPICKER:
-            text = dt.date.today() if type(text) is str else text
+            text = dt.date.today() if isinstance(text, str) else text
             self.field = _DatePicker(
                 frame,
                 self.frm[data_key],
@@ -8810,9 +8810,9 @@ class IntCol(LocaleCol, LengthCol, MinMaxCol):
             return int(value)
         try:
             value = self.strip_locale(value)
-            if type(value) is str:
+            if isinstance(value, str):
                 value = float(value)
-            if type(value) is float:
+            if isinstance(value, float):
                 int_value = int(value)
                 if value == int_value or self.truncate_decimals:
                     return int_value
@@ -9918,7 +9918,7 @@ class Sqlite(SQLDriver):
         database: Union[
             str,
             Path,
-            Literal[":memory:"],
+            Literal[":memory:"], # noqa: PYI051
             sqlite3.Connection,
         ] = None,
         *,
