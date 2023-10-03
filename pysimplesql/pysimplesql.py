@@ -434,8 +434,8 @@ class TableRow(list):
         return str(self[:])
 
     def __int__(self) -> int:
-        if isinstance(self.pk, np.int64):
-            return self.pk.tolist()
+        if isinstance(self.pk, (np.int64, np.float64)):
+            return int(self.pk.tolist())
         return self.pk
 
     def __repr__(self) -> str:
@@ -462,8 +462,8 @@ class ElementRow:
         return str(self.val)
 
     def __int__(self) -> int:
-        if isinstance(self.pk, np.int64):
-            return self.pk.tolist()
+        if isinstance(self.pk, (np.int64, np.float64)):
+            return int(self.pk.tolist())
         return self.pk
 
     def get_pk(self):
@@ -9150,7 +9150,7 @@ class Result:
             exception: Exceptions passed back from the SQLDriver
             column_info: (optional) ColumnInfo object
         """
-        rows = pd.DataFrame(row_data, dtype=object)
+        rows = pd.DataFrame(row_data)
         rows.attrs["lastrowid"] = lastrowid
         rows.attrs["exception"] = exception
         rows.attrs["column_info"] = column_info
