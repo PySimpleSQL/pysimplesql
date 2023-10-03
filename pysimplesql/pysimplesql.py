@@ -7405,7 +7405,7 @@ class TableBuilder(list):
             heading_justify = self.style.justification
         self._heading_justify_map.append(heading_justify)
 
-        self._visible_map.append(visible)
+        self._visible_map.append((column, visible))
         if readonly:
             self.readonly_columns.append(column)
 
@@ -7502,7 +7502,12 @@ class TableBuilder(list):
             a list of visible columns for use with th PySimpleGUI Table
             visible_column_map parameter
         """
-        return list(self._visible_map)
+        return list(visible for _, visible in self._visible_map)
+    
+    @property
+    def visible_columns(self) -> List[str]:
+        """List of column names that are set as visible"""
+        return list(name for name, visible in self._visible_map if visible)
 
     @property
     def width_map(self) -> List[int]:
@@ -7657,20 +7662,21 @@ class _CellEdit:
         # get table_builders
         table_builder = element.metadata["TableBuilder"]
 
-        # get column name
-        columns = table_builder.columns
-        column = columns[col_idx - 1]
-
         # use table_element to distinguish
         table_element = element.Widget
         root = table_element.master
 
-        # get text, coordinates, width and height
-        x, y, width, height = table_element.bbox(row, col_idx)
-        text = self.frm[data_key][column]
+        # get column name
+        columns = [None]
+        columns.extend(table_builder.visible_columns)
+        column = columns[col_idx]
 
         # return early due to following conditions:
         if col_idx == 0:
+            return
+        
+        if column not in table_builder.visible_columns:
+            logger.debug(f"{column} is not visible")
             return
 
         if column in table_builder.readonly_columns:
@@ -7691,6 +7697,16 @@ class _CellEdit:
 
         # else, we can continue:
         self.active_edit = True
+
+        # calculate correct idx (if there is hidden column before this column)
+        idx_columns = table_builder.visible_columns.index(column)
+        idx_visible = table_builder.columns.index(column)
+        offset = idx_visible - idx_columns
+        col_idx = col_idx + offset
+
+        # get text, coordinates, width and height
+        x, y, width, height = table_element.bbox(row, col_idx)
+        text = self.frm[data_key][column]
 
         # see if we should use a combobox
         combobox_values = self.frm[data_key].combobox_values(
