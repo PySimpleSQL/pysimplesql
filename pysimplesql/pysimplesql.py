@@ -456,7 +456,7 @@ class ElementRow:
         self.val = val
 
     def __repr__(self) -> str:
-        return str(self.val)
+        return f"ElementRow(pk={self.pk}): {self.val}"
 
     def __str__(self) -> str:
         return str(self.val)
@@ -9134,7 +9134,7 @@ class Result:
             exception: Exceptions passed back from the SQLDriver
             column_info: (optional) ColumnInfo object
         """
-        rows = pd.DataFrame(row_data)
+        rows = pd.DataFrame(row_data, dtype=object)
         rows.attrs["lastrowid"] = lastrowid
         rows.attrs["exception"] = exception
         rows.attrs["column_info"] = column_info
