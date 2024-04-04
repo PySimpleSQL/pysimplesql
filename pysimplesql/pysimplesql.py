@@ -7504,12 +7504,12 @@ class TableBuilder(list):
             a list of visible columns for use with th PySimpleGUI Table
             visible_column_map parameter
         """
-        return list(visible for _, visible in self._visible_map)
-    
+        return [visible for _, visible in self._visible_map]
+
     @property
     def visible_columns(self) -> List[str]:
-        """List of column names that are set as visible"""
-        return list(name for name, visible in self._visible_map if visible)
+        """List of column names that are set as visible."""
+        return [name for name, visible in self._visible_map if visible]
 
     @property
     def width_map(self) -> List[int]:
@@ -7676,7 +7676,7 @@ class _CellEdit:
         # return early due to following conditions:
         if col_idx == 0:
             return
-        
+
         if column not in table_builder.visible_columns:
             logger.debug(f"{column} is not visible")
             return
