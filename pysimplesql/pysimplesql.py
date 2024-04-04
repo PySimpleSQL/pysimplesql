@@ -2409,7 +2409,7 @@ class DataSet:
         self.driver.commit()
 
         # Sort so the saved row honors the current order.
-        if "sort_column" in self.rows.attrs and self.rows.attrs["sort_column"]:
+        if self.rows.attrs.get("sort_column"):
             self.sort(self.table)
 
         # Discard backup
