@@ -2409,7 +2409,7 @@ class DataSet:
         self.driver.commit()
 
         # Sort so the saved row honors the current order.
-        if "sort_column" in self.rows.attrs and self.rows.attrs["sort_column"]:
+        if self.rows.attrs.get("sort_column"):
             self.sort(self.table)
 
         # Discard backup
@@ -2706,7 +2706,9 @@ class DataSet:
 
     @property
     def virtual_pks(self):
-        return self.rows.attrs["virtual"]
+        if "virtual" in self.rows.attrs:
+            return self.rows.attrs["virtual"]
+        return []
 
     def pk_is_virtual(self, pk: int = None) -> bool:
         """Check whether pk is virtual.
@@ -7502,12 +7504,12 @@ class TableBuilder(list):
             a list of visible columns for use with th PySimpleGUI Table
             visible_column_map parameter
         """
-        return list(visible for _, visible in self._visible_map)
-    
+        return [visible for _, visible in self._visible_map]
+
     @property
     def visible_columns(self) -> List[str]:
-        """List of column names that are set as visible"""
-        return list(name for name, visible in self._visible_map if visible)
+        """List of column names that are set as visible."""
+        return [name for name, visible in self._visible_map if visible]
 
     @property
     def width_map(self) -> List[int]:
@@ -7674,7 +7676,7 @@ class _CellEdit:
         # return early due to following conditions:
         if col_idx == 0:
             return
-        
+
         if column not in table_builder.visible_columns:
             logger.debug(f"{column} is not visible")
             return
