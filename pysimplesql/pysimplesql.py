@@ -2706,7 +2706,9 @@ class DataSet:
 
     @property
     def virtual_pks(self):
-        return self.rows.attrs["virtual"]
+        if "virtual" in self.rows.attrs:
+            return self.rows.attrs["virtual"]
+        return []
 
     def pk_is_virtual(self, pk: int = None) -> bool:
         """Check whether pk is virtual.
